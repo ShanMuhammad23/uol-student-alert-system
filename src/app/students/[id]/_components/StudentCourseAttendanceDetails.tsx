@@ -41,7 +41,11 @@ export function StudentCourseAttendanceDetails({
     selectedLabel,
   } = useMemo(() => {
     if (!enrollmentRecords.length || !attendanceSummaries) {
-      return { selectedSummary: null, selectedClassAvg: null, selectedLabel: null };
+      return {
+        selectedSummary: null,
+        selectedClassAvg: null,
+        selectedLabel: null,
+      };
     }
 
     let target: EnrollmentRecord | null = null;
@@ -62,7 +66,11 @@ export function StudentCourseAttendanceDetails({
       target = enrollmentRecords[0] ?? null;
     }
     if (!target) {
-      return { selectedSummary: null, selectedClassAvg: null, selectedLabel: null };
+      return {
+        selectedSummary: null,
+        selectedClassAvg: null,
+        selectedLabel: null,
+      };
     }
 
     const key = getEnrollmentAttendanceKey(target);
@@ -74,14 +82,24 @@ export function StudentCourseAttendanceDetails({
     const summary = attendanceSummaries.get(key) ?? null;
     const classAvg =
       classAverageByCourseSection.get(monitorKey ?? "") ?? null;
-
     const label = `${target.CrTitle ?? target.CrCode ?? "Course"}${
       target.Section ? ` (${target.Section})` : ""
     }`;
 
-    return { selectedSummary: summary, selectedClassAvg: classAvg, selectedLabel: label };
-  }, [attendanceSummaries, classAverageByCourseSection, enrollmentRecords, selectedCourseCode, selectedSection]);
+    return {
+      selectedSummary: summary,
+      selectedClassAvg: classAvg,
+      selectedLabel: label,
+    };
+  }, [
+    attendanceSummaries,
+    classAverageByCourseSection,
+    enrollmentRecords,
+    selectedCourseCode,
+    selectedSection,
+  ]);
 
+  // Prefer per-course attendance metrics when available; otherwise fall back to overall.
   const displayTotalHeld =
     selectedSummary?.totalHeld ?? overallAttendance.total_classes_held;
   const displayAttended =
@@ -130,8 +148,8 @@ export function StudentCourseAttendanceDetails({
                     comparison >= 0 ? "text-emerald-600" : "text-red-500",
                   )}
                 >
-                  ({comparison >= 0 ? "+" : ""}
-                  {comparison.toFixed(1)}% vs class avg)
+                  Deviation: {comparison >= 0 ? "+" : ""}
+                  {comparison.toFixed(1)}% vs class avg
                 </span>
               )}
             </div>
