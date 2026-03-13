@@ -11,17 +11,15 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { EnrollmentRecord } from "@/lib/enrollment";
-import { useMonitoringStudents } from "@/hooks/useMonitoringStudents";
 import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
 import { StudentProfileLink } from "./StudentProfileLink";
 import { TopChannelsSkeleton } from "./skeleton";
 import {
-  getAttendanceSummariesForEnrollments,
   getEnrollmentAttendanceKey,
-  type AttendanceSummary,
   getAttendanceAlertLevel,
   normalizeCourseCode,
 } from "@/lib/attendance-utils";
+import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import type { AlertDimensionFilter } from "@/app/(home)/dashboard/fetch";
 
 type Props = {
@@ -77,10 +75,6 @@ export function TopChannelsTableClient({
   >(null);
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(50);
   const [currentPage, setCurrentPage] = useState(1);
-  const [attendanceSummaries, setAttendanceSummaries] = useState<
-    Map<string, AttendanceSummary> | null
-  >(null);
-  const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
 
   // Track previous prop data to detect actual changes
   const prevPropDataRef = useRef<EnrollmentRecord[] | null | undefined>(null);
@@ -97,19 +91,12 @@ export function TopChannelsTableClient({
   // Use deduplicated data when prop is provided, otherwise use fetched state
   const displayEnrollments = hasPropData ? deduplicatedPropData : enrollments;
 
-  const { data: monitoringData } = useMonitoringStudents();
-
-  const monitoredByCourseSection = useMemo(() => {
-    const map = new Map<string, number>();
-    const classes = monitoringData?.classes ?? [];
-    for (const c of classes) {
-      const key = `${normalizeCourseCode(
-        typeof c.CrCode === "string" ? c.CrCode : String(c.CrCode ?? "")
-      )}__${c.SecCode ?? ""}`;
-      map.set(key, (map.get(key) ?? 0) + (c.Att ?? 0));
-    }
-    return map;
-  }, [monitoringData]);
+  const {
+    attendanceSummaries,
+    classAverageByCourseSection,
+    monitoredByCourseSection,
+    isAttendanceLoading,
+  } = useAttendanceAlerts(displayEnrollments);
 
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -258,26 +245,6 @@ export function TopChannelsTableClient({
     };
   }, [enrollmentDataProp]);
 
-  useEffect(() => {
-    const rows = displayEnrollments;
-    if (!rows.length) {
-      setAttendanceSummaries(null);
-      return;
-    }
-
-    setIsAttendanceLoading(true);
-    getAttendanceSummariesForEnrollments(rows, monitoredByCourseSection)
-      .then((map) => {
-        setAttendanceSummaries(map);
-      })
-      .catch(() => {
-        setAttendanceSummaries(null);
-      })
-      .finally(() => {
-        setIsAttendanceLoading(false);
-      });
-  }, [displayEnrollments, monitoredByCourseSection]);
-
   // Calculate student count per course
   const courseIdToStudentCount = useMemo(() => {
     const map = new Map<string, number>();
@@ -289,33 +256,6 @@ export function TopChannelsTableClient({
   }, [displayEnrollments]);
 
   const [searchQuery, setSearchQuery] = useState("");
-
-  const classAverageByCourseSection = useMemo(() => {
-    const map = new Map<string, number>();
-    const counts = new Map<string, number>();
-    if (!attendanceSummaries) return map;
-
-    for (const row of displayEnrollments) {
-      const sectionKey = `${normalizeCourseCode(
-        typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? "")
-      )}__${row.Section ?? ""}`;
-      const attKey = getEnrollmentAttendanceKey(row);
-      const summary = attendanceSummaries.get(attKey);
-      if (!summary) continue;
-
-      const prevSum = map.get(sectionKey) ?? 0;
-      const prevCount = counts.get(sectionKey) ?? 0;
-      map.set(sectionKey, prevSum + summary.percentage);
-      counts.set(sectionKey, prevCount + 1);
-    }
-
-    for (const [key, sum] of map.entries()) {
-      const count = counts.get(key) ?? 1;
-      map.set(key, sum / count);
-    }
-
-    return map;
-  }, [attendanceSummaries, displayEnrollments]);
 
   const filteredAndSortedEnrollments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();

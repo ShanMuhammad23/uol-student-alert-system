@@ -247,6 +247,7 @@ function EnrollmentDashboardInner({
                         : undefined
                   }
                   stats={departmentStats}
+                  enrollmentData={filteredData ?? []}
                   onSelectDepartmentId={(id) =>
                     setLocalMasterFilter({
                       department_ids: [id],
@@ -278,6 +279,7 @@ function EnrollmentDashboardInner({
                         : undefined
                   }
                   stats={programStats}
+                  enrollmentData={filteredData ?? []}
                   onSelectProgramId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,
@@ -297,7 +299,8 @@ function EnrollmentDashboardInner({
                   selectedInstructorId={
                     localMasterFilter.instructor_ids?.[0] ?? instructorIds[0]
                   }
-                  stats={instructorStats}
+                stats={instructorStats}
+                enrollmentData={filteredData ?? []}
                   onSelectInstructorId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,
