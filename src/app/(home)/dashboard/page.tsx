@@ -134,12 +134,12 @@ export default async function Home({ searchParams }: PropsType) {
       <InterventionStatusChart
             data={interventionChart.data}
             statusColors={interventionChart.statusColors}
-            title="Outreach & Intervention Status"
+            title="Outreach & Intervention"
           />
       </div>
         <div className="col-span-12 md:col-span-4 ">
           <StatusStackedChart
-            title="Wellbeing Resolution Status"
+            title="Wellbeing Resolution"
             data={wellbeingChart}
           />
         </div>

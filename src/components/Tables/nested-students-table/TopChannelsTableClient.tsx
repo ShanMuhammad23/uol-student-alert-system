@@ -75,6 +75,8 @@ export function TopChannelsTableClient({
   const [sortConfig, setSortConfig] = useState<
     { key: SortKey; direction: SortDirection } | null
   >(null);
+  const [rowsPerPage, setRowsPerPage] = useState<number | "all">(50);
+  const [currentPage, setCurrentPage] = useState(1);
   const [attendanceSummaries, setAttendanceSummaries] = useState<
     Map<string, AttendanceSummary> | null
   >(null);
@@ -362,6 +364,46 @@ export function TopChannelsTableClient({
     classAverageByCourseSection,
   ]);
 
+  const totalResults = filteredAndSortedEnrollments.length;
+
+  const totalPages =
+    rowsPerPage === "all" || totalResults === 0
+      ? 1
+      : Math.ceil(totalResults / rowsPerPage);
+
+  useEffect(() => {
+    // Reset to first page whenever filters/search/sort or page size change
+    setCurrentPage(1);
+  }, [searchQuery, attendanceFilters, sortConfig, rowsPerPage]);
+
+  useEffect(() => {
+    // Clamp current page when total results change
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages || 1);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedEnrollments = useMemo(() => {
+    if (rowsPerPage === "all") {
+      return filteredAndSortedEnrollments;
+    }
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredAndSortedEnrollments.slice(startIndex, endIndex);
+  }, [filteredAndSortedEnrollments, rowsPerPage, currentPage]);
+
+  const startItem =
+    totalResults === 0
+      ? 0
+      : rowsPerPage === "all"
+      ? 1
+      : (currentPage - 1) * (rowsPerPage as number) + 1;
+
+  const endItem =
+    rowsPerPage === "all"
+      ? totalResults
+      : Math.min(currentPage * (rowsPerPage as number), totalResults);
+
   if (!hasPropData && isLoading) {
     return <TopChannelsSkeleton />;
   }
@@ -382,8 +424,6 @@ export function TopChannelsTableClient({
     );
   }
 
-  const totalResults = filteredAndSortedEnrollments.length;
-
   return (
     <div
       className={cn(
@@ -398,12 +438,45 @@ export function TopChannelsTableClient({
       ) : (
         <div className="mt-4">
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-dark-5">
-            <span className="font-medium">
-              Total results:{" "}
-              <span className="font-semibold text-dark dark:text-white">
-                {totalResults.toLocaleString()}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <span className="font-medium">
+                Total results:{" "}
+                <span className="font-semibold text-dark dark:text-white">
+                  {totalResults.toLocaleString()}
+                </span>
               </span>
-            </span>
+              <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                <span className="text-dark-6 dark:text-dark-5">Rows per page:</span>
+                <select
+                  value={rowsPerPage === "all" ? "all" : rowsPerPage.toString()}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "all") {
+                      setRowsPerPage("all");
+                    } else {
+                      setRowsPerPage(Number(value));
+                    }
+                  }}
+                  className="rounded-md border border-stroke bg-white px-2 py-1 text-xs sm:text-sm text-dark outline-none transition focus:border-primary focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white"
+                >
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                  <option value="all">All</option>
+                </select>
+                <span className="text-dark-6 dark:text-dark-5">
+                  Showing{" "}
+                  <span className="font-semibold text-dark dark:text-white">
+                    {startItem.toLocaleString()}-{endItem.toLocaleString()}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-dark dark:text-white">
+                    {totalResults.toLocaleString()}
+                  </span>
+                </span>
+              </div>
+            </div>
             <div className="relative w-full md:w-80">
               <label className="sr-only" htmlFor="student-search">
                 Search by name or SAP ID
@@ -507,7 +580,7 @@ export function TopChannelsTableClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAndSortedEnrollments.map((row) => {
+              {paginatedEnrollments.map((row) => {
                 const courseKey = row.CrCode ?? row.CrTitle ?? "";
                 const totalForCourse = courseIdToStudentCount.get(courseKey) ?? 0;
                 const rowKey = row.Id ?? `${row.SapNo}-${courseKey}-${row.CrTitle}-${row.Name}`;
@@ -602,6 +675,50 @@ export function TopChannelsTableClient({
               })}
             </TableBody>
           </Table>
+          {totalResults > 0 && rowsPerPage !== "all" && (
+            <div className="mt-4 flex flex-col items-center justify-between gap-3 text-xs text-dark-6 dark:text-dark-5 sm:flex-row sm:text-sm">
+              <div>
+                Page{" "}
+                <span className="font-semibold text-dark dark:text-white">
+                  {currentPage.toLocaleString()}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-dark dark:text-white">
+                  {totalPages.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className={cn(
+                    "rounded-md border border-stroke px-3 py-1 text-xs sm:text-sm transition dark:border-dark-3",
+                    currentPage === 1
+                      ? "cursor-not-allowed opacity-50"
+                      : "hover:bg-gray-100 dark:hover:bg-dark-3"
+                  )}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  className={cn(
+                    "rounded-md border border-stroke px-3 py-1 text-xs sm:text-sm transition dark:border-dark-3",
+                    currentPage === totalPages
+                      ? "cursor-not-allowed opacity-50"
+                      : "hover:bg-gray-100 dark:hover:bg-dark-3"
+                  )}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
