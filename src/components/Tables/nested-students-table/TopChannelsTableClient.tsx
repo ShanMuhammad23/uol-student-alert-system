@@ -555,6 +555,12 @@ export function TopChannelsTableClient({
                         <StudentProfileLink
                           sapId={row.SapNo}
                           returnToUrl={returnToUrl}
+                          courseCode={
+                            typeof row.CrCode === "string"
+                              ? row.CrCode
+                              : String(row.CrCode ?? "")
+                          }
+                          section={row.Section ?? null}
                           className="flex flex-col gap-1"
                           title="View profile"
                         >

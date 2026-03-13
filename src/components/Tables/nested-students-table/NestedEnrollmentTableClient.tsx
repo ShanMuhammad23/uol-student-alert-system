@@ -221,6 +221,12 @@ export function NestedEnrollmentTableClient({
                                                   <StudentProfileLink
                                                     sapId={row.SapNo}
                                                     returnToUrl={returnToUrl}
+                                                    courseCode={
+                                                      typeof row.CrCode === "string"
+                                                        ? row.CrCode
+                                                        : String(row.CrCode ?? "")
+                                                    }
+                                                    section={row.Section ?? null}
                                                     className="flex flex-col gap-0.5"
                                                     title="View profile"
                                                   >

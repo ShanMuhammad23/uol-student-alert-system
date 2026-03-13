@@ -15,10 +15,11 @@ import { getInterventionsByStudentSapId } from "@/data/intervention-store";
 import { readFile } from "fs/promises";
 import path from "path";
 import type { EnrollmentRecord } from "@/lib/enrollment";
+import { StudentCourseAttendanceDetails } from "./_components/StudentCourseAttendanceDetails";
 
 type PropsType = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; course?: string; section?: string }>;
 };
 
 async function getEnrollmentForStudentSapId(
@@ -203,7 +204,12 @@ function ProgressBar({
 export default async function StudentPage({ params, searchParams }: PropsType) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
-  const returnToUrl = resolvedSearchParams.from && resolvedSearchParams.from.startsWith("/") ? resolvedSearchParams.from : "/";
+  const returnToUrl =
+    resolvedSearchParams.from && resolvedSearchParams.from.startsWith("/")
+      ? resolvedSearchParams.from
+      : "/";
+  const selectedCourseCode = resolvedSearchParams.course;
+  const selectedSection = resolvedSearchParams.section;
   const student = await getStudentBySapId(id);
   if (!student) notFound();
 
@@ -350,81 +356,17 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <ProgressBar
-              value={student.attendance.attendance_percentage}
-              max={100}
-              label="Your Attendance"
-              comparison={attendanceDiff}
-              type={
-                student.attendance.alert_level === "critical"
-                  ? "danger"
-                  : student.attendance.alert_level === "warning"
-                    ? "warning"
-                    : "success"
-              }
-            />
-
-            <div className="grid grid-cols-3 gap-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-800/50">
-            <div className="text-center">
-                <p className="text-2xl font-bold  dark:text-green-500">
-                  {student.attendance.total_classes_held}
-                </p>
-                <p className="text-xs  dark:text-green-500">Classes Held</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-500 dark:text-green-500">
-                  {student.attendance.classes_attended}
-                </p>
-                <p className="text-xs text-green-500 dark:text-green-500">Classes Attended</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-red-500 dark:text-red-500">
-                  {student.attendance.total_classes_held - student.attendance.classes_attended}
-                </p>
-                <p className="text-xs text-red-500 dark:text-red-400">Classes Missed</p>
-              </div>
-            </div>
-
-            {courseSummaries.length > 0 && (
-              <div className="mt-2 space-y-3">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Attendance details (courses)
-                </h4>
-                <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white/50 dark:border-gray-700 dark:bg-gray-900/20">
-                  <table className="min-w-full text-left text-xs sm:text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800">
-                        <th className="px-4 py-2 font-semibold">Course- Code</th>
-                        <th className="px-4 py-2 font-semibold">Instructor</th>
-                        <th className="px-4 py-2 font-semibold">Attendance</th>
-                        
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {courseSummaries.map((c) => (
-                        <tr
-                          key={`${c.code}-${c.title}`}
-                          className="border-b border-gray-100 last:border-0 dark:border-gray-800"
-                        >
-                          <td className="px-4 py-2 text-gray-900 dark:text-gray-100">
-                            {c.title} - {c.code}
-                          </td>
-                          
-                          <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
-                            {c.teacher ?? "—"}
-                          </td>
-                          <td className="px-4 text-center py-2 text-gray-700 dark:text-gray-300">
-                            -%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+          <StudentCourseAttendanceDetails
+            enrollmentRecords={enrollmentRecords}
+            selectedCourseCode={selectedCourseCode}
+            selectedSection={selectedSection}
+            overallAttendance={{
+              total_classes_held: student.attendance.total_classes_held,
+              classes_attended: student.attendance.classes_attended,
+              attendance_percentage: student.attendance.attendance_percentage,
+              class_average_attendance: student.attendance.class_average_attendance,
+            }}
+          />
         </div>
 
         {/* GPA Analytics */}
