@@ -1196,7 +1196,8 @@ export async function getInterventionChartData(
   interventionFilters?: string[],
 ): Promise<InterventionChartResult> {
   const result = await getStudentsByAlert(
-    "early_alert",
+    // Use attendance alerts (matches table semantics better than overall early_alert)
+    "attendance",
     { page: 1, pageSize: 100000 },
     user,
     masterFilter,
