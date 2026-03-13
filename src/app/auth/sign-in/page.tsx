@@ -2,12 +2,21 @@ import Signin from "@/components/Auth/Signin";
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
 
 export const metadata: Metadata = {
   title: "Sign in",
 };
 
-export default function SignIn() {
+export default async function SignIn() {
+  // If user is already authenticated, skip sign-in UI and go straight to dashboard.
+  const session = await getServerSession(authOptions);
+  if (session?.user) {
+    redirect("/dashboard");
+  }
+
   return (
     <>
       <Breadcrumb pageName="Sign In" />
