@@ -36,7 +36,7 @@ export async function OverviewCardsGroup({
   const active = selectedAlert || "all";
 
   return (
-    <div className="flex flex-col lg:flex-row gap-2 ">
+    <div className="flex flex-col 2xl:flex-row gap-2 ">
       <Link
         href={`/?selected_alert=attendance`}
         className="rounded-[10px] transition-opacity hover:opacity-90 flex-1"

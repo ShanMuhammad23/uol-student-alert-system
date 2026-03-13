@@ -76,7 +76,7 @@ export function HodStatsCollapsible({
 }: HodStatsCollapsibleProps) {
   return (
     <div className="mt-4 border-t border-gray-3 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-      <CollapsibleSection title="Programs" defaultOpen={true}>
+      <CollapsibleSection title="Program" defaultOpen={true}>
         {programContent}
       </CollapsibleSection>
       <CollapsibleSection
