@@ -20,6 +20,7 @@ import {
   normalizeCourseCode,
 } from "@/lib/attendance-utils";
 import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
+import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
 import type { AlertDimensionFilter } from "@/app/(home)/dashboard/fetch";
 
 type Props = {
@@ -29,6 +30,8 @@ type Props = {
   enrollmentData?: EnrollmentRecord[] | null;
   /** Attendance alert filters (red / yellow / good) from MasterFilter. */
   attendanceFilters?: AlertDimensionFilter[];
+  /** Intervention filters (not_started / initiated / in_progress / referred / resolved) from MasterFilter. */
+  interventionFilters?: string[];
 };
 
 type SortKey =
@@ -66,6 +69,7 @@ export function TopChannelsTableClient({
   returnToUrl = "/",
   enrollmentData: enrollmentDataProp,
   attendanceFilters,
+  interventionFilters,
 }: Props) {
   const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(!enrollmentDataProp);
@@ -75,6 +79,9 @@ export function TopChannelsTableClient({
   >(null);
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(50);
   const [currentPage, setCurrentPage] = useState(1);
+  const [interventionStatuses, setInterventionStatuses] = useState<
+    Map<string, string | null>
+  >(new Map());
 
   // Track previous prop data to detect actual changes
   const prevPropDataRef = useRef<EnrollmentRecord[] | null | undefined>(null);
@@ -97,6 +104,36 @@ export function TopChannelsTableClient({
     monitoredByCourseSection,
     isAttendanceLoading,
   } = useAttendanceAlerts(displayEnrollments);
+
+  // Fetch latest intervention status per student (by SAP ID) once, then map by SapNo
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/interventions/status`, {
+      signal: controller.signal,
+    })
+      .then((res) =>
+        res.ok
+          ? res.json()
+          : Promise.reject(new Error("Failed to load intervention statuses")),
+      )
+      .then((data: Record<string, string | null>) => {
+        const map = new Map<string, string | null>();
+        for (const [id, status] of Object.entries(data)) {
+          map.set(id, status ?? null);
+        }
+        setInterventionStatuses(map);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        // On error, fall back to empty map; UI will show Not Started / hyphen appropriately
+        setInterventionStatuses(new Map());
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -295,6 +332,50 @@ export function TopChannelsTableClient({
       });
     }
 
+    // Apply intervention master filter using latest interventionStatuses.
+    if (interventionFilters?.length) {
+      base = base.filter((row) => {
+        // Only consider students with alerts when filtering by intervention.
+        const monitorKey = `${normalizeCourseCode(
+          typeof row.CrCode === "string"
+            ? row.CrCode
+            : String(row.CrCode ?? ""),
+        )}__${row.Section ?? ""}`;
+        const attendanceKey = getEnrollmentAttendanceKey(row);
+        const summary = attendanceSummaries?.get(attendanceKey) ?? null;
+        const classAvg =
+          classAverageByCourseSection.get(monitorKey ?? "") ?? null;
+        const level =
+          summary && classAvg != null
+            ? getAttendanceAlertLevel(summary.percentage, classAvg)
+            : null;
+        const hasAlert =
+          level === "critical" || level === "warning";
+        if (!hasAlert) {
+          // Good-standing students are excluded when any intervention filter is active.
+          return false;
+        }
+
+        const latestStatus = interventionStatuses.get(row.SapNo) ?? null;
+
+        const wantsNotStarted = interventionFilters.includes("not_started");
+        const wantsInitiated = interventionFilters.includes("initiated");
+        const wantsInProgress = interventionFilters.includes("in_progress");
+        const wantsReferred = interventionFilters.includes("referred");
+        const wantsResolved = interventionFilters.includes("resolved");
+
+        if (!latestStatus) {
+          return wantsNotStarted;
+        }
+        if (latestStatus === "initiated" && wantsInitiated) return true;
+        if (latestStatus === "in-progress" && wantsInProgress) return true;
+        if (latestStatus === "referred" && wantsReferred) return true;
+        if (latestStatus === "resolved" && wantsResolved) return true;
+
+        return false;
+      });
+    }
+
     return base;
   }, [
     searchQuery,
@@ -302,6 +383,8 @@ export function TopChannelsTableClient({
     attendanceFilters,
     attendanceSummaries,
     classAverageByCourseSection,
+    interventionFilters,
+    interventionStatuses,
   ]);
 
   const totalResults = filteredAndSortedEnrollments.length;
@@ -509,7 +592,7 @@ export function TopChannelsTableClient({
                   </div>
                 </TableHead>
                 <TableHead
-                  className="min-w-[140px] !text-left cursor-pointer select-none"
+                  className="min-w-[160px] !text-left cursor-pointer select-none"
                   onClick={() => handleSort("intervention")}
                 >
                   <div className="flex items-center gap-1">
@@ -544,6 +627,9 @@ export function TopChannelsTableClient({
                     : alertLevel === "warning"
                     ? "text-yellow-600"
                     : "";
+                const hasAttendanceAlert =
+                  alertLevel === "critical" || alertLevel === "warning";
+                const latestStatus = interventionStatuses.get(row.SapNo) ?? null;
 
                 return (
                   <TableRow
@@ -613,9 +699,14 @@ export function TopChannelsTableClient({
                       )}
                     </TableCell>
                     <TableCell className="!text-left">
-                      -
+                      <span>-</span>
                     </TableCell>
-                    <TableCell className="!text-left">-</TableCell>
+                    <TableCell className="!text-left">
+                      <InterventionStatusBadge
+                        status={latestStatus}
+                        goodStanding={!hasAttendanceAlert}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}

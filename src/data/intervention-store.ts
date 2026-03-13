@@ -110,6 +110,54 @@ export async function getLatestInterventionStatusMap(
   return map;
 }
 
+/** Latest intervention status for all students from DB/file. */
+export async function getAllLatestInterventionStatuses(): Promise<
+  Map<string, string | null>
+> {
+  const map = new Map<string, string | null>();
+
+  if (pool) {
+    const res = await pool.query<{
+      student_sap_id: string;
+      status: string | null;
+    }>(`
+      WITH latest AS (
+        SELECT DISTINCT ON (student_sap_id)
+          student_sap_id,
+          status
+        FROM interventions
+        ORDER BY student_sap_id, performed_at DESC
+      )
+      SELECT student_sap_id, status FROM latest
+    `);
+
+    for (const row of res.rows) {
+      map.set(row.student_sap_id, row.status ?? null);
+    }
+    return map;
+  }
+
+  // File-based fallback
+  const stored = readStore();
+  const latestBySapId = new Map<string, InterventionRecord>();
+  for (const r of stored) {
+    const existing = latestBySapId.get(r.student_sap_id);
+    if (
+      !existing ||
+      new Date(r.performed_at).getTime() >
+        new Date(existing.performed_at).getTime()
+    ) {
+      latestBySapId.set(r.student_sap_id, r);
+    }
+  }
+
+  for (const [sapId, record] of latestBySapId.entries()) {
+    map.set(sapId, record?.status ?? null);
+  }
+
+  return map;
+}
+
 export type InterventionStatsCounts = {
   notStarted: number;
   initiated: number;

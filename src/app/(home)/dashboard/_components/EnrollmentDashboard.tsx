@@ -353,6 +353,7 @@ function EnrollmentDashboardInner({
             returnToUrl={returnToUrl}
             enrollmentData={filteredData ?? null}
             attendanceFilters={localAttendanceFilters}
+            interventionFilters={localInterventionFilters}
           />
         ) : (
           <ExpandableListUrlSync>

@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { getStudentsForRole, getCoursesForRole, getDepartmentsForRole } from "@/lib/role";
 import type { User } from "@/lib/role";
-import { getInterventionStatsForStudentsFromDb } from "@/lib/db/interventions";
+import { getLatestInterventionStatusMap } from "@/data/intervention-store";
 import { getWellbeingChartDataForStudents } from "@/lib/db/wellbeing";
 import type { StatusStackedChartData } from "@/components/Charts/status-stacked-chart/chart";
 import { pool } from "@/lib/db";
@@ -1192,7 +1192,8 @@ export async function getInterventionChartData(
   user?: AppUser | null,
   masterFilter?: MasterFilterParams,
   gpaFilters?: AlertDimensionFilter[],
-  attendanceFilters?: AlertDimensionFilter[]
+  attendanceFilters?: AlertDimensionFilter[],
+  interventionFilters?: string[],
 ): Promise<InterventionChartResult> {
   const result = await getStudentsByAlert(
     "early_alert",
@@ -1200,10 +1201,67 @@ export async function getInterventionChartData(
     user,
     masterFilter,
     gpaFilters,
-    attendanceFilters
+    attendanceFilters,
   );
   const sapIds = result.students.map((s) => s.sap_id);
-  const stats = await getInterventionStatsForStudentsFromDb(sapIds);
+  const statusMap = await getLatestInterventionStatusMap(sapIds);
+
+  let notStarted = 0;
+  let initiated = 0;
+  let inProgress = 0;
+  let referred = 0;
+  let resolved = 0;
+
+  const wantsNotStarted = interventionFilters?.includes("not_started") ?? false;
+  const wantsInitiated = interventionFilters?.includes("initiated") ?? false;
+  const wantsInProgress = interventionFilters?.includes("in_progress") ?? false;
+  const wantsReferred = interventionFilters?.includes("referred") ?? false;
+  const wantsResolved = interventionFilters?.includes("resolved") ?? false;
+  const hasInterventionFilters =
+    wantsNotStarted ||
+    wantsInitiated ||
+    wantsInProgress ||
+    wantsReferred ||
+    wantsResolved;
+
+  for (const student of result.students) {
+    const latestStatus = statusMap.get(student.sap_id) ?? null;
+
+    // Derive bucket key
+    let bucket: "notStarted" | "initiated" | "in-progress" | "referred" | "resolved";
+    if (!latestStatus) {
+      bucket = "notStarted";
+    } else if (latestStatus === "initiated") {
+      bucket = "initiated";
+    } else if (latestStatus === "in-progress") {
+      bucket = "in-progress";
+    } else if (latestStatus === "referred") {
+      bucket = "referred";
+    } else if (latestStatus === "resolved") {
+      bucket = "resolved";
+    } else {
+      bucket = "notStarted";
+    }
+
+    // Apply intervention filters, if any
+    if (hasInterventionFilters) {
+      if (
+        (bucket === "notStarted" && !wantsNotStarted) ||
+        (bucket === "initiated" && !wantsInitiated) ||
+        (bucket === "in-progress" && !wantsInProgress) ||
+        (bucket === "referred" && !wantsReferred) ||
+        (bucket === "resolved" && !wantsResolved)
+      ) {
+        continue;
+      }
+    }
+
+    if (bucket === "notStarted") notStarted += 1;
+    else if (bucket === "initiated") initiated += 1;
+    else if (bucket === "in-progress") inProgress += 1;
+    else if (bucket === "referred") referred += 1;
+    else if (bucket === "resolved") resolved += 1;
+  }
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
@@ -1214,16 +1272,16 @@ export async function getInterventionChartData(
   };
 
   const data: InterventionChartDataPoint[] = [
-    { x: "Not Started", y: stats.notStarted },
-    { x: "Initiated", y: stats.initiated },
-    { x: "In-Progress", y: stats["in-progress"] },
-    { x: "Resolved", y: stats.resolved },
-    { x: "Referred", y: stats.referred },
+    { x: "Not Started", y: notStarted },
+    { x: "Initiated", y: initiated },
+    { x: "In-Progress", y: inProgress },
+    { x: "Resolved", y: resolved },
+    { x: "Referred", y: referred },
   ];
 
   return {
     data,
-    totalAlertCount: result.total,
+    totalAlertCount: notStarted + initiated + inProgress + referred + resolved,
     statusColors,
   };
 }

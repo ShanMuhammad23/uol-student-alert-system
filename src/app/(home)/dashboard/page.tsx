@@ -81,7 +81,8 @@ export default async function Home({ searchParams }: PropsType) {
     user,
     masterFilter,
     gpaFilters,
-    attendanceFilters
+    attendanceFilters,
+    interventionFilters,
   );
   const wellbeingChart = await getWellbeingChartData(
     user,
