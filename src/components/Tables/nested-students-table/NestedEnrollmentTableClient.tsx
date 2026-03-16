@@ -386,6 +386,7 @@ export function NestedEnrollmentTableClient({
                                           return (
                                             <TableRow
                                               key={rowKey}
+                    
                                               className="text-center text-base font-medium text-dark dark:text-white"
                                             >
                                               <TableCell className="!text-left font-medium">
