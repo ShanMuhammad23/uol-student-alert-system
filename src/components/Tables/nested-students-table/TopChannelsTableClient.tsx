@@ -695,7 +695,7 @@ export function TopChannelsTableClient({
                           <span className="inline-flex items-center gap-2">
                             <span className={attendanceColorClass}>
                               {summary.percentage.toFixed(1)}%
-                            </span>
+                            </span> <span className="text-xs text-dark-6 dark:text-dark-5">({summary.attended}/{summary.totalHeld})</span>
                             {hasClassLoadSpike && (
                               <span className="inline-flex items-center rounded-full bg-red-500 text-white px-2 py-0.5 text-[10px] font-semibold  dark:bg-red-900/30 dark:text-red-300">
                                 C
