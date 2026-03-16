@@ -75,6 +75,7 @@ type DeanStatsCollapsibleProps = {
   departmentContent: ReactNode;
   programContent: ReactNode;
   instructorContent: ReactNode;
+  courseContent: ReactNode;
   /** When set, Instructors section is open by default so instructors for the selected department auto-appear. */
   selectedDepartmentId?: string;
   /** When set, Instructors section is also opened when a program is selected. */
@@ -82,17 +83,20 @@ type DeanStatsCollapsibleProps = {
   departmentCount?: number;
   programCount?: number;
   instructorCount?: number;
+  courseCount?: number;
 };
 
 export function DeanStatsCollapsible({
   departmentContent,
   programContent,
   instructorContent,
+  courseContent,
   selectedDepartmentId,
   selectedProgramId,
   departmentCount,
   programCount,
   instructorCount,
+  courseCount,
 }: DeanStatsCollapsibleProps) {
   return (
     <div className="mt-4 border-t border-gray-3 pt-4 space-y-4">
@@ -112,6 +116,7 @@ export function DeanStatsCollapsible({
           {programContent}
         </CollapsibleSection>
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <CollapsibleSection
         title="Instructor"
         count={instructorCount}
@@ -119,6 +124,14 @@ export function DeanStatsCollapsible({
       >
         {instructorContent}
       </CollapsibleSection>
+      <CollapsibleSection
+        title="Course"
+        count={courseCount}
+        defaultOpen={false}
+        >
+        {courseContent}
+      </CollapsibleSection>
+      </div>
     </div>
   );
 }

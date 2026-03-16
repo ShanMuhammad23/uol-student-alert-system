@@ -21,6 +21,7 @@ import { DeanStatsCollapsible } from "./dean-stats-collapsible";
 import { DeanDepartmentStats } from "./dean-department-stats";
 import { DeanProgramStats } from "./dean-program-stats";
 import { DeanInstructorStats } from "./dean-instructor-stats";
+import { DeanCourseStats } from "./dean-course-stats";
 import { TopChannelsTableClient } from "@/components/Tables/nested-students-table/TopChannelsTableClient";
 import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students-table/NestedEnrollmentTableClient";
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
@@ -109,10 +110,18 @@ export function EnrollmentDashboard({
     scopedEnrollmentData?.length && user.role === "dean"
       ? getDepartmentStats(scopedEnrollmentData, user.faculty_id)
       : undefined;
+
+  const effectiveDeptIdsForPrograms =
+    localMasterFilter.department_ids?.length
+      ? localMasterFilter.department_ids
+      : departmentIds.length
+        ? departmentIds
+        : undefined;
+
   const programStats =
     scopedEnrollmentData?.length && user.role === "dean"
       ? getProgramStats(scopedEnrollmentData, user.faculty_id, {
-          departmentIds: departmentIds.length ? departmentIds : undefined,
+          departmentIds: effectiveDeptIdsForPrograms,
         })
       : undefined;
   const instructorStats =
@@ -228,6 +237,14 @@ function EnrollmentDashboardInner({
   const departmentCount = departmentStats?.length ?? 0;
   const programCount = programStats?.length ?? 0;
   const instructorCount = instructorStats?.length ?? 0;
+  const courseCount =
+    filteredData?.length && user.role === "dean"
+      ? new Set(
+          (filteredData ?? [])
+            .map((r) => (r.CrCode ?? r.CrTitle ?? "").toString().trim())
+            .filter(Boolean),
+        ).size
+      : 0;
 
   return (
     <>
@@ -240,6 +257,7 @@ function EnrollmentDashboardInner({
               departmentCount={departmentCount}
               programCount={programCount}
               instructorCount={instructorCount}
+              courseCount={courseCount}
               departmentContent={
                 <DeanDepartmentStats
                   user={user}
@@ -312,6 +330,24 @@ function EnrollmentDashboardInner({
                     setLocalMasterFilter((prev) => ({
                       ...prev,
                       instructor_ids: [id],
+                    }))
+                  }
+                />
+              }
+              courseContent={
+                <DeanCourseStats
+                  user={user}
+                  selectedCourseId={localMasterFilter.course_ids?.[0] ?? undefined}
+                  masterFilterCourseIds={
+                    localMasterFilter.course_ids?.length
+                      ? localMasterFilter.course_ids
+                      : undefined
+                  }
+                  enrollmentData={filteredData ?? []}
+                  onSelectCourseId={(id) =>
+                    setLocalMasterFilter((prev) => ({
+                      ...prev,
+                      course_ids: [id],
                     }))
                   }
                 />
