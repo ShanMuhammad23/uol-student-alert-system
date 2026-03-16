@@ -85,6 +85,13 @@ export function InterventionStatusChart({
       axisTicks: {
         show: false,
       },
+      labels: {
+        rotate: -30,
+        trim: true,
+        style: {
+          fontSize: "11px",
+        },
+      },
     },
     legend: {
       show:false,
@@ -108,6 +115,25 @@ export function InterventionStatusChart({
         show: false,
       },
     },
+    responsive: [
+      {
+        breakpoint: 768,
+        options: {
+          dataLabels: {
+            enabled: false,
+          },
+          xaxis: {
+            labels: {
+              rotate: -45,
+              trim: true,
+              style: {
+                fontSize: "10px",
+              },
+            },
+          },
+        },
+      },
+    ],
   };
 
   return (

@@ -12,6 +12,7 @@ import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/cha
 import { getInterventionChartData, getWellbeingChartData } from "./fetch";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
+import { getHodProgramStats, getHodInstructorStats } from "./fetch";
 
 function parseMultiParam(
   value: string | string[] | undefined
@@ -75,6 +76,15 @@ export default async function Home({ searchParams }: PropsType) {
   const gpaFilters = gpaFiltersRaw.filter(validAlertDim) as AlertDimensionFilter[];
   const attendanceFilters = attendanceFiltersRaw.filter(validAlertDim) as AlertDimensionFilter[];
   const interventionFilters = parseMultiParam(params.intervention_filter);
+
+  let hodProgramCount = 0;
+  let hodInstructorCount = 0;
+  if (user.role === "hod" && user.department_ids?.length) {
+    const hodProgramStats = await getHodProgramStats(user.department_ids);
+    hodProgramCount = hodProgramStats.length;
+    const hodInstructorStats = await getHodInstructorStats(user.department_ids, {});
+    hodInstructorCount = hodInstructorStats.length;
+  }
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
   const interventionChart = await getInterventionChartData(
@@ -150,6 +160,8 @@ export default async function Home({ searchParams }: PropsType) {
         <div className="col-span-12">
           {user?.role === "hod" && (
             <HodStatsCollapsible
+              programCount={hodProgramCount}
+              instructorCount={hodInstructorCount}
               selectedProgramId={programs[0]}
               programContent={
                 <HodProgramStats

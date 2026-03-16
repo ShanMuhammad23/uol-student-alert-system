@@ -5,12 +5,14 @@ import { cn } from "@/lib/utils";
 
 type CollapsibleSectionProps = {
   title: string;
+  count?: number;
   defaultOpen?: boolean;
   children: ReactNode;
 };
 
 function CollapsibleSection({
   title,
+  count,
   defaultOpen = false,
   children,
 }: CollapsibleSectionProps) {
@@ -28,7 +30,14 @@ function CollapsibleSection({
         )}
         aria-expanded={open}
       >
-        <span>{title}</span>
+        <span>
+          {title}
+          {typeof count === "number" && (
+            <span className="ml-1 text-xs font-normal text-dark-6 dark:text-dark-5">
+              ({count})
+            </span>
+          )}
+        </span>
         <span
           className={cn(
             "text-dark-6 dark:text-dark-5 transition-transform",
@@ -67,20 +76,29 @@ type HodStatsCollapsibleProps = {
   instructorContent: ReactNode;
   /** When set, Instructors section is open by default. */
   selectedProgramId?: string;
+  programCount?: number;
+  instructorCount?: number;
 };
 
 export function HodStatsCollapsible({
   programContent,
   instructorContent,
   selectedProgramId,
+  programCount,
+  instructorCount,
 }: HodStatsCollapsibleProps) {
   return (
     <div className="mt-4 border-t border-gray-3 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-      <CollapsibleSection title="Program" defaultOpen={true}>
+      <CollapsibleSection
+        title="Program"
+        count={programCount}
+        defaultOpen={true}
+      >
         {programContent}
       </CollapsibleSection>
       <CollapsibleSection
         title="Instructors"
+        count={instructorCount}
         defaultOpen={!!selectedProgramId}
       >
         {instructorContent}

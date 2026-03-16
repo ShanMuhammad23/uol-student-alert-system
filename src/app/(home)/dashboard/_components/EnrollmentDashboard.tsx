@@ -225,6 +225,10 @@ function EnrollmentDashboardInner({
 }: InnerProps) {
   const { viewMode } = useDashboardUiState();
 
+  const departmentCount = departmentStats?.length ?? 0;
+  const programCount = programStats?.length ?? 0;
+  const instructorCount = instructorStats?.length ?? 0;
+
   return (
     <>
       <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
@@ -233,6 +237,9 @@ function EnrollmentDashboardInner({
             <DeanStatsCollapsible
               selectedDepartmentId={departmentIds[0]}
               selectedProgramId={programIds[0]}
+              departmentCount={departmentCount}
+              programCount={programCount}
+              instructorCount={instructorCount}
               departmentContent={
                 <DeanDepartmentStats
                   user={user}
