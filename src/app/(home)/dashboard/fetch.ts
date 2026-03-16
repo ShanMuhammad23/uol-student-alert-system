@@ -1192,18 +1192,22 @@ export async function getInterventionChartData(
   attendanceFilters?: AlertDimensionFilter[],
   interventionFilters?: string[],
 ): Promise<InterventionChartResult> {
-  const result = await getStudentsByAlert(
-    // Use attendance alerts (matches table semantics better than overall early_alert)
-    "attendance",
-    { page: 1, pageSize: 100000 },
+  // 1) Total alerts (yellow + red) using same logic as Attendance card
+  const overview = await getOverviewData(
     user,
     masterFilter,
     gpaFilters,
     attendanceFilters,
   );
-  const sapIds = result.students.map((s) => s.sap_id);
-  const statusMap = await getLatestInterventionStatusMap(sapIds);
+  console.log("[InterventionChart] overview", {
+    yellow: overview.yellowAttendance?.value,
+    red: overview.redAttendance?.value,
+  });
+  const totalAlertStudents =
+    (overview.yellowAttendance?.value ?? 0) +
+    (overview.redAttendance?.value ?? 0);
 
+  // 2) Read interventions table and aggregate latest status per student (role scoped)
   let notStarted = 0;
   let initiated = 0;
   let inProgress = 0;
@@ -1222,43 +1226,74 @@ export async function getInterventionChartData(
     wantsReferred ||
     wantsResolved;
 
-  for (const student of result.students) {
-    const latestStatus = statusMap.get(student.sap_id) ?? null;
+  if (pool) {
+    const whereParts: string[] = [];
+    const params: any[] = [];
 
-    // Derive bucket key
-    let bucket: "notStarted" | "initiated" | "in-progress" | "referred" | "resolved";
-    if (!latestStatus) {
-      bucket = "notStarted";
-    } else if (latestStatus === "initiated") {
-      bucket = "initiated";
-    } else if (latestStatus === "in-progress") {
-      bucket = "in-progress";
-    } else if (latestStatus === "referred") {
-      bucket = "referred";
-    } else if (latestStatus === "resolved") {
-      bucket = "resolved";
-    } else {
-      bucket = "notStarted";
+    if (user?.role === "dean" && user.faculty_id) {
+      whereParts.push("faculty_id = $1");
+      params.push(user.faculty_id);
+    } else if (user?.role === "hod" && user.department_ids?.length) {
+      whereParts.push("department_id = ANY($1)");
+      params.push(user.department_ids);
+    } else if (user?.role === "teacher") {
+      whereParts.push("staff_id = $1");
+      params.push(user.id);
     }
 
-    // Apply intervention filters, if any
-    if (hasInterventionFilters) {
-      if (
-        (bucket === "notStarted" && !wantsNotStarted) ||
-        (bucket === "initiated" && !wantsInitiated) ||
-        (bucket === "in-progress" && !wantsInProgress) ||
-        (bucket === "referred" && !wantsReferred) ||
-        (bucket === "resolved" && !wantsResolved)
-      ) {
-        continue;
+    const whereClause = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+
+    const res = await pool.query<{
+      student_sap_id: string;
+      status: string | null;
+    }>(
+      `
+      WITH latest AS (
+        SELECT DISTINCT ON (student_sap_id)
+          student_sap_id,
+          status
+        FROM interventions
+        ${whereClause}
+        ORDER BY student_sap_id, performed_at DESC
+      )
+      SELECT student_sap_id, status
+      FROM latest
+      `,
+      params,
+    );
+
+    console.log("[InterventionChart] interventions", res.rows.length);
+
+    let totalInterventionStudents = 0;
+
+    for (const row of res.rows) {
+      const status = row.status;
+      if (!status) continue;
+
+      totalInterventionStudents += 1;
+
+      if (status === "initiated") initiated += 1;
+      else if (status === "in-progress") inProgress += 1;
+      else if (status === "referred") referred += 1;
+      else if (status === "resolved") resolved += 1;
+      else {
+        // Unknown status: treat as initiated bucket by default.
+        initiated += 1;
       }
     }
 
-    if (bucket === "notStarted") notStarted += 1;
-    else if (bucket === "initiated") initiated += 1;
-    else if (bucket === "in-progress") inProgress += 1;
-    else if (bucket === "referred") referred += 1;
-    else if (bucket === "resolved") resolved += 1;
+    // 3) Not Started = Total Alerts (yellow+red) − total interventions count from DB
+    notStarted = Math.max(0, totalAlertStudents - totalInterventionStudents);
+  } else {
+    notStarted = totalAlertStudents;
+  }
+
+  if (hasInterventionFilters) {
+    if (!wantsNotStarted) notStarted = 0;
+    if (!wantsInitiated) initiated = 0;
+    if (!wantsInProgress) inProgress = 0;
+    if (!wantsReferred) referred = 0;
+    if (!wantsResolved) resolved = 0;
   }
 
   const statusColors: Record<string, string> = {
