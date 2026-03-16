@@ -636,13 +636,14 @@ export async function NestedStudentsTable({
               const deptAttendanceAlerts = deptStudents.filter(
                 (s) => s.attendance.alert_level !== null,
               ).length;
+              const deptIsOpen = expandedIds.includes(deptSectionId);
 
               return (
                 <details
                   key={department.id}
                   data-section-id={deptSectionId}
-                  open={expandedIds.includes(deptSectionId)}
-                  className="group rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                  open={deptIsOpen}
+                  className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
                 >
                   <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                     <div className="flex flex-col gap-1">
@@ -650,9 +651,33 @@ export async function NestedStudentsTable({
                         Department:{" "}
                         <span className="font-bold text-primary">{department.name}</span>
                       </span>
-
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                        <span>
+                          Students:{" "}
+                          <span className="font-semibold text-dark dark:text-white">
+                            {deptStudents.length}
+                          </span>
+                        </span>
+                        <span>
+                          Attendance alerts:{" "}
+                          <span className="font-semibold text-red">
+                            {deptAttendanceAlerts}
+                          </span>
+                        </span>
+                        <span>
+                          GPA alerts:{" "}
+                          <span className="font-semibold text-red">
+                            {deptGpaAlerts}
+                          </span>
+                        </span>
+                      </div>
                     </div>
-                    <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                    <span
+                      className={cn(
+                        "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                        deptIsOpen && "rotate-180",
+                      )}
+                    >
                       ▼
                     </span>
                   </summary>
@@ -665,13 +690,14 @@ export async function NestedStudentsTable({
                         const programStudents = Object.values(programCourses).flat();
                         const programAlerts = getAlertCounts(programStudents);
                         const progSectionId = `${deptSectionId}-prog-${programId}`;
+                        const progIsOpen = expandedIds.includes(progSectionId);
 
                         return (
                           <details
                             key={programId}
                             data-section-id={progSectionId}
-                            open={expandedIds.includes(progSectionId)}
-                            className="group rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                            open={progIsOpen}
+                            className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
                           >
                             <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                               <div className="flex flex-col gap-1">
@@ -709,7 +735,12 @@ export async function NestedStudentsTable({
 
                                 </div>
                               </div>
-                              <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                              <span
+                                className={cn(
+                                  "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                                  progIsOpen && "rotate-180",
+                                )}
+                              >
                                 ▼
                               </span>
                             </summary>
@@ -726,13 +757,14 @@ export async function NestedStudentsTable({
                                     ) / courseStudents.length;
                                   const courseAlerts = getAlertCounts(courseStudents);
                                   const courseSectionId = `${progSectionId}-course-${courseId}`;
+                                  const courseIsOpen = expandedIds.includes(courseSectionId);
 
                                   return (
                                     <details
                                       key={courseId}
                                       data-section-id={courseSectionId}
-                                      open={expandedIds.includes(courseSectionId)}
-                                      className="group rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                                      open={courseIsOpen}
+                                      className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
                                     >
                                       <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                                         <div className="flex flex-col gap-1">
@@ -789,7 +821,12 @@ export async function NestedStudentsTable({
 
                                           </div>
                                         </div>
-                                        <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                                        <span
+                                          className={cn(
+                                            "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                                            courseIsOpen && "rotate-180",
+                                          )}
+                                        >
                                           ▼
                                         </span>
                                       </summary>

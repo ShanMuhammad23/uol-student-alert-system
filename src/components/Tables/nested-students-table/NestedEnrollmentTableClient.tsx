@@ -12,6 +12,14 @@ import { cn } from "@/lib/utils";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentProfileLink } from "./StudentProfileLink";
 import { useDashboardUiState } from "@/app/(home)/dashboard/_components/DashboardUiStateContext";
+import {
+  getEnrollmentAttendanceKey,
+  getAttendanceAlertLevel,
+  normalizeCourseCode,
+} from "@/lib/attendance-utils";
+import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
+import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
+import { useEffect, useState } from "react";
 
 type GroupedEnrollment = {
   byDept: Map<
@@ -66,9 +74,69 @@ export function NestedEnrollmentTableClient({
   const list = enrollmentData ?? [];
   const { byDept } = groupEnrollmentByDeptProgramCourse(list);
 
+  const {
+    attendanceSummaries,
+    classAverageByCourseSection,
+    monitoredByCourseSection,
+    isAttendanceLoading,
+  } = useAttendanceAlerts(list);
+
+  const [interventionStatuses, setInterventionStatuses] = useState<
+    Map<string, string | null>
+  >(new Map());
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/interventions/status`, {
+      signal: controller.signal,
+    })
+      .then((res) =>
+        res.ok
+          ? res.json()
+          : Promise.reject(new Error("Failed to load intervention statuses")),
+      )
+      .then((data: Record<string, string | null>) => {
+        const map = new Map<string, string | null>();
+        for (const [id, status] of Object.entries(data)) {
+          map.set(id, status ?? null);
+        }
+        setInterventionStatuses(map);
+      })
+      .catch((err) => {
+        if ((err as { name?: string }).name === "AbortError") return;
+        setInterventionStatuses(new Map());
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
   const sortedDepts = Array.from(byDept.keys()).sort((a, b) =>
     a.localeCompare(b)
   );
+
+  const getAttendanceAlertCount = (rows: EnrollmentRecord[]): number => {
+    if (!rows.length || !attendanceSummaries) return 0;
+    let count = 0;
+    for (const row of rows) {
+      const monitorKey = `${normalizeCourseCode(
+        typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
+      )}__${row.Section ?? ""}`;
+      const attendanceKey = getEnrollmentAttendanceKey(row);
+      const summary = attendanceSummaries.get(attendanceKey);
+      const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
+      const level =
+        summary && classAvg != null
+          ? getAttendanceAlertLevel(summary.percentage, classAvg)
+          : null;
+      if (level === "critical" || level === "warning") {
+        count += 1;
+      }
+    }
+    return count;
+  };
 
   if (list.length === 0) {
     return (
@@ -99,20 +167,42 @@ export function NestedEnrollmentTableClient({
           const sortedPrograms = Array.from(byProgram.keys()).sort((a, b) =>
             a.localeCompare(b)
           );
+          const deptIsOpen = expandedIds.includes(deptSectionId);
+
+          const deptRows: EnrollmentRecord[] = [];
+          for (const prog of byProgram.values()) {
+            for (const courseRows of prog.values()) {
+              deptRows.push(...courseRows);
+            }
+          }
+          const deptAttendanceAlerts = getAttendanceAlertCount(deptRows);
 
           return (
             <details
               key={deptName}
               data-section-id={deptSectionId}
-              open={expandedIds.includes(deptSectionId)}
-              className="group rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+              open={deptIsOpen}
+              className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
             >
               <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
-                <span className="text-base font-semibold text-dark dark:text-white">
-                  Department:{" "}
-                  <span className="font-bold text-primary">{deptName}</span>
-                </span>
-                <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                <div className="flex flex-col gap-1">
+                  <span className="text-base font-semibold text-dark dark:text-white">
+                    Department:{" "}
+                    <span className="font-bold text-primary">{deptName}</span>
+                  </span>
+                  <span className="text-xs text-dark-6 dark:text-dark-5">
+                    Attendance alerts:{" "}
+                    <span className="font-semibold text-red">
+                      {deptAttendanceAlerts}
+                    </span>
+                  </span>
+                </div>
+                <span
+                  className={cn(
+                    "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                    deptIsOpen && "rotate-180",
+                  )}
+                >
                   ▼
                 </span>
               </summary>
@@ -124,22 +214,43 @@ export function NestedEnrollmentTableClient({
                     const sortedCourses = Array.from(byCourse.keys()).sort((a, b) =>
                       a.localeCompare(b)
                     );
+                    const progIsOpen = expandedIds.includes(progSectionId);
+
+                    const programRows: EnrollmentRecord[] = [];
+                    for (const courseRows of byCourse.values()) {
+                      programRows.push(...courseRows);
+                    }
+                    const programAttendanceAlerts =
+                      getAttendanceAlertCount(programRows);
 
                     return (
                       <details
                         key={programName}
                         data-section-id={progSectionId}
-                        open={expandedIds.includes(progSectionId)}
-                        className="group rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                        open={progIsOpen}
+                        className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
                       >
                         <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
-                          <span className="text-sm font-semibold text-dark dark:text-white">
-                            Program:{" "}
-                            <span className="font-bold text-primary">
-                              {programName}
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm font-semibold text-dark dark:text-white">
+                              Program:{" "}
+                              <span className="font-bold text-primary">
+                                {programName}
+                              </span>
                             </span>
-                          </span>
-                          <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                              Attendance alerts:{" "}
+                              <span className="font-semibold text-red">
+                                {programAttendanceAlerts}
+                              </span>
+                            </span>
+                          </div>
+                          <span
+                            className={cn(
+                              "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                              progIsOpen && "rotate-180",
+                            )}
+                          >
                             ▼
                           </span>
                         </summary>
@@ -150,13 +261,17 @@ export function NestedEnrollmentTableClient({
                               const courseSectionId = `${progSectionId}-course-${courseKey.replace(/\s+/g, "-")}`;
                               const courseTitle =
                                 rows[0]?.CrTitle ?? rows[0]?.CrCode ?? courseKey;
+                              const courseIsOpen = expandedIds.includes(courseSectionId);
+
+                              const courseAttendanceAlerts =
+                                getAttendanceAlertCount(rows);
 
                               return (
                                 <details
                                   key={courseKey}
                                   data-section-id={courseSectionId}
-                                  open={expandedIds.includes(courseSectionId)}
-                                  className="group rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                                  open={courseIsOpen}
+                                  className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
                                 >
                                   <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                                     <div className="flex flex-col gap-1">
@@ -180,8 +295,19 @@ export function NestedEnrollmentTableClient({
                                         {rows.length} student
                                         {rows.length !== 1 ? "s" : ""}
                                       </span>
+                                      <span className="text-xs text-dark-6 dark:text-dark-5">
+                                        Attendance alerts:{" "}
+                                        <span className="font-semibold text-red">
+                                          {courseAttendanceAlerts}
+                                        </span>
+                                      </span>
                                     </div>
-                                    <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                                    <span
+                                      className={cn(
+                                        "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                                        courseIsOpen && "rotate-180",
+                                      )}
+                                    >
                                       ▼
                                     </span>
                                   </summary>
@@ -192,17 +318,18 @@ export function NestedEnrollmentTableClient({
                                           <TableHead className="!text-left">
                                             Name / SAP ID
                                           </TableHead>
+                                      
                                           <TableHead className="!text-left">
-                                            Department
+                                            Classes Held
                                           </TableHead>
                                           <TableHead className="!text-left">
-                                            Program
+                                            Attendance %
                                           </TableHead>
                                           <TableHead className="!text-left">
-                                            Course
+                                            GPA
                                           </TableHead>
                                           <TableHead className="!text-left">
-                                            Instructor
+                                            Intervention Status
                                           </TableHead>
                                         </TableRow>
                                       </TableHeader>
@@ -211,10 +338,55 @@ export function NestedEnrollmentTableClient({
                                           const rowKey =
                                             row.Id ??
                                             `${row.SapNo}-${courseKey}-${idx}`;
+                                          const monitorKey = `${normalizeCourseCode(
+                                            typeof row.CrCode === "string"
+                                              ? row.CrCode
+                                              : String(row.CrCode ?? ""),
+                                          )}__${row.Section ?? ""}`;
+                                          const monitoredCount =
+                                            monitoredByCourseSection.get(monitorKey);
+                                          const attendanceKey =
+                                            getEnrollmentAttendanceKey(row);
+                                          const summary =
+                                            attendanceSummaries?.get(attendanceKey);
+                                          const classAvg =
+                                            classAverageByCourseSection.get(
+                                              monitorKey ?? "",
+                                            ) ?? null;
+                                          const alertLevel =
+                                            summary && classAvg != null
+                                              ? getAttendanceAlertLevel(
+                                                  summary.percentage,
+                                                  classAvg,
+                                                )
+                                              : null;
+                                          const attendanceColorClass =
+                                            alertLevel === "critical"
+                                              ? "text-red-600"
+                                              : alertLevel === "warning"
+                                              ? "text-yellow-600"
+                                              : "";
+                                          const hasAttendanceAlert =
+                                            alertLevel === "critical" ||
+                                            alertLevel === "warning";
+                                          const latestStatus =
+                                            interventionStatuses.get(row.SapNo) ??
+                                            null;
+
+                                          const classesHeld = summary?.totalHeld ?? 0;
+                                          const classesScheduled =
+                                            monitoredCount != null
+                                              ? monitoredCount
+                                              : summary?.totalHeld ?? 0;
+                                          const hasClassLoadSpike =
+                                            hasAttendanceAlert &&
+                                            classesHeld > 0 &&
+                                            classesScheduled > 0 &&
+                                            classesHeld / classesScheduled > 0.25;
                                           return (
                                             <TableRow
                                               key={rowKey}
-                                              className="text-dark dark:text-white"
+                                              className="text-center text-base font-medium text-dark dark:text-white"
                                             >
                                               <TableCell className="!text-left font-medium">
                                                 {returnToUrl ? (
@@ -246,17 +418,53 @@ export function NestedEnrollmentTableClient({
                                                   </div>
                                                 )}
                                               </TableCell>
-                                              <TableCell className="!text-left text-dark-6">
-                                                {row.DeptName ?? "—"}
+                                            
+                                              <TableCell className="!text-left">
+                                                {classesHeld === 0 &&
+                                                classesScheduled === 0
+                                                  ? "—"
+                                                  : `${classesHeld}/${classesScheduled}`}
                                               </TableCell>
                                               <TableCell className="!text-left">
-                                                {row.DegreeTitle ?? row.DegreeCode ?? "—"}
+                                                {summary ? (
+                                                  <div className="flex flex-col">
+                                                    <span className="inline-flex items-center gap-2">
+                                                      <span
+                                                        className={attendanceColorClass}
+                                                      >
+                                                        {summary.percentage.toFixed(
+                                                          1,
+                                                        )}
+                                                        %
+                                                      </span>
+                                                      {hasClassLoadSpike && (
+                                                        <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                                          (C)
+                                                        </span>
+                                                      )}
+                                                    </span>
+                                                    {classAvg != null && (
+                                                      <span className="text-xs text-dark-6 dark:text-dark-5">
+                                                        {classAvg.toFixed(1)}%
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                ) : isAttendanceLoading ? (
+                                                  "Calculating..."
+                                                ) : monitoredCount != null ? (
+                                                  `0.0% (0/${monitoredCount})`
+                                                ) : (
+                                                  "—"
+                                                )}
                                               </TableCell>
                                               <TableCell className="!text-left">
-                                                {row.CrTitle ?? row.CrCode ?? "—"}
+                                                <span>-</span>
                                               </TableCell>
                                               <TableCell className="!text-left">
-                                                {row.Teacher ?? "—"}
+                                                <InterventionStatusBadge
+                                                  status={latestStatus}
+                                                  goodStanding={!hasAttendanceAlert}
+                                                />
                                               </TableCell>
                                             </TableRow>
                                           );
