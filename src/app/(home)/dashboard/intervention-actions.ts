@@ -14,7 +14,7 @@ export async function recordIntervention(
   studentSapId: string,
   data: RecordInterventionInput
 ): Promise<void> {
-  saveIntervention(studentSapId, {
+  await saveIntervention(studentSapId, {
     date: data.date,
     outreach_mode: data.outreachMode,
     remarks: data.remarks,

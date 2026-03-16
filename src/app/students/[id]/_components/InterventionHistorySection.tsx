@@ -48,10 +48,6 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
     }
   }, [open]);
 
-  const handleSuccess = () => {
-    setOpen(false);
-  };
-
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
@@ -145,7 +141,7 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
           </button>
         </div>
         <div className="px-6 py-4">
-          <InterventionFormWithAction studentSapId={studentSapId} onSuccess={handleSuccess} />
+          <InterventionFormWithAction studentSapId={studentSapId} />
         </div>
       </dialog>
     </div>

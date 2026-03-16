@@ -26,7 +26,7 @@ export type InterventionFormData = {
 };
 
 type InterventionFormProps = {
-  onSubmit?: (data: InterventionFormData) => void;
+  onSubmit?: (data: InterventionFormData) => Promise<void> | void;
   onCancel?: () => void;
   className?: string;
 };
@@ -98,16 +98,20 @@ const InterventionForm = ({
   const [status, setStatus] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    setIsAdding(true);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit?.({
-      date,
-      outreachMode,
-      remarks,
-      status,
-    });
-    setIsAdding(false);
+    if (!onSubmit) return;
+    setIsAdding(true);
+    try {
+      await onSubmit({
+        date,
+        outreachMode,
+        remarks,
+        status,
+      });
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (

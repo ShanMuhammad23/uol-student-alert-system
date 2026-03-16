@@ -31,7 +31,16 @@ function getStorePath(): string {
   return path.join(process.cwd(), STORE_DIR, STORE_FILENAME);
 }
 
-type EnrollmentRow = { SapNo?: string; DeptId?: string; FacId?: string; CrCode?: string; CrTitle?: string };
+type EnrollmentRow = {
+  SapNo?: string;
+  DeptId?: string;
+  DeptCode?: string;
+  DeptName?: string;
+  FacId?: string;
+  CrCode?: string;
+  CrTitle?: string;
+  Name?: string;
+};
 
 function readEnrollmentForStudent(sapId: string): EnrollmentRow | null {
   const dataPath = path.join(process.cwd(), "public", "enrollment_data.json");
@@ -40,11 +49,60 @@ function readEnrollmentForStudent(sapId: string): EnrollmentRow | null {
     const raw = readFileSync(dataPath, "utf-8");
     const data = JSON.parse(raw) as EnrollmentRow[];
     const list = Array.isArray(data) ? data : [];
-    const first = list.find((r) => String(r.SapNo ?? "") === String(sapId));
+    const normalizedSap = String(sapId).trim();
+    const normalizedNoZeros = normalizedSap.replace(/^0+/, "");
+
+    const matchesSap = (r: EnrollmentRow): boolean => {
+      const rawSap = String(r.SapNo ?? "").trim();
+      if (!rawSap) return false;
+      if (rawSap === normalizedSap) return true;
+      const rawNoZeros = rawSap.replace(/^0+/, "");
+      if (rawNoZeros === normalizedNoZeros) return true;
+      const n1 = Number(rawSap);
+      const n2 = Number(normalizedSap);
+      return Number.isFinite(n1) && Number.isFinite(n2) && n1 === n2;
+    };
+
+    // Prefer a record that has both DeptId and FacId.
+    let first =
+      list.find((r) => matchesSap(r) && r.DeptId && r.FacId) ??
+      list.find((r) => matchesSap(r));
     return first ?? null;
   } catch {
     return null;
   }
+}
+
+async function ensureDepartmentFromEnrollment(enrollment: EnrollmentRow): Promise<void> {
+  if (!pool) return;
+  const deptId = String(enrollment.DeptId ?? "").trim();
+  const facId = String(enrollment.FacId ?? "").trim();
+  if (!deptId || !facId) return;
+
+  const deptCode = (enrollment.DeptCode ?? "").trim() || null;
+  const deptName = (enrollment.DeptName ?? "").trim() || deptCode || deptId;
+
+  // Ensure faculty exists (id = FacId from enrollment).
+  await pool.query(
+    `INSERT INTO faculties (id, name, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       name = COALESCE(EXCLUDED.name, faculties.name),
+       updated_at = NOW()`,
+    [facId, `Faculty ${facId}`]
+  );
+
+  // Ensure department exists (id = DeptId from enrollment).
+  await pool.query(
+    `INSERT INTO departments (id, code, name, faculty_id, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       code = COALESCE(EXCLUDED.code, departments.code),
+       name = COALESCE(EXCLUDED.name, departments.name),
+       faculty_id = COALESCE(EXCLUDED.faculty_id, departments.faculty_id),
+       updated_at = NOW()`,
+    [deptId, deptCode, deptName, facId]
+  );
 }
 
 function readStore(): InterventionRecord[] {
@@ -226,18 +284,32 @@ export async function recordIntervention(
     if (!session?.user?.id) {
       throw new Error("You must be signed in to record an intervention.");
     }
-    // Student context from enrollment_data.json only (SapNo, DeptId, FacId, CrCode).
+    // Use enrollment_data.json as the single source of truth for student context
+    // (DeptId, FacId, CrCode). SAP monitoring is *not* used for IDs here.
     const enrollment = readEnrollmentForStudent(studentSapId);
-    if (!enrollment?.DeptId || !enrollment?.FacId) {
+
+    let departmentId: string | null = null;
+    let facultyId: string | null = null;
+    let courseId: string | null = null;
+    let courseTitle: string | undefined;
+
+    if (enrollment?.DeptId && enrollment?.FacId) {
+      departmentId = String(enrollment.DeptId).trim();
+      facultyId = String(enrollment.FacId).trim();
+      courseId = (enrollment.CrCode ?? "").trim() || "unknown";
+      courseTitle = enrollment.CrTitle as string | undefined;
+      // Ensure faculty/department rows exist in the DB for this enrollment.
+      await ensureDepartmentFromEnrollment(enrollment);
+    }
+
+    if (!departmentId || !facultyId) {
       throw new Error(
-        "Student not found in enrollment. Ensure enrollment_data.json contains this student (SapNo) with DeptId and FacId."
+        "Student context not found in enrollment data. Ensure enrollment_data.json includes this student with DeptId and FacId."
       );
     }
-    const departmentId = enrollment.DeptId;
-    const facultyId = enrollment.FacId;
-    const courseId = (enrollment.CrCode ?? "").trim() || "unknown";
-    const courseTitle = enrollment.CrTitle as string | undefined;
-    await ensureCourseExists(courseId, {
+
+    const finalCourseId = (courseId ?? "").trim() || "unknown";
+    await ensureCourseExists(finalCourseId, {
       title: courseTitle,
       departmentId,
       facultyId,
@@ -253,7 +325,7 @@ export async function recordIntervention(
       performed_at: performedAt,
       staff_id: session.user.id,
       department_id: departmentId,
-      course_id: courseId,
+      course_id: finalCourseId,
       faculty_id: facultyId,
     });
     revalidatePath("/");

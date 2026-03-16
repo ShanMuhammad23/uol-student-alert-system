@@ -216,14 +216,14 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const report = generateAlertReport(student);
 
   const actionHistory = getMergedActionsByStudentSapId(student.sap_id);
-  const interventionHistory = await getInterventionsByStudentSapId(student.sap_id);
+  const sapIdFromUrl = id;
+  const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
 
   // Calculate metrics
   const attendanceDiff =
     student.attendance.attendance_percentage - student.attendance.class_average_attendance;
   const gpaDiff = student.gpa.current - (report.gpa_comparison.class_average_current || 0);
 
-  const sapIdFromUrl = id;
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
   const primaryEnrollment = enrollmentRecords[0] ?? null;
   const courseSummaries = (() => {
@@ -468,7 +468,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       {/* Intervention History (table + Add Intervention dialog) */}
       <InterventionHistorySection
         interventions={interventionHistory}
-        studentSapId={student.sap_id}
+        studentSapId={sapIdFromUrl}
       />
 
      
