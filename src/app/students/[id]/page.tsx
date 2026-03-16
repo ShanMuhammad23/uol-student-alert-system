@@ -16,6 +16,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentCourseAttendanceDetails } from "./_components/StudentCourseAttendanceDetails";
+import { pool } from "@/lib/db";
 
 type PropsType = {
   params: Promise<{ id: string }>;
@@ -226,6 +227,22 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
 
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
   const primaryEnrollment = enrollmentRecords[0] ?? null;
+
+  let facultyName: string | null = null;
+  const facultyId = primaryEnrollment?.FacId ?? student.faculty_id;
+  if (facultyId && pool) {
+    try {
+      const res = await pool.query<{ name: string }>(
+        "SELECT name FROM faculties WHERE id = $1",
+        [facultyId]
+      );
+      facultyName = res.rows[0]?.name?.trim() ?? null;
+    } catch {
+      facultyName = null;
+    }
+  }
+  if (facultyId && !facultyName) facultyName = `Faculty ${facultyId}`;
+
   const courseSummaries = (() => {
     const map = new Map<
       string,
@@ -291,6 +308,11 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                       student.course_id}
                   </span>
                 </span>
+                <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">
+                  <span className="font-medium">
+                    {facultyName ?? "—"}
+                  </span>
+                </span>
                 <span className="flex  flex-col gap-1.5 ">
                   <span className="text-base">Department:</span>
                   <span className="font-medium">
@@ -314,13 +336,14 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
             icon="👥"
           /> */}
             <div className="flex gap-3">
-              <AlertBadge
-                level={student.gpa.alert_level || "none"}
-                label={`GPA: ${student.gpa.alert_level === "critical" ? "Red" : student.gpa.alert_level === "warning" ? "Yellow" : "Normal"}`}
-              />
+             
               <AlertBadge
                 level={student.attendance.alert_level || "none"}
                 label={`Att: ${student.attendance.alert_level === "critical" ? "Red" : student.attendance.alert_level === "warning" ? "Yellow" : "Normal"}`}
+              />
+               <AlertBadge
+                level={student.gpa.alert_level || "none"}
+                label={`GPA: ${student.gpa.alert_level === "critical" ? "Red" : student.gpa.alert_level === "warning" ? "Yellow" : "Normal"}`}
               />
             </div>
           </div>

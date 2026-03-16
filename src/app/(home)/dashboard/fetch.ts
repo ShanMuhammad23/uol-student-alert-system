@@ -395,17 +395,14 @@ async function getDataFromEnrollment(): Promise<DataJson> {
   let faculties = buildFacultiesFromEnrollment(records);
   const users = await getTeachersFromDbAndEnrollment(records);
 
-  // Prefer faculty names from the database when available; fall back to enrollment-derived faculties.
+  // Use faculty names from the database for the session user (e.g. dean header).
   if (pool) {
     try {
       const res = await pool.query<{ id: string; name: string }>(
         "SELECT id, name FROM faculties"
       );
       if (res.rows.length) {
-        faculties = res.rows.map((r: { id: string; name: string }) => ({
-          id: r.id,
-          name: r.name,
-        }));
+        faculties = res.rows.map((r) => ({ id: r.id, name: r.name }));
       }
     } catch {
       // Ignore DB errors and keep enrollment-derived faculties instead.
@@ -476,7 +473,7 @@ function applyAttendanceAlertThreshold(student: Student): void {
   }
 }
 
-/** Screen heading by role: Faculty name (dean), Department name(s) (hod), Instructor name (teacher). */
+/** Screen heading by role: Faculty name (dean) from faculties table, Department name(s) (hod), Instructor name (teacher). */
 export function getScreenHeading(
   user: AppUser | null,
   data: { faculties: Faculty[]; departments: Department[] }
