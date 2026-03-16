@@ -631,6 +631,15 @@ export function TopChannelsTableClient({
                   alertLevel === "critical" || alertLevel === "warning";
                 const latestStatus = interventionStatuses.get(row.SapNo) ?? null;
 
+                const classesHeld = summary?.totalHeld ?? 0;
+                const classesScheduled =
+                  monitoredCount != null ? monitoredCount : summary?.totalHeld ?? 0;
+                const hasClassLoadSpike =
+                  hasAttendanceAlert &&
+                  classesHeld > 0 &&
+                  classesScheduled > 0 &&
+                  classesHeld / classesScheduled > 0.25;
+
                 return (
                   <TableRow
                     key={rowKey}
@@ -676,22 +685,22 @@ export function TopChannelsTableClient({
                       {row.Teacher ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
-                      {(() => {
-                        const classesHeld = summary?.totalHeld ?? 0;
-                        const classesScheduled =
-                          monitoredCount != null
-                            ? monitoredCount
-                            : summary?.totalHeld ?? 0;
-
-                        if (!classesHeld && !classesScheduled) return "—";
-                        return `${classesHeld}/${classesScheduled}`;
-                      })()}
+                      {classesHeld === 0 && classesScheduled === 0
+                        ? "—"
+                        : `${classesHeld}/${classesScheduled}`}
                     </TableCell>
                     <TableCell className="!text-left">
                       {summary ? (
                         <div className="flex flex-col">
-                          <span className={attendanceColorClass}>
-                            {summary.percentage.toFixed(1)}%
+                          <span className="inline-flex items-center gap-2">
+                            <span className={attendanceColorClass}>
+                              {summary.percentage.toFixed(1)}%
+                            </span>
+                            {hasClassLoadSpike && (
+                              <span className="inline-flex items-center rounded-full bg-red-500 text-white px-2 py-0.5 text-[10px] font-semibold  dark:bg-red-900/30 dark:text-red-300">
+                                C
+                              </span>
+                            )}
                           </span>
                           {classAvg != null && (
                             <span className="text-xs text-dark-6 dark:text-dark-5">
