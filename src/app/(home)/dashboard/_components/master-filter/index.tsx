@@ -87,6 +87,15 @@ function FilterMultiSelect({
     onChange(next);
   };
 
+  const handleSelectAll = () => {
+    const allValues = items.map((i) => i.value);
+    onChange(allValues);
+  };
+
+  const handleClearAll = () => {
+    onChange([]);
+  };
+
   const displayLabel =
     selected.length === 0
       ? "All"
@@ -128,6 +137,22 @@ function FilterMultiSelect({
           role="listbox"
           className="absolute left-0 top-full z-50 mt-1 max-h-[280px] w-full min-w-[200px] overflow-y-auto rounded-lg border border-stroke bg-white py-1 shadow-lg dark:border-stroke-dark dark:bg-gray-dark"
         >
+          <div className="flex items-center justify-between px-3 pb-1 text-[11px] text-dark-6 dark:text-dark-5">
+            <button
+              type="button"
+              className="underline hover:text-primary"
+              onClick={handleSelectAll}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="underline hover:text-primary"
+              onClick={handleClearAll}
+            >
+              Clear all
+            </button>
+          </div>
           {items.map((item) => (
             <label
               key={item.value}

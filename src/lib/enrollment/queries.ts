@@ -122,16 +122,28 @@ export function getMasterFilterOptions(
 
   const deptSet = new Set<string>();
   const deptLabels = new Map<string, string>();
+  const deptStudentIds = new Map<string, Set<string>>();
   for (const r of listByFaculty) {
     const id = r.DeptCode || r.DeptId;
     if (id) {
       deptSet.add(id);
       deptLabels.set(id, (r.DeptName ?? id).trim());
+      const sapId = (r.SapNo ?? "").trim();
+      if (sapId) {
+        if (!deptStudentIds.has(id)) deptStudentIds.set(id, new Set<string>());
+        deptStudentIds.get(id)!.add(sapId);
+      }
     }
   }
   const departments = Array.from(deptSet)
     .sort((a, b) => (deptLabels.get(a) ?? a).localeCompare(deptLabels.get(b) ?? b))
-    .map((value) => ({ value, label: deptLabels.get(value) ?? value }));
+    .map((value) => {
+      const baseLabel = deptLabels.get(value) ?? value;
+      const count = deptStudentIds.get(value)?.size ?? 0;
+      const label =
+        count > 0 ? `${baseLabel} (${count.toLocaleString()})` : baseLabel;
+      return { value, label };
+    });
 
   let listForProgram = listByFaculty;
   if (current?.department_ids?.length) {
@@ -140,16 +152,28 @@ export function getMasterFilterOptions(
   }
   const programSet = new Set<string>();
   const programLabels = new Map<string, string>();
+  const programStudentIds = new Map<string, Set<string>>();
   for (const r of listForProgram) {
     const degId = (r.DegreeCode ?? "").trim();
     if (degId) {
       programSet.add(degId);
       programLabels.set(degId, (r.DegreeTitle ?? r.DeptName ?? degId).trim());
+      const sapId = (r.SapNo ?? "").trim();
+      if (sapId) {
+        if (!programStudentIds.has(degId)) programStudentIds.set(degId, new Set<string>());
+        programStudentIds.get(degId)!.add(sapId);
+      }
     }
   }
   const programs = Array.from(programSet)
     .sort((a, b) => (programLabels.get(a) ?? a).localeCompare(programLabels.get(b) ?? b))
-    .map((value) => ({ value, label: programLabels.get(value) ?? value }));
+    .map((value) => {
+      const baseLabel = programLabels.get(value) ?? value;
+      const count = programStudentIds.get(value)?.size ?? 0;
+      const label =
+        count > 0 ? `${baseLabel} (${count.toLocaleString()})` : baseLabel;
+      return { value, label };
+    });
 
   let listForCourse = listForProgram;
   if (current?.programs?.length) {
@@ -158,16 +182,28 @@ export function getMasterFilterOptions(
   }
   const courseSet = new Set<string>();
   const courseLabels = new Map<string, string>();
+  const courseStudentIds = new Map<string, Set<string>>();
   for (const r of listForCourse) {
     const crKey = (r.CrCode ?? r.CrTitle ?? "").trim();
     if (crKey) {
       courseSet.add(crKey);
       courseLabels.set(crKey, (r.CrTitle ?? r.CrCode ?? crKey).trim());
+      const sapId = (r.SapNo ?? "").trim();
+      if (sapId) {
+        if (!courseStudentIds.has(crKey)) courseStudentIds.set(crKey, new Set<string>());
+        courseStudentIds.get(crKey)!.add(sapId);
+      }
     }
   }
   const courses = Array.from(courseSet)
     .sort((a, b) => (courseLabels.get(a) ?? a).localeCompare(courseLabels.get(b) ?? b))
-    .map((value) => ({ value, label: courseLabels.get(value) ?? value }));
+    .map((value) => {
+      const baseLabel = courseLabels.get(value) ?? value;
+      const count = courseStudentIds.get(value)?.size ?? 0;
+      const label =
+        count > 0 ? `${baseLabel} (${count.toLocaleString()})` : baseLabel;
+      return { value, label };
+    });
 
   let listForInstructor = listForCourse;
   if (current?.course_ids?.length) {
@@ -178,16 +214,28 @@ export function getMasterFilterOptions(
   }
   const instructorSet = new Set<string>();
   const instructorLabels = new Map<string, string>();
+  const instructorStudentIds = new Map<string, Set<string>>();
   for (const r of listForInstructor) {
     const pernr = (r.Pernr ?? "").trim();
     if (pernr) {
       instructorSet.add(pernr);
       instructorLabels.set(pernr, (r.Teacher ?? pernr).trim());
+      const sapId = (r.SapNo ?? "").trim();
+      if (sapId) {
+        if (!instructorStudentIds.has(pernr)) instructorStudentIds.set(pernr, new Set<string>());
+        instructorStudentIds.get(pernr)!.add(sapId);
+      }
     }
   }
   const instructors = Array.from(instructorSet)
     .sort((a, b) => (instructorLabels.get(a) ?? a).localeCompare(instructorLabels.get(b) ?? b))
-    .map((value) => ({ value, label: instructorLabels.get(value) ?? value }));
+    .map((value) => {
+      const baseLabel = instructorLabels.get(value) ?? value;
+      const count = instructorStudentIds.get(value)?.size ?? 0;
+      const label =
+        count > 0 ? `${baseLabel} (${count.toLocaleString()})` : baseLabel;
+      return { value, label };
+    });
 
   return { departments, programs, courses, instructors };
 }

@@ -258,6 +258,45 @@ function EnrollmentDashboardInner({
               programCount={programCount}
               instructorCount={instructorCount}
               courseCount={courseCount}
+              onClearDepartmentFilters={() =>
+                setLocalMasterFilter((prev) => ({
+                  ...prev,
+                  department_ids: undefined,
+                  programs: undefined,
+                  course_ids: undefined,
+                  instructor_ids: undefined,
+                }))
+              }
+              onClearProgramFilters={() =>
+                setLocalMasterFilter((prev) => ({
+                  ...prev,
+                  programs: undefined,
+                  course_ids: undefined,
+                  instructor_ids: undefined,
+                }))
+              }
+              onClearInstructorFilters={() =>
+                setLocalMasterFilter((prev) => ({
+                  ...prev,
+                  instructor_ids: undefined,
+                }))
+              }
+              onClearCourseFilters={() =>
+                setLocalMasterFilter((prev) => ({
+                  ...prev,
+                  course_ids: undefined,
+                }))
+              }
+              hasDepartmentFilters={
+                (localMasterFilter.department_ids?.length ?? 0) > 0
+              }
+              hasProgramFilters={(localMasterFilter.programs?.length ?? 0) > 0}
+              hasInstructorFilters={
+                (localMasterFilter.instructor_ids?.length ?? 0) > 0
+              }
+              hasCourseFilters={
+                (localMasterFilter.course_ids?.length ?? 0) > 0
+              }
               departmentContent={
                 <DeanDepartmentStats
                   user={user}
