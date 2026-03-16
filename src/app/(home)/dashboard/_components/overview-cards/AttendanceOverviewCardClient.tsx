@@ -39,6 +39,7 @@ export function AttendanceOverviewCardClient({
   isActive,
   user,
   masterFilter,
+  attendanceFilters,
 }: PropsType): JSX.Element {
   const { data: enrollmentData } = useEnrollmentData();
   const { data: monitoringData } = useMonitoringStudents();
@@ -46,6 +47,19 @@ export function AttendanceOverviewCardClient({
     Map<string, AttendanceSummary> | null
   >(null);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
+
+  const matchesAttendanceFilters = (
+    level: "critical" | "warning" | null,
+  ): boolean => {
+    if (!attendanceFilters?.length) return true;
+    const allowed = new Set<string | null>();
+    for (const f of attendanceFilters) {
+      if (f === "red") allowed.add("critical");
+      else if (f === "yellow") allowed.add("warning");
+      else if (f === "good") allowed.add(null);
+    }
+    return allowed.has(level);
+  };
 
   const scopedEnrollmentData = useMemo(() => {
     if (!enrollmentData?.length || !user?.role) return enrollmentData ?? [];
@@ -164,6 +178,7 @@ export function AttendanceOverviewCardClient({
       const classAvg = classAverageByCourseSection.get(sectionKey);
       if (classAvg == null) continue;
       const level = getAttendanceAlertLevel(summary.percentage, classAvg);
+      if (!matchesAttendanceFilters(level)) continue;
       if (level === "critical") red += 1;
       else if (level === "warning") yellow += 1;
     }
