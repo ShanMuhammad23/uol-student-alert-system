@@ -38,7 +38,11 @@ export function useAttendanceAlerts(
       const key = `${normalizeCourseCode(
         typeof c.CrCode === "string" ? c.CrCode : String(c.CrCode ?? ""),
       )}__${c.SecCode ?? ""}`;
-      map.set(key, (map.get(key) ?? 0) + (c.Att ?? 0));
+      const scheduled =
+        typeof c.ToDate === "number"
+          ? c.ToDate
+          : Number(c.ToDate ?? 0) || 0;
+      map.set(key, scheduled);
     }
     return map;
   }, [monitoringData]);

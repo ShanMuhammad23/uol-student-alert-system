@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     type ClassKey = string;
     const byClass = new Map<
       ClassKey,
-      { CrCode: string; SecCode: string; Att: number }
+      { CrCode: string; SecCode: string; Att: number; ToDate: number }
     >();
 
     for (const e of entries) {
@@ -32,6 +32,13 @@ export async function GET(req: NextRequest) {
       const sec = String(e.SecCode ?? "");
       if (!code || !sec) continue;
       const key: ClassKey = `${code}__${sec}`;
+      const rawToDate = e.ToDate;
+      const toDate =
+        typeof rawToDate === "number"
+          ? rawToDate
+          : rawToDate != null
+          ? Number(rawToDate) || 0
+          : 0;
       const rawAtt = e.Att;
       const att =
         typeof rawAtt === "number"
@@ -41,9 +48,12 @@ export async function GET(req: NextRequest) {
           : 0;
       const existing = byClass.get(key);
       if (!existing) {
-        byClass.set(key, { CrCode: code, SecCode: sec, Att: att });
+        byClass.set(key, { CrCode: code, SecCode: sec, Att: att, ToDate: toDate });
       } else {
         existing.Att += att;
+        if (toDate > existing.ToDate) {
+          existing.ToDate = toDate;
+        }
       }
     }
 

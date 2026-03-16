@@ -676,7 +676,16 @@ export function TopChannelsTableClient({
                       {row.Teacher ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
-                      {monitoredCount != null ? monitoredCount : "—"}
+                      {(() => {
+                        const classesHeld = summary?.totalHeld ?? 0;
+                        const classesScheduled =
+                          monitoredCount != null
+                            ? monitoredCount
+                            : summary?.totalHeld ?? 0;
+
+                        if (!classesHeld && !classesScheduled) return "—";
+                        return `${classesHeld}/${classesScheduled}`;
+                      })()}
                     </TableCell>
                     <TableCell className="!text-left">
                       {summary ? (

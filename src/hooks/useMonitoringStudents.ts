@@ -15,6 +15,7 @@ export type MonitoringClassSummary = {
   CrCode: string;
   SecCode: string;
   Att: number;
+  ToDate: number;
 };
 
 export type MonitoringResponse = {
