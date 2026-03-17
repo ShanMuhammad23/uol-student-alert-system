@@ -6,8 +6,8 @@ import dynamic from "next/dynamic";
 const CATEGORIES = [
   "Counselling",
   "Monitoring",
-  "Flex (Academic)",
-  "Flex (Financial)",
+  "Flex (Acad)",
+  "Flex (Fin)",
 ] as const;
 
 export type StatusStackedChartData = {
