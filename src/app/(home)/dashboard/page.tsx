@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { OverviewCardsGroup } from "./_components/overview-cards";
 import { OverviewCardsSkeleton } from "./_components/overview-cards/skeleton";
-import { getCurrentUser, getMasterFilterOptions } from "./fetch";
+import { getCurrentUser, getMasterFilterOptions, getOverviewData } from "./fetch";
 import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
 import { HodStatsCollapsible } from "./_components/hod-stats-collapsible";
 import { HodProgramStats } from "./_components/hod-program-stats";
@@ -12,6 +12,7 @@ import { InterventionStatusChartClient } from "./_components/InterventionStatusC
 import { getWellbeingChartData } from "./fetch";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
+import { DashboardFilterProvider } from "./_components/DashboardFilterContext";
 import { getHodProgramStats, getHodInstructorStats } from "./fetch";
 
 function parseMultiParam(
@@ -94,6 +95,13 @@ export default async function Home({ searchParams }: PropsType) {
     attendanceFilters
   );
 
+  const { yellowGpa, redGpa } = await getOverviewData(
+    user,
+    masterFilter,
+    gpaFilters,
+    attendanceFilters
+  );
+
   const viewMode = params.view === "nested" ? "nested" : "table";
   const expandedParam = params.expanded;
   const expandedIds = expandedParam ? expandedParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
@@ -121,75 +129,86 @@ export default async function Home({ searchParams }: PropsType) {
       <Suspense fallback={null}>
         <FilterScrollPreserve />
       </Suspense>
-      <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6">
-        <div className="col-span-12 md:col-span-4 ">
-          <Suspense fallback={<OverviewCardsSkeleton />}>
-            <OverviewCardsGroup
-              selectedAlert={selectedAlert}
+      <DashboardFilterProvider
+        value={{
+          masterFilter,
+          gpaFilters,
+          attendanceFilters,
+          interventionFilters,
+          resolutionFilters: [],
+        }}
+      >
+        <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6">
+          <div className="col-span-12 md:col-span-4 ">
+            <Suspense fallback={<OverviewCardsSkeleton />}>
+              <OverviewCardsGroup
+                selectedAlert={selectedAlert}
+                user={user}
+                yellowGpa={yellowGpa.value}
+                redGpa={redGpa.value}
+              />
+            </Suspense>
+          </div>
+          <div className=" col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
+            <InterventionStatusChartClient
+              title="Outreach & Intervention"
               user={user}
               masterFilter={masterFilter}
-              gpaFilters={gpaFilters}
               attendanceFilters={attendanceFilters}
             />
-          </Suspense>
-        </div>
-        <div className=" col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
-          <InterventionStatusChartClient
-            title="Outreach & Intervention"
-            user={user}
-            masterFilter={masterFilter}
-            attendanceFilters={attendanceFilters}
-          />
-        </div>
-        <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
-          <StatusStackedChart
-            title="Wellbeing Resolution"
-            data={wellbeingChart}
-          />
-        </div>
-      </div>
-    
-            <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
-        <div className="col-span-12">
-          {user?.role === "hod" && (
-            <HodStatsCollapsible
-              programCount={hodProgramCount}
-              instructorCount={hodInstructorCount}
-              selectedProgramId={programs[0]}
-              programContent={
-                <HodProgramStats
-                  user={user}
-                  selectedProgramId={programs[0]}
-                  masterFilterProgramIds={programs.length ? programs : undefined}
-                />
-              }
-              instructorContent={
-                <HodInstructorStats
-                  user={user}
-                  selectedProgramId={programs[0]}
-                  selectedInstructorId={instructorIds[0]}
-                />
-              }
+          </div>
+          <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
+            <StatusStackedChart
+              title="Wellbeing Resolution"
+              data={wellbeingChart}
             />
-          )}
+          </div>
         </div>
-      </div>
 
-      <EnrollmentDashboard
-        user={user}
-        masterFilter={masterFilter}
-        filterOptionsFromServer={filterOptions}
-        selectedAlert={selectedAlert}
-        gpaFilters={gpaFilters}
-        attendanceFilters={attendanceFilters}
-        interventionFilters={interventionFilters}
-        returnToUrl={returnToUrl}
-        departmentIds={departmentIds}
-        programIds={programs}
-        instructorIds={instructorIds}
-        viewMode={viewMode}
-        expandedIds={expandedIds}
-      />
+        <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
+          <div className="col-span-12">
+            {user?.role === "hod" && (
+              <HodStatsCollapsible
+                programCount={hodProgramCount}
+                instructorCount={hodInstructorCount}
+                selectedProgramId={programs[0]}
+                programContent={
+                  <HodProgramStats
+                    user={user}
+                    selectedProgramId={programs[0]}
+                    masterFilterProgramIds={
+                      programs.length ? programs : undefined
+                    }
+                  />
+                }
+                instructorContent={
+                  <HodInstructorStats
+                    user={user}
+                    selectedProgramId={programs[0]}
+                    selectedInstructorId={instructorIds[0]}
+                  />
+                }
+              />
+            )}
+          </div>
+        </div>
+
+        <EnrollmentDashboard
+          user={user}
+          masterFilter={masterFilter}
+          filterOptionsFromServer={filterOptions}
+          selectedAlert={selectedAlert}
+          gpaFilters={gpaFilters}
+          attendanceFilters={attendanceFilters}
+          interventionFilters={interventionFilters}
+          returnToUrl={returnToUrl}
+          departmentIds={departmentIds}
+          programIds={programs}
+          instructorIds={instructorIds}
+          viewMode={viewMode}
+          expandedIds={expandedIds}
+        />
+      </DashboardFilterProvider>
     </>
   );
 }

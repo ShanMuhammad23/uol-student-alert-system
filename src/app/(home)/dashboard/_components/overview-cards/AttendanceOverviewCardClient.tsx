@@ -20,6 +20,7 @@ import type {
   MasterFilterParams,
   AlertDimensionFilter,
 } from "../../fetch";
+import { useDashboardFilter } from "../DashboardFilterContext";
 import { DonutChart } from "@/components/Charts/used-devices/chart";
 
 type PropsType = {
@@ -32,6 +33,21 @@ type PropsType = {
   attendanceFilters?: AlertDimensionFilter[]; // currently unused
 };
 
+function deduplicateEnrollments(
+  data: import("@/lib/enrollment").EnrollmentRecord[],
+) {
+  const seen = new Set<string>();
+  return data.filter((record) => {
+    const id =
+      record.Id ?? `${record.SapNo}-${record.CrCode}-${record.Section}`;
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
 export function AttendanceOverviewCardClient({
   label,
   isActive,
@@ -40,13 +56,18 @@ export function AttendanceOverviewCardClient({
   attendanceFilters,
 }: PropsType): JSX.Element {
   const { data: enrollmentData } = useEnrollmentData();
+  const dashboardFilter = useDashboardFilter();
+
+  const effectiveMasterFilter = dashboardFilter?.masterFilter ?? masterFilter;
+  const effectiveAttendanceFilters =
+    dashboardFilter?.attendanceFilters ?? attendanceFilters;
 
   const matchesAttendanceFilters = (
     level: "critical" | "warning" | null,
   ): boolean => {
-    if (!attendanceFilters?.length) return true;
+    if (!effectiveAttendanceFilters?.length) return true;
     const allowed = new Set<string | null>();
-    for (const f of attendanceFilters) {
+    for (const f of effectiveAttendanceFilters) {
       if (f === "red") allowed.add("critical");
       else if (f === "yellow") allowed.add("warning");
       else if (f === "good") allowed.add(null);
@@ -82,20 +103,21 @@ export function AttendanceOverviewCardClient({
     if (!scopedEnrollmentData?.length || !user?.role) return scopedEnrollmentData ?? [];
     // When no masterFilter is provided, use an empty object to satisfy type expectations.
     const mf: EnrollmentMasterFilterParams =
-      masterFilter && Object.keys(masterFilter).length > 0
+      effectiveMasterFilter && Object.keys(effectiveMasterFilter).length > 0
         ? {
-            department_ids: masterFilter.department_ids,
-            programs: masterFilter.programs,
-            instructor_ids: masterFilter.instructor_ids,
-            course_ids: masterFilter.course_ids,
+            department_ids: effectiveMasterFilter.department_ids,
+            programs: effectiveMasterFilter.programs,
+            instructor_ids: effectiveMasterFilter.instructor_ids,
+            course_ids: effectiveMasterFilter.course_ids,
           }
         : {};
-    return filterEnrollmentByMasterFilter(
+    const result = filterEnrollmentByMasterFilter(
       scopedEnrollmentData,
       mf,
-      user.role === "dean" ? user.faculty_id ?? undefined : undefined
+      user.role === "dean" ? user.faculty_id ?? undefined : undefined,
     );
-  }, [scopedEnrollmentData, masterFilter, user]);
+    return deduplicateEnrollments(result);
+  }, [scopedEnrollmentData, effectiveMasterFilter, user]);
   const {
     attendanceSummaries,
     classAverageByCourseSection,

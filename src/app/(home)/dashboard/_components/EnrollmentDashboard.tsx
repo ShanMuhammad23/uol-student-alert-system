@@ -27,6 +27,7 @@ import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
 import { StudentsViewTabs } from "./StudentsViewTabs";
 import { DashboardUiStateProvider, useDashboardUiState } from "./DashboardUiStateContext";
+import { DashboardFilterProvider } from "./DashboardFilterContext";
 
 type Props = {
   user: DashboardUser;
@@ -149,30 +150,40 @@ export function EnrollmentDashboard({
       initialViewMode={viewMode}
       initialExpandedIds={expandedIds}
     >
-      <EnrollmentDashboardInner
-        user={user}
-        departmentIds={departmentIds}
-        programIds={programIds}
-        instructorIds={instructorIds}
-        selectedAlert={selectedAlert}
-        filterOptions={filterOptions}
-        filteredData={filteredData ?? null}
-        returnToUrl={returnToUrl}
-        localMasterFilter={localMasterFilter}
-        localGpaFilters={localGpaFilters}
-        localAttendanceFilters={localAttendanceFilters}
-        localInterventionFilters={localInterventionFilters}
-        localResolutionFilters={localResolutionFilters}
-        localInterventionStatusFilters={localInterventionStatusFilters}
-        setLocalMasterFilter={setLocalMasterFilter}
-        setLocalGpaFilters={setLocalGpaFilters}
-        setLocalAttendanceFilters={setLocalAttendanceFilters}
-        setLocalInterventionFilters={setLocalInterventionFilters}
-        setLocalResolutionFilters={setLocalResolutionFilters}
-        departmentStats={departmentStats}
-        programStats={programStats}
-        instructorStats={instructorStats}
-      />
+      <DashboardFilterProvider
+        value={{
+          masterFilter: localMasterFilter,
+          gpaFilters: localGpaFilters,
+          attendanceFilters: localAttendanceFilters,
+          interventionFilters: localInterventionFilters,
+          resolutionFilters: localResolutionFilters,
+        }}
+      >
+        <EnrollmentDashboardInner
+          user={user}
+          departmentIds={departmentIds}
+          programIds={programIds}
+          instructorIds={instructorIds}
+          selectedAlert={selectedAlert}
+          filterOptions={filterOptions}
+          filteredData={filteredData ?? null}
+          returnToUrl={returnToUrl}
+          localMasterFilter={localMasterFilter}
+          localGpaFilters={localGpaFilters}
+          localAttendanceFilters={localAttendanceFilters}
+          localInterventionFilters={localInterventionFilters}
+          localResolutionFilters={localResolutionFilters}
+          localInterventionStatusFilters={localInterventionStatusFilters}
+          setLocalMasterFilter={setLocalMasterFilter}
+          setLocalGpaFilters={setLocalGpaFilters}
+          setLocalAttendanceFilters={setLocalAttendanceFilters}
+          setLocalInterventionFilters={setLocalInterventionFilters}
+          setLocalResolutionFilters={setLocalResolutionFilters}
+          departmentStats={departmentStats}
+          programStats={programStats}
+          instructorStats={instructorStats}
+        />
+      </DashboardFilterProvider>
     </DashboardUiStateProvider>
   );
 }
@@ -322,6 +333,7 @@ function EnrollmentDashboardInner({
                   selectedProgramId={
                     localMasterFilter.programs?.[0] ?? programIds[0]
                   }
+                  enrollmentData={filteredData ?? []}
                   masterFilterProgramIds={
                     localMasterFilter.programs?.length
                       ? localMasterFilter.programs
@@ -376,6 +388,7 @@ function EnrollmentDashboardInner({
                     localMasterFilter.instructor_ids?.[0] ?? instructorIds[0]
                   }
                   stats={instructorStats}
+                  enrollmentData={filteredData ?? []}
                   onSelectInstructorId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,

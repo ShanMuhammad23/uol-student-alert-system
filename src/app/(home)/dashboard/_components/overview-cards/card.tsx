@@ -1,12 +1,8 @@
+ "use client";
 import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 import type { JSX } from "react";
-import { GPAChart } from "../overview-chart/gpa-chart";
-import type {
-  AppUser,
-  MasterFilterParams,
-  AlertDimensionFilter,
-} from "../../fetch";
+import type { AppUser } from "../../fetch";
 import * as icons from "./icons";
 
 type PropsType = {
@@ -21,12 +17,13 @@ type PropsType = {
   isActive?: boolean;
   /** Passed to GPAChart / AttendanceChart when rendered inside the card */
   user?: AppUser | null;
-  masterFilter?: MasterFilterParams;
-  gpaFilters?: AlertDimensionFilter[];
-  attendanceFilters?: AlertDimensionFilter[];
+  // kept for API symmetry, but not used client-side anymore
+  masterFilter?: unknown;
+  gpaFilters?: unknown;
+  attendanceFilters?: unknown;
 };
 
-export async function OverviewCard({
+export function OverviewCard({
   label,
   data,
   isActive,
@@ -87,15 +84,7 @@ export async function OverviewCard({
           <icons.YellowAlert className="h-10 w-10 text-yellow-400 dark:text-yellow-400" />
         </div>
       )}
-      {label === "GPA" && (
-        <GPAChart
-          user={user ?? null}
-          masterFilter={masterFilter}
-          gpaFilters={gpaFilters}
-          attendanceFilters={attendanceFilters}
-          showTitle={false}
-        />
-      )}
+      {/* GPA sparkline removed in client-safe version to avoid server-only deps */}
     </div>
   );
 }

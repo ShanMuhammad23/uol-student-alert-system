@@ -1,42 +1,29 @@
-"use server"
-import { getOverviewData } from "../../fetch";
-import type {
-  AppUser,
-  MasterFilterParams,
-  AlertDimensionFilter,
-} from "../../fetch";
-import { OverviewCard } from "./card";
-import * as icons from "./icons";
+"use client";
+
 import Link from "next/link";
-import type { AlertFilter } from "../../fetch";
+import type { AppUser, AlertFilter } from "../../fetch";
 import { AttendanceOverviewCardClient } from "./AttendanceOverviewCardClient";
+import { OverviewCard } from "./card";
+import { useDashboardFilter } from "../DashboardFilterContext";
 
 type PropsType = {
   selectedAlert: AlertFilter | string;
   user?: AppUser | null;
-  masterFilter?: MasterFilterParams;
-  gpaFilters?: AlertDimensionFilter[];
-  attendanceFilters?: AlertDimensionFilter[];
+  yellowGpa: number;
+  redGpa: number;
 };
 
-export async function OverviewCardsGroup({
+export function OverviewCardsGroup({
   selectedAlert,
   user,
-  masterFilter,
-  gpaFilters,
-  attendanceFilters,
+  yellowGpa,
+  redGpa,
 }: PropsType) {
-  const { yellowGpa, redGpa } = await getOverviewData(
-    user,
-    masterFilter,
-    gpaFilters,
-    attendanceFilters
-  );
-
+  const filter = useDashboardFilter();
   const active = selectedAlert || "all";
 
   return (
-    <div className="flex flex-col  gap-2 ">
+    <div className="flex flex-col gap-2">
       <Link
         href={`/?selected_alert=attendance`}
         className="rounded-[10px] transition-opacity hover:opacity-90 flex-1"
@@ -46,9 +33,8 @@ export async function OverviewCardsGroup({
           label="Attendance"
           isActive={active === "attendance"}
           user={user}
-          masterFilter={masterFilter}
-          gpaFilters={gpaFilters}
-          attendanceFilters={attendanceFilters}
+          masterFilter={filter?.masterFilter}
+          attendanceFilters={filter?.attendanceFilters}
         />
       </Link>
       <Link
@@ -58,12 +44,12 @@ export async function OverviewCardsGroup({
       >
         <OverviewCard
           label="GPA"
-          data={{ yellow: yellowGpa.value, red: redGpa.value }}
+          data={{ yellow: yellowGpa, red: redGpa }}
           isActive={active === "gpa"}
           user={user}
-          masterFilter={masterFilter}
-          gpaFilters={gpaFilters}
-          attendanceFilters={attendanceFilters}
+          masterFilter={filter?.masterFilter}
+          gpaFilters={filter?.gpaFilters}
+          attendanceFilters={filter?.attendanceFilters}
         />
       </Link>
     </div>

@@ -24,8 +24,8 @@ const Chart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
 
-const OPEN_COLOR = "#22c55e";
-const CLOSED_COLOR = "#ef4444";
+const OPEN_COLOR = "#ef4444";
+const CLOSED_COLOR = "#22c55e";
 
 const defaultData: StatusStackedChartData = {
   open: [12, 8, 15, 6],
