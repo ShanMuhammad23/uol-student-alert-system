@@ -1,22 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { JSX } from "react";
 import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 import { useEnrollmentData } from "@/hooks/useEnrollmentData";
-import { useMonitoringStudents } from "@/hooks/useMonitoringStudents";
 import {
   filterEnrollmentByMasterFilter,
   type MasterFilterParams as EnrollmentMasterFilterParams,
 } from "@/lib/enrollment";
 import {
-  getAttendanceSummariesForEnrollments,
-  getEnrollmentAttendanceKey,
   getAttendanceAlertLevel,
+  getEnrollmentAttendanceKey,
   normalizeCourseCode,
-  type AttendanceSummary,
 } from "@/lib/attendance-utils";
+import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import type {
   AppUser,
   MasterFilterParams,
@@ -42,11 +40,6 @@ export function AttendanceOverviewCardClient({
   attendanceFilters,
 }: PropsType): JSX.Element {
   const { data: enrollmentData } = useEnrollmentData();
-  const { data: monitoringData } = useMonitoringStudents();
-  const [attendanceSummaries, setAttendanceSummaries] = useState<
-    Map<string, AttendanceSummary> | null
-  >(null);
-  const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
 
   const matchesAttendanceFilters = (
     level: "critical" | "warning" | null,
@@ -103,65 +96,12 @@ export function AttendanceOverviewCardClient({
       user.role === "dean" ? user.faculty_id ?? undefined : undefined
     );
   }, [scopedEnrollmentData, masterFilter, user]);
-
-  const monitoredByCourseSection = useMemo(() => {
-    const map = new Map<string, number>();
-    const classes = monitoringData?.classes ?? [];
-    for (const c of classes) {
-      const key = `${normalizeCourseCode(
-        typeof c.CrCode === "string" ? c.CrCode : String(c.CrCode ?? "")
-      )}__${c.SecCode ?? ""}`;
-      map.set(key, (map.get(key) ?? 0) + (c.Att ?? 0));
-    }
-    return map;
-  }, [monitoringData]);
-
-  useEffect(() => {
-    const rows = filteredEnrollments ?? [];
-    if (!rows.length) {
-      setAttendanceSummaries(null);
-      return;
-    }
-
-    setIsAttendanceLoading(true);
-    getAttendanceSummariesForEnrollments(rows, monitoredByCourseSection)
-      .then((map) => {
-        setAttendanceSummaries(map);
-      })
-      .catch(() => {
-        setAttendanceSummaries(null);
-      })
-      .finally(() => {
-        setIsAttendanceLoading(false);
-      });
-  }, [filteredEnrollments, monitoredByCourseSection]);
-
-  const classAverageByCourseSection = useMemo(() => {
-    const map = new Map<string, number>();
-    const counts = new Map<string, number>();
-    if (!attendanceSummaries) return map;
-
-    for (const row of filteredEnrollments ?? []) {
-      const sectionKey = `${normalizeCourseCode(
-        typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? "")
-      )}__${row.Section ?? ""}`;
-      const attKey = getEnrollmentAttendanceKey(row);
-      const summary = attendanceSummaries.get(attKey);
-      if (!summary) continue;
-
-      const prevSum = map.get(sectionKey) ?? 0;
-      const prevCount = counts.get(sectionKey) ?? 0;
-      map.set(sectionKey, prevSum + summary.percentage);
-      counts.set(sectionKey, prevCount + 1);
-    }
-
-    for (const [key, sum] of map.entries()) {
-      const count = counts.get(key) ?? 1;
-      map.set(key, sum / count);
-    }
-
-    return map;
-  }, [attendanceSummaries, filteredEnrollments]);
+  const {
+    attendanceSummaries,
+    classAverageByCourseSection,
+    monitoredByCourseSection,
+    isAttendanceLoading,
+  } = useAttendanceAlerts(filteredEnrollments ?? []);
 
   const { yellowCount, redCount } = useMemo(() => {
     let yellow = 0;

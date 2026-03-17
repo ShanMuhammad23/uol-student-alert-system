@@ -1180,7 +1180,6 @@ export type InterventionChartDataPoint = { x: string; y: number };
 
 export type InterventionChartResult = {
   data: InterventionChartDataPoint[];
-  totalAlertCount: number;
   statusColors: Record<string, string>;
 };
 
@@ -1190,7 +1189,6 @@ export async function getInterventionChartData(
   masterFilter?: MasterFilterParams,
   gpaFilters?: AlertDimensionFilter[],
   attendanceFilters?: AlertDimensionFilter[],
-  interventionFilters?: string[],
 ): Promise<InterventionChartResult> {
   // 1) Total alerts (yellow + red) using same logic as Attendance card
   const overview = await getOverviewData(
@@ -1199,10 +1197,6 @@ export async function getInterventionChartData(
     gpaFilters,
     attendanceFilters,
   );
-  console.log("[InterventionChart] overview", {
-    yellow: overview.yellowAttendance?.value,
-    red: overview.redAttendance?.value,
-  });
   const totalAlertStudents =
     (overview.yellowAttendance?.value ?? 0) +
     (overview.redAttendance?.value ?? 0);
@@ -1213,18 +1207,6 @@ export async function getInterventionChartData(
   let inProgress = 0;
   let referred = 0;
   let resolved = 0;
-
-  const wantsNotStarted = interventionFilters?.includes("not_started") ?? false;
-  const wantsInitiated = interventionFilters?.includes("initiated") ?? false;
-  const wantsInProgress = interventionFilters?.includes("in_progress") ?? false;
-  const wantsReferred = interventionFilters?.includes("referred") ?? false;
-  const wantsResolved = interventionFilters?.includes("resolved") ?? false;
-  const hasInterventionFilters =
-    wantsNotStarted ||
-    wantsInitiated ||
-    wantsInProgress ||
-    wantsReferred ||
-    wantsResolved;
 
   if (pool) {
     const whereParts: string[] = [];
@@ -1264,14 +1246,9 @@ export async function getInterventionChartData(
 
     console.log("[InterventionChart] interventions", res.rows.length);
 
-    let totalInterventionStudents = 0;
-
     for (const row of res.rows) {
       const status = row.status;
       if (!status) continue;
-
-      totalInterventionStudents += 1;
-
       if (status === "initiated") initiated += 1;
       else if (status === "in-progress") inProgress += 1;
       else if (status === "referred") referred += 1;
@@ -1282,18 +1259,15 @@ export async function getInterventionChartData(
       }
     }
 
-    // 3) Not Started = Total Alerts (yellow+red) − total interventions count from DB
-    notStarted = Math.max(0, totalAlertStudents - totalInterventionStudents);
+    // 3) Not Started = Total Alerts (yellow+red) − total interventions count
+    const totalInterventionStudents =
+      initiated + inProgress + referred + resolved;
+    notStarted = Math.max(
+      0,
+      totalAlertStudents - totalInterventionStudents,
+    );
   } else {
     notStarted = totalAlertStudents;
-  }
-
-  if (hasInterventionFilters) {
-    if (!wantsNotStarted) notStarted = 0;
-    if (!wantsInitiated) initiated = 0;
-    if (!wantsInProgress) inProgress = 0;
-    if (!wantsReferred) referred = 0;
-    if (!wantsResolved) resolved = 0;
   }
 
   const statusColors: Record<string, string> = {
@@ -1314,7 +1288,6 @@ export async function getInterventionChartData(
 
   return {
     data,
-    totalAlertCount: notStarted + initiated + inProgress + referred + resolved,
     statusColors,
   };
 }

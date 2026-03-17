@@ -7,9 +7,9 @@ import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
 import { HodStatsCollapsible } from "./_components/hod-stats-collapsible";
 import { HodProgramStats } from "./_components/hod-program-stats";
 import { HodInstructorStats } from "./_components/hod-instructor-stats";
-import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
-import { getInterventionChartData, getWellbeingChartData } from "./fetch";
+import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
+import { getWellbeingChartData } from "./fetch";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { getHodProgramStats, getHodInstructorStats } from "./fetch";
@@ -87,13 +87,6 @@ export default async function Home({ searchParams }: PropsType) {
   }
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
-  const interventionChart = await getInterventionChartData(
-    user,
-    masterFilter,
-    gpaFilters,
-    attendanceFilters,
-    interventionFilters,
-  );
   const wellbeingChart = await getWellbeingChartData(
     user,
     masterFilter,
@@ -141,12 +134,13 @@ export default async function Home({ searchParams }: PropsType) {
           </Suspense>
         </div>
         <div className=" col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
-      <InterventionStatusChart
-            data={interventionChart.data}
-            statusColors={interventionChart.statusColors}
+          <InterventionStatusChartClient
             title="Outreach & Intervention"
+            user={user}
+            masterFilter={masterFilter}
+            attendanceFilters={attendanceFilters}
           />
-      </div>
+        </div>
         <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
           <StatusStackedChart
             title="Wellbeing Resolution"
