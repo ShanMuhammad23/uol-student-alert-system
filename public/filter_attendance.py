@@ -3,7 +3,7 @@ import json
 import os
 
 ENROLLMENT_JSON = 'enrollment_data.json'
-ATTENDANCE_XML = 'Attendance_data.xml'  # Ensure this matches your actual file name
+ATTENDANCE_XML = 'attendance_data.xml'  # Ensure this matches your actual file name
 OUTPUT_FILE = 'Filtered_Attendance.xml'
 
 NAMESPACES = {
