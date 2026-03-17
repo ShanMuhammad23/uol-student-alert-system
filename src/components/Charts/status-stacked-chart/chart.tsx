@@ -92,12 +92,12 @@ export function StatusStackedChart({
     },
     legend: {
       show: true,
-      position: "bottom",
-      horizontalAlign: "center",
+      position: "top",
+      horizontalAlign: "right",
       fontFamily: "Satoshi",
       markers: {
     
-        size: 12,
+        size: 8,
         
       },
     },

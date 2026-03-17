@@ -128,7 +128,6 @@ export default async function Home({ searchParams }: PropsType) {
       <Suspense fallback={null}>
         <FilterScrollPreserve />
       </Suspense>
-      {/* Row 1: Overview cards + Charts in one row */}
       <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-1">
         <div className="col-span-12 md:col-span-4">
           <Suspense fallback={<OverviewCardsSkeleton />}>
