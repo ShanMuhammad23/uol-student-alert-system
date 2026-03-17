@@ -124,23 +124,6 @@ export function EnrollmentDashboard({
           departmentIds: effectiveDeptIdsForPrograms,
         })
       : undefined;
-  const instructorStats =
-    scopedEnrollmentData?.length && user.role === "dean"
-      ? getInstructorStats(scopedEnrollmentData, user.faculty_id, {
-          departmentIds:
-            localMasterFilter.department_ids?.length
-              ? localMasterFilter.department_ids
-              : departmentIds.length
-                ? departmentIds
-                : undefined,
-          instructorIds:
-            localMasterFilter.instructor_ids?.length
-              ? localMasterFilter.instructor_ids
-              : instructorIds.length
-                ? instructorIds
-                : undefined,
-        })
-      : undefined;
   const filteredData =
     scopedEnrollmentData?.length && user.role
       ? filterEnrollmentByMasterFilter(
@@ -148,6 +131,17 @@ export function EnrollmentDashboard({
           localMasterFilter,
           user.role === "dean" ? user.faculty_id ?? undefined : undefined,
         )
+      : undefined;
+  const instructorStats =
+    filteredData?.length && user.role === "dean"
+      ? getInstructorStats(filteredData, user.faculty_id, {
+          instructorIds:
+            localMasterFilter.instructor_ids?.length
+              ? localMasterFilter.instructor_ids
+              : instructorIds.length
+                ? instructorIds
+                : undefined,
+        })
       : undefined;
 
   return (
@@ -343,7 +337,6 @@ function EnrollmentDashboardInner({
                         : undefined
                   }
                   stats={programStats}
-                  enrollmentData={filteredData ?? []}
                   onSelectProgramId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,
@@ -382,8 +375,7 @@ function EnrollmentDashboardInner({
                   selectedInstructorId={
                     localMasterFilter.instructor_ids?.[0] ?? instructorIds[0]
                   }
-                stats={instructorStats}
-                enrollmentData={filteredData ?? []}
+                  stats={instructorStats}
                   onSelectInstructorId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,

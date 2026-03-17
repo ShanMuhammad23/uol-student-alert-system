@@ -162,24 +162,24 @@ export function DeanStatsCollapsible({
         </CollapsibleSection>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <CollapsibleSection
-        title="Instructor"
-        count={instructorCount}
-        defaultOpen={!!selectedDepartmentId || !!selectedProgramId}
-        onClear={onClearInstructorFilters}
-        hasActiveFilters={hasInstructorFilters}
-      >
-        {instructorContent}
-      </CollapsibleSection>
-      <CollapsibleSection
-        title="Course"
-        count={courseCount}
-        defaultOpen={false}
-        onClear={onClearCourseFilters}
-        hasActiveFilters={hasCourseFilters}
+        <CollapsibleSection
+          title="Course"
+          count={courseCount}
+          defaultOpen={false}
+          onClear={onClearCourseFilters}
+          hasActiveFilters={hasCourseFilters}
         >
-        {courseContent}
-      </CollapsibleSection>
+          {courseContent}
+        </CollapsibleSection>
+        <CollapsibleSection
+          title="Instructor"
+          count={instructorCount}
+          defaultOpen={!!selectedDepartmentId || !!selectedProgramId}
+          onClear={onClearInstructorFilters}
+          hasActiveFilters={hasInstructorFilters}
+        >
+          {instructorContent}
+        </CollapsibleSection>
       </div>
     </div>
   );
