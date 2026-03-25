@@ -3,6 +3,8 @@
 import {
   createContext,
   useContext,
+  type Dispatch,
+  type SetStateAction,
   type ReactNode,
 } from "react";
 import type {
@@ -16,6 +18,13 @@ type DashboardFilterContextValue = {
   attendanceFilters: AlertDimensionFilter[];
   interventionFilters: string[];
   resolutionFilters: string[];
+  // Setters are optional so existing providers (that only pass values)
+  // don't need to be updated all at once.
+  setMasterFilter?: Dispatch<SetStateAction<MasterFilterParams>>;
+  setGpaFilters?: Dispatch<SetStateAction<AlertDimensionFilter[]>>;
+  setAttendanceFilters?: Dispatch<SetStateAction<AlertDimensionFilter[]>>;
+  setInterventionFilters?: Dispatch<SetStateAction<string[]>>;
+  setResolutionFilters?: Dispatch<SetStateAction<string[]>>;
 };
 
 const DashboardFilterContext =

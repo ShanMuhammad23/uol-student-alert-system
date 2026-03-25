@@ -12,7 +12,7 @@ import { InterventionStatusChartClient } from "./_components/InterventionStatusC
 import { getWellbeingChartData } from "./fetch";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
-import { DashboardFilterProvider } from "./_components/DashboardFilterContext";
+import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
 import { getHodProgramStats, getHodInstructorStats } from "./fetch";
 
@@ -130,8 +130,8 @@ export default async function Home({ searchParams }: PropsType) {
       <Suspense fallback={null}>
         <FilterScrollPreserve />
       </Suspense>
-      <DashboardFilterProvider
-        value={{
+      <DashboardFiltersStateProvider
+        initial={{
           masterFilter,
           gpaFilters,
           attendanceFilters,
@@ -215,7 +215,7 @@ export default async function Home({ searchParams }: PropsType) {
           viewMode={viewMode}
           expandedIds={expandedIds}
         />
-      </DashboardFilterProvider>
+      </DashboardFiltersStateProvider>
     </>
   );
 }
