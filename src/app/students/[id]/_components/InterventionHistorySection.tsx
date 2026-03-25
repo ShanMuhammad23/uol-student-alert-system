@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 type InterventionRecord = {
   id: string;
   date: string;
+  intervention_type: "attendance" | "gpa";
   outreach_mode: string;
   remarks: string;
   status: string;
@@ -34,10 +35,14 @@ function formatOutreachMode(mode: string): string {
 type Props = {
   interventions: InterventionRecord[];
   studentSapId: string;
+  canDelete?: boolean;
 };
 
-export function InterventionHistorySection({ interventions, studentSapId }: Props) {
+export function InterventionHistorySection({ interventions, studentSapId, canDelete = false }: Props) {
   const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState(interventions);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -47,6 +52,30 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
       dialogRef.current?.close();
     }
   }, [open]);
+
+  useEffect(() => {
+    setRows(interventions);
+  }, [interventions]);
+
+  const handleDelete = async (id: string) => {
+    if (!canDelete) return;
+    setDeleteError(null);
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/interventions/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? "Failed to delete intervention");
+      }
+      setRows((prev) => prev.filter((r) => r.id !== id));
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete intervention");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
@@ -68,7 +97,13 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
         </button>
       </div>
 
-      {interventions.length === 0 ? (
+      {deleteError && (
+        <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+          {deleteError}
+        </p>
+      )}
+
+      {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-stroke py-8 text-center text-sm text-gray-500 dark:border-dark-3 dark:text-gray-400">
           No interventions recorded yet. Click &quot;Add Intervention&quot; to add one.
         </p>
@@ -78,13 +113,15 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
             <TableHeader>
               <TableRow className="border-stroke dark:border-dark-3">
                 <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">Type</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
+                {canDelete && <TableHead className="font-semibold text-dark dark:text-white text-right">Action</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {interventions.map((int) => {
+              {rows.map((int) => {
                 const statusStyle = STATUS_STYLES[int.status] ?? { label: int.status, bg: "#94A3B8" };
                 return (
                   <TableRow key={int.id} className="border-stroke dark:border-dark-3">
@@ -92,6 +129,9 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
                       <time dateTime={int.date}>
                         {new Date(int.date).toLocaleDateString(undefined, { dateStyle: "medium" })}
                       </time>
+                    </TableCell>
+                    <TableCell className="text-dark dark:text-white">
+                      {int.intervention_type === "gpa" ? "GPA" : "Attendance"}
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
                       {formatOutreachMode(int.outreach_mode)}
@@ -107,6 +147,18 @@ export function InterventionHistorySection({ interventions, studentSapId }: Prop
                         {statusStyle.label}
                       </span>
                     </TableCell>
+                    {canDelete && (
+                      <TableCell className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(int.id)}
+                          disabled={deletingId === int.id}
+                          className="inline-flex items-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                          {deletingId === int.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

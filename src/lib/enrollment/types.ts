@@ -58,7 +58,7 @@ export type DeanStatsUser = {
 
 /** User shape for dashboard (role + faculty_id; avoids importing server-only fetch). */
 export type DashboardUser = {
-  role: "dean" | "hod" | "teacher";
+  role: "superadmin" | "dean" | "hod" | "teacher";
   faculty_id: string | null;
 };
 

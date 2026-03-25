@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth-config";
 import { pool } from "@/lib/db";
 import {
   ensureCourseExists,
+  deleteInterventionByIdFromDb,
   insertIntervention,
   getInterventionsByStudentSapIdFromDb,
   getLatestInterventionStatusMapFromDb,
@@ -18,6 +19,7 @@ export type InterventionRecord = {
   id: string;
   student_sap_id: string;
   date: string; // YYYY-MM-DD
+  intervention_type: "attendance" | "gpa";
   outreach_mode: string; // email | phone-call | meeting
   remarks: string;
   status: string; // initiated | in-progress | referred | resolved
@@ -110,8 +112,18 @@ function readStore(): InterventionRecord[] {
   if (!existsSync(storePath)) return [];
   try {
     const raw = readFileSync(storePath, "utf-8");
-    const data = JSON.parse(raw) as InterventionRecord[];
-    return Array.isArray(data) ? data : [];
+    const data = JSON.parse(raw) as Partial<InterventionRecord>[];
+    if (!Array.isArray(data)) return [];
+    return data.map((r) => ({
+      id: String(r.id ?? ""),
+      student_sap_id: String(r.student_sap_id ?? ""),
+      date: String(r.date ?? ""),
+      intervention_type: r.intervention_type === "gpa" ? "gpa" : "attendance",
+      outreach_mode: String(r.outreach_mode ?? ""),
+      remarks: String(r.remarks ?? ""),
+      status: String(r.status ?? ""),
+      performed_at: String(r.performed_at ?? new Date().toISOString()),
+    }));
   } catch {
     return [];
   }
@@ -274,6 +286,7 @@ export async function recordIntervention(
   studentSapId: string,
   data: {
     date: string;
+    intervention_type: "attendance" | "gpa";
     outreach_mode: string;
     remarks: string;
     status: string;
@@ -319,6 +332,7 @@ export async function recordIntervention(
       id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       student_sap_id: studentSapId,
       date: data.date,
+      intervention_type: data.intervention_type,
       outreach_mode: data.outreach_mode,
       remarks: data.remarks ?? "",
       status: data.status,
@@ -338,6 +352,7 @@ export async function recordIntervention(
     id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     student_sap_id: studentSapId,
     date: data.date,
+    intervention_type: data.intervention_type,
     outreach_mode: data.outreach_mode,
     remarks: data.remarks,
     status: data.status,
@@ -352,4 +367,29 @@ export async function recordIntervention(
   writeFileSync(storePath, JSON.stringify(stored, null, 2), "utf-8");
   revalidatePath("/");
   revalidatePath(`/students/${studentSapId}`);
+}
+
+export async function deleteInterventionById(id: string): Promise<{ studentSapId: string | null }> {
+  if (pool) {
+    const deleted = await deleteInterventionByIdFromDb(id);
+    if (!deleted) return { studentSapId: null };
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    revalidatePath(`/students/${deleted.student_sap_id}`);
+    return { studentSapId: deleted.student_sap_id };
+  }
+  const stored = readStore();
+  const idx = stored.findIndex((r) => r.id === id);
+  if (idx === -1) return { studentSapId: null };
+  const studentSapId = stored[idx].student_sap_id;
+  stored.splice(idx, 1);
+  const storePath = getStorePath();
+  const dir = path.dirname(storePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(storePath, JSON.stringify(stored, null, 2), "utf-8");
+  revalidatePath("/");
+  revalidatePath(`/students/${studentSapId}`);
+  return { studentSapId };
 }

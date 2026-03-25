@@ -17,6 +17,8 @@ import path from "path";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentCourseAttendanceDetails } from "./_components/StudentCourseAttendanceDetails";
 import { pool } from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
 
 type PropsType = {
   params: Promise<{ id: string }>;
@@ -203,6 +205,8 @@ function ProgressBar({
 }
 
 export default async function StudentPage({ params, searchParams }: PropsType) {
+  const session = await getServerSession(authOptions);
+  const canDeleteIntervention = session?.user?.role === "superadmin";
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
   const returnToUrl =
@@ -492,6 +496,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       <InterventionHistorySection
         interventions={interventionHistory}
         studentSapId={sapIdFromUrl}
+        canDelete={canDeleteIntervention}
       />
 
      

@@ -19,6 +19,7 @@ export function InterventionFormWithAction({ studentSapId }: Props) {
     try {
       await recordIntervention(studentSapId, {
         date: data.date,
+        interventionType: data.interventionType,
         outreachMode: data.outreachMode,
         remarks: data.remarks,
         status: data.status,

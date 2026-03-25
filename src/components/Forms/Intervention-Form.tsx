@@ -18,8 +18,14 @@ const STATUS_OPTIONS = [
   { value: "resolved", label: "Resolved" },
 ] as const;
 
+const TYPE_OPTIONS = [
+  { value: "attendance", label: "Attendance" },
+  { value: "gpa", label: "GPA" },
+] as const;
+
 export type InterventionFormData = {
   date: string;
+  interventionType: "attendance" | "gpa";
   outreachMode: string;
   remarks: string;
   status: string;
@@ -90,10 +96,12 @@ const InterventionForm = ({
 }: InterventionFormProps) => {
   const dateId = useId();
   const outreachId = useId();
+  const typeId = useId();
   const statusId = useId();
 
   const [date, setDate] = useState("");
   const [outreachMode, setOutreachMode] = useState("");
+  const [interventionType, setInterventionType] = useState<"attendance" | "gpa">("attendance");
   const [remarks, setRemarks] = useState("");
   const [status, setStatus] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -105,6 +113,7 @@ const InterventionForm = ({
     try {
       await onSubmit({
         date,
+        interventionType,
         outreachMode,
         remarks,
         status,
@@ -136,6 +145,17 @@ const InterventionForm = ({
 
       {/* 2. Outreach Mode */}
       <SelectField
+        id={typeId}
+        label="Type"
+        placeholder="Select type"
+        value={interventionType}
+        onChange={(value) => setInterventionType(value === "gpa" ? "gpa" : "attendance")}
+        items={TYPE_OPTIONS.map((t) => ({ value: t.value, label: t.label }))}
+        required
+      />
+
+      {/* 3. Outreach Mode */}
+      <SelectField
         id={outreachId}
         label="Mode"
         placeholder="Select mode"
@@ -145,7 +165,7 @@ const InterventionForm = ({
         required
       />
 
-      {/* 3. Remarks */}
+      {/* 4. Remarks */}
       <div>
         <label className="mb-3 block text-body-sm font-medium text-dark dark:text-white">
           Remarks
@@ -159,7 +179,7 @@ const InterventionForm = ({
         />
       </div>
 
-      {/* 4. Status */}
+      {/* 5. Status */}
       <SelectField
         id={statusId}
         label="Status"

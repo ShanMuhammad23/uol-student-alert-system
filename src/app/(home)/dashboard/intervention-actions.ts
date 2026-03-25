@@ -5,6 +5,7 @@ import { recordIntervention as saveIntervention } from "@/data/intervention-stor
 /** Form payload from Intervention-Form (date, outreachMode, remarks, status). */
 export type RecordInterventionInput = {
   date: string;
+  interventionType: "attendance" | "gpa";
   outreachMode: string;
   remarks: string;
   status: string;
@@ -16,6 +17,7 @@ export async function recordIntervention(
 ): Promise<void> {
   await saveIntervention(studentSapId, {
     date: data.date,
+    intervention_type: data.interventionType,
     outreach_mode: data.outreachMode,
     remarks: data.remarks,
     status: data.status,

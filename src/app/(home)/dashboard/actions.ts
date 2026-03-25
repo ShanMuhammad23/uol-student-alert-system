@@ -21,6 +21,7 @@ export async function recordStudentAction(
   // Set intervention status to Initiated so the badge shows Initiated (not Improved) in the table
   saveIntervention(studentSapId, {
     date: new Date().toISOString().slice(0, 10),
+    intervention_type: "attendance",
     outreach_mode: ACTION_TO_OUTREACH[actionType],
     remarks: "",
     status: "initiated",

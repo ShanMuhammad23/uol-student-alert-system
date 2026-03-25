@@ -1,10 +1,17 @@
 import { pool } from "./index";
 
+function normalizeSapId(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  const noLeadingZeros = trimmed.replace(/^0+/, "");
+  return noLeadingZeros || "0";
+}
+
 /** Single intervention row as returned from DB (matches intervention-store InterventionRecord). */
 export type InterventionRow = {
   id: string;
   student_sap_id: string;
   date: string;
+  intervention_type: "attendance" | "gpa";
   outreach_mode: string;
   remarks: string;
   status: string;
@@ -37,6 +44,7 @@ export async function insertIntervention(row: {
   id: string;
   student_sap_id: string;
   date: string;
+  intervention_type: "attendance" | "gpa";
   outreach_mode: string;
   remarks: string;
   status: string;
@@ -49,13 +57,14 @@ export async function insertIntervention(row: {
   if (!pool) throw new Error("Database not configured");
   await pool.query(
     `INSERT INTO interventions (
-      id, student_sap_id, date, outreach_mode, remarks, status, performed_at,
+      id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
       staff_id, department_id, course_id, faculty_id
-    ) VALUES ($1, $2, $3::date, $4, $5, $6, $7::timestamptz, $8, $9, $10, $11)`,
+    ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12)`,
     [
       row.id,
       row.student_sap_id,
       row.date,
+      row.intervention_type,
       row.outreach_mode,
       row.remarks ?? "",
       row.status,
@@ -77,12 +86,13 @@ export async function getInterventionsByStudentSapIdFromDb(
     id: string;
     student_sap_id: string;
     date: string;
+    intervention_type: "attendance" | "gpa" | null;
     outreach_mode: string;
     remarks: string;
     status: string;
     performed_at: Date;
   }>(
-    `SELECT id, student_sap_id, date, outreach_mode, remarks, status, performed_at
+    `SELECT id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at
      FROM interventions
      WHERE student_sap_id = $1
      ORDER BY performed_at DESC`,
@@ -90,12 +100,22 @@ export async function getInterventionsByStudentSapIdFromDb(
   );
   return res.rows.map((r) => ({
     ...r,
+    intervention_type: r.intervention_type === "gpa" ? "gpa" : "attendance",
     date: typeof r.date === "string" ? r.date : (r.date as unknown as Date).toISOString().slice(0, 10),
     performed_at:
       typeof r.performed_at === "string"
         ? r.performed_at
         : (r.performed_at as Date).toISOString(),
   }));
+}
+
+export async function deleteInterventionByIdFromDb(id: string): Promise<{ student_sap_id: string } | null> {
+  if (!pool) return null;
+  const res = await pool.query<{ student_sap_id: string }>(
+    `DELETE FROM interventions WHERE id = $1 RETURNING student_sap_id`,
+    [id]
+  );
+  return res.rows[0] ?? null;
 }
 
 export type InterventionStatsCounts = {
@@ -115,21 +135,25 @@ export async function getLatestInterventionStatusMapFromDb(
     sapIds.forEach((id) => map.set(id, null));
     return map;
   }
-  const res = await pool.query<{ student_sap_id: string; status: string }>(
+  const normalizedSapIds = Array.from(new Set(sapIds.map(normalizeSapId)));
+  const res = await pool.query<{ student_sap_id_norm: string; status: string }>(
     `
     WITH latest AS (
-      SELECT DISTINCT ON (student_sap_id) student_sap_id, status
+      SELECT DISTINCT ON (normalize_sap_id) normalize_sap_id AS student_sap_id_norm, status
       FROM interventions
-      WHERE student_sap_id = ANY($1)
-      ORDER BY student_sap_id, performed_at DESC
+      CROSS JOIN LATERAL (
+        SELECT COALESCE(NULLIF(REGEXP_REPLACE(TRIM(student_sap_id), '^0+', ''), ''), '0') AS normalize_sap_id
+      ) norm
+      WHERE normalize_sap_id = ANY($1)
+      ORDER BY normalize_sap_id, performed_at DESC
     )
-    SELECT student_sap_id, status FROM latest
+    SELECT student_sap_id_norm, status FROM latest
     `,
-    [sapIds]
+    [normalizedSapIds]
   );
-  const latest = new Map(res.rows.map((r) => [r.student_sap_id, r.status]));
+  const latest = new Map(res.rows.map((r) => [r.student_sap_id_norm, r.status]));
   for (const id of sapIds) {
-    map.set(id, latest.get(id) ?? null);
+    map.set(id, latest.get(normalizeSapId(id)) ?? null);
   }
   return map;
 }
@@ -148,26 +172,27 @@ export async function getInterventionStatsForStudentsFromDb(
 
   if (!pool || !sapIds.length) return base;
 
+  const normalizedSapIds = Array.from(new Set(sapIds.map(normalizeSapId)));
   const res = await pool.query<{
-    student_sap_id: string;
+    student_sap_id_norm: string;
     status: string | null;
   }>(
     `
     WITH latest AS (
-      SELECT DISTINCT ON (student_sap_id)
-        student_sap_id,
+      SELECT DISTINCT ON (student_sap_id_norm)
+        COALESCE(NULLIF(REGEXP_REPLACE(TRIM(student_sap_id), '^0+', ''), ''), '0') AS student_sap_id_norm,
         status
       FROM interventions
-      WHERE student_sap_id = ANY($1)
-      ORDER BY student_sap_id, performed_at DESC
+      WHERE COALESCE(NULLIF(REGEXP_REPLACE(TRIM(student_sap_id), '^0+', ''), ''), '0') = ANY($1)
+      ORDER BY student_sap_id_norm, performed_at DESC
     )
-    SELECT student_sap_id, status
+    SELECT student_sap_id_norm, status
     FROM latest
     `,
-    [sapIds]
+    [normalizedSapIds]
   );
 
-  const latest = new Map(res.rows.map((r) => [r.student_sap_id, r.status]));
+  const latest = new Map(res.rows.map((r) => [r.student_sap_id_norm, r.status]));
 
   let notStarted = 0;
   let initiated = 0;
@@ -176,7 +201,7 @@ export async function getInterventionStatsForStudentsFromDb(
   let resolved = 0;
 
   for (const id of sapIds) {
-    const status = latest.get(id);
+    const status = latest.get(normalizeSapId(id));
     if (!status) {
       notStarted += 1;
       continue;

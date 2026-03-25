@@ -120,6 +120,7 @@ ON CONFLICT (email) DO UPDATE SET
     id              VARCHAR(64) PRIMARY KEY,          -- e.g. "int-1771910179731-cld7bky"
     student_sap_id  VARCHAR(32) NOT NULL,             -- e.g. "100033"
     date            DATE NOT NULL,                    -- "2026-02-24"
+    intervention_type VARCHAR(16) NOT NULL DEFAULT 'attendance' CHECK (intervention_type IN ('attendance', 'gpa')),
     outreach_mode   VARCHAR(32) NOT NULL,             -- e.g. "email", "phone-call", "meeting", "flagged"
     remarks         TEXT NOT NULL DEFAULT '',         -- free-text remarks
     status          VARCHAR(32) NOT NULL,             -- e.g. "initiated", "in-progress", "referred"
@@ -178,3 +179,7 @@ CREATE INDEX idx_wellbeing_cases_resolution_status ON wellbeing_cases(resolution
 -- - Existing DB already created from this file: the role CHECK may be named e.g. staff_role_check (see \d staff).
 --   Then: ALTER TABLE staff DROP CONSTRAINT <constraint_name>;
 --   ALTER TABLE staff ADD CONSTRAINT staff_role_check CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor'));
+-- - Existing DB migration for intervention type:
+--   ALTER TABLE interventions ADD COLUMN IF NOT EXISTS intervention_type VARCHAR(16) NOT NULL DEFAULT 'attendance';
+--   ALTER TABLE interventions DROP CONSTRAINT IF EXISTS interventions_intervention_type_check;
+--   ALTER TABLE interventions ADD CONSTRAINT interventions_intervention_type_check CHECK (intervention_type IN ('attendance', 'gpa'));

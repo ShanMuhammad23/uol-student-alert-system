@@ -406,7 +406,7 @@ function EnrollmentDashboardInner({
         <MasterFilter
           options={filterOptions}
           current={localMasterFilter}
-          role={user.role}
+          role={user.role === "superadmin" ? "dean" : user.role}
           selectedAlert={selectedAlert}
           gpaFilters={localGpaFilters}
           attendanceFilters={localAttendanceFilters}

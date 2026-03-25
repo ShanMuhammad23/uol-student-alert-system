@@ -6,7 +6,7 @@ declare module "next-auth" {
     pernr: string;
     name: string;
     email: string;
-    role: "dean" | "hod" | "instructor";
+    role: "superadmin" | "dean" | "hod" | "instructor";
     img: string | null;
     faculty_id: string | null;
     department_ids: string[];
@@ -24,7 +24,7 @@ declare module "next-auth/jwt" {
     pernr: string;
     name?: string;
     email?: string;
-    role: "dean" | "hod" | "instructor";
+    role: "superadmin" | "dean" | "hod" | "instructor";
     img: string | null;
     faculty_id: string | null;
     department_ids: string[];
