@@ -91,6 +91,14 @@ export function InterventionStatusChartClient({
   const attendanceFilters =
     dashboardFilter?.attendanceFilters ?? attendanceFiltersProp ?? [];
 
+  // Keys help prevent effects from re-firing due to array/object identity changes.
+  const masterFilterKey = useMemo(() => JSON.stringify(masterFilter ?? {}), [masterFilter]);
+  const gpaFiltersKey = useMemo(() => JSON.stringify(gpaFilters ?? []), [gpaFilters]);
+  const attendanceFiltersKey = useMemo(
+    () => JSON.stringify(attendanceFilters ?? []),
+    [attendanceFilters]
+  );
+
   const effectiveSlice: InterventionChartSlice | null = useMemo(() => {
     // Red has precedence over yellow if both are present.
     if (attendanceFilters.includes("red")) return "attendance_red";
@@ -113,17 +121,22 @@ export function InterventionStatusChartClient({
   );
   const [gpaCohortLoading, setGpaCohortLoading] = useState(false);
 
-  const matchesAttendanceFilters = (
-    level: "critical" | "warning" | null
-  ): boolean => {
-    if (!attendanceFilters?.length) return true;
+  const attendanceAllowedLevels = useMemo(() => {
+    if (!attendanceFilters?.length) return null;
     const allowed = new Set<string | null>();
     for (const f of attendanceFilters) {
       if (f === "red") allowed.add("critical");
       else if (f === "yellow") allowed.add("warning");
       else if (f === "good") allowed.add(null);
     }
-    return allowed.size ? allowed.has(level) : true;
+    return allowed.size ? allowed : null;
+  }, [attendanceFilters]);
+
+  const matchesAttendanceFilters = (
+    level: "critical" | "warning" | null
+  ): boolean => {
+    if (!attendanceAllowedLevels) return true;
+    return attendanceAllowedLevels.has(level);
   };
 
   const scopedEnrollmentData = useMemo(() => {
@@ -227,44 +240,49 @@ export function InterventionStatusChartClient({
       return;
     }
 
-    const segment = effectiveSlice === "gpa_red" ? "red" : "yellow";
     const controller = new AbortController();
-    setGpaCohortLoading(true);
-    setGpaCohortSapIds(null);
+    const t = window.setTimeout(() => {
+      const segment = effectiveSlice === "gpa_red" ? "red" : "yellow";
+      setGpaCohortLoading(true);
+      setGpaCohortSapIds(null);
 
-    fetch("/api/dashboard/gpa-alert-sap-ids", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        segment,
-        masterFilter:
-          masterFilter && Object.keys(masterFilter).length > 0
-            ? masterFilter
+      fetch("/api/dashboard/gpa-alert-sap-ids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          segment,
+          masterFilter:
+            masterFilter && Object.keys(masterFilter).length > 0
+              ? masterFilter
+              : undefined,
+          gpaFilters: gpaFilters?.length ? gpaFilters : undefined,
+          attendanceFilters: attendanceFilters?.length
+            ? attendanceFilters
             : undefined,
-        gpaFilters: gpaFilters?.length ? gpaFilters : undefined,
-        attendanceFilters: attendanceFilters?.length
-          ? attendanceFilters
-          : undefined,
-      }),
-      signal: controller.signal,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("gpa cohort");
-        return res.json() as Promise<{ sapIds?: string[] }>;
+        }),
+        signal: controller.signal,
       })
-      .then((body) => {
-        setGpaCohortSapIds(body.sapIds ?? []);
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        setGpaCohortSapIds([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setGpaCohortLoading(false);
-      });
+        .then((res) => {
+          if (!res.ok) throw new Error("gpa cohort");
+          return res.json() as Promise<{ sapIds?: string[] }>;
+        })
+        .then((body) => {
+          setGpaCohortSapIds(body.sapIds ?? []);
+        })
+        .catch((err) => {
+          if (err.name === "AbortError") return;
+          setGpaCohortSapIds([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setGpaCohortLoading(false);
+        });
+    }, 200);
 
-    return () => controller.abort();
-  }, [effectiveSlice, masterFilter, gpaFilters, attendanceFilters]);
+    return () => {
+      controller.abort();
+      window.clearTimeout(t);
+    };
+  }, [effectiveSlice, masterFilterKey, gpaFiltersKey, attendanceFiltersKey]);
 
   const interventionTypeForDb = useMemo<"attendance" | "gpa">(() => {
     if (
@@ -314,59 +332,76 @@ export function InterventionStatusChartClient({
     setGpaFilters?.([]);
   };
 
+  const facultyIdForRequest =
+    user?.role === "dean" ? user.faculty_id ?? null : null;
+  const staffIdForRequest =
+    user?.role === "teacher" ? user.id ?? null : null;
+  const departmentIdsForRequest =
+    user?.role === "hod" ? user.department_ids ?? null : null;
+
+  const departmentIdsKey = useMemo(() => {
+    if (user?.role !== "hod") return "";
+    return (user?.department_ids ?? []).join(",");
+  }, [user?.role, user?.department_ids]);
+
   useEffect(() => {
     if (!user?.role) return;
 
-    const roleScope =
-      user.role === "teacher" ? "teacher" : (user.role as "dean" | "hod");
-
     const controller = new AbortController();
-    fetch("/api/interventions/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        role: roleScope,
-        interventionType: interventionTypeForDb,
-        alertLevel: alertLevelForRequest,
-        facultyId: user.role === "dean" ? user.faculty_id : null,
-        departmentIds: user.role === "hod" ? user.department_ids : null,
-        staffId: user.role === "teacher" ? user.id : null,
-      }),
-      signal: controller.signal,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load intervention counts");
-        return res.json() as Promise<{
-          initiated?: number;
-          inProgress?: number;
-          referred?: number;
-          resolved?: number;
-        }>;
-      })
-      .then((counts) => {
-        setInterventionCounts({
-          initiated: counts.initiated ?? 0,
-          inProgress: counts.inProgress ?? 0,
-          referred: counts.referred ?? 0,
-          resolved: counts.resolved ?? 0,
-        });
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        setInterventionCounts({
-          initiated: 0,
-          inProgress: 0,
-          referred: 0,
-          resolved: 0,
-        });
-      });
+    const t = window.setTimeout(() => {
+      const roleScope =
+        user.role === "teacher" ? "teacher" : (user.role as "dean" | "hod");
 
-    return () => controller.abort();
+      fetch("/api/interventions/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: roleScope,
+          interventionType: interventionTypeForDb,
+          alertLevel: alertLevelForRequest,
+          facultyId: facultyIdForRequest,
+          departmentIds: departmentIdsForRequest,
+          staffId: staffIdForRequest,
+        }),
+        signal: controller.signal,
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load intervention counts");
+          return res.json() as Promise<{
+            initiated?: number;
+            inProgress?: number;
+            referred?: number;
+            resolved?: number;
+          }>;
+        })
+        .then((counts) => {
+          setInterventionCounts({
+            initiated: counts.initiated ?? 0,
+            inProgress: counts.inProgress ?? 0,
+            referred: counts.referred ?? 0,
+            resolved: counts.resolved ?? 0,
+          });
+        })
+        .catch((err) => {
+          if (err.name === "AbortError") return;
+          setInterventionCounts({
+            initiated: 0,
+            inProgress: 0,
+            referred: 0,
+            resolved: 0,
+          });
+        });
+    }, 200);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(t);
+    };
   }, [
     user?.role,
-    user?.faculty_id,
-    user?.department_ids,
-    user?.id,
+    facultyIdForRequest,
+    departmentIdsKey,
+    staffIdForRequest,
     interventionTypeForDb,
     alertLevelForRequest,
   ]);
@@ -441,11 +476,15 @@ export function InterventionStatusChartClient({
         <div className="px-2 pt-2">
           <p className="text-[10px] text-neutral-500">
             Role: {user?.role ?? "—"}; Slice: {effectiveSlice ?? "—"}; Intervention type:{" "}
-            {interventionTypeForDb}. Total alerts: {totalAlerts}
+            {interventionTypeForDb}; alertLevel: {alertLevelForRequest ?? "—"}; Total alerts:{" "}
+            {totalAlerts}
           </p>
           <p className="text-[10px] text-neutral-500">
             DB counts: initiated={initiated}, in-progress={inProgress}, referred=
             {referred}, resolved={resolved}, notStarted={notStarted}
+          </p>
+          <p className="text-[10px] text-neutral-500">
+            Shared filters: attendance=[{attendanceFilters.join(",") || "—"}], gpa=[{gpaFilters.join(",") || "—"}]
           </p>
         </div>
       )}
