@@ -318,14 +318,12 @@ function EnrollmentDashboardInner({
                 <DeanDepartmentStats
                   user={user}
                   selectedDepartmentId={
-                    localMasterFilter.department_ids?.[0] ?? departmentIds[0]
+                    localMasterFilter.department_ids?.[0]
                   }
                   masterFilterDepartmentIds={
                     localMasterFilter.department_ids?.length
                       ? localMasterFilter.department_ids
-                      : departmentIds.length
-                        ? departmentIds
-                        : undefined
+                      : undefined
                   }
                   stats={departmentStats}
                   enrollmentData={filteredData ?? []}
@@ -343,22 +341,18 @@ function EnrollmentDashboardInner({
                 <DeanProgramStats
                   user={user}
                   selectedProgramId={
-                    localMasterFilter.programs?.[0] ?? programIds[0]
+                    localMasterFilter.programs?.[0]
                   }
                   enrollmentData={filteredData ?? []}
                   masterFilterProgramIds={
                     localMasterFilter.programs?.length
                       ? localMasterFilter.programs
-                      : programIds.length
-                        ? programIds
-                        : undefined
+                      : undefined
                   }
                   masterFilterDepartmentIds={
                     localMasterFilter.department_ids?.length
                       ? localMasterFilter.department_ids
-                      : departmentIds.length
-                        ? departmentIds
-                        : undefined
+                      : undefined
                   }
                   stats={programStats}
                   onSelectProgramId={(id) =>
@@ -394,10 +388,10 @@ function EnrollmentDashboardInner({
                 <DeanInstructorStats
                   user={user}
                   selectedDepartmentId={
-                    localMasterFilter.department_ids?.[0] ?? departmentIds[0]
+                    localMasterFilter.department_ids?.[0]
                   }
                   selectedInstructorId={
-                    localMasterFilter.instructor_ids?.[0] ?? instructorIds[0]
+                    localMasterFilter.instructor_ids?.[0]
                   }
                   stats={instructorStats}
                   enrollmentData={filteredData ?? []}
