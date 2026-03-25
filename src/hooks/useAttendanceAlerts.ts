@@ -13,6 +13,11 @@ export type AttendanceAlertsState = {
   classAverageByCourseSection: Map<string, number>;
   monitoredByCourseSection: Map<string, number>;
   isAttendanceLoading: boolean;
+  /**
+   * GPA alert level per student SAP id (from monitoring students),
+   * used by table filters (yellow/red/good).
+   */
+  gpaAlertLevelBySapId: Map<string, "critical" | "warning" | null>;
 };
 
 /**
@@ -30,6 +35,17 @@ export function useAttendanceAlerts(
     Map<string, AttendanceSummary> | null
   >(null);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
+
+  const gpaAlertLevelBySapId = useMemo(() => {
+    const map = new Map<string, "critical" | "warning" | null>();
+    for (const s of monitoringData?.students ?? []) {
+      const sapId = String((s as any).sap_id ?? "").trim();
+      if (!sapId) continue;
+      // Student.gpa.alert_level is already "critical" | "warning" | null.
+      map.set(sapId, (s as any).gpa?.alert_level ?? null);
+    }
+    return map;
+  }, [monitoringData]);
 
   const monitoredByCourseSection = useMemo(() => {
     const map = new Map<string, number>();
@@ -98,6 +114,7 @@ export function useAttendanceAlerts(
     classAverageByCourseSection,
     monitoredByCourseSection,
     isAttendanceLoading,
+    gpaAlertLevelBySapId,
   };
 }
 

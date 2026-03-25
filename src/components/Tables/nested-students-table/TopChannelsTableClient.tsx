@@ -30,6 +30,8 @@ type Props = {
   enrollmentData?: EnrollmentRecord[] | null;
   /** Attendance alert filters (red / yellow / good) from MasterFilter. */
   attendanceFilters?: AlertDimensionFilter[];
+  /** GPA alert filters (red / yellow / good) from MasterFilter. */
+  gpaFilters?: AlertDimensionFilter[];
   /** Intervention filters (not_started / initiated / in_progress / referred / resolved) from MasterFilter. */
   interventionFilters?: string[];
 };
@@ -69,6 +71,7 @@ export function TopChannelsTableClient({
   returnToUrl = "/",
   enrollmentData: enrollmentDataProp,
   attendanceFilters,
+  gpaFilters,
   interventionFilters,
 }: Props) {
   const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([]);
@@ -103,6 +106,7 @@ export function TopChannelsTableClient({
     classAverageByCourseSection,
     monitoredByCourseSection,
     isAttendanceLoading,
+    gpaAlertLevelBySapId,
   } = useAttendanceAlerts(displayEnrollments);
 
   // Fetch latest intervention status per student (by SAP ID) once, then map by SapNo
@@ -332,6 +336,22 @@ export function TopChannelsTableClient({
       });
     }
 
+    // Apply GPA alert filters using monitoring-derived alert levels.
+    if (gpaFilters?.length && gpaAlertLevelBySapId) {
+      const allowed = new Set<"critical" | "warning" | null>();
+      for (const f of gpaFilters) {
+        if (f === "red") allowed.add("critical");
+        else if (f === "yellow") allowed.add("warning");
+        else if (f === "good") allowed.add(null);
+      }
+
+      base = base.filter((row) => {
+        const sapId = String(row.SapNo ?? "").trim();
+        const level = sapId ? gpaAlertLevelBySapId.get(sapId) ?? null : null;
+        return allowed.size ? allowed.has(level) : true;
+      });
+    }
+
     // Apply intervention master filter using latest interventionStatuses.
     if (interventionFilters?.length) {
       base = base.filter((row) => {
@@ -381,10 +401,12 @@ export function TopChannelsTableClient({
     searchQuery,
     sortedEnrollments,
     attendanceFilters,
+    gpaFilters,
     attendanceSummaries,
     classAverageByCourseSection,
     interventionFilters,
     interventionStatuses,
+    gpaAlertLevelBySapId,
   ]);
 
   const totalResults = filteredAndSortedEnrollments.length;
@@ -397,7 +419,7 @@ export function TopChannelsTableClient({
   useEffect(() => {
     // Reset to first page whenever filters/search/sort or page size change
     setCurrentPage(1);
-  }, [searchQuery, attendanceFilters, sortConfig, rowsPerPage]);
+  }, [searchQuery, attendanceFilters, gpaFilters, sortConfig, rowsPerPage]);
 
   useEffect(() => {
     // Clamp current page when total results change

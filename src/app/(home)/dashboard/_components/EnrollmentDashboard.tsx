@@ -453,6 +453,7 @@ function EnrollmentDashboardInner({
             returnToUrl={returnToUrl}
             enrollmentData={filteredData ?? null}
             attendanceFilters={localAttendanceFilters}
+            gpaFilters={localGpaFilters}
             interventionFilters={localInterventionFilters}
           />
         ) : (
