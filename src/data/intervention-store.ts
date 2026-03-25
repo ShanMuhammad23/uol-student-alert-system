@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { pool } from "@/lib/db";
+import { getStudentBySapId } from "@/app/(home)/dashboard/fetch";
 import {
   ensureCourseExists,
   deleteInterventionByIdFromDb,
@@ -23,6 +24,7 @@ export type InterventionRecord = {
   student_sap_id: string;
   date: string; // YYYY-MM-DD
   intervention_type: "attendance" | "gpa";
+  alert_level?: "warning" | "critical" | null;
   outreach_mode: string; // email | phone-call | meeting
   remarks: string;
   status: string; // initiated | in-progress | referred | resolved
@@ -122,6 +124,12 @@ function readStore(): InterventionRecord[] {
       student_sap_id: String(r.student_sap_id ?? ""),
       date: String(r.date ?? ""),
       intervention_type: r.intervention_type === "gpa" ? "gpa" : "attendance",
+      alert_level:
+        r.alert_level === "critical"
+          ? "critical"
+          : r.alert_level === "warning"
+            ? "warning"
+            : null,
       outreach_mode: String(r.outreach_mode ?? ""),
       remarks: String(r.remarks ?? ""),
       status: String(r.status ?? ""),
@@ -251,6 +259,9 @@ export async function getInterventionStatsForRoleScope(
   // File fallback does not store faculty/department/staff scope columns,
   // so we can only approximate by intervention_type.
   const stored = readStore();
+  // Pick latest intervention status per student for the requested type.
+  // Then (optionally) filter those latest records by alert_level so the
+  // behavior matches the DB implementation.
   const filtered = stored.filter((r) => r.intervention_type === params.interventionType);
 
   const latestByStudent = new Map<string, InterventionRecord>();
@@ -261,13 +272,18 @@ export async function getInterventionStatsForRoleScope(
     }
   }
 
+  const latestRecords = Array.from(latestByStudent.values()).filter((r) => {
+    if (params.alertLevel == null) return true;
+    return r.alert_level === params.alertLevel;
+  });
+
   const out = {
     initiated: 0,
     inProgress: 0,
     referred: 0,
     resolved: 0,
   };
-  for (const r of latestByStudent.values()) {
+  for (const r of latestRecords) {
     if (r.status === "initiated") out.initiated += 1;
     else if (r.status === "in-progress") out.inProgress += 1;
     else if (r.status === "referred") out.referred += 1;
@@ -344,6 +360,14 @@ export async function recordIntervention(
     // Use enrollment_data.json as the single source of truth for student context
     // (DeptId, FacId, CrCode). SAP monitoring is *not* used for IDs here.
     const enrollment = readEnrollmentForStudent(studentSapId);
+    // Compute which Yellow/Red cohort the student currently belongs to for the
+    // chosen intervention type. This ensures DB counts can be filtered later
+    // without sending SAP IDs to the database.
+    const student = await getStudentBySapId(studentSapId);
+    const alertLevel =
+      data.intervention_type === "attendance"
+        ? student?.attendance?.alert_level ?? null
+        : student?.gpa?.alert_level ?? null;
 
     let departmentId: string | null = null;
     let facultyId: string | null = null;
@@ -377,6 +401,7 @@ export async function recordIntervention(
       student_sap_id: studentSapId,
       date: data.date,
       intervention_type: data.intervention_type,
+      alert_level: alertLevel,
       outreach_mode: data.outreach_mode,
       remarks: data.remarks ?? "",
       status: data.status,
@@ -391,12 +416,18 @@ export async function recordIntervention(
     revalidatePath(`/students/${studentSapId}`);
     return;
   }
+  const student = await getStudentBySapId(studentSapId);
+  const alertLevel =
+    data.intervention_type === "attendance"
+      ? student?.attendance?.alert_level ?? null
+      : student?.gpa?.alert_level ?? null;
   const stored = readStore();
   const record: InterventionRecord = {
     id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     student_sap_id: studentSapId,
     date: data.date,
     intervention_type: data.intervention_type,
+    alert_level: alertLevel,
     outreach_mode: data.outreach_mode,
     remarks: data.remarks,
     status: data.status,

@@ -299,6 +299,16 @@ export function InterventionStatusChartClient({
     unionAttendanceSap,
   ]);
 
+  const alertLevelForRequest = useMemo<"warning" | "critical" | null>(() => {
+    if (effectiveSlice === "attendance_yellow" || effectiveSlice === "gpa_yellow") {
+      return "warning";
+    }
+    if (effectiveSlice === "attendance_red" || effectiveSlice === "gpa_red") {
+      return "critical";
+    }
+    return null;
+  }, [effectiveSlice]);
+
   const clearSegmentFilters = () => {
     setAttendanceFilters?.([]);
     setGpaFilters?.([]);
@@ -317,6 +327,7 @@ export function InterventionStatusChartClient({
       body: JSON.stringify({
         role: roleScope,
         interventionType: interventionTypeForDb,
+        alertLevel: alertLevelForRequest,
         facultyId: user.role === "dean" ? user.faculty_id : null,
         departmentIds: user.role === "hod" ? user.department_ids : null,
         staffId: user.role === "teacher" ? user.id : null,
@@ -357,6 +368,7 @@ export function InterventionStatusChartClient({
     user?.department_ids,
     user?.id,
     interventionTypeForDb,
+    alertLevelForRequest,
   ]);
 
   const { initiated, inProgress, referred, resolved, notStarted } = useMemo(() => {

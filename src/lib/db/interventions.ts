@@ -26,6 +26,26 @@ async function hasInterventionTypeColumn(): Promise<boolean> {
   return hasInterventionTypeColumnCache;
 }
 
+let hasAlertLevelColumnCache: boolean | null = null;
+
+async function hasAlertLevelColumn(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasAlertLevelColumnCache !== null) return hasAlertLevelColumnCache;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name = 'alert_level'
+    ) AS exists
+    `
+  );
+  hasAlertLevelColumnCache = Boolean(res.rows[0]?.exists);
+  return hasAlertLevelColumnCache;
+}
+
 /** Single intervention row as returned from DB (matches intervention-store InterventionRecord). */
 export type InterventionRow = {
   id: string;
@@ -65,6 +85,7 @@ export async function insertIntervention(row: {
   student_sap_id: string;
   date: string;
   intervention_type: "attendance" | "gpa";
+  alert_level?: "warning" | "critical" | null;
   outreach_mode: string;
   remarks: string;
   status: string;
@@ -76,7 +97,34 @@ export async function insertIntervention(row: {
 }): Promise<void> {
   if (!pool) throw new Error("Database not configured");
   const hasType = await hasInterventionTypeColumn();
-  if (hasType) {
+  const hasAlertLevel = await hasAlertLevelColumn();
+
+  if (hasType && hasAlertLevel) {
+    await pool.query(
+      `INSERT INTO interventions (
+        id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
+        staff_id, department_id, course_id, faculty_id, alert_level
+      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12, $13)`,
+      [
+        row.id,
+        row.student_sap_id,
+        row.date,
+        row.intervention_type,
+        row.outreach_mode,
+        row.remarks ?? "",
+        row.status,
+        row.performed_at,
+        row.staff_id,
+        row.department_id,
+        row.course_id,
+        row.faculty_id,
+        row.alert_level ?? null,
+      ]
+    );
+    return;
+  }
+
+  if (hasType && !hasAlertLevel) {
     await pool.query(
       `INSERT INTO interventions (
         id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
@@ -99,6 +147,32 @@ export async function insertIntervention(row: {
     );
     return;
   }
+
+  if (!hasType && hasAlertLevel) {
+    await pool.query(
+      `INSERT INTO interventions (
+        id, student_sap_id, date, outreach_mode, remarks, status, performed_at,
+        staff_id, department_id, course_id, faculty_id, alert_level
+      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7::timestamptz, $8, $9, $10, $11, $12)`,
+      [
+        row.id,
+        row.student_sap_id,
+        row.date,
+        row.outreach_mode,
+        row.remarks ?? "",
+        row.status,
+        row.performed_at,
+        row.staff_id,
+        row.department_id,
+        row.course_id,
+        row.faculty_id,
+        row.alert_level ?? null,
+      ]
+    );
+    return;
+  }
+
+  // !hasType && !hasAlertLevel
   await pool.query(
     `INSERT INTO interventions (
       id, student_sap_id, date, outreach_mode, remarks, status, performed_at,
@@ -274,6 +348,7 @@ export async function getInterventionStatsForStudentsFromDb(
 export type InterventionRoleScope = {
   role: "dean" | "hod" | "teacher";
   interventionType: "attendance" | "gpa";
+  alertLevel?: "warning" | "critical" | null;
   facultyId?: string | null;
   departmentIds?: string[] | null;
   staffId?: string | null; // staff.id (UUID) for instructors
@@ -295,6 +370,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
   params: InterventionRoleScope
 ): Promise<InterventionRoleScopeStats> {
   const hasType = await hasInterventionTypeColumn();
+  const hasAlertLevel = await hasAlertLevelColumn();
   const wantsGpa = params.interventionType === "gpa";
 
   // Old DBs may not have intervention_type; treat missing column as 'attendance'.
@@ -366,6 +442,11 @@ export async function getInterventionStatsForRoleScopeFromDb(
     ? "COALESCE(intervention_type, 'attendance') = $1 AND "
     : "";
 
+  const wantsAlertFilter =
+    hasAlertLevel && params.alertLevel != null ? true : false;
+
+  const outerPlaceholderIndex = args.length + 1;
+
   const res = await pool.query<{
     status: string;
     cnt: string;
@@ -374,16 +455,19 @@ export async function getInterventionStatsForRoleScopeFromDb(
     WITH latest AS (
       SELECT DISTINCT ON (student_sap_id)
         student_sap_id,
-        status
+        status${
+          wantsAlertFilter ? ", alert_level" : ""
+        }
       FROM interventions
       WHERE ${interventionTypeFilterSql}${whereSql}
       ORDER BY student_sap_id, performed_at DESC
     )
     SELECT status, COUNT(*)::int AS cnt
     FROM latest
+    ${wantsAlertFilter ? `WHERE alert_level = $${outerPlaceholderIndex}` : ""}
     GROUP BY status
     `,
-    args
+    wantsAlertFilter ? [...args, params.alertLevel as any] : args
   );
 
   const counts = {

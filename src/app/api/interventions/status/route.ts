@@ -26,6 +26,7 @@ export async function POST(req: Request) {
     const roleScope = body as {
       role?: "dean" | "hod" | "teacher";
       interventionType?: "attendance" | "gpa";
+      alertLevel?: "warning" | "critical" | null;
       facultyId?: string | null;
       departmentIds?: string[] | null;
       staffId?: string | null;
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
       const stats = await getInterventionStatsForRoleScope({
         role: roleScope.role,
         interventionType: roleScope.interventionType,
+        alertLevel: roleScope.alertLevel ?? null,
         facultyId: roleScope.facultyId ?? null,
         departmentIds: roleScope.departmentIds ?? null,
         staffId: roleScope.staffId ?? null,

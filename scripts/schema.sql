@@ -121,6 +121,9 @@ ON CONFLICT (email) DO UPDATE SET
     student_sap_id  VARCHAR(32) NOT NULL,             -- e.g. "100033"
     date            DATE NOT NULL,                    -- "2026-02-24"
     intervention_type VARCHAR(16) NOT NULL DEFAULT 'attendance' CHECK (intervention_type IN ('attendance', 'gpa')),
+  -- Captures which alert cohort the student belonged to when the intervention was recorded.
+  -- Used for Yellow/Red intervention breakdowns in the dashboard.
+  alert_level VARCHAR(16) CHECK (alert_level IN ('warning', 'critical')),
     outreach_mode   VARCHAR(32) NOT NULL,             -- e.g. "email", "phone-call", "meeting", "flagged"
     remarks         TEXT NOT NULL DEFAULT '',         -- free-text remarks
     status          VARCHAR(32) NOT NULL,             -- e.g. "initiated", "in-progress", "referred"
