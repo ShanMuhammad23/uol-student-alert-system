@@ -271,3 +271,139 @@ export async function getInterventionStatsForStudentsFromDb(
   };
 }
 
+export type InterventionRoleScope = {
+  role: "dean" | "hod" | "teacher";
+  interventionType: "attendance" | "gpa";
+  facultyId?: string | null;
+  departmentIds?: string[] | null;
+  staffId?: string | null; // staff.id (UUID) for instructors
+};
+
+export type InterventionRoleScopeStats = {
+  initiated: number;
+  inProgress: number;
+  referred: number;
+  resolved: number;
+  totalInterventionStudents: number;
+};
+
+/**
+ * DB-backed counts using only role scope columns.
+ * Latest intervention status is calculated per student via performed_at DESC.
+ */
+export async function getInterventionStatsForRoleScopeFromDb(
+  params: InterventionRoleScope
+): Promise<InterventionRoleScopeStats> {
+  const hasType = await hasInterventionTypeColumn();
+  const wantsGpa = params.interventionType === "gpa";
+
+  // Old DBs may not have intervention_type; treat missing column as 'attendance'.
+  if (!hasType && wantsGpa) {
+    return {
+      initiated: 0,
+      inProgress: 0,
+      referred: 0,
+      resolved: 0,
+      totalInterventionStudents: 0,
+    };
+  }
+
+  if (!pool) {
+    return {
+      initiated: 0,
+      inProgress: 0,
+      referred: 0,
+      resolved: 0,
+      totalInterventionStudents: 0,
+    };
+  }
+
+  let whereSql = "";
+  let args: any[] = [];
+
+  if (params.role === "dean") {
+    if (!params.facultyId) {
+      return {
+        initiated: 0,
+        inProgress: 0,
+        referred: 0,
+        resolved: 0,
+        totalInterventionStudents: 0,
+      };
+    }
+    whereSql = hasType ? "faculty_id = $2" : "faculty_id = $1";
+    args = hasType ? [params.interventionType, params.facultyId] : [params.facultyId];
+  } else if (params.role === "hod") {
+    const deptIds = params.departmentIds ?? [];
+    if (!deptIds.length) {
+      return {
+        initiated: 0,
+        inProgress: 0,
+        referred: 0,
+        resolved: 0,
+        totalInterventionStudents: 0,
+      };
+    }
+    whereSql = hasType ? "department_id = ANY($2)" : "department_id = ANY($1)";
+    args = hasType ? [params.interventionType, deptIds] : [deptIds];
+  } else {
+    // teacher
+    if (!params.staffId) {
+      return {
+        initiated: 0,
+        inProgress: 0,
+        referred: 0,
+        resolved: 0,
+        totalInterventionStudents: 0,
+      };
+    }
+    whereSql = hasType ? "staff_id = $2" : "staff_id = $1";
+    args = hasType ? [params.interventionType, params.staffId] : [params.staffId];
+  }
+
+  // If intervention_type is present but NULL (older rows), treat NULL as 'attendance'.
+  const interventionTypeFilterSql = hasType
+    ? "COALESCE(intervention_type, 'attendance') = $1 AND "
+    : "";
+
+  const res = await pool.query<{
+    status: string;
+    cnt: string;
+  }>(
+    `
+    WITH latest AS (
+      SELECT DISTINCT ON (student_sap_id)
+        student_sap_id,
+        status
+      FROM interventions
+      WHERE ${interventionTypeFilterSql}${whereSql}
+      ORDER BY student_sap_id, performed_at DESC
+    )
+    SELECT status, COUNT(*)::int AS cnt
+    FROM latest
+    GROUP BY status
+    `,
+    args
+  );
+
+  const counts = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+  };
+
+  for (const row of res.rows) {
+    const n = Number(row.cnt) || 0;
+    if (row.status === "initiated") counts.initiated = n;
+    else if (row.status === "in-progress") counts.inProgress = n;
+    else if (row.status === "referred") counts.referred = n;
+    else if (row.status === "resolved") counts.resolved = n;
+  }
+
+  const totalInterventionStudents =
+    counts.initiated + counts.inProgress + counts.referred + counts.resolved;
+
+  return { ...counts, totalInterventionStudents };
+}
+

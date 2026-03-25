@@ -30,6 +30,11 @@ type Props = {
   masterFilter?: MasterFilterParams;
   gpaFilters?: AlertDimensionFilter[];
   attendanceFilters?: AlertDimensionFilter[];
+  /** Which overview card is active (`attendance` or `gpa`), used for chart totals. */
+  selectedAlert?: string;
+  /** Used when selectedAlert === "gpa" and no slice is selected. */
+  yellowGpa?: number;
+  redGpa?: number;
 };
 
 function deduplicateEnrollments(
@@ -43,30 +48,6 @@ function deduplicateEnrollments(
     seen.add(id);
     return true;
   });
-}
-
-function aggregateStatusesForCohort(
-  cohortSapIds: string[],
-  interventionStatuses: Map<string, string | null>
-) {
-  let initiated = 0;
-  let inProgress = 0;
-  let referred = 0;
-  let resolved = 0;
-  for (const status of interventionStatuses.values()) {
-    if (!status) continue;
-    if (status === "initiated") initiated += 1;
-    else if (status === "in-progress") inProgress += 1;
-    else if (status === "referred") referred += 1;
-    else if (status === "resolved") resolved += 1;
-    else initiated += 1;
-  }
-
-  // Row-level total alerts minus students with at least one intervention status in DB.
-  const totalInterventionStudents = initiated + inProgress + referred + resolved;
-  const notStarted = Math.max(0, cohortSapIds.length - totalInterventionStudents);
-
-  return { initiated, inProgress, referred, resolved, notStarted };
 }
 
 function sliceDescription(slice: InterventionChartSlice | null): string | null {
@@ -86,9 +67,19 @@ export function InterventionStatusChartClient({
   masterFilter: masterFilterProp,
   gpaFilters: gpaFiltersProp,
   attendanceFilters: attendanceFiltersProp,
+  selectedAlert,
+  yellowGpa = 0,
+  redGpa = 0,
 }: Props): JSX.Element {
+  const debug =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "true" ||
+    process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "1";
   const dashboardFilter = useDashboardFilter();
   const { slice, clearSlice } = useInterventionSlice();
+
+  const selectedAlertMode =
+    selectedAlert === "gpa" ? "gpa" : ("attendance" as const);
 
   const masterFilter =
     dashboardFilter?.masterFilter ?? masterFilterProp ?? {};
@@ -97,9 +88,12 @@ export function InterventionStatusChartClient({
     dashboardFilter?.attendanceFilters ?? attendanceFiltersProp ?? [];
 
   const { data: enrollmentData } = useEnrollmentData();
-  const [interventionStatuses, setInterventionStatuses] = useState<
-    Map<string, string | null>
-  >(new Map());
+  const [interventionCounts, setInterventionCounts] = useState<{
+    initiated: number;
+    inProgress: number;
+    referred: number;
+    resolved: number;
+  }>({ initiated: 0, inProgress: 0, referred: 0, resolved: 0 });
 
   const [gpaCohortSapIds, setGpaCohortSapIds] = useState<string[] | null>(
     null
@@ -256,76 +250,105 @@ export function InterventionStatusChartClient({
     return () => controller.abort();
   }, [slice, masterFilter, gpaFilters, attendanceFilters]);
 
-  const targetCohort = useMemo((): string[] | null => {
-    if (!slice) return unionAttendanceSap;
-    if (slice === "attendance_yellow") return yellowAttendanceSap;
-    if (slice === "attendance_red") return redAttendanceSap;
-    if (slice === "gpa_yellow" || slice === "gpa_red") {
-      if (gpaCohortLoading || gpaCohortSapIds === null) return null;
-      return gpaCohortSapIds;
+  const interventionTypeForDb = useMemo<"attendance" | "gpa">(() => {
+    if (slice === "attendance_yellow" || slice === "attendance_red") {
+      return "attendance";
     }
-    return unionAttendanceSap;
+    if (slice === "gpa_yellow" || slice === "gpa_red") {
+      return "gpa";
+    }
+    return selectedAlertMode;
+  }, [slice, selectedAlertMode]);
+
+  const totalAlerts = useMemo(() => {
+    if (slice === "attendance_yellow") return yellowAttendanceSap.length;
+    if (slice === "attendance_red") return redAttendanceSap.length;
+    if (slice === "gpa_yellow" || slice === "gpa_red") {
+      return gpaCohortSapIds?.length ?? 0;
+    }
+    // No slice selected: use overview-card totals.
+    if (selectedAlertMode === "gpa") return yellowGpa + redGpa;
+    return unionAttendanceSap.length;
   }, [
     slice,
-    unionAttendanceSap,
     yellowAttendanceSap,
     redAttendanceSap,
     gpaCohortSapIds,
-    gpaCohortLoading,
+    selectedAlertMode,
+    yellowGpa,
+    redGpa,
+    unionAttendanceSap,
   ]);
 
-  const targetCohortUniqueSapIds = useMemo(() => {
-    if (!targetCohort) return [];
-    return Array.from(
-      new Set(targetCohort.map((s) => String(s).trim()).filter(Boolean))
-    );
-  }, [targetCohort]);
-
   useEffect(() => {
-    if (!targetCohortUniqueSapIds.length) {
-      setInterventionStatuses(new Map());
-      return;
-    }
+    if (!user?.role) return;
+
+    const roleScope =
+      user.role === "teacher" ? "teacher" : (user.role as "dean" | "hod");
+
     const controller = new AbortController();
     fetch("/api/interventions/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sapIds: targetCohortUniqueSapIds }),
+      body: JSON.stringify({
+        role: roleScope,
+        interventionType: interventionTypeForDb,
+        facultyId: user.role === "dean" ? user.faculty_id : null,
+        departmentIds: user.role === "hod" ? user.department_ids : null,
+        staffId: user.role === "teacher" ? user.id : null,
+      }),
       signal: controller.signal,
     })
-      .then((res) =>
-        res.ok
-          ? (res.json() as Promise<Record<string, string | null>>)
-          : Promise.reject(new Error("Failed to load intervention statuses"))
-      )
-      .then((data) => {
-        const map = new Map<string, string | null>();
-        for (const [id, status] of Object.entries(data)) {
-          map.set(id, status ?? null);
-        }
-        setInterventionStatuses(map);
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load intervention counts");
+        return res.json() as Promise<{
+          initiated?: number;
+          inProgress?: number;
+          referred?: number;
+          resolved?: number;
+        }>;
+      })
+      .then((counts) => {
+        setInterventionCounts({
+          initiated: counts.initiated ?? 0,
+          inProgress: counts.inProgress ?? 0,
+          referred: counts.referred ?? 0,
+          resolved: counts.resolved ?? 0,
+        });
       })
       .catch((err) => {
         if (err.name === "AbortError") return;
-        setInterventionStatuses(new Map());
-      });
-
-    return () => controller.abort();
-  }, [targetCohortUniqueSapIds]);
-
-  const { initiated, inProgress, referred, resolved, notStarted } =
-    useMemo(() => {
-      if (targetCohort === null) {
-        return {
+        setInterventionCounts({
           initiated: 0,
           inProgress: 0,
           referred: 0,
           resolved: 0,
-          notStarted: 0,
-        };
-      }
-      return aggregateStatusesForCohort(targetCohort, interventionStatuses);
-    }, [targetCohort, interventionStatuses]);
+        });
+      });
+
+    return () => controller.abort();
+  }, [
+    user?.role,
+    user?.faculty_id,
+    user?.department_ids,
+    user?.id,
+    interventionTypeForDb,
+  ]);
+
+  const { initiated, inProgress, referred, resolved, notStarted } = useMemo(() => {
+    const totalInterventionStudents =
+      interventionCounts.initiated +
+      interventionCounts.inProgress +
+      interventionCounts.referred +
+      interventionCounts.resolved;
+    return {
+      initiated: interventionCounts.initiated,
+      inProgress: interventionCounts.inProgress,
+      referred: interventionCounts.referred,
+      resolved: interventionCounts.resolved,
+      notStarted: Math.max(0, totalAlerts - totalInterventionStudents),
+    };
+  }, [interventionCounts, totalAlerts]);
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
@@ -376,6 +399,18 @@ export function InterventionStatusChartClient({
           data={data}
           statusColors={statusColors}
         />
+      )}
+      {debug && (
+        <div className="px-2 pt-2">
+          <p className="text-[10px] text-neutral-500">
+            Role: {user?.role ?? "—"}; Intervention type: {interventionTypeForDb}. Total alerts:{" "}
+            {totalAlerts}
+          </p>
+          <p className="text-[10px] text-neutral-500">
+            DB counts: initiated={initiated}, in-progress={inProgress}, referred=
+            {referred}, resolved={resolved}, notStarted={notStarted}
+          </p>
+        </div>
       )}
     </div>
   );

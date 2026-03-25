@@ -158,6 +158,9 @@ export default async function Home({ searchParams }: PropsType) {
               masterFilter={masterFilter}
               gpaFilters={gpaFilters}
               attendanceFilters={attendanceFilters}
+              selectedAlert={selectedAlert}
+              yellowGpa={yellowGpa.value}
+              redGpa={redGpa.value}
             />
           </div>
           <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">

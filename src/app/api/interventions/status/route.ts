@@ -3,6 +3,8 @@ import {
   getAllLatestInterventionStatuses,
   getLatestInterventionStatusMap,
 } from "@/data/intervention-store";
+import { getInterventionStatsForStudents } from "@/data/intervention-store";
+import { getInterventionStatsForRoleScope } from "@/data/intervention-store";
 
 export async function GET() {
   const statusMap = await getAllLatestInterventionStatuses();
@@ -19,15 +21,38 @@ export async function POST(req: Request) {
     const sapIds = Array.isArray(body?.sapIds)
       ? body.sapIds.map((s) => String(s).trim()).filter(Boolean)
       : [];
+
+    // Role-scope count mode (no SAPIDs sent).
+    const roleScope = body as {
+      role?: "dean" | "hod" | "teacher";
+      interventionType?: "attendance" | "gpa";
+      facultyId?: string | null;
+      departmentIds?: string[] | null;
+      staffId?: string | null;
+    };
+
+    if (
+      roleScope.role &&
+      roleScope.interventionType &&
+      (roleScope.role === "dean" ||
+        roleScope.role === "hod" ||
+        roleScope.role === "teacher")
+    ) {
+      const stats = await getInterventionStatsForRoleScope({
+        role: roleScope.role,
+        interventionType: roleScope.interventionType,
+        facultyId: roleScope.facultyId ?? null,
+        departmentIds: roleScope.departmentIds ?? null,
+        staffId: roleScope.staffId ?? null,
+      });
+      return NextResponse.json(stats, { status: 200 });
+    }
+
     if (!sapIds.length) return NextResponse.json({}, { status: 200 });
 
     const uniqueSapIds = Array.from(new Set(sapIds));
-    const statusMap = await getLatestInterventionStatusMap(uniqueSapIds);
-    const result: Record<string, string | null> = {};
-    for (const [sapId, status] of statusMap.entries()) {
-      result[sapId] = status ?? null;
-    }
-    return NextResponse.json(result, { status: 200 });
+    const stats = await getInterventionStatsForStudents(uniqueSapIds);
+    return NextResponse.json(stats, { status: 200 });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

@@ -12,6 +12,9 @@ import {
   getInterventionsByStudentSapIdFromDb,
   getLatestInterventionStatusMapFromDb,
   getInterventionStatsForStudentsFromDb,
+  getInterventionStatsForRoleScopeFromDb,
+  type InterventionRoleScope,
+  type InterventionRoleScopeStats,
 } from "@/lib/db/interventions";
 
 /** Matches Intervention-Form fields for intervention history. */
@@ -235,6 +238,47 @@ export type InterventionStatsCounts = {
   referred: number;
   resolved: number;
 };
+
+export type InterventionRoleScopeStatsCounts = InterventionRoleScopeStats;
+
+export async function getInterventionStatsForRoleScope(
+  params: InterventionRoleScope
+): Promise<InterventionRoleScopeStatsCounts> {
+  if (pool) {
+    return getInterventionStatsForRoleScopeFromDb(params);
+  }
+
+  // File fallback does not store faculty/department/staff scope columns,
+  // so we can only approximate by intervention_type.
+  const stored = readStore();
+  const filtered = stored.filter((r) => r.intervention_type === params.interventionType);
+
+  const latestByStudent = new Map<string, InterventionRecord>();
+  for (const r of filtered) {
+    const existing = latestByStudent.get(r.student_sap_id);
+    if (!existing || new Date(r.performed_at).getTime() > new Date(existing.performed_at).getTime()) {
+      latestByStudent.set(r.student_sap_id, r);
+    }
+  }
+
+  const out = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+  };
+  for (const r of latestByStudent.values()) {
+    if (r.status === "initiated") out.initiated += 1;
+    else if (r.status === "in-progress") out.inProgress += 1;
+    else if (r.status === "referred") out.referred += 1;
+    else if (r.status === "resolved") out.resolved += 1;
+  }
+
+  return {
+    ...out,
+    totalInterventionStudents: out.initiated + out.inProgress + out.referred + out.resolved,
+  };
+}
 
 /**
  * For a given set of student SAP IDs (e.g. all students in alert for the user),
