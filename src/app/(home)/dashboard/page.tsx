@@ -7,9 +7,8 @@ import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
 import { HodStatsCollapsible } from "./_components/hod-stats-collapsible";
 import { HodProgramStats } from "./_components/hod-program-stats";
 import { HodInstructorStats } from "./_components/hod-instructor-stats";
-import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
 import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
-import { getWellbeingChartData } from "./fetch";
+import { WellbeingChartClient } from "./_components/WellbeingChartClient";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
@@ -89,12 +88,6 @@ export default async function Home({ searchParams }: PropsType) {
   }
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
-  const wellbeingChart = await getWellbeingChartData(
-    user,
-    masterFilter,
-    gpaFilters,
-    attendanceFilters
-  );
 
   const { yellowGpa, redGpa } = await getOverviewData(
     user,
@@ -164,10 +157,7 @@ export default async function Home({ searchParams }: PropsType) {
             />
           </div>
           <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
-            <StatusStackedChart
-              title="Wellbeing Resolution"
-              data={wellbeingChart}
-            />
+            <WellbeingChartClient title="Wellbeing Resolution" />
           </div>
         </div>
         </InterventionSliceProvider>

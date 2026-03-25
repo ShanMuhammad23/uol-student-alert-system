@@ -22,7 +22,6 @@ import type {
 } from "../fetch";
 import { useDashboardFilter } from "./DashboardFilterContext";
 import type { InterventionChartSlice } from "./InterventionSliceContext";
-import { useInterventionSlice } from "./InterventionSliceContext";
 
 type Props = {
   title: string;
@@ -76,16 +75,30 @@ export function InterventionStatusChartClient({
     process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "true" ||
     process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "1";
   const dashboardFilter = useDashboardFilter();
-  const { slice, clearSlice } = useInterventionSlice();
 
-  const selectedAlertMode =
-    selectedAlert === "gpa" ? "gpa" : ("attendance" as const);
+  const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
+  const setGpaFilters = dashboardFilter?.setGpaFilters;
+
+  const selectedAlertMode = useMemo(() => {
+    if (dashboardFilter?.gpaFilters?.length) return "gpa" as const;
+    if (dashboardFilter?.attendanceFilters?.length) return "attendance" as const;
+    return selectedAlert === "gpa" ? ("gpa" as const) : ("attendance" as const);
+  }, [dashboardFilter?.gpaFilters, dashboardFilter?.attendanceFilters, selectedAlert]);
 
   const masterFilter =
     dashboardFilter?.masterFilter ?? masterFilterProp ?? {};
   const gpaFilters = dashboardFilter?.gpaFilters ?? gpaFiltersProp ?? [];
   const attendanceFilters =
     dashboardFilter?.attendanceFilters ?? attendanceFiltersProp ?? [];
+
+  const effectiveSlice: InterventionChartSlice | null = useMemo(() => {
+    // Red has precedence over yellow if both are present.
+    if (attendanceFilters.includes("red")) return "attendance_red";
+    if (attendanceFilters.includes("yellow")) return "attendance_yellow";
+    if (gpaFilters.includes("red")) return "gpa_red";
+    if (gpaFilters.includes("yellow")) return "gpa_yellow";
+    return null;
+  }, [attendanceFilters, gpaFilters]);
 
   const { data: enrollmentData } = useEnrollmentData();
   const [interventionCounts, setInterventionCounts] = useState<{
@@ -205,13 +218,16 @@ export function InterventionStatusChartClient({
     ]);
 
   useEffect(() => {
-    if (slice !== "gpa_yellow" && slice !== "gpa_red") {
+    if (
+      effectiveSlice !== "gpa_yellow" &&
+      effectiveSlice !== "gpa_red"
+    ) {
       setGpaCohortSapIds(null);
       setGpaCohortLoading(false);
       return;
     }
 
-    const segment = slice === "gpa_red" ? "red" : "yellow";
+    const segment = effectiveSlice === "gpa_red" ? "red" : "yellow";
     const controller = new AbortController();
     setGpaCohortLoading(true);
     setGpaCohortSapIds(null);
@@ -248,29 +264,32 @@ export function InterventionStatusChartClient({
       });
 
     return () => controller.abort();
-  }, [slice, masterFilter, gpaFilters, attendanceFilters]);
+  }, [effectiveSlice, masterFilter, gpaFilters, attendanceFilters]);
 
   const interventionTypeForDb = useMemo<"attendance" | "gpa">(() => {
-    if (slice === "attendance_yellow" || slice === "attendance_red") {
+    if (
+      effectiveSlice === "attendance_yellow" ||
+      effectiveSlice === "attendance_red"
+    ) {
       return "attendance";
     }
-    if (slice === "gpa_yellow" || slice === "gpa_red") {
+    if (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") {
       return "gpa";
     }
     return selectedAlertMode;
-  }, [slice, selectedAlertMode]);
+  }, [effectiveSlice, selectedAlertMode]);
 
   const totalAlerts = useMemo(() => {
-    if (slice === "attendance_yellow") return yellowAttendanceSap.length;
-    if (slice === "attendance_red") return redAttendanceSap.length;
-    if (slice === "gpa_yellow" || slice === "gpa_red") {
+    if (effectiveSlice === "attendance_yellow") return yellowAttendanceSap.length;
+    if (effectiveSlice === "attendance_red") return redAttendanceSap.length;
+    if (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") {
       return gpaCohortSapIds?.length ?? 0;
     }
     // No slice selected: use overview-card totals.
     if (selectedAlertMode === "gpa") return yellowGpa + redGpa;
     return unionAttendanceSap.length;
   }, [
-    slice,
+    effectiveSlice,
     yellowAttendanceSap,
     redAttendanceSap,
     gpaCohortSapIds,
@@ -279,6 +298,11 @@ export function InterventionStatusChartClient({
     redGpa,
     unionAttendanceSap,
   ]);
+
+  const clearSegmentFilters = () => {
+    setAttendanceFilters?.([]);
+    setGpaFilters?.([]);
+  };
 
   useEffect(() => {
     if (!user?.role) return;
@@ -366,7 +390,7 @@ export function InterventionStatusChartClient({
     { x: "Referred", y: referred },
   ];
 
-  const subtitle = sliceDescription(slice);
+  const subtitle = sliceDescription(effectiveSlice);
 
   return (
     <div className="px-2 pb-2">
@@ -379,17 +403,18 @@ export function InterventionStatusChartClient({
           ) : null
           }
         </div>
-        {slice != null && (
+        {effectiveSlice != null && (
           <button
             type="button"
-            onClick={clearSlice}
+            onClick={clearSegmentFilters}
             className="shrink-0 text-xs font-medium text-primary hover:underline"
           >
             Show all
           </button>
         )}
       </div>
-      {gpaCohortLoading && (slice === "gpa_yellow" || slice === "gpa_red") ? (
+      {gpaCohortLoading &&
+      (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") ? (
         <p className="px-2 py-8 text-center text-sm text-neutral-500">
           Loading cohort…
         </p>
@@ -403,8 +428,8 @@ export function InterventionStatusChartClient({
       {debug && (
         <div className="px-2 pt-2">
           <p className="text-[10px] text-neutral-500">
-            Role: {user?.role ?? "—"}; Intervention type: {interventionTypeForDb}. Total alerts:{" "}
-            {totalAlerts}
+            Role: {user?.role ?? "—"}; Slice: {effectiveSlice ?? "—"}; Intervention type:{" "}
+            {interventionTypeForDb}. Total alerts: {totalAlerts}
           </p>
           <p className="text-[10px] text-neutral-500">
             DB counts: initiated={initiated}, in-progress={inProgress}, referred=

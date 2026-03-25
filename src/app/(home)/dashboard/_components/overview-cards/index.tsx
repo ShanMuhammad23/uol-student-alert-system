@@ -4,10 +4,6 @@ import type { AppUser, AlertFilter } from "../../fetch";
 import { AttendanceOverviewCardClient } from "./AttendanceOverviewCardClient";
 import { OverviewCard } from "./card";
 import { useDashboardFilter } from "../DashboardFilterContext";
-import {
-  useInterventionSlice,
-  type InterventionChartSlice,
-} from "../InterventionSliceContext";
 import { useMergeDashboardHref } from "../useDashboardHref";
 
 type PropsType = {
@@ -24,17 +20,66 @@ export function OverviewCardsGroup({
   redGpa,
 }: PropsType) {
   const filter = useDashboardFilter();
-  const { slice, setSlice } = useInterventionSlice();
   const mergeHref = useMergeDashboardHref();
-  const active = selectedAlert || "all";
+
+  const attendanceFilters = filter?.attendanceFilters ?? [];
+  const gpaFilters = filter?.gpaFilters ?? [];
+  const setAttendanceFilters = filter?.setAttendanceFilters;
+  const setGpaFilters = filter?.setGpaFilters;
+
+  const attendanceYellowActive = attendanceFilters.includes("yellow");
+  const attendanceRedActive = attendanceFilters.includes("red");
+  const gpaYellowActive = gpaFilters.includes("yellow");
+  const gpaRedActive = gpaFilters.includes("red");
+
+  const active =
+    attendanceYellowActive || attendanceRedActive
+      ? "attendance"
+      : gpaYellowActive || gpaRedActive
+        ? "gpa"
+        : selectedAlert || "all";
 
   const attendanceHref = mergeHref({ selected_alert: "attendance" });
   const gpaHref = mergeHref({ selected_alert: "gpa" });
 
-  const isSlice = (s: InterventionChartSlice) => slice === s;
+  const toggleAttendanceYellow = () => {
+    if (!setAttendanceFilters) return;
+    if (attendanceYellowActive) {
+      setAttendanceFilters([]);
+      return;
+    }
+    setAttendanceFilters(["yellow"]);
+    setGpaFilters?.([]);
+  };
 
-  const toggleSlice = (s: InterventionChartSlice) => {
-    setSlice(slice === s ? null : s);
+  const toggleAttendanceRed = () => {
+    if (!setAttendanceFilters) return;
+    if (attendanceRedActive) {
+      setAttendanceFilters([]);
+      return;
+    }
+    setAttendanceFilters(["red"]);
+    setGpaFilters?.([]);
+  };
+
+  const toggleGpaYellow = () => {
+    if (!setGpaFilters) return;
+    if (gpaYellowActive) {
+      setGpaFilters([]);
+      return;
+    }
+    setGpaFilters(["yellow"]);
+    setAttendanceFilters?.([]);
+  };
+
+  const toggleGpaRed = () => {
+    if (!setGpaFilters) return;
+    if (gpaRedActive) {
+      setGpaFilters([]);
+      return;
+    }
+    setGpaFilters(["red"]);
+    setAttendanceFilters?.([]);
   };
 
   return (
@@ -50,10 +95,10 @@ export function OverviewCardsGroup({
           user={user}
           masterFilter={filter?.masterFilter}
           attendanceFilters={filter?.attendanceFilters}
-          yellowActive={isSlice("attendance_yellow")}
-          redActive={isSlice("attendance_red")}
-          onYellowClick={() => toggleSlice("attendance_yellow")}
-          onRedClick={() => toggleSlice("attendance_red")}
+          yellowActive={attendanceYellowActive}
+          redActive={attendanceRedActive}
+          onYellowClick={toggleAttendanceYellow}
+          onRedClick={toggleAttendanceRed}
         />
       </div>
       <div
@@ -69,10 +114,10 @@ export function OverviewCardsGroup({
           masterFilter={filter?.masterFilter}
           gpaFilters={filter?.gpaFilters}
           attendanceFilters={filter?.attendanceFilters}
-          yellowActive={isSlice("gpa_yellow")}
-          redActive={isSlice("gpa_red")}
-          onYellowClick={() => toggleSlice("gpa_yellow")}
-          onRedClick={() => toggleSlice("gpa_red")}
+          yellowActive={gpaYellowActive}
+          redActive={gpaRedActive}
+          onYellowClick={toggleGpaYellow}
+          onRedClick={toggleGpaRed}
         />
       </div>
     </div>
