@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useEnrollmentData } from "@/hooks/useEnrollmentData";
 import {
@@ -27,7 +27,7 @@ import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
 import { StudentsViewTabs } from "./StudentsViewTabs";
 import { DashboardUiStateProvider, useDashboardUiState } from "./DashboardUiStateContext";
-import { DashboardFilterProvider } from "./DashboardFilterContext";
+import { useDashboardFilter } from "./DashboardFilterContext";
 
 type Props = {
   user: DashboardUser;
@@ -63,18 +63,40 @@ export function EnrollmentDashboard({
 }: Props) {
   const { data: enrollmentData } = useEnrollmentData();
 
-  // Local, client-side filter state to avoid full route transitions on every change.
-  const [localMasterFilter, setLocalMasterFilter] =
-    useState<MasterFilterParams>(masterFilter);
-  const [localGpaFilters, setLocalGpaFilters] =
-    useState<AlertDimensionFilter[]>(gpaFilters);
-  const [localAttendanceFilters, setLocalAttendanceFilters] =
-    useState<AlertDimensionFilter[]>(attendanceFilters);
-  const [localInterventionFilters, setLocalInterventionFilters] = useState<
-    string[]
-  >(interventionFilters);
-  const [localResolutionFilters, setLocalResolutionFilters] = useState<string[]>([]);
-  const [localInterventionStatusFilters] = useState<string[]>([]);
+  // Shared filter state (owned by DashboardFiltersStateProvider from Chunk 1).
+  const dashboardFilter = useDashboardFilter();
+
+  const localMasterFilter: MasterFilterParams =
+    dashboardFilter?.masterFilter ?? masterFilter;
+  const localGpaFilters: AlertDimensionFilter[] =
+    dashboardFilter?.gpaFilters ?? gpaFilters;
+  const localAttendanceFilters: AlertDimensionFilter[] =
+    dashboardFilter?.attendanceFilters ?? attendanceFilters;
+  const localInterventionFilters: string[] =
+    dashboardFilter?.interventionFilters ?? interventionFilters;
+  const localResolutionFilters: string[] =
+    dashboardFilter?.resolutionFilters ?? [];
+
+  // Intervention status filters are not yet wired; keep empty for now.
+  const localInterventionStatusFilters: string[] = [];
+
+  const setLocalMasterFilter: Dispatch<SetStateAction<MasterFilterParams>> =
+    dashboardFilter?.setMasterFilter ??
+    ((_: SetStateAction<MasterFilterParams>) => {});
+  const setLocalGpaFilters: Dispatch<SetStateAction<AlertDimensionFilter[]>> =
+    dashboardFilter?.setGpaFilters ??
+    ((_: SetStateAction<AlertDimensionFilter[]>) => {});
+  const setLocalAttendanceFilters: Dispatch<
+    SetStateAction<AlertDimensionFilter[]>
+  > =
+    dashboardFilter?.setAttendanceFilters ??
+    ((_: SetStateAction<AlertDimensionFilter[]>) => {});
+  const setLocalInterventionFilters: Dispatch<SetStateAction<string[]>> =
+    dashboardFilter?.setInterventionFilters ??
+    ((_: SetStateAction<string[]>) => {});
+  const setLocalResolutionFilters: Dispatch<SetStateAction<string[]>> =
+    dashboardFilter?.setResolutionFilters ??
+    ((_: SetStateAction<string[]>) => {});
 
   // Scope enrollment data by role: dean → faculty, HoD → departments, teacher → own Pernr.
   const scopedEnrollmentData = useMemo(() => {
@@ -150,40 +172,30 @@ export function EnrollmentDashboard({
       initialViewMode={viewMode}
       initialExpandedIds={expandedIds}
     >
-      <DashboardFilterProvider
-        value={{
-          masterFilter: localMasterFilter,
-          gpaFilters: localGpaFilters,
-          attendanceFilters: localAttendanceFilters,
-          interventionFilters: localInterventionFilters,
-          resolutionFilters: localResolutionFilters,
-        }}
-      >
-        <EnrollmentDashboardInner
-          user={user}
-          departmentIds={departmentIds}
-          programIds={programIds}
-          instructorIds={instructorIds}
-          selectedAlert={selectedAlert}
-          filterOptions={filterOptions}
-          filteredData={filteredData ?? null}
-          returnToUrl={returnToUrl}
-          localMasterFilter={localMasterFilter}
-          localGpaFilters={localGpaFilters}
-          localAttendanceFilters={localAttendanceFilters}
-          localInterventionFilters={localInterventionFilters}
-          localResolutionFilters={localResolutionFilters}
-          localInterventionStatusFilters={localInterventionStatusFilters}
-          setLocalMasterFilter={setLocalMasterFilter}
-          setLocalGpaFilters={setLocalGpaFilters}
-          setLocalAttendanceFilters={setLocalAttendanceFilters}
-          setLocalInterventionFilters={setLocalInterventionFilters}
-          setLocalResolutionFilters={setLocalResolutionFilters}
-          departmentStats={departmentStats}
-          programStats={programStats}
-          instructorStats={instructorStats}
-        />
-      </DashboardFilterProvider>
+      <EnrollmentDashboardInner
+        user={user}
+        departmentIds={departmentIds}
+        programIds={programIds}
+        instructorIds={instructorIds}
+        selectedAlert={selectedAlert}
+        filterOptions={filterOptions}
+        filteredData={filteredData ?? null}
+        returnToUrl={returnToUrl}
+        localMasterFilter={localMasterFilter}
+        localGpaFilters={localGpaFilters}
+        localAttendanceFilters={localAttendanceFilters}
+        localInterventionFilters={localInterventionFilters}
+        localResolutionFilters={localResolutionFilters}
+        localInterventionStatusFilters={localInterventionStatusFilters}
+        setLocalMasterFilter={setLocalMasterFilter}
+        setLocalGpaFilters={setLocalGpaFilters}
+        setLocalAttendanceFilters={setLocalAttendanceFilters}
+        setLocalInterventionFilters={setLocalInterventionFilters}
+        setLocalResolutionFilters={setLocalResolutionFilters}
+        departmentStats={departmentStats}
+        programStats={programStats}
+        instructorStats={instructorStats}
+      />
     </DashboardUiStateProvider>
   );
 }
