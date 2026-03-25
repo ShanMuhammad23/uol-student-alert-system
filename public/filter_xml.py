@@ -1,6 +1,6 @@
 import lxml.etree as ET
 import os
-INPUT_FILE = 'Enrollment_data.xml'
+INPUT_FILE = 'fall_2025_gpa.xml'
 OUTPUT_FILE = 'Filtered_Enrollment_data.xml'
 TARGET_FAC_ID = '50000172'
 

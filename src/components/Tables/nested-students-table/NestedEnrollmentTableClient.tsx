@@ -74,6 +74,9 @@ export function NestedEnrollmentTableClient({
   const list = enrollmentData ?? [];
   const { byDept } = groupEnrollmentByDeptProgramCourse(list);
 
+  const openAccordionBg = "bg-primary/5 dark:bg-primary/10";
+  const closedAccordionBg = "bg-gray-50 dark:bg-dark-2";
+
   const {
     attendanceSummaries,
     classAverageByCourseSection,
@@ -182,7 +185,11 @@ export function NestedEnrollmentTableClient({
               key={deptName}
               data-section-id={deptSectionId}
               open={deptIsOpen}
-              className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+              className={cn(
+                "rounded-md border border-stroke",
+                deptIsOpen ? openAccordionBg : closedAccordionBg,
+                "dark:border-dark-3"
+              )}
             >
               <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                 <div className="flex flex-col gap-1">
@@ -199,8 +206,8 @@ export function NestedEnrollmentTableClient({
                 </div>
                 <span
                   className={cn(
-                    "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
-                    deptIsOpen && "rotate-180",
+                    "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-dark-5",
+                    deptIsOpen && "rotate-180"
                   )}
                 >
                   ▼
@@ -228,7 +235,11 @@ export function NestedEnrollmentTableClient({
                         key={programName}
                         data-section-id={progSectionId}
                         open={progIsOpen}
-                        className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                        className={cn(
+                          "rounded-md border border-stroke",
+                          progIsOpen ? openAccordionBg : closedAccordionBg,
+                          "dark:border-dark-3"
+                        )}
                       >
                         <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                           <div className="flex flex-col gap-1">
@@ -247,8 +258,8 @@ export function NestedEnrollmentTableClient({
                           </div>
                           <span
                             className={cn(
-                              "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
-                              progIsOpen && "rotate-180",
+                              "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-dark-5",
+                              progIsOpen && "rotate-180"
                             )}
                           >
                             ▼
@@ -271,7 +282,11 @@ export function NestedEnrollmentTableClient({
                                   key={courseKey}
                                   data-section-id={courseSectionId}
                                   open={courseIsOpen}
-                                  className="rounded-md border border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2"
+                                className={cn(
+                                  "rounded-md border border-stroke",
+                                  courseIsOpen ? openAccordionBg : closedAccordionBg,
+                                  "dark:border-dark-3"
+                                )}
                                 >
                                   <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                                     <div className="flex flex-col gap-1">
@@ -304,8 +319,8 @@ export function NestedEnrollmentTableClient({
                                     </div>
                                     <span
                                       className={cn(
-                                        "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
-                                        courseIsOpen && "rotate-180",
+                                        "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-dark-5",
+                                        courseIsOpen && "rotate-180"
                                       )}
                                     >
                                       ▼
