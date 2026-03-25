@@ -19,7 +19,8 @@ import {
 } from "@/lib/attendance-utils";
 import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { AlertDimensionFilter } from "@/app/(home)/dashboard/fetch";
 
 type GroupedEnrollment = {
   byDept: Map<
@@ -63,16 +64,21 @@ type Props = {
   returnToUrl?: string;
   /** Enrollment data (same source as table view). When null/empty, shows empty state. */
   enrollmentData: EnrollmentRecord[] | null;
+  /** Attendance alert filters (red / yellow / good) from MasterFilter. */
+  attendanceFilters?: AlertDimensionFilter[];
+  /** GPA alert filters (red / yellow / good) from MasterFilter. */
+  gpaFilters?: AlertDimensionFilter[];
 };
 
 export function NestedEnrollmentTableClient({
   className,
   returnToUrl = "/",
   enrollmentData,
+  attendanceFilters,
+  gpaFilters,
 }: Props) {
   const { expandedIds } = useDashboardUiState();
   const list = enrollmentData ?? [];
-  const { byDept } = groupEnrollmentByDeptProgramCourse(list);
 
   const openAccordionBg = "bg-primary/5 dark:bg-primary/10";
   const closedAccordionBg = "bg-gray-50 dark:bg-dark-2";
@@ -82,7 +88,61 @@ export function NestedEnrollmentTableClient({
     classAverageByCourseSection,
     monitoredByCourseSection,
     isAttendanceLoading,
+    gpaAlertLevelBySapId,
   } = useAttendanceAlerts(list);
+
+  const filteredList = useMemo(() => {
+    let base = list;
+
+    if (attendanceFilters?.length && attendanceSummaries) {
+      const allowed = new Set<string | null>();
+      for (const f of attendanceFilters) {
+        if (f === "red") allowed.add("critical");
+        else if (f === "yellow") allowed.add("warning");
+        else if (f === "good") allowed.add(null);
+      }
+
+      base = base.filter((row) => {
+        const monitorKey = `${normalizeCourseCode(
+          typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
+        )}__${row.Section ?? ""}`;
+        const attendanceKey = getEnrollmentAttendanceKey(row);
+        const summary = attendanceSummaries.get(attendanceKey);
+        const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
+        const level =
+          summary && classAvg != null
+            ? getAttendanceAlertLevel(summary.percentage, classAvg)
+            : null;
+        return allowed.size ? allowed.has(level) : true;
+      });
+    }
+
+    if (gpaFilters?.length && gpaAlertLevelBySapId) {
+      const allowed = new Set<"critical" | "warning" | null>();
+      for (const f of gpaFilters) {
+        if (f === "red") allowed.add("critical");
+        else if (f === "yellow") allowed.add("warning");
+        else if (f === "good") allowed.add(null);
+      }
+
+      base = base.filter((row) => {
+        const sapId = String(row.SapNo ?? "").trim();
+        const level = sapId ? gpaAlertLevelBySapId.get(sapId) ?? null : null;
+        return allowed.size ? allowed.has(level) : true;
+      });
+    }
+
+    return base;
+  }, [
+    list,
+    attendanceFilters,
+    attendanceSummaries,
+    classAverageByCourseSection,
+    gpaFilters,
+    gpaAlertLevelBySapId,
+  ]);
+
+  const { byDept } = groupEnrollmentByDeptProgramCourse(filteredList);
 
   const [interventionStatuses, setInterventionStatuses] = useState<
     Map<string, string | null>
@@ -141,7 +201,7 @@ export function NestedEnrollmentTableClient({
     return count;
   };
 
-  if (list.length === 0) {
+  if (filteredList.length === 0) {
     return (
       <div
         className={cn(
@@ -384,6 +444,18 @@ export function NestedEnrollmentTableClient({
                                           const hasAttendanceAlert =
                                             alertLevel === "critical" ||
                                             alertLevel === "warning";
+                                          const gpaLevel =
+                                            gpaAlertLevelBySapId.get(row.SapNo) ??
+                                            null;
+                                          const gpaColorClass =
+                                            gpaLevel === "critical"
+                                              ? "text-red-600"
+                                              : gpaLevel === "warning"
+                                                ? "text-yellow-600"
+                                                : "";
+                                          const hasGpaAlert =
+                                            gpaLevel === "critical" ||
+                                            gpaLevel === "warning";
                                           const latestStatus =
                                             interventionStatuses.get(row.SapNo) ??
                                             null;
@@ -474,12 +546,20 @@ export function NestedEnrollmentTableClient({
                                                 )}
                                               </TableCell>
                                               <TableCell className="!text-left">
-                                                <span>-</span>
+                                                <span className={gpaColorClass}>
+                                                  {gpaLevel === "critical"
+                                                    ? "Critical"
+                                                    : gpaLevel === "warning"
+                                                      ? "Warning"
+                                                      : "—"}
+                                                </span>
                                               </TableCell>
                                               <TableCell className="!text-left">
                                                 <InterventionStatusBadge
                                                   status={latestStatus}
-                                                  goodStanding={!hasAttendanceAlert}
+                                                  goodStanding={
+                                                    !hasAttendanceAlert && !hasGpaAlert
+                                                  }
                                                 />
                                               </TableCell>
                                             </TableRow>

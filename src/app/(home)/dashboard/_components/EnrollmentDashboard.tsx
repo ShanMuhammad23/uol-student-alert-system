@@ -461,6 +461,8 @@ function EnrollmentDashboardInner({
             <NestedEnrollmentTableClient
               returnToUrl={returnToUrl}
               enrollmentData={filteredData ?? null}
+              attendanceFilters={localAttendanceFilters}
+              gpaFilters={localGpaFilters}
             />
           </ExpandableListUrlSync>
         )}
