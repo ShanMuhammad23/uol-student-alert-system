@@ -223,11 +223,27 @@ export function StudentCourseAttendanceDetails({
                   const classesHeld =
                     summary?.totalHeld ??
                     (monitoredByCourseSection.get(courseSectionKey) ?? 0);
+                  const classAvg =
+                    classAverageByCourseSection.get(courseSectionKey) ?? null;
+                  const level =
+                    summary && classAvg != null
+                      ? (comparison => {
+                          if (comparison >= 40) return "critical" as const;
+                          if (comparison >= 20) return "warning" as const;
+                          return null;
+                        })(classAvg - summary.percentage)
+                      : null;
 
                   return (
                     <tr
                       key={key}
-                      className="border-b border-gray-100 last:border-0 dark:border-gray-800"
+                      className={cn(
+                        "border-b border-gray-100 last:border-0 dark:border-gray-800",
+                        level === "critical" &&
+                          "bg-red-50/60 dark:bg-red-900/10",
+                        level === "warning" &&
+                          "bg-amber-50/60 dark:bg-amber-900/10",
+                      )}
                     >
                       <td className="px-4 py-2 text-gray-900 dark:text-gray-100">
                         {(r.CrTitle ?? r.CrCode ?? "—") +
@@ -237,7 +253,16 @@ export function StudentCourseAttendanceDetails({
                       <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
                         {r.Teacher ?? "—"}
                       </td>
-                      <td className="px-4 py-2 text-center text-gray-700 dark:text-gray-300">
+                      <td
+                        className={cn(
+                          "px-4 py-2 text-center",
+                          level === "critical" &&
+                            "text-red-700 dark:text-red-300 font-semibold",
+                          level === "warning" &&
+                            "text-amber-700 dark:text-amber-300 font-semibold",
+                          level == null && "text-black dark:text-emerald-300",
+                        )}
+                      >
                         {summary
                           ? `${summary.percentage.toFixed(1)}% (${summary.attended}/${summary.totalHeld})`
                           : classesHeld
