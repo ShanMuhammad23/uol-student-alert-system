@@ -6,6 +6,26 @@ function normalizeSapId(value: string): string {
   return noLeadingZeros || "0";
 }
 
+let hasInterventionTypeColumnCache: boolean | null = null;
+
+async function hasInterventionTypeColumn(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasInterventionTypeColumnCache !== null) return hasInterventionTypeColumnCache;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name = 'intervention_type'
+    ) AS exists
+    `
+  );
+  hasInterventionTypeColumnCache = Boolean(res.rows[0]?.exists);
+  return hasInterventionTypeColumnCache;
+}
+
 /** Single intervention row as returned from DB (matches intervention-store InterventionRecord). */
 export type InterventionRow = {
   id: string;
@@ -55,16 +75,39 @@ export async function insertIntervention(row: {
   faculty_id: string;
 }): Promise<void> {
   if (!pool) throw new Error("Database not configured");
+  const hasType = await hasInterventionTypeColumn();
+  if (hasType) {
+    await pool.query(
+      `INSERT INTO interventions (
+        id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
+        staff_id, department_id, course_id, faculty_id
+      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12)`,
+      [
+        row.id,
+        row.student_sap_id,
+        row.date,
+        row.intervention_type,
+        row.outreach_mode,
+        row.remarks ?? "",
+        row.status,
+        row.performed_at,
+        row.staff_id,
+        row.department_id,
+        row.course_id,
+        row.faculty_id,
+      ]
+    );
+    return;
+  }
   await pool.query(
     `INSERT INTO interventions (
-      id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
+      id, student_sap_id, date, outreach_mode, remarks, status, performed_at,
       staff_id, department_id, course_id, faculty_id
-    ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12)`,
+    ) VALUES ($1, $2, $3::date, $4, $5, $6, $7::timestamptz, $8, $9, $10, $11)`,
     [
       row.id,
       row.student_sap_id,
       row.date,
-      row.intervention_type,
       row.outreach_mode,
       row.remarks ?? "",
       row.status,
@@ -82,20 +125,26 @@ export async function getInterventionsByStudentSapIdFromDb(
   sapId: string
 ): Promise<InterventionRow[]> {
   if (!pool) return [];
+  const hasType = await hasInterventionTypeColumn();
   const res = await pool.query<{
     id: string;
     student_sap_id: string;
     date: string;
-    intervention_type: "attendance" | "gpa" | null;
+    intervention_type?: "attendance" | "gpa" | null;
     outreach_mode: string;
     remarks: string;
     status: string;
     performed_at: Date;
   }>(
-    `SELECT id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at
-     FROM interventions
-     WHERE student_sap_id = $1
-     ORDER BY performed_at DESC`,
+    hasType
+      ? `SELECT id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at
+         FROM interventions
+         WHERE student_sap_id = $1
+         ORDER BY performed_at DESC`
+      : `SELECT id, student_sap_id, date, outreach_mode, remarks, status, performed_at
+         FROM interventions
+         WHERE student_sap_id = $1
+         ORDER BY performed_at DESC`,
     [sapId]
   );
   return res.rows.map((r) => ({
