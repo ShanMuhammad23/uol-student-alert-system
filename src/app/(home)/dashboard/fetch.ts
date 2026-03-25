@@ -367,6 +367,33 @@ export async function getOverviewData(
   };
 }
 
+/** Unique student SAP IDs with the given GPA alert level after the same filters as `getOverviewData`. */
+export async function getSapIdsForGpaAlertSegment(
+  user: AppUser | null,
+  masterFilter: MasterFilterParams | undefined,
+  gpaFilters: AlertDimensionFilter[] | undefined,
+  attendanceFilters: AlertDimensionFilter[] | undefined,
+  gpaLevel: "warning" | "critical"
+): Promise<string[]> {
+  const data = await getDataFromEnrollment();
+  const { students: allStudents } = data;
+  const hasValidUser =
+    user && VALID_ROLES.includes(user.role as (typeof VALID_ROLES)[number]);
+  let students = hasValidUser
+    ? (getStudentsForRole(user as User, allStudents) as Student[])
+    : allStudents;
+  students = applyMasterFilter(students, masterFilter, data);
+  students = applyGpaAttendanceFilter(students, gpaFilters, attendanceFilters);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of students) {
+    if (s.gpa.alert_level !== gpaLevel) continue;
+    if (seen.has(s.sap_id)) continue;
+    seen.add(s.sap_id);
+    out.push(s.sap_id);
+  }
+  return out;
+}
 
 function applyGpaAlertThreshold(student: Student): void {
   const drop = Math.abs(Math.min(0, student.gpa.change));
@@ -1079,7 +1106,7 @@ export async function getHodInstructorStats(
 }
 
 /** Map NextAuth session user (DB staff) to AppUser. Role "instructor" → "teacher". */
-function sessionToAppUser(session: {
+export function mapSessionToAppUser(session: {
   user: {
     id: string;
     pernr: string;
@@ -1111,7 +1138,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   const { authOptions } = await import("@/lib/auth-config");
   const session = await getServerSession(authOptions);
   if (!session?.user) return null;
-  return sessionToAppUser(session);
+  return mapSessionToAppUser(session);
 }
 
 /** Used only for legacy/cookie fallback; prefer NextAuth signIn. */

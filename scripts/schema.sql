@@ -1,5 +1,5 @@
 -- =============================================================================
--- Student Alert System – Role-based access (Dean, HoD, Instructor)
+-- Student Alert System – Role-based access (Superadmin, Dean, HoD, Instructor)
 -- IDs align with enrollment_data.json: FacId, DeptId/DeptCode, CrCode, Pernr
 -- =============================================================================
 
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS departments (
 
 CREATE INDEX IF NOT EXISTS idx_departments_faculty_id ON departments(faculty_id);
 
--- Staff: one row per user (Dean, HoD, or Instructor)
+-- Staff: one row per user (Superadmin, Dean, HoD, or Instructor)
 -- For Instructors: pernr matches enrollment_data.json "Pernr" (teacher employee number)
 CREATE TABLE IF NOT EXISTS staff (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS staff (
   name          VARCHAR(255) NOT NULL,
   email         VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255),
-  role          VARCHAR(20) NOT NULL CHECK (role IN ('dean', 'hod', 'instructor')),
+  role          VARCHAR(20) NOT NULL CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor')),
   faculty_id    VARCHAR(32) REFERENCES faculties(id),
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   updated_at    TIMESTAMPTZ DEFAULT NOW(),
@@ -169,8 +169,12 @@ CREATE INDEX idx_wellbeing_cases_resolution_status ON wellbeing_cases(resolution
 -- =============================================================================
 -- Notes
 -- =============================================================================
+-- - Superadmin: role exists in DB; app access and scoping TBD when wired up.
 -- - Dean: dashboard filtered by staff.faculty_id = FacId in enrollment_data.
 -- - HoD: dashboard filtered by enrollment DeptId IN (staff_departments.department_id).
 -- - Instructor: dashboard filtered by enrollment Pernr = staff.pernr.
 -- - Replace password_hash with real bcrypt hash: run `node scripts/hash-password.js demo123` and UPDATE staff SET password_hash = '<hash>' WHERE email = '...';
 -- - Add more faculties/departments by parsing enrollment_data.json (distinct FacId, DeptId, DeptName, DeptCode).
+-- - Existing DB already created from this file: the role CHECK may be named e.g. staff_role_check (see \d staff).
+--   Then: ALTER TABLE staff DROP CONSTRAINT <constraint_name>;
+--   ALTER TABLE staff ADD CONSTRAINT staff_role_check CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor'));

@@ -13,6 +13,7 @@ import { getWellbeingChartData } from "./fetch";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFilterProvider } from "./_components/DashboardFilterContext";
+import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
 import { getHodProgramStats, getHodInstructorStats } from "./fetch";
 
 function parseMultiParam(
@@ -138,6 +139,7 @@ export default async function Home({ searchParams }: PropsType) {
           resolutionFilters: [],
         }}
       >
+        <InterventionSliceProvider>
         <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6">
           <div className="col-span-12 md:col-span-4 ">
             <Suspense fallback={<OverviewCardsSkeleton />}>
@@ -154,6 +156,7 @@ export default async function Home({ searchParams }: PropsType) {
               title="Outreach & Intervention"
               user={user}
               masterFilter={masterFilter}
+              gpaFilters={gpaFilters}
               attendanceFilters={attendanceFilters}
             />
           </div>
@@ -164,6 +167,7 @@ export default async function Home({ searchParams }: PropsType) {
             />
           </div>
         </div>
+        </InterventionSliceProvider>
 
         <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
           <div className="col-span-12">

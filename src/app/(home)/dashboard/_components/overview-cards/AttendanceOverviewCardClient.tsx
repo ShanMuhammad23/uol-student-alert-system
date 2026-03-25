@@ -22,15 +22,22 @@ import type {
 } from "../../fetch";
 import { useDashboardFilter } from "../DashboardFilterContext";
 import { DonutChart } from "@/components/Charts/used-devices/chart";
+import Link from "next/link";
 
 type PropsType = {
   /** Label is fixed to "Attendance" in the parent, but kept flexible here. */
   label: string;
+  /** Link target for the card title (e.g. `?selected_alert=attendance`). */
+  titleHref: string;
   isActive?: boolean;
   user?: AppUser | null;
   masterFilter?: MasterFilterParams;
   gpaFilters?: AlertDimensionFilter[]; // unused but kept for API symmetry
   attendanceFilters?: AlertDimensionFilter[]; // currently unused
+  yellowActive?: boolean;
+  redActive?: boolean;
+  onYellowClick?: () => void;
+  onRedClick?: () => void;
 };
 
 function deduplicateEnrollments(
@@ -50,10 +57,15 @@ function deduplicateEnrollments(
 
 export function AttendanceOverviewCardClient({
   label,
+  titleHref,
   isActive,
   user,
   masterFilter,
   attendanceFilters,
+  yellowActive,
+  redActive,
+  onYellowClick,
+  onRedClick,
 }: PropsType): JSX.Element {
   const { data: enrollmentData } = useEnrollmentData();
   const dashboardFilter = useDashboardFilter();
@@ -159,39 +171,59 @@ export function AttendanceOverviewCardClient({
   return (
     <div
       className={cn(
-        "rounded-[10px] bg-white dark:bg-gray-dark p-4 shadow-xl transition-shadow  md:min-w-[240px] flex-1 flex justify-between h-full border border-gray-200",
-        isActive && "ring-2 ring-primary shadow-md"
+        "flex justify-between h-full flex-1 md:min-w-[240px]",
+        isActive && "ring-0"
       )}
     >
       <div>
-        <dd className="text-xl font-bold text-dark dark:text-white">{label}</dd>
+        <Link
+          href={titleHref}
+          scroll={false}
+          className="block rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <dd className="text-xl font-bold text-dark dark:text-white hover:underline">
+            {label}
+          </dd>
+        </Link>
 
         <div className="mt-6 flex items-end justify-between">
           <dl>
             <dt className="mb-1.5 flex items-center gap-4 text-heading-4 font-bold">
-              <span
+              <button
+                type="button"
+                onClick={onYellowClick}
                 className={cn(
-                  "text-yellow-400 dark:text-yellow-400",
+                  "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   yellowCount > 0
-                    ? "text-yellow-400 dark:text-yellow-400"
-                    : "text-gray-600 dark:text-gray-400"
+                    ? "text-yellow-400 dark:text-yellow-400 hover:bg-yellow-400/10 cursor-pointer"
+                    : "text-gray-600 dark:text-gray-400 cursor-default",
+                  yellowActive && "ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-dark rounded-md"
                 )}
+                aria-pressed={yellowActive}
+                aria-label="Show intervention breakdown for yellow attendance alerts"
+                disabled={yellowCount === 0 || isAttendanceLoading}
               >
                 {isAttendanceLoading ? "…" : yellowCount}
-              </span>
+              </button>
               <span className="text-dark-4 dark:text-dark-5" aria-hidden>
                 |
               </span>
-              <span
+              <button
+                type="button"
+                onClick={onRedClick}
                 className={cn(
-                  "text-red-600 dark:text-red-600",
+                  "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   redCount > 0
-                    ? "text-red-600 dark:text-red-600"
-                    : "text-grey-600 dark:text-white"
+                    ? "text-red-600 dark:text-red-600 hover:bg-red-600/10 cursor-pointer"
+                    : "text-grey-600 dark:text-white cursor-default",
+                  redActive && "ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-dark rounded-md"
                 )}
+                aria-pressed={redActive}
+                aria-label="Show intervention breakdown for red attendance alerts"
+                disabled={redCount === 0 || isAttendanceLoading}
               >
                 {isAttendanceLoading ? "…" : redCount}
-              </span>
+              </button>
             </dt>
           </dl>
           {hasGrowth && (
