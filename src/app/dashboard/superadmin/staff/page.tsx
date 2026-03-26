@@ -1,4 +1,7 @@
 import { pool } from "@/lib/db";
+import { hash } from "bcryptjs";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -16,6 +19,11 @@ type StaffListRow = {
   role: "superadmin" | "dean" | "hod" | "instructor";
   faculty_id: string | null;
   faculty_name: string | null;
+};
+
+type FacultyRow = {
+  id: string;
+  name: string;
 };
 
 const FACULTY_NAME_FALLBACK: Record<string, string> = {
@@ -44,8 +52,112 @@ async function getStaffList(): Promise<StaffListRow[]> {
   return res.rows;
 }
 
-export default async function SuperadminStaffPage() {
+async function getFaculties(): Promise<FacultyRow[]> {
+  if (!pool) return [];
+  const res = await pool.query<FacultyRow>(
+    `SELECT id, name FROM faculties ORDER BY name ASC`
+  );
+  return res.rows;
+}
+
+async function createStaffAction(formData: FormData) {
+  "use server";
+  if (!pool) {
+    redirect("/dashboard/superadmin/staff?error=db_not_configured");
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const pernr = String(formData.get("pernr") ?? "").trim();
+  const password = String(formData.get("password") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim() as
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor";
+  const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
+  const departmentIdsRaw = String(formData.get("department_ids") ?? "").trim();
+  const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
+
+  if (!name || !email || !pernr || !password || !role) {
+    redirect("/dashboard/superadmin/staff?error=missing_required");
+  }
+  if (!["superadmin", "dean", "hod", "instructor"].includes(role)) {
+    redirect("/dashboard/superadmin/staff?error=invalid_role");
+  }
+  if ((role === "dean" || role === "instructor") && !facultyId) {
+    redirect("/dashboard/superadmin/staff?error=faculty_required");
+  }
+
+  const passwordHash = await hash(password, 10);
+  const departmentIds = departmentIdsRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const insertStaff = await client.query<{ id: string }>(
+      `INSERT INTO staff (pernr, name, email, password_hash, role, faculty_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [pernr, name, email, passwordHash, role, facultyId]
+    );
+    const staffId = insertStaff.rows[0]?.id;
+
+    if (role === "hod" && staffId && departmentIds.length) {
+      for (const departmentId of departmentIds) {
+        await client.query(
+          `INSERT INTO staff_departments (staff_id, department_id)
+           VALUES ($1, $2)
+           ON CONFLICT (staff_id, department_id) DO NOTHING`,
+          [staffId, departmentId]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+  } catch (error: unknown) {
+    await client.query("ROLLBACK");
+    const code =
+      typeof error === "object" && error != null && "code" in error
+        ? String((error as { code?: string }).code ?? "")
+        : "";
+    if (code === "23505") {
+      redirect("/dashboard/superadmin/staff?error=duplicate");
+    }
+    redirect("/dashboard/superadmin/staff?error=create_failed");
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/superadmin/staff");
+  redirect("/dashboard/superadmin/staff?success=created");
+}
+
+export default async function SuperadminStaffPage(props: {
+  searchParams?: Promise<{ success?: string; error?: string }>;
+}) {
+  const searchParams = (await props.searchParams) ?? {};
   const staff = await getStaffList();
+  const faculties = await getFaculties();
+  const successMessage =
+    searchParams.success === "created" ? "Staff added successfully." : null;
+  const errorMessage =
+    searchParams.error === "missing_required"
+      ? "Please fill all required fields."
+      : searchParams.error === "invalid_role"
+      ? "Selected role is invalid."
+      : searchParams.error === "faculty_required"
+      ? "Faculty is required for Dean and Instructor."
+      : searchParams.error === "duplicate"
+      ? "Email or Pernr already exists."
+      : searchParams.error === "db_not_configured"
+      ? "Database is not configured."
+      : searchParams.error === "create_failed"
+      ? "Unable to add staff. Please verify field values."
+      : null;
 
   return (
     <div className="space-y-5">
@@ -56,6 +168,114 @@ export default async function SuperadminStaffPage() {
         <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
           Manage and review all system staff accounts.
         </p>
+      </div>
+
+      <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
+        <h2 className="text-lg font-semibold text-dark dark:text-white">
+          Add Staff
+        </h2>
+        <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
+          Add superadmin, dean, hod, or instructor accounts.
+        </p>
+
+        {successMessage && (
+          <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
+            {successMessage}
+          </p>
+        )}
+        {errorMessage && (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+            {errorMessage}
+          </p>
+        )}
+
+        <form action={createStaffAction} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Name *</label>
+            <input
+              name="name"
+              required
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+              placeholder="Staff full name"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Email *</label>
+            <input
+              type="email"
+              name="email"
+              required
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+              placeholder="name@uol.edu.pk"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Pernr *</label>
+            <input
+              name="pernr"
+              required
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+              placeholder="e.g. 00016932"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Password *</label>
+            <input
+              type="password"
+              name="password"
+              required
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+              placeholder="Set initial password"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Role *</label>
+            <select
+              name="role"
+              required
+              defaultValue="instructor"
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            >
+              <option value="superadmin">superadmin</option>
+              <option value="dean">dean</option>
+              <option value="hod">hod</option>
+              <option value="instructor">instructor</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Faculty</label>
+            <select
+              name="faculty_id"
+              defaultValue=""
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            >
+              <option value="">Select faculty (optional)</option>
+              {faculties.map((faculty) => (
+                <option key={faculty.id} value={faculty.id}>
+                  {faculty.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2 flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">
+              HoD Department IDs
+            </label>
+            <input
+              name="department_ids"
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+              placeholder="Comma-separated (required for HoD), e.g. 51517449,50000242"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <button
+              type="submit"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              Add Staff
+            </button>
+          </div>
+        </form>
       </div>
 
       <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
