@@ -1,10 +1,15 @@
 import type { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { compare } from "bcryptjs";
 import { getStaffByEmailWithDepartments } from "@/lib/db";
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    }),
     Credentials({
       id: "credentials",
       name: "Email and Password",
@@ -45,6 +50,33 @@ export const authOptions: NextAuthOptions = {
     maxAge: 60 * 60 * 24 * 7, // 7 days
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider !== "google") return true;
+      const email = String(user.email ?? "").trim();
+      if (!email) return "/auth/sign-in?error=NotAuthorized";
+
+      const result = await getStaffByEmailWithDepartments(email);
+      if (!result) return "/auth/sign-in?error=NotAuthorized";
+
+      const { staff, departmentIds } = result;
+      const mutableUser = user as typeof user & {
+        id: string;
+        pernr: string;
+        role: "superadmin" | "dean" | "hod" | "instructor";
+        img: string | null;
+        faculty_id: string | null;
+        department_ids: string[];
+      };
+      mutableUser.id = staff.id;
+      mutableUser.pernr = staff.pernr;
+      mutableUser.name = staff.name;
+      mutableUser.email = staff.email;
+      mutableUser.role = staff.role;
+      mutableUser.img = staff.img;
+      mutableUser.faculty_id = staff.faculty_id;
+      mutableUser.department_ids = departmentIds;
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

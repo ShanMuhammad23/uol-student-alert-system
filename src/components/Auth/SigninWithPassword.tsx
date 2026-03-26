@@ -2,6 +2,7 @@
 
 import { EmailIcon, PasswordIcon } from "@/assets/icons";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { signIn } from "next-auth/react";
@@ -9,6 +10,7 @@ import InputGroup from "../FormElements/InputGroup";
 
 export default function SigninWithPassword() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [data, setData] = useState({
     email: "",
     password:"",
@@ -50,6 +52,11 @@ export default function SigninWithPassword() {
 
   return (
     <form onSubmit={handleSubmit}>
+      {searchParams.get("error") === "NotAuthorized" && (
+        <p className="mb-4 rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
+          Not authorized. Your Google account is not allowed for this system.
+        </p>
+      )}
       {error && (
         <p className="mb-4 rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
           {error}
