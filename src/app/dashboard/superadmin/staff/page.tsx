@@ -26,6 +26,13 @@ type FacultyRow = {
   name: string;
 };
 
+type DepartmentRow = {
+  id: string;
+  name: string;
+  code: string | null;
+  faculty_id: string | null;
+};
+
 const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000172": "Faculty of Social Sciences",
 };
@@ -60,6 +67,16 @@ async function getFaculties(): Promise<FacultyRow[]> {
   return res.rows;
 }
 
+async function getDepartments(): Promise<DepartmentRow[]> {
+  if (!pool) return [];
+  const res = await pool.query<DepartmentRow>(
+    `SELECT id, name, code, faculty_id
+     FROM departments
+     ORDER BY name ASC`
+  );
+  return res.rows;
+}
+
 async function createStaffAction(formData: FormData) {
   "use server";
   if (!pool) {
@@ -76,7 +93,6 @@ async function createStaffAction(formData: FormData) {
     | "hod"
     | "instructor";
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
-  const departmentIdsRaw = String(formData.get("department_ids") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
 
   if (!name || !email || !pernr || !password || !role) {
@@ -90,9 +106,9 @@ async function createStaffAction(formData: FormData) {
   }
 
   const passwordHash = await hash(password, 10);
-  const departmentIds = departmentIdsRaw
-    .split(",")
-    .map((s) => s.trim())
+  const departmentIds = formData
+    .getAll("department_ids")
+    .map((v) => String(v).trim())
     .filter(Boolean);
 
   const client = await pool.connect();
@@ -142,6 +158,7 @@ export default async function SuperadminStaffPage(props: {
   const searchParams = (await props.searchParams) ?? {};
   const staff = await getStaffList();
   const faculties = await getFaculties();
+  const departments = await getDepartments();
   const successMessage =
     searchParams.success === "created" ? "Staff added successfully." : null;
   const errorMessage =
@@ -259,13 +276,22 @@ export default async function SuperadminStaffPage(props: {
           </div>
           <div className="md:col-span-2 flex flex-col gap-1">
             <label className="text-sm font-medium text-dark dark:text-white">
-              HoD Department IDs
+              HoD Departments
             </label>
-            <input
+            <select
               name="department_ids"
-              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
-              placeholder="Comma-separated (required for HoD), e.g. 51517449,50000242"
-            />
+              multiple
+              className="min-h-32 rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            >
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-dark-5 dark:text-dark-6">
+              Use Ctrl/Cmd + click to select multiple departments for HoD.
+            </p>
           </div>
           <div className="md:col-span-2">
             <button
