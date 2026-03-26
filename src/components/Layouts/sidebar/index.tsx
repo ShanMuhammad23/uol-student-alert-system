@@ -4,9 +4,9 @@ import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { NAV_DATA } from "./data";
-import { ArrowLeftIcon, ChevronUp } from "./icons";
+import { useEffect, useMemo, useState } from "react";
+import { NAV_DATA, type NavSection } from "./data";
+import { ArrowLeftIcon, ChevronUp, HomeIcon, User } from "./icons";
 import { MenuItem } from "./menu-item";
 import { useSidebarContext } from "./sidebar-context";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
@@ -20,6 +20,28 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const { setIsOpen, isOpen, isMobile, toggleSidebar } = useSidebarContext();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const navData = useMemo<NavSection[]>(() => {
+    if (user?.role === "superadmin") {
+      return [
+        {
+          label: "MAIN MENU",
+          items: [
+            {
+              title: "Dashboard",
+              icon: HomeIcon,
+              url: "/dashboard/superadmin",
+            },
+            {
+              title: "Staff",
+              icon: User,
+              url: "/dashboard/superadmin/staff",
+            },
+          ],
+        },
+      ];
+    }
+    return NAV_DATA;
+  }, [user?.role]);
 
   const toggleExpanded = (title: string) => {
     setExpandedItems((prev) => (prev.includes(title) ? [] : [title]));
@@ -32,7 +54,7 @@ export function Sidebar({ user }: SidebarProps) {
 
   useEffect(() => {
     // Keep collapsible open when a subpage is active
-    NAV_DATA.some((section) => {
+    navData.some((section) => {
       return section.items.some((item) => {
         if ("items" in item && Array.isArray(item.items)) {
           return item.items.some((subItem) => {
@@ -48,7 +70,7 @@ export function Sidebar({ user }: SidebarProps) {
         return false;
       });
     });
-  }, [pathname]);
+  }, [pathname, navData]);
 
   return (
     <>
@@ -96,7 +118,7 @@ export function Sidebar({ user }: SidebarProps) {
           {/* Navigation */}
           <div className="custom-scrollbar mt-6 flex-1 overflow-y-auto pr-3 min-[850px]:mt-10">
             
-            {NAV_DATA.map((section) => (
+            {navData.map((section) => (
               <div key={section.label} className="mb-6">
                 <h2 className="mb-5 text-sm font-medium text-dark-4 dark:text-dark-6">
                   {section.label}
