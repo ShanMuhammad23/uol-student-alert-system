@@ -85,6 +85,7 @@ export function TopChannelsTableClient({
   const [interventionStatuses, setInterventionStatuses] = useState<
     Map<string, string | null>
   >(new Map());
+  const [cgpaBySapId, setCgpaBySapId] = useState<Record<string, number>>({});
 
   // Track previous prop data to detect actual changes
   const prevPropDataRef = useRef<EnrollmentRecord[] | null | undefined>(null);
@@ -138,6 +139,32 @@ export function TopChannelsTableClient({
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    const sapIds = Array.from(
+      new Set(displayEnrollments.map((r) => String(r.SapNo ?? "").trim()).filter(Boolean))
+    );
+    if (!sapIds.length) {
+      setCgpaBySapId({});
+      return;
+    }
+    const controller = new AbortController();
+    fetch("/api/gpa/by-sapids", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sapIds }),
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed GPA fetch"))))
+      .then((body: { cgpaBySapId?: Record<string, number> }) => {
+        setCgpaBySapId(body.cgpaBySapId ?? {});
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setCgpaBySapId({});
+      });
+    return () => controller.abort();
+  }, [displayEnrollments]);
 
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -661,6 +688,7 @@ export function TopChannelsTableClient({
                   classesHeld > 0 &&
                   classesScheduled > 0 &&
                   classesHeld / classesScheduled > 0.25;
+                const cgpa = cgpaBySapId[String(row.SapNo ?? "").trim()];
 
                 return (
                   <TableRow
@@ -739,7 +767,7 @@ export function TopChannelsTableClient({
                       )}
                     </TableCell>
                     <TableCell className="!text-left">
-                      <span>-</span>
+                      <span>{Number.isFinite(cgpa) ? cgpa.toFixed(2) : "-"}</span>
                     </TableCell>
                     <TableCell className="!text-left">
                       <InterventionStatusBadge

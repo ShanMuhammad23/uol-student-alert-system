@@ -10,6 +10,7 @@ import { StudentMetricsClient } from "./_components/StudentMetricsClient";
 import { pool } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
+import { getCgpaBySapId } from "@/lib/db/gpa";
 
 type PropsType = {
   params: Promise<{ id: string }>;
@@ -48,6 +49,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const selectedSection = resolvedSearchParams.section;
   const sapIdFromUrl = id;
   const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
+  const currentCgpa = await getCgpaBySapId(sapIdFromUrl);
 
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
   if (!enrollmentRecords.length) notFound();
@@ -125,7 +127,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                 </span>
               </div>
             </div>
-            <StudentMetricsClient sapId={sapIdFromUrl} section="badges" />
+      <StudentMetricsClient sapId={sapIdFromUrl} section="badges" currentCgpa={currentCgpa} />
           </div>
         </div>
 
@@ -138,6 +140,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         enrollmentRecords={enrollmentRecords}
         selectedCourseCode={selectedCourseCode}
         selectedSection={selectedSection}
+        currentCgpa={currentCgpa}
       />
 
       {/* Intervention History (table + Add Intervention dialog) */}

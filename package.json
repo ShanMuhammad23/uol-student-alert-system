@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start --port 3002",
-    "lint": "next lint"
+    "lint": "next lint",
+    "import:gpa:fall2025": "node scripts/import-fall-2025-gpa.js"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",

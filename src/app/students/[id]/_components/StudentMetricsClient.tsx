@@ -18,6 +18,7 @@ type Props = {
   enrollmentRecords?: EnrollmentRecord[];
   selectedCourseCode?: string;
   selectedSection?: string;
+  currentCgpa?: number | null;
 };
 
 const EMPTY_ATTENDANCE = {
@@ -65,6 +66,7 @@ export function StudentMetricsClient({
   enrollmentRecords = [],
   selectedCourseCode,
   selectedSection,
+  currentCgpa = null,
 }: Props) {
   const { data, isLoading } = useMonitoringStudents();
   const student = useMemo(
@@ -130,6 +132,11 @@ export function StudentMetricsClient({
     : EMPTY_ATTENDANCE;
 
   const gpa = student?.gpa;
+  const currentGpaValue = currentCgpa ?? gpa?.current ?? 0;
+  const previousGpaValue = gpa?.previous ?? 0;
+  const changeValue = currentCgpa != null
+    ? Number((currentGpaValue - previousGpaValue).toFixed(2))
+    : (gpa?.change ?? 0);
   const attendanceAlert = student?.attendance.alert_level ?? null;
 
   return (
@@ -170,9 +177,9 @@ export function StudentMetricsClient({
           <div
             className={cn(
               "flex h-12 w-12 items-center justify-center rounded-xl text-2xl",
-              (gpa?.current ?? 0) < 2
+              currentGpaValue < 2
                 ? "bg-red-100 text-red-600 dark:bg-red-900/30"
-                : (gpa?.current ?? 0) < 3
+                : currentGpaValue < 3
                 ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30"
                 : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30"
             )}
@@ -183,17 +190,17 @@ export function StudentMetricsClient({
         <div className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl bg-blue-50 p-3 text-center dark:bg-blue-900/20">
-              <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{gpa?.current ?? 0}</p>
+              <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{currentGpaValue.toFixed(2)}</p>
               <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600/70">Current</p>
             </div>
             <div className="rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-800">
-              <p className="text-xl font-bold text-gray-700 dark:text-gray-400">{gpa?.previous ?? 0}</p>
+              <p className="text-xl font-bold text-gray-700 dark:text-gray-400">{previousGpaValue.toFixed(2)}</p>
               <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Previous</p>
             </div>
             <div className="rounded-xl bg-emerald-50 p-3 text-center dark:bg-emerald-900/20">
               <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                {(gpa?.change ?? 0) > 0 ? "+" : ""}
-                {gpa?.change ?? 0}
+                {changeValue > 0 ? "+" : ""}
+                {changeValue.toFixed(2)}
               </p>
               <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600/70">Change</p>
             </div>
