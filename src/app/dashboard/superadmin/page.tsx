@@ -32,12 +32,7 @@ export default async function SuperadminDashboardPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark dark:shadow-card">
-        <h1 className="text-2xl font-bold text-dark dark:text-white">
-          Superadmin Dashboard
-        </h1>
-      
-      </div>
+     
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard

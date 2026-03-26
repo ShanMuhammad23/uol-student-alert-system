@@ -7,6 +7,7 @@ import { useMonitoringStudents } from "@/hooks/useMonitoringStudents";
 import type { Student } from "@/app/(home)/dashboard/fetch";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
+import { normalizeCourseCode } from "@/lib/attendance-utils";
 
 import { StudentCourseAttendanceDetails } from "./StudentCourseAttendanceDetails";
 
@@ -19,6 +20,7 @@ type Props = {
   selectedCourseCode?: string;
   selectedSection?: string;
   currentCgpa?: number | null;
+  selectedClassAverage?: number | null;
 };
 
 const EMPTY_ATTENDANCE = {
@@ -60,6 +62,23 @@ function selectStudent(rows: Student[], sapId: string): Student | null {
   return null;
 }
 
+function selectStudentForCourse(
+  rows: Student[],
+  sapId: string,
+  selectedCourseCode?: string
+): Student | null {
+  const sap = String(sapId).trim();
+  const studentRows = rows.filter((r) => String(r.sap_id).trim() === sap);
+  if (!studentRows.length) return null;
+  if (!selectedCourseCode) return studentRows[0];
+  const targetCourse = normalizeCourseCode(selectedCourseCode);
+  return (
+    studentRows.find(
+      (r) => normalizeCourseCode(String(r.course_id ?? "")) === targetCourse
+    ) ?? studentRows[0]
+  );
+}
+
 export function StudentMetricsClient({
   sapId,
   section,
@@ -67,11 +86,12 @@ export function StudentMetricsClient({
   selectedCourseCode,
   selectedSection,
   currentCgpa = null,
+  selectedClassAverage = null,
 }: Props) {
   const { data, isLoading } = useMonitoringStudents();
   const student = useMemo(
-    () => selectStudent(data?.students ?? [], sapId),
-    [data?.students, sapId]
+    () => selectStudentForCourse(data?.students ?? [], sapId, selectedCourseCode),
+    [data?.students, sapId, selectedCourseCode]
   );
 
   if (section === "badges") {
@@ -137,6 +157,12 @@ export function StudentMetricsClient({
   const changeValue = currentCgpa != null
     ? Number((currentGpaValue - previousGpaValue).toFixed(2))
     : (gpa?.change ?? 0);
+  const gpaTrendSeries =
+    gpa?.history?.length && gpa.history.length > 0
+      ? gpa.history.map((h) => ({ x: h.semester, y: h.gpa }))
+      : currentCgpa != null
+      ? [{ x: "Fall 2025", y: currentCgpa }]
+      : [];
   const attendanceAlert = student?.attendance.alert_level ?? null;
 
   return (
@@ -165,6 +191,11 @@ export function StudentMetricsClient({
           selectedCourseCode={selectedCourseCode}
           selectedSection={selectedSection}
           overallAttendance={overallAttendance}
+          monitoringClassAverage={
+            selectedClassAverage ??
+            student?.attendance.class_average_attendance ??
+            null
+          }
         />
       </div>
 
@@ -206,10 +237,10 @@ export function StudentMetricsClient({
             </div>
           </div>
 
-          {gpa?.history?.length ? (
+          {gpaTrendSeries.length ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
               <InterventionStatusChart
-                data={gpa.history.map((h) => ({ x: h.semester, y: h.gpa }))}
+                data={gpaTrendSeries}
                 title="GPA Trend"
               />
             </div>

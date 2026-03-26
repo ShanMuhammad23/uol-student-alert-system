@@ -14,7 +14,7 @@ import { getCgpaBySapId } from "@/lib/db/gpa";
 
 type PropsType = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; course?: string; section?: string }>;
+  searchParams: Promise<{ from?: string; course?: string; section?: string; class_avg?: string }>;
 };
 
 async function getEnrollmentForStudentSapId(
@@ -47,6 +47,11 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       : "/";
   const selectedCourseCode = resolvedSearchParams.course;
   const selectedSection = resolvedSearchParams.section;
+  const classAverageParam = Number(resolvedSearchParams.class_avg);
+  const selectedClassAverage =
+    Number.isFinite(classAverageParam) && classAverageParam > 0
+      ? classAverageParam
+      : null;
   const sapIdFromUrl = id;
   const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
   const currentCgpa = await getCgpaBySapId(sapIdFromUrl);
@@ -141,6 +146,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         selectedCourseCode={selectedCourseCode}
         selectedSection={selectedSection}
         currentCgpa={currentCgpa}
+        selectedClassAverage={selectedClassAverage}
       />
 
       {/* Intervention History (table + Add Intervention dialog) */}

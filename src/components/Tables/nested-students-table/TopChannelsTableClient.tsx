@@ -706,6 +706,7 @@ export function TopChannelsTableClient({
                               : String(row.CrCode ?? "")
                           }
                           section={row.Section ?? null}
+                          classAverage={classAvg}
                           className="flex flex-col gap-1"
                           title="View profile"
                         >

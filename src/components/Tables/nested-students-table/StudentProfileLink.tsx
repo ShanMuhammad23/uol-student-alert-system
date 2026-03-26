@@ -13,6 +13,7 @@ type Props = {
   /** Optional course code + section for deep-linking into course attendance on student page. */
   courseCode?: string | null;
   section?: string | null;
+  classAverage?: number | null;
 };
 
 /**
@@ -27,6 +28,7 @@ export function StudentProfileLink({
   title,
   courseCode,
   section,
+  classAverage,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -38,6 +40,9 @@ export function StudentProfileLink({
   params.set("from", currentUrl);
   if (courseCode) params.set("course", courseCode);
   if (section) params.set("section", section);
+  if (classAverage != null && Number.isFinite(classAverage)) {
+    params.set("class_avg", String(classAverage));
+  }
   const href = `/students/${sapId}?${params.toString()}`;
 
   return (

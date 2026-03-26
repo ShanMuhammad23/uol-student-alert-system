@@ -21,6 +21,7 @@ type Props = {
   selectedCourseCode?: string;
   selectedSection?: string;
   overallAttendance: OverallAttendance;
+  monitoringClassAverage?: number | null;
 };
 
 export function StudentCourseAttendanceDetails({
@@ -28,6 +29,7 @@ export function StudentCourseAttendanceDetails({
   selectedCourseCode,
   selectedSection,
   overallAttendance,
+  monitoringClassAverage = null,
 }: Props) {
   const {
     attendanceSummaries,
@@ -37,13 +39,11 @@ export function StudentCourseAttendanceDetails({
 
   const {
     selectedSummary,
-    selectedClassAvg,
     selectedLabel,
   } = useMemo(() => {
     if (!enrollmentRecords.length || !attendanceSummaries) {
       return {
         selectedSummary: null,
-        selectedClassAvg: null,
         selectedLabel: null,
       };
     }
@@ -68,32 +68,22 @@ export function StudentCourseAttendanceDetails({
     if (!target) {
       return {
         selectedSummary: null,
-        selectedClassAvg: null,
         selectedLabel: null,
       };
     }
 
     const key = getEnrollmentAttendanceKey(target);
-    const monitorKey = `${normalizeCourseCode(
-      typeof target.CrCode === "string"
-        ? target.CrCode
-        : String(target.CrCode ?? ""),
-    )}__${target.Section ?? ""}`;
     const summary = attendanceSummaries.get(key) ?? null;
-    const classAvg =
-      classAverageByCourseSection.get(monitorKey ?? "") ?? null;
     const label = `${target.CrTitle ?? target.CrCode ?? "Course"}${
       target.Section ? ` (${target.Section})` : ""
     }`;
 
     return {
       selectedSummary: summary,
-      selectedClassAvg: classAvg,
       selectedLabel: label,
     };
   }, [
     attendanceSummaries,
-    classAverageByCourseSection,
     enrollmentRecords,
     selectedCourseCode,
     selectedSection,
@@ -107,10 +97,14 @@ export function StudentCourseAttendanceDetails({
   const displayMissed = Math.max(0, displayTotalHeld - displayAttended);
   const displayPercentage =
     selectedSummary?.percentage ?? overallAttendance.attendance_percentage;
+  // Use monitoring-derived class average for the selected student/course.
+  // Recomputing from only this student's enrollment slice can collapse deviation to zero.
   const displayClassAvg =
-    selectedClassAvg ?? overallAttendance.class_average_attendance;
+    monitoringClassAverage ?? overallAttendance.class_average_attendance;
+  const hasValidClassAvg =
+    Number.isFinite(displayClassAvg) && displayClassAvg > 0;
 
-  const comparison = displayPercentage - displayClassAvg;
+  const comparison = hasValidClassAvg ? displayPercentage - displayClassAvg : 0;
   const isDanger = comparison < -40;
   const isWarning = !isDanger && comparison < -20;
 
@@ -141,7 +135,7 @@ export function StudentCourseAttendanceDetails({
               >
                 {displayPercentage.toFixed(1)}%
               </span>
-              {Number.isFinite(displayClassAvg) && (
+              {hasValidClassAvg && (
                 <span
                   className={cn(
                     "text-xs font-medium",
@@ -223,8 +217,17 @@ export function StudentCourseAttendanceDetails({
                   const classesHeld =
                     summary?.totalHeld ??
                     (monitoredByCourseSection.get(courseSectionKey) ?? 0);
-                  const classAvg =
+                  const localClassAvg =
                     classAverageByCourseSection.get(courseSectionKey) ?? null;
+                  // Student profile often has one enrollment row per course, which can
+                  // collapse local class average to student's own percentage. Prefer
+                  // monitoring class average in that case so deviation colors are meaningful.
+                  const classAvg =
+                    localClassAvg != null &&
+                    summary != null &&
+                    Math.abs(localClassAvg - summary.percentage) < 0.0001
+                      ? monitoringClassAverage
+                      : (localClassAvg ?? monitoringClassAverage);
                   const level =
                     summary && classAvg != null
                       ? (comparison => {
@@ -242,7 +245,7 @@ export function StudentCourseAttendanceDetails({
                         level === "critical" &&
                           "bg-red-50/60 dark:bg-red-900/10",
                         level === "warning" &&
-                          "bg-amber-50/60 dark:bg-amber-900/10",
+                          "bg-yellow-50/70 dark:bg-yellow-900/15",
                       )}
                     >
                       <td className="px-4 py-2 text-gray-900 dark:text-gray-100">
@@ -257,9 +260,9 @@ export function StudentCourseAttendanceDetails({
                         className={cn(
                           "px-4 py-2 text-center",
                           level === "critical" &&
-                            "text-red-700 dark:text-red-300 font-semibold",
+                            "text-red-500 dark:text-red-300 font-semibold",
                           level === "warning" &&
-                            "text-amber-700 dark:text-amber-300 font-semibold",
+                            "text-yellow-700 dark:text-yellow-300 font-semibold",
                           level == null && "text-black dark:text-emerald-300",
                         )}
                       >
