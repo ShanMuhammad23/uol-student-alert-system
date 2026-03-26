@@ -35,16 +35,16 @@ export default function SigninWithPassword() {
       redirect: false,
       callbackUrl: "/dashboard",
     });
-    setLoading(false);
     if (result?.error) {
+      setLoading(false);
       setError("Invalid email or password");
       return;
     }
     if (result?.ok) {
-      router.push("/dashboard");
-      router.refresh();
+      router.replace("/dashboard");
       return;
     }
+    setLoading(false);
     setError("Sign in failed");
   };
 

@@ -11,12 +11,8 @@ import type { Metadata } from "next";
 import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
 import { Providers } from "./providers";
-import {
-  getCurrentUser,
-  getFullData,
-  getScreenHeading,
-  getOverviewData,
-} from "./(home)/dashboard/fetch";
+import { getCurrentUser } from "./(home)/dashboard/fetch";
+import { pool } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: {
@@ -29,9 +25,41 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: PropsWithChildren) {
   const user = await getCurrentUser();
-  const data = await getFullData();
-  const screenHeading = getScreenHeading(user, data);
-  const overview = await getOverviewData(user ?? undefined);
+  let screenHeading: string | null = null;
+  let totalStudents: number | undefined;
+
+  if (user && pool) {
+    try {
+      if (user.role === "dean" && user.faculty_id) {
+        const faculty = await pool.query<{ name: string }>(
+          "SELECT name FROM faculties WHERE id = $1 LIMIT 1",
+          [user.faculty_id]
+        );
+        screenHeading = faculty.rows[0]?.name ?? user.faculty_id;
+
+        const total = await pool.query<{ total_students: number | string | null }>(
+          `SELECT COALESCE(SUM(total_students), 0) AS total_students
+           FROM alert_counts_by_dimension
+           WHERE snapshot_date = CURRENT_DATE
+             AND dimension_type = 'faculty'
+             AND dimension_id = $1`,
+          [user.faculty_id]
+        );
+        totalStudents = Number(total.rows[0]?.total_students ?? 0);
+      } else if (user.role === "hod" && user.department_ids?.length) {
+        const names = await pool.query<{ name: string }>(
+          "SELECT name FROM departments WHERE id = ANY($1::varchar[]) ORDER BY name ASC",
+          [user.department_ids]
+        );
+        screenHeading = names.rows.map((r) => r.name).join(", ");
+      } else if (user.role === "teacher") {
+        screenHeading = user.name;
+      }
+    } catch {
+      screenHeading = null;
+      totalStudents = undefined;
+    }
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -46,7 +74,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
               <Header
                 user={user}
                 screenHeading={screenHeading}
-                totalStudents={overview.totalStudents}
+                totalStudents={totalStudents}
               />
 
               <main className=" mx-auto w-full  overflow-hidden px-8 ">
