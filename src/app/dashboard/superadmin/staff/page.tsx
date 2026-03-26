@@ -1,4 +1,12 @@
 import { pool } from "@/lib/db";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type StaffListRow = {
   id: string;
@@ -7,13 +15,30 @@ type StaffListRow = {
   email: string;
   role: "superadmin" | "dean" | "hod" | "instructor";
   faculty_id: string | null;
+  faculty_name: string | null;
 };
+
+const FACULTY_NAME_FALLBACK: Record<string, string> = {
+  "50000172": "Faculty of Social Sciences",
+};
+
+function resolveFacultyName(row: StaffListRow): string {
+  const dbName = (row.faculty_name ?? "").trim();
+  const isPlaceholder =
+    /^Faculty\s+\d+$/i.test(dbName) || dbName.length === 0;
+  if (!isPlaceholder) return dbName;
+  if (row.faculty_id && FACULTY_NAME_FALLBACK[row.faculty_id]) {
+    return FACULTY_NAME_FALLBACK[row.faculty_id];
+  }
+  return row.faculty_id ?? "—";
+}
 
 async function getStaffList(): Promise<StaffListRow[]> {
   if (!pool) return [];
   const res = await pool.query<StaffListRow>(
-    `SELECT id, pernr, name, email, role, faculty_id
-     FROM staff
+    `SELECT s.id, s.pernr, s.name, s.email, s.role, s.faculty_id, f.name AS faculty_name
+     FROM staff s
+     LEFT JOIN faculties f ON f.id = s.faculty_id
      ORDER BY role ASC, name ASC`
   );
   return res.rows;
@@ -39,52 +64,42 @@ export default async function SuperadminStaffPage() {
             No staff records found.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-stroke dark:border-dark-3">
-                  <th className="px-3 py-2 text-left font-semibold text-dark dark:text-white">
-                    Name
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold text-dark dark:text-white">
-                    Email
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold text-dark dark:text-white">
-                    Role
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold text-dark dark:text-white">
-                    Pernr
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold text-dark dark:text-white">
-                    Faculty
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="mt-4">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
+                <TableRow className="border-none uppercase [&>th]:!text-left [&>th]:bg-white [&>th]:dark:bg-gray-dark">
+                  <TableHead className="min-w-[180px]">Name</TableHead>
+                  <TableHead className="min-w-[220px]">Email</TableHead>
+                  <TableHead className="min-w-[120px]">Role</TableHead>
+                  <TableHead className="min-w-[120px]">Pernr</TableHead>
+                  <TableHead className="min-w-[220px]">Faculty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {staff.map((row) => (
-                  <tr
+                  <TableRow
                     key={row.id}
-                    className="border-b border-stroke/70 dark:border-dark-3/70"
+                    className="text-base font-medium text-dark dark:text-white"
                   >
-                    <td className="px-3 py-2 text-dark dark:text-white">
-                      {row.name}
-                    </td>
-                    <td className="px-3 py-2 text-dark-5 dark:text-dark-6">
+                    <TableCell className="!text-left font-medium text-dark dark:text-white">
+                      {row.name || "—"}
+                    </TableCell>
+                    <TableCell className="!text-left text-dark-6">
                       {row.email}
-                    </td>
-                    <td className="px-3 py-2 text-dark dark:text-white">
+                    </TableCell>
+                    <TableCell className="!text-left text-dark dark:text-white">
                       {row.role}
-                    </td>
-                    <td className="px-3 py-2 text-dark-5 dark:text-dark-6">
-                      {row.pernr}
-                    </td>
-                    <td className="px-3 py-2 text-dark-5 dark:text-dark-6">
-                      {row.faculty_id ?? "—"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="!text-left text-dark-6">
+                      {row.pernr || "—"}
+                    </TableCell>
+                    <TableCell className="!text-left text-dark-6">
+                      {resolveFacultyName(row)}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>

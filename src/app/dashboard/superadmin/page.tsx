@@ -36,9 +36,7 @@ export default async function SuperadminDashboardPage() {
         <h1 className="text-2xl font-bold text-dark dark:text-white">
           Superadmin Dashboard
         </h1>
-        <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
-          Role-restricted dashboard for platform-level monitoring.
-        </p>
+      
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">

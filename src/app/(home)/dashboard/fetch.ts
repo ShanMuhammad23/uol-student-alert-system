@@ -625,7 +625,13 @@ export function getScreenHeading(
 ): string | null {
   if (!user) return null;
   if (user.role === "dean" && user.faculty_id) {
-    return data.faculties.find((f) => f.id === user.faculty_id)?.name ?? null;
+    const mappedFacultyId =
+      FACULTY_ID_TO_ENROLLMENT_FAC_ID[user.faculty_id] ?? user.faculty_id;
+    return (
+      data.faculties.find((f) => f.id === user.faculty_id)?.name ??
+      data.faculties.find((f) => f.id === mappedFacultyId)?.name ??
+      user.faculty_id
+    );
   }
   if (user.role === "hod" && user.department_ids?.length) {
     const names = data.departments
