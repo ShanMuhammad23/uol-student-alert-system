@@ -13,7 +13,6 @@ import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
-import { getHodProgramStats, getHodInstructorStats } from "./fetch";
 
 function parseMultiParam(
   value: string | string[] | undefined
@@ -78,18 +77,13 @@ export default async function Home({ searchParams }: PropsType) {
   const attendanceFilters = attendanceFiltersRaw.filter(validAlertDim) as AlertDimensionFilter[];
   const interventionFilters = parseMultiParam(params.intervention_filter);
 
-  let hodProgramCount = 0;
-  let hodInstructorCount = 0;
-  if (user.role === "hod" && user.department_ids?.length) {
-    const hodProgramStats = await getHodProgramStats(user.department_ids);
-    hodProgramCount = hodProgramStats.length;
-    const hodInstructorStats = await getHodInstructorStats(user.department_ids, {});
-    hodInstructorCount = hodInstructorStats.length;
-  }
+  // Keep initial paint fast; detailed HoD stats render in their own sections.
+  const hodProgramCount = 0;
+  const hodInstructorCount = 0;
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
 
-  const { yellowGpa, redGpa } = await getOverviewData(
+  const { yellowGpa, redGpa, yellowAttendance, redAttendance } = await getOverviewData(
     user,
     masterFilter,
     gpaFilters,
@@ -141,6 +135,8 @@ export default async function Home({ searchParams }: PropsType) {
                 user={user}
                 yellowGpa={yellowGpa.value}
                 redGpa={redGpa.value}
+                yellowAttendance={yellowAttendance.value}
+                redAttendance={redAttendance.value}
               />
             </Suspense>
           </div>
@@ -154,6 +150,8 @@ export default async function Home({ searchParams }: PropsType) {
               selectedAlert={selectedAlert}
               yellowGpa={yellowGpa.value}
               redGpa={redGpa.value}
+              yellowAttendance={yellowAttendance.value}
+              redAttendance={redAttendance.value}
             />
           </div>
           <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">

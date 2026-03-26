@@ -4,17 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
-import { useEnrollmentData } from "@/hooks/useEnrollmentData";
-import {
-  filterEnrollmentByMasterFilter,
-  type MasterFilterParams as EnrollmentMasterFilterParams,
-} from "@/lib/enrollment";
-import {
-  getAttendanceAlertLevel,
-  getEnrollmentAttendanceKey,
-  normalizeCourseCode,
-} from "@/lib/attendance-utils";
-import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import type {
   AppUser,
   MasterFilterParams,
@@ -34,20 +23,9 @@ type Props = {
   /** Used when selectedAlert === "gpa" and no slice is selected. */
   yellowGpa?: number;
   redGpa?: number;
+  yellowAttendance?: number;
+  redAttendance?: number;
 };
-
-function deduplicateEnrollments(
-  data: import("@/lib/enrollment").EnrollmentRecord[]
-) {
-  const seen = new Set<string>();
-  return data.filter((record) => {
-    const id =
-      record.Id ?? `${record.SapNo}-${record.CrCode}-${record.Section}`;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
 
 function sliceDescription(slice: InterventionChartSlice | null): string | null {
   if (!slice) return null;
@@ -69,6 +47,8 @@ export function InterventionStatusChartClient({
   selectedAlert,
   yellowGpa = 0,
   redGpa = 0,
+  yellowAttendance = 0,
+  redAttendance = 0,
 }: Props): JSX.Element {
   const debug =
     process.env.NODE_ENV === "development" ||
@@ -108,7 +88,6 @@ export function InterventionStatusChartClient({
     return null;
   }, [attendanceFilters, gpaFilters]);
 
-  const { data: enrollmentData } = useEnrollmentData();
   const [interventionCounts, setInterventionCounts] = useState<{
     initiated: number;
     inProgress: number;
@@ -120,115 +99,6 @@ export function InterventionStatusChartClient({
     null
   );
   const [gpaCohortLoading, setGpaCohortLoading] = useState(false);
-
-  const attendanceAllowedLevels = useMemo(() => {
-    if (!attendanceFilters?.length) return null;
-    const allowed = new Set<string | null>();
-    for (const f of attendanceFilters) {
-      if (f === "red") allowed.add("critical");
-      else if (f === "yellow") allowed.add("warning");
-      else if (f === "good") allowed.add(null);
-    }
-    return allowed.size ? allowed : null;
-  }, [attendanceFilters]);
-
-  const matchesAttendanceFilters = (
-    level: "critical" | "warning" | null
-  ): boolean => {
-    if (!attendanceAllowedLevels) return true;
-    return attendanceAllowedLevels.has(level);
-  };
-
-  const scopedEnrollmentData = useMemo(() => {
-    if (!enrollmentData?.length || !user?.role) return enrollmentData ?? [];
-    let list = enrollmentData;
-    const anyUser = user as { department_ids?: string[]; sap_id?: string };
-
-    if (user.role === "dean" && user.faculty_id) {
-      list = list.filter((r) => r.FacId === user.faculty_id);
-    } else if (
-      user.role === "hod" &&
-      Array.isArray(anyUser.department_ids) &&
-      anyUser.department_ids.length
-    ) {
-      const deptSet = new Set<string>(anyUser.department_ids);
-      list = list.filter(
-        (r) => deptSet.has(r.DeptCode) || deptSet.has(r.DeptId)
-      );
-    } else if (user.role === "teacher" && anyUser.sap_id) {
-      const pernr = String(anyUser.sap_id).trim();
-      list = list.filter((r) => (r.Pernr ?? "").trim() === pernr);
-    }
-
-    return list;
-  }, [enrollmentData, user]);
-
-  const filteredEnrollments = useMemo(() => {
-    if (!scopedEnrollmentData?.length || !user?.role)
-      return scopedEnrollmentData ?? [];
-    const mf: EnrollmentMasterFilterParams =
-      masterFilter && Object.keys(masterFilter).length > 0
-        ? {
-            department_ids: masterFilter.department_ids,
-            programs: masterFilter.programs,
-            instructor_ids: masterFilter.instructor_ids,
-            course_ids: masterFilter.course_ids,
-          }
-        : {};
-    const raw = filterEnrollmentByMasterFilter(
-      scopedEnrollmentData,
-      mf,
-      user.role === "dean" ? user.faculty_id ?? undefined : undefined
-    );
-    return deduplicateEnrollments(raw);
-  }, [scopedEnrollmentData, masterFilter, user]);
-
-  const {
-    attendanceSummaries,
-    classAverageByCourseSection,
-  } = useAttendanceAlerts(filteredEnrollments ?? []);
-
-  const { yellowAttendanceSap, redAttendanceSap, unionAttendanceSap } =
-    useMemo(() => {
-      const yellow: string[] = [];
-      const red: string[] = [];
-      if (!attendanceSummaries) {
-        return {
-          yellowAttendanceSap: yellow,
-          redAttendanceSap: red,
-          unionAttendanceSap: [] as string[],
-        };
-      }
-
-      for (const row of filteredEnrollments ?? []) {
-        const sectionKey = `${normalizeCourseCode(
-          typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? "")
-        )}__${row.Section ?? ""}`;
-        const attKey = getEnrollmentAttendanceKey(row);
-        const summary = attendanceSummaries.get(attKey);
-        if (!summary) continue;
-        const classAvg = classAverageByCourseSection.get(sectionKey);
-        if (classAvg == null) continue;
-        const level = getAttendanceAlertLevel(summary.percentage, classAvg);
-        if (!matchesAttendanceFilters(level)) continue;
-        const sap = String(row.SapNo ?? "").trim();
-        if (!sap) continue;
-        if (level === "critical") red.push(sap);
-        else if (level === "warning") yellow.push(sap);
-      }
-
-      const union = [...yellow, ...red];
-      return {
-        yellowAttendanceSap: yellow,
-        redAttendanceSap: red,
-        unionAttendanceSap: union,
-      };
-    }, [
-      attendanceSummaries,
-      filteredEnrollments,
-      classAverageByCourseSection,
-      attendanceFilters,
-    ]);
 
   useEffect(() => {
     if (
@@ -298,23 +168,22 @@ export function InterventionStatusChartClient({
   }, [effectiveSlice, selectedAlertMode]);
 
   const totalAlerts = useMemo(() => {
-    if (effectiveSlice === "attendance_yellow") return yellowAttendanceSap.length;
-    if (effectiveSlice === "attendance_red") return redAttendanceSap.length;
+    if (effectiveSlice === "attendance_yellow") return yellowAttendance;
+    if (effectiveSlice === "attendance_red") return redAttendance;
     if (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") {
       return gpaCohortSapIds?.length ?? 0;
     }
     // No slice selected: use overview-card totals.
     if (selectedAlertMode === "gpa") return yellowGpa + redGpa;
-    return unionAttendanceSap.length;
+    return yellowAttendance + redAttendance;
   }, [
     effectiveSlice,
-    yellowAttendanceSap,
-    redAttendanceSap,
+    yellowAttendance,
+    redAttendance,
     gpaCohortSapIds,
     selectedAlertMode,
     yellowGpa,
     redGpa,
-    unionAttendanceSap,
   ]);
 
   const alertLevelForRequest = useMemo<"warning" | "critical" | null>(() => {

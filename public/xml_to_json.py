@@ -4,8 +4,8 @@ import os
 
 # Always work relative to this script's directory (i.e. /public)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-INPUT_FILE = os.path.join(BASE_DIR, 'Filtered_Enrollment_data.xml')
-OUTPUT_FILE = os.path.join(BASE_DIR, 'enrollment_data.json')
+INPUT_FILE = os.path.join(BASE_DIR, 'Filtered_Attendance.xml')
+OUTPUT_FILE = os.path.join(BASE_DIR, 'attendance_data.json')
 
 # Namespaces found in your SAP XML
 NAMESPACES = {

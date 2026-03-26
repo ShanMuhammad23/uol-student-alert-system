@@ -11,6 +11,8 @@ type PropsType = {
   user?: AppUser | null;
   yellowGpa: number;
   redGpa: number;
+  yellowAttendance: number;
+  redAttendance: number;
 };
 
 export function OverviewCardsGroup({
@@ -18,6 +20,8 @@ export function OverviewCardsGroup({
   user,
   yellowGpa,
   redGpa,
+  yellowAttendance,
+  redAttendance,
 }: PropsType) {
   const filter = useDashboardFilter();
   const mergeHref = useMergeDashboardHref();
@@ -92,8 +96,8 @@ export function OverviewCardsGroup({
           label="Attendance"
           titleHref={attendanceHref}
           isActive={active === "attendance"}
-          user={user}
-          masterFilter={filter?.masterFilter}
+          yellowCount={yellowAttendance}
+          redCount={redAttendance}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
           redActive={attendanceRedActive}

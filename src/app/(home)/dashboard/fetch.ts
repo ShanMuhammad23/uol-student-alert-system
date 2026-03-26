@@ -310,12 +310,130 @@ export const THRESHOLDS = {
 
 const VALID_ROLES = ["dean", "hod", "teacher"] as const;
 
+type DbOverviewRow = {
+  total_students: number | string | null;
+  yellow_gpa: number | string | null;
+  red_gpa: number | string | null;
+  yellow_attendance: number | string | null;
+  red_attendance: number | string | null;
+};
+
+function toInt(value: number | string | null | undefined): number {
+  if (value == null) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function applyDimensionFilterToCounts(
+  yellow: number,
+  red: number,
+  filters?: AlertDimensionFilter[]
+): { yellow: number; red: number } {
+  if (!filters?.length) return { yellow, red };
+  const hasYellow = filters.includes("yellow");
+  const hasRed = filters.includes("red");
+  const hasGood = filters.includes("good");
+  if (hasGood && !hasYellow && !hasRed) return { yellow: 0, red: 0 };
+  return {
+    yellow: hasYellow ? yellow : 0,
+    red: hasRed ? red : 0,
+  };
+}
+
+function getDbScope(
+  user?: AppUser | null,
+  masterFilter?: MasterFilterParams
+): { dimensionType: "faculty" | "department" | "program" | "course" | "instructor"; ids?: string[] } {
+  if (masterFilter?.course_ids?.length) {
+    return { dimensionType: "course", ids: masterFilter.course_ids };
+  }
+  if (masterFilter?.instructor_ids?.length) {
+    return { dimensionType: "instructor", ids: masterFilter.instructor_ids };
+  }
+  if (masterFilter?.programs?.length) {
+    return { dimensionType: "program", ids: masterFilter.programs };
+  }
+  if (masterFilter?.department_ids?.length) {
+    return { dimensionType: "department", ids: masterFilter.department_ids };
+  }
+  if (user?.role === "teacher" && user.sap_id) {
+    return { dimensionType: "instructor", ids: [user.sap_id] };
+  }
+  if (user?.role === "hod" && user.department_ids?.length) {
+    return { dimensionType: "department", ids: user.department_ids };
+  }
+  if (user?.role === "dean" && user.faculty_id) {
+    return { dimensionType: "faculty", ids: [user.faculty_id] };
+  }
+  return { dimensionType: "faculty" };
+}
+
+async function getOverviewDataFromDb(
+  user?: AppUser | null,
+  masterFilter?: MasterFilterParams,
+  gpaFilters?: AlertDimensionFilter[],
+  attendanceFilters?: AlertDimensionFilter[]
+) {
+  if (!pool) return null;
+  const scope = getDbScope(user, masterFilter);
+  const params: unknown[] = [scope.dimensionType];
+  let where = `snapshot_date = CURRENT_DATE AND dimension_type = $1`;
+  if (scope.ids?.length) {
+    params.push(scope.ids);
+    where += ` AND dimension_id = ANY($2)`;
+  }
+  const res = await pool.query<DbOverviewRow>(
+    `SELECT
+       COALESCE(SUM(total_students), 0) AS total_students,
+       COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+       COALESCE(SUM(red_gpa), 0) AS red_gpa,
+       COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+       COALESCE(SUM(red_attendance), 0) AS red_attendance
+     FROM alert_counts_by_dimension
+     WHERE ${where}`,
+    params
+  );
+  if (!res.rows.length) return null;
+  const row = res.rows[0];
+  const gpa = applyDimensionFilterToCounts(
+    toInt(row.yellow_gpa),
+    toInt(row.red_gpa),
+    gpaFilters
+  );
+  const attendance = applyDimensionFilterToCounts(
+    toInt(row.yellow_attendance),
+    toInt(row.red_attendance),
+    attendanceFilters
+  );
+  return {
+    totalStudents: toInt(row.total_students),
+    earlyAlertCount: gpa.yellow + gpa.red + attendance.yellow + attendance.red,
+    yellowGpa: { value: gpa.yellow },
+    redGpa: { value: gpa.red },
+    yellowAttendance: { value: attendance.yellow },
+    redAttendance: { value: attendance.red },
+  };
+}
+
 export async function getOverviewData(
   user?: AppUser | null,
   masterFilter?: MasterFilterParams,
   gpaFilters?: AlertDimensionFilter[],
   attendanceFilters?: AlertDimensionFilter[]
 ) {
+  if (pool) {
+    try {
+      const dbOverview = await getOverviewDataFromDb(
+        user,
+        masterFilter,
+        gpaFilters,
+        attendanceFilters
+      );
+      if (dbOverview) return dbOverview;
+    } catch {
+      // Fall back to file-based calculation when DB aggregate table is unavailable.
+    }
+  }
   const data = await getDataFromEnrollment();
   const { students: allStudents } = data;
   const hasValidUser =
@@ -557,6 +675,57 @@ export async function getMasterFilterOptions(
   user?: AppUser | null,
   current?: MasterFilterParams
 ): Promise<MasterFilterOptions> {
+  if (pool) {
+    try {
+      const dims = await pool.query<{
+        dimension_type: "department" | "program" | "course" | "instructor";
+        dimension_id: string;
+        dimension_name: string;
+        total_students: number | string | null;
+      }>(
+        `SELECT dimension_type, dimension_id, dimension_name, total_students
+         FROM alert_counts_by_dimension
+         WHERE snapshot_date = CURRENT_DATE
+           AND dimension_type = ANY($1::varchar[])`,
+        [["department", "program", "course", "instructor"]]
+      );
+      const byType = new Map<string, { value: string; label: string }[]>();
+      for (const row of dims.rows) {
+        const list = byType.get(row.dimension_type) ?? [];
+        const count = toInt(row.total_students);
+        list.push({
+          value: row.dimension_id,
+          label:
+            count > 0
+              ? `${row.dimension_name} (${count.toLocaleString()})`
+              : row.dimension_name,
+        });
+        byType.set(row.dimension_type, list);
+      }
+      const departments = (byType.get("department") ?? []).sort((a, b) =>
+        a.label.localeCompare(b.label)
+      );
+      const programs = (byType.get("program") ?? []).sort((a, b) =>
+        a.label.localeCompare(b.label)
+      );
+      const courses = (byType.get("course") ?? []).sort((a, b) =>
+        a.label.localeCompare(b.label)
+      );
+      const instructors = (byType.get("instructor") ?? []).sort((a, b) =>
+        a.label.localeCompare(b.label)
+      );
+      if (
+        departments.length ||
+        programs.length ||
+        courses.length ||
+        instructors.length
+      ) {
+        return { departments, programs, instructors, courses };
+      }
+    } catch {
+      // Fall back to enrollment-derived options.
+    }
+  }
   const data = await getDataFromEnrollment();
 
   // Prefer department names from the database when available; fall back to enrollment-derived departments.
