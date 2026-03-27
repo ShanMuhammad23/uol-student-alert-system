@@ -47,7 +47,9 @@ export default function SigninWithPassword() {
       return;
     }
     if (result?.ok) {
-      router.replace("/dashboard");
+      // Force full document navigation so root server layout/session-dependent
+      // header data refreshes immediately after login.
+      window.location.assign("/dashboard");
       return;
     }
     setLoading(false);

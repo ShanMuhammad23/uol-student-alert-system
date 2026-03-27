@@ -39,13 +39,18 @@ export function UserInfo({ user }: UserInfoProps) {
             width={200}
             height={200}
           />
-          <figcaption className="flex items-center gap-1 font-medium text-dark dark:text-dark-6 max-[1024px]:sr-only">
-            <span>{displayName}</span>
+          <figcaption className="relative flex flex-col items-start gap-1 pr-5 font-medium text-dark dark:text-dark-6 max-[1024px]:sr-only">
+            <span className="leading-none">{displayName}</span>
+            {user?.role && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary dark:bg-primary/20 dark:text-primary">
+                {user.role}
+              </span>
+            )}
 
             <ChevronUpIcon
               aria-hidden
               className={cn(
-                "rotate-180 transition-transform",
+                "absolute right-0 top-1/2 -translate-y-1/2 rotate-180 transition-transform",
                 isOpen && "rotate-0",
               )}
               strokeWidth={1.5}
