@@ -55,6 +55,13 @@ export function OverviewCardsGroup({
     gpaYellow: 0,
     gpaRed: 0,
   });
+  const [liveCounts, setLiveCounts] = useState({
+    totalStudents,
+    grossAttendanceYellow: yellowAttendance,
+    grossAttendanceRed: redAttendance,
+    grossGpaYellow: yellowGpa,
+    grossGpaRed: redGpa,
+  });
 
   const roleScope = useMemo(() => {
     if (!user?.role) return null;
@@ -86,63 +93,85 @@ export function OverviewCardsGroup({
   }, [user]);
 
   useEffect(() => {
-    if (!roleScope) return;
+    setLiveCounts({
+      totalStudents,
+      grossAttendanceYellow: yellowAttendance,
+      grossAttendanceRed: redAttendance,
+      grossGpaYellow: yellowGpa,
+      grossGpaRed: redGpa,
+    });
+  }, [totalStudents, yellowAttendance, redAttendance, yellowGpa, redGpa]);
+
+  useEffect(() => {
+    if (!roleScope || !filter) return;
     const controller = new AbortController();
 
-    const fetchResolved = async (
-      interventionType: "attendance" | "gpa",
-      alertLevel: "warning" | "critical"
-    ) => {
-      const res = await fetch("/api/interventions/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: roleScope.role,
-          interventionType,
-          alertLevel,
-          facultyId: roleScope.facultyId,
-          departmentIds: roleScope.departmentIds,
-          courseIds: roleScope.courseIds,
-          staffId: roleScope.staffId,
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) throw new Error("Failed to load resolved counts");
-      const body = (await res.json()) as { resolved?: number };
-      return body.resolved ?? 0;
-    };
-
-    Promise.all([
-      fetchResolved("attendance", "warning"),
-      fetchResolved("attendance", "critical"),
-      fetchResolved("gpa", "warning"),
-      fetchResolved("gpa", "critical"),
-    ])
-      .then(([attendanceYellow, attendanceRed, gpaYellow, gpaRed]) => {
+    fetch("/api/dashboard/overview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        masterFilter: filter.masterFilter,
+        gpaFilters: filter.gpaFilters,
+        attendanceFilters: filter.attendanceFilters,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load live overview counts");
+        return (await res.json()) as {
+          totalStudents: number;
+          attendance: {
+            grossYellow: number;
+            grossRed: number;
+            resolvedYellow: number;
+            resolvedRed: number;
+          };
+          gpa: {
+            grossYellow: number;
+            grossRed: number;
+            resolvedYellow: number;
+            resolvedRed: number;
+          };
+        };
+      })
+      .then((body) => {
+        setLiveCounts({
+          totalStudents: body.totalStudents,
+          grossAttendanceYellow: body.attendance.grossYellow,
+          grossAttendanceRed: body.attendance.grossRed,
+          grossGpaYellow: body.gpa.grossYellow,
+          grossGpaRed: body.gpa.grossRed,
+        });
         setResolved({
-          attendanceYellow,
-          attendanceRed,
-          gpaYellow,
-          gpaRed,
+          attendanceYellow: body.attendance.resolvedYellow,
+          attendanceRed: body.attendance.resolvedRed,
+          gpaYellow: body.gpa.resolvedYellow,
+          gpaRed: body.gpa.resolvedRed,
         });
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
-        setResolved({
-          attendanceYellow: 0,
-          attendanceRed: 0,
-          gpaYellow: 0,
-          gpaRed: 0,
-        });
       });
 
     return () => controller.abort();
-  }, [roleScope]);
+  }, [
+    roleScope,
+    filter,
+    filter?.masterFilter,
+    filter?.gpaFilters,
+    filter?.attendanceFilters,
+  ]);
 
-  const netAttendanceYellow = Math.max(0, yellowAttendance - resolved.attendanceYellow);
-  const netAttendanceRed = Math.max(0, redAttendance - resolved.attendanceRed);
-  const netGpaYellow = Math.max(0, yellowGpa - resolved.gpaYellow);
-  const netGpaRed = Math.max(0, redGpa - resolved.gpaRed);
+  const netAttendanceYellow = Math.max(
+    0,
+    liveCounts.grossAttendanceYellow - resolved.attendanceYellow,
+  );
+  const netAttendanceRed = Math.max(
+    0,
+    liveCounts.grossAttendanceRed - resolved.attendanceRed,
+  );
+  const netGpaYellow = Math.max(0, liveCounts.grossGpaYellow - resolved.gpaYellow);
+  const netGpaRed = Math.max(0, liveCounts.grossGpaRed - resolved.gpaRed);
 
   const toggleAttendanceYellow = () => {
     if (!setAttendanceFilters) return;
@@ -196,9 +225,9 @@ export function OverviewCardsGroup({
           isActive={active === "attendance"}
           yellowCount={netAttendanceYellow}
           redCount={netAttendanceRed}
-          grossYellowCount={yellowAttendance}
-          grossRedCount={redAttendance}
-          totalStudents={totalStudents}
+          grossYellowCount={liveCounts.grossAttendanceYellow}
+          grossRedCount={liveCounts.grossAttendanceRed}
+          totalStudents={liveCounts.totalStudents}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
           redActive={attendanceRedActive}
@@ -216,8 +245,8 @@ export function OverviewCardsGroup({
           data={{
             yellow: netGpaYellow,
             red: netGpaRed,
-            grossYellow: yellowGpa,
-            grossRed: redGpa,
+            grossYellow: liveCounts.grossGpaYellow,
+            grossRed: liveCounts.grossGpaRed,
           }}
           isActive={active === "gpa"}
           user={user}
