@@ -9,6 +9,7 @@ import { useMergeDashboardHref } from "../useDashboardHref";
 type PropsType = {
   selectedAlert: AlertFilter | string;
   user?: AppUser | null;
+  totalStudents: number;
   yellowGpa: number;
   redGpa: number;
   yellowAttendance: number;
@@ -18,6 +19,7 @@ type PropsType = {
 export function OverviewCardsGroup({
   selectedAlert,
   user,
+  totalStudents,
   yellowGpa,
   redGpa,
   yellowAttendance,
@@ -98,6 +100,7 @@ export function OverviewCardsGroup({
           isActive={active === "attendance"}
           yellowCount={yellowAttendance}
           redCount={redAttendance}
+          totalStudents={totalStudents}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
           redActive={attendanceRedActive}

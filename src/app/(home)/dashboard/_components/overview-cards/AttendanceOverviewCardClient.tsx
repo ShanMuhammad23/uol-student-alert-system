@@ -17,6 +17,7 @@ type PropsType = {
   isActive?: boolean;
   yellowCount: number;
   redCount: number;
+  totalStudents: number;
   attendanceFilters?: AlertDimensionFilter[];
   yellowActive?: boolean;
   redActive?: boolean;
@@ -30,6 +31,7 @@ export function AttendanceOverviewCardClient({
   isActive,
   yellowCount,
   redCount,
+  totalStudents,
   attendanceFilters,
   yellowActive,
   redActive,
@@ -46,7 +48,12 @@ export function AttendanceOverviewCardClient({
     !allowed.size || allowed.has("yellow") ? yellowCount : 0;
   const visibleRed = !allowed.size || allowed.has("red") ? redCount : 0;
   const totalAlerts = visibleYellow + visibleRed;
-  const alertsPercentage = totalAlerts > 0 ? 100 : 0;
+  const yellowPercentage =
+    totalStudents > 0 ? (visibleYellow / totalStudents) * 100 : 0;
+  const redPercentage = totalStudents > 0 ? (visibleRed / totalStudents) * 100 : 0;
+  const alertsPercentage =
+    totalStudents > 0 ? (totalAlerts / totalStudents) * 100 : 0;
+  const noAlertPercentage = Math.max(0, 100 - yellowPercentage - redPercentage);
 
   return (
     <div
@@ -112,9 +119,9 @@ export function AttendanceOverviewCardClient({
       <div className="ml-4 flex items-center">
         <DonutChart
           data={[
-            { name: "Yellow alert", amount: visibleYellow },
-            { name: "Red alert", amount: visibleRed },
-            { name: "No alert", amount: 0 },
+            { name: "Yellow alert %", amount: yellowPercentage },
+            { name: "Red alert %", amount: redPercentage },
+            { name: "No alert %", amount: noAlertPercentage },
           ]}
           colors={["#FACC15", "#DC2626", "#22C55E"]}
           centerLabel=""

@@ -83,7 +83,7 @@ export default async function Home({ searchParams }: PropsType) {
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
 
-  const { yellowGpa, redGpa, yellowAttendance, redAttendance } = await getOverviewData(
+  const { totalStudents, yellowGpa, redGpa, yellowAttendance, redAttendance } = await getOverviewData(
     user,
     masterFilter,
     gpaFilters,
@@ -133,6 +133,7 @@ export default async function Home({ searchParams }: PropsType) {
               <OverviewCardsGroup
                 selectedAlert={selectedAlert}
                 user={user}
+                totalStudents={totalStudents}
                 yellowGpa={yellowGpa.value}
                 redGpa={redGpa.value}
                 yellowAttendance={yellowAttendance.value}
