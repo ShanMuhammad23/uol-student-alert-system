@@ -1550,6 +1550,111 @@ export async function getHodCourseStats(
   });
 }
 
+/** Course stats for Instructor: scoped to courses assigned to the logged-in teacher. */
+export async function getInstructorCourseStats(
+  user: AppUser | null,
+  options?: { courseIds?: string[] }
+): Promise<CourseStats[]> {
+  if (!user || user.role !== "teacher") return [];
+  const data = await getDataFromEnrollment();
+
+  const teacher =
+    data.users.find((u) => u.role === "teacher" && u.id === user.id) ??
+    data.users.find((u) => u.role === "teacher" && u.sap_id === user.sap_id);
+  if (!teacher?.course_ids?.length) return [];
+
+  let courseIds = Array.from(new Set(teacher.course_ids)).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  if (options?.courseIds?.length) {
+    const selected = new Set(options.courseIds);
+    courseIds = courseIds.filter((id) => selected.has(id));
+  }
+  if (!courseIds.length) return [];
+
+  const courseNameById = new Map(
+    data.courses
+      .filter((c) => courseIds.includes(c.id))
+      .map((c) => [c.id, c.name])
+  );
+
+  if (pool) {
+    try {
+      const res = await pool.query<{
+        course_id: string;
+        course_name: string;
+        total_students: number | string | null;
+        yellow_gpa: number | string | null;
+        red_gpa: number | string | null;
+        yellow_attendance: number | string | null;
+        red_attendance: number | string | null;
+      }>(
+        `SELECT
+           split_part(dimension_id, '|', 1) AS course_id,
+           MAX(dimension_name) AS course_name,
+           COALESCE(SUM(total_students), 0) AS total_students,
+           COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+           COALESCE(SUM(red_gpa), 0) AS red_gpa,
+           COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+           COALESCE(SUM(red_attendance), 0) AS red_attendance
+         FROM alert_counts_by_dimension
+         WHERE snapshot_date = CURRENT_DATE
+           AND dimension_type = 'course'
+           AND split_part(dimension_id, '|', 1) = ANY($1)
+         GROUP BY split_part(dimension_id, '|', 1)`,
+        [courseIds]
+      );
+
+      const byCourse = new Map(res.rows.map((r) => [r.course_id, r]));
+      return courseIds.map((courseId) => {
+        const row = byCourse.get(courseId);
+        return {
+          courseId,
+          courseName: row?.course_name ?? courseNameById.get(courseId) ?? courseId,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived alert calculations if DB aggregate read fails.
+    }
+  }
+
+  const courseSet = new Set(courseIds);
+  const students = data.students.filter((s) => courseSet.has(s.course_id));
+  const byCourseStudents = new Map<string, Student[]>();
+  for (const s of students) {
+    if (!byCourseStudents.has(s.course_id)) byCourseStudents.set(s.course_id, []);
+    byCourseStudents.get(s.course_id)!.push(s);
+  }
+
+  return courseIds.map((courseId) => {
+    const courseStudents = byCourseStudents.get(courseId) ?? [];
+    let yellowGpa = 0;
+    let redGpa = 0;
+    let yellowAttendance = 0;
+    let redAttendance = 0;
+    for (const s of courseStudents) {
+      if (s.gpa.alert_level === "critical") redGpa += 1;
+      if (s.gpa.alert_level === "warning") yellowGpa += 1;
+      if (s.attendance.alert_level === "critical") redAttendance += 1;
+      if (s.attendance.alert_level === "warning") yellowAttendance += 1;
+    }
+    return {
+      courseId,
+      courseName: courseNameById.get(courseId) ?? courseId,
+      total: courseStudents.length,
+      yellowGpa,
+      redGpa,
+      yellowAttendance,
+      redAttendance,
+    };
+  });
+}
+
 /** Map NextAuth session user (DB staff) to AppUser. Role "instructor" → "teacher". */
 export function mapSessionToAppUser(session: {
   user: {

@@ -9,12 +9,15 @@ import {
   getHodProgramStats,
   getHodCourseStats,
   getHodInstructorStats,
+  getInstructorCourseStats,
 } from "./fetch";
 import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
 import { HodStatsCollapsible } from "./_components/hod-stats-collapsible";
 import { HodProgramStats } from "./_components/hod-program-stats";
 import { HodInstructorStats } from "./_components/hod-instructor-stats";
 import { HodCourseStats } from "./_components/hod-course-stats";
+import { InstructorStatsCollapsible } from "./_components/instructor-stats-collapsible";
+import { InstructorCourseStats } from "./_components/instructor-course-stats";
 import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
 import { WellbeingChartClient } from "./_components/WellbeingChartClient";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
@@ -88,6 +91,7 @@ export default async function Home({ searchParams }: PropsType) {
   let hodProgramCount = 0;
   let hodCourseCount = 0;
   let hodInstructorCount = 0;
+  let instructorCourseCount = 0;
   if (user.role === "hod" && user.department_ids?.length) {
     const [programStats, courseStats, instructorStats] = await Promise.all([
       getHodProgramStats(user.department_ids),
@@ -104,6 +108,12 @@ export default async function Home({ searchParams }: PropsType) {
     hodProgramCount = programStats.length;
     hodCourseCount = courseStats.length;
     hodInstructorCount = instructorStats.length;
+  }
+  if (user.role === "teacher") {
+    const instructorCourses = await getInstructorCourseStats(user, {
+      ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
+    });
+    instructorCourseCount = instructorCourses.length;
   }
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
@@ -217,6 +227,17 @@ export default async function Home({ searchParams }: PropsType) {
                     selectedProgramId={programs[0]}
                     selectedCourseId={courseIds[0]}
                     selectedInstructorId={instructorIds[0]}
+                  />
+                }
+              />
+            )}
+            {user?.role === "teacher" && (
+              <InstructorStatsCollapsible
+                courseCount={instructorCourseCount}
+                courseContent={
+                  <InstructorCourseStats
+                    user={user}
+                    selectedCourseId={courseIds[0]}
                   />
                 }
               />

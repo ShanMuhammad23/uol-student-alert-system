@@ -63,6 +63,15 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (user.role === "teacher") {
         screenHeading = user.name;
+        const total = await pool.query<{ total_students: number | string | null }>(
+          `SELECT COALESCE(SUM(total_students), 0) AS total_students
+           FROM alert_counts_by_dimension
+           WHERE snapshot_date = CURRENT_DATE
+             AND dimension_type = 'instructor'
+             AND dimension_id = $1`,
+          [user.id]
+        );
+        totalStudents = Number(total.rows[0]?.total_students ?? 0);
       }
     } catch {
       screenHeading = null;

@@ -49,7 +49,7 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         {screenHeading && (
           <div className="space-y-0.5">
             <p className="text-lg font-medium text-green-600 dark:text-dark-5">
-              {screenHeading} {(user?.role === "dean" || user?.role === "hod") && typeof totalStudents === "number" && (
+              {screenHeading} {(user?.role === "dean" || user?.role === "hod" || user?.role === "teacher") && typeof totalStudents === "number" && (
                 <span className="font-semibold  dark:text-white">
                   {totalStudents.toLocaleString()}
                 </span>
