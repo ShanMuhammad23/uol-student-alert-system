@@ -50,10 +50,16 @@ export function DeanDepartmentStats({
       { yellowAttendance: number; redAttendance: number }
     >();
     if (!rows.length || !attendanceSummaries) return map;
+    const perDeptStudentLevel = new Map<
+      string,
+      Map<string, "warning" | "critical">
+    >();
 
     for (const row of rows) {
       const deptId = row.DeptCode || row.DeptId;
       if (!deptId) continue;
+      const sapId = (row.SapNo ?? "").trim();
+      if (!sapId) continue;
 
       const monitorKey = `${normalizeCourseCode(
         typeof row.CrCode === "string"
@@ -73,13 +79,25 @@ export function DeanDepartmentStats({
           : null;
 
       if (level !== "critical" && level !== "warning") continue;
-
-      if (!map.has(deptId)) {
-        map.set(deptId, { yellowAttendance: 0, redAttendance: 0 });
+      if (!perDeptStudentLevel.has(deptId)) {
+        perDeptStudentLevel.set(deptId, new Map<string, "warning" | "critical">());
       }
-      const bucket = map.get(deptId)!;
-      if (level === "warning") bucket.yellowAttendance += 1;
-      if (level === "critical") bucket.redAttendance += 1;
+      const studentLevels = perDeptStudentLevel.get(deptId)!;
+      const prevLevel = studentLevels.get(sapId);
+      // Keep max severity per student inside each department.
+      if (prevLevel !== "critical") {
+        studentLevels.set(sapId, level);
+      }
+    }
+
+    for (const [deptId, studentLevels] of perDeptStudentLevel.entries()) {
+      let yellowAttendance = 0;
+      let redAttendance = 0;
+      for (const level of studentLevels.values()) {
+        if (level === "critical") redAttendance += 1;
+        else yellowAttendance += 1;
+      }
+      map.set(deptId, { yellowAttendance, redAttendance });
     }
 
     return map;

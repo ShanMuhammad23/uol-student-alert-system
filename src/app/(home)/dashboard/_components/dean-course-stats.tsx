@@ -107,10 +107,21 @@ export function DeanCourseStats({
     return map;
   }, [rows, attendanceSummaries, classAverageByCourseSection]);
 
+  const totalStudentsByCourse = new Map<string, Set<string>>();
+  const attendanceLevelByCourseStudent = new Map<
+    string,
+    Map<string, "warning" | "critical">
+  >();
+  const gpaLevelByCourseStudent = new Map<
+    string,
+    Map<string, "warning" | "critical">
+  >();
+
   for (const r of rows) {
     const rawCode = (r.CrCode ?? "").toString().trim();
     const rawTitle = (r.CrTitle ?? "").toString().trim();
     const key = rawCode || rawTitle;
+    const sapId = (r.SapNo ?? "").trim();
     if (!key) continue;
     if (!byCourse.has(key)) {
       byCourse.set(key, {
@@ -123,14 +134,63 @@ export function DeanCourseStats({
         redGpa: 0,
       });
     }
-    const bucket = byCourse.get(key)!;
-    bucket.total += 1;
+
+    if (sapId) {
+      if (!totalStudentsByCourse.has(key)) {
+        totalStudentsByCourse.set(key, new Set<string>());
+      }
+      totalStudentsByCourse.get(key)!.add(sapId);
+    }
+
     const level = attendanceAlertByRowKey.get(getEnrollmentAttendanceKey(r));
-    if (level === "warning") bucket.yellowAttendance += 1;
-    if (level === "critical") bucket.redAttendance += 1;
+    if (sapId && (level === "warning" || level === "critical")) {
+      if (!attendanceLevelByCourseStudent.has(key)) {
+        attendanceLevelByCourseStudent.set(
+          key,
+          new Map<string, "warning" | "critical">(),
+        );
+      }
+      const studentLevels = attendanceLevelByCourseStudent.get(key)!;
+      const prevLevel = studentLevels.get(sapId);
+      if (prevLevel !== "critical") {
+        studentLevels.set(sapId, level);
+      }
+    }
+
     const gpaLevel = getRowGpaAlertLevel(r);
-    if (gpaLevel === "warning") bucket.yellowGpa += 1;
-    if (gpaLevel === "critical") bucket.redGpa += 1;
+    if (sapId && (gpaLevel === "warning" || gpaLevel === "critical")) {
+      if (!gpaLevelByCourseStudent.has(key)) {
+        gpaLevelByCourseStudent.set(
+          key,
+          new Map<string, "warning" | "critical">(),
+        );
+      }
+      const studentLevels = gpaLevelByCourseStudent.get(key)!;
+      const prevLevel = studentLevels.get(sapId);
+      if (prevLevel !== "critical") {
+        studentLevels.set(sapId, gpaLevel);
+      }
+    }
+  }
+
+  for (const [key, bucket] of byCourse.entries()) {
+    bucket.total = totalStudentsByCourse.get(key)?.size ?? 0;
+
+    const attendanceLevels = attendanceLevelByCourseStudent.get(key);
+    if (attendanceLevels) {
+      for (const level of attendanceLevels.values()) {
+        if (level === "critical") bucket.redAttendance += 1;
+        else bucket.yellowAttendance += 1;
+      }
+    }
+
+    const gpaLevels = gpaLevelByCourseStudent.get(key);
+    if (gpaLevels) {
+      for (const level of gpaLevels.values()) {
+        if (level === "critical") bucket.redGpa += 1;
+        else bucket.yellowGpa += 1;
+      }
+    }
   }
 
   const list = Array.from(byCourse.values()).sort((a, b) =>
