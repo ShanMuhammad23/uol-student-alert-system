@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       alertLevel?: "warning" | "critical" | null;
       facultyId?: string | null;
       departmentIds?: string[] | null;
+      courseIds?: string[] | null;
       staffId?: string | null;
     };
 
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
         alertLevel: roleScope.alertLevel ?? null,
         facultyId: roleScope.facultyId ?? null,
         departmentIds: roleScope.departmentIds ?? null,
+        courseIds: roleScope.courseIds ?? null,
         staffId: roleScope.staffId ?? null,
       });
       return NextResponse.json(stats, { status: 200 });

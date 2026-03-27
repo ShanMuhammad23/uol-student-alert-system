@@ -351,6 +351,7 @@ export type InterventionRoleScope = {
   alertLevel?: "warning" | "critical" | null;
   facultyId?: string | null;
   departmentIds?: string[] | null;
+  courseIds?: string[] | null;
   staffId?: string | null; // staff.id (UUID) for instructors
 };
 
@@ -396,6 +397,10 @@ export async function getInterventionStatsForRoleScopeFromDb(
 
   let whereSql = "";
   let args: any[] = [];
+  const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
+    FAC_ENG: "50000172",
+    FAC_MGT: "50000172",
+  };
 
   if (params.role === "dean") {
     if (!params.facultyId) {
@@ -407,8 +412,10 @@ export async function getInterventionStatsForRoleScopeFromDb(
         totalInterventionStudents: 0,
       };
     }
+    const mappedFacultyId =
+      FACULTY_ID_TO_ENROLLMENT_FAC_ID[params.facultyId] ?? params.facultyId;
     whereSql = hasType ? "faculty_id = $2" : "faculty_id = $1";
-    args = hasType ? [params.interventionType, params.facultyId] : [params.facultyId];
+    args = hasType ? [params.interventionType, mappedFacultyId] : [mappedFacultyId];
   } else if (params.role === "hod") {
     const deptIds = params.departmentIds ?? [];
     if (!deptIds.length) {
@@ -424,7 +431,11 @@ export async function getInterventionStatsForRoleScopeFromDb(
     args = hasType ? [params.interventionType, deptIds] : [deptIds];
   } else {
     // teacher
-    if (!params.staffId) {
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      whereSql = hasType ? "course_id = ANY($2)" : "course_id = ANY($1)";
+      args = hasType ? [params.interventionType, courseIds] : [courseIds];
+    } else if (!params.staffId) {
       return {
         initiated: 0,
         inProgress: 0,
@@ -432,9 +443,11 @@ export async function getInterventionStatsForRoleScopeFromDb(
         resolved: 0,
         totalInterventionStudents: 0,
       };
+    } else {
+      // Backward-compatible fallback if course IDs are unavailable.
+      whereSql = hasType ? "staff_id = $2" : "staff_id = $1";
+      args = hasType ? [params.interventionType, params.staffId] : [params.staffId];
     }
-    whereSql = hasType ? "staff_id = $2" : "staff_id = $1";
-    args = hasType ? [params.interventionType, params.staffId] : [params.staffId];
   }
 
   // If intervention_type is present but NULL (older rows), treat NULL as 'attendance'.
