@@ -1305,22 +1305,22 @@ export async function getHodProgramStats(
   if (!departmentIds.length) return [];
   const data = await getDataFromEnrollment();
   const deptSet = new Set(departmentIds);
-  const students = data.students.filter((s) => deptSet.has(s.department_id));
-  const byProgram = new Map<string, Student[]>();
-  for (const s of students) {
-    const programId = getProgramFromCourse(s.course_id);
-    if (!byProgram.has(programId)) byProgram.set(programId, []);
-    byProgram.get(programId)!.push(s);
-  }
-  const entries = Array.from(byProgram.entries()).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
-  const programIds = entries.map(([programId]) => programId);
+  // Derive HoD program set from department courses (not student rows) so
+  // programs with alert aggregates are not dropped due to student-source mismatch.
+  const programIds = Array.from(
+    new Set(
+      data.courses
+        .filter((c) => deptSet.has(c.department_id))
+        .map((c) => getProgramFromCourse(c.id))
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+  if (!programIds.length) return [];
 
   if (pool) {
     try {
       const dbCounts = await getDimensionCountsFromDb("program", programIds);
-      return entries.map(([programId]) => {
+      return programIds.map((programId) => {
         const row = dbCounts.get(programId);
         return {
           programId,
@@ -1336,7 +1336,16 @@ export async function getHodProgramStats(
     }
   }
 
-  return entries.map(([programId, progStudents]) => {
+  const students = data.students.filter((s) => deptSet.has(s.department_id));
+  const byProgram = new Map<string, Student[]>();
+  for (const s of students) {
+    const programId = getProgramFromCourse(s.course_id);
+    if (!byProgram.has(programId)) byProgram.set(programId, []);
+    byProgram.get(programId)!.push(s);
+  }
+
+  return programIds.map((programId) => {
+    const progStudents = byProgram.get(programId) ?? [];
     let yellowGpa = 0,
       redGpa = 0,
       yellowAttendance = 0,

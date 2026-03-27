@@ -52,6 +52,15 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           [user.department_ids]
         );
         screenHeading = names.rows.map((r) => r.name).join(", ");
+        const total = await pool.query<{ total_students: number | string | null }>(
+          `SELECT COALESCE(SUM(total_students), 0) AS total_students
+           FROM alert_counts_by_dimension
+           WHERE snapshot_date = CURRENT_DATE
+             AND dimension_type = 'department'
+             AND dimension_id = ANY($1::varchar[])`,
+          [user.department_ids]
+        );
+        totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (user.role === "teacher") {
         screenHeading = user.name;
       }
