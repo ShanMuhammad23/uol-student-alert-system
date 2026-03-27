@@ -2,11 +2,19 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { OverviewCardsGroup } from "./_components/overview-cards";
 import { OverviewCardsSkeleton } from "./_components/overview-cards/skeleton";
-import { getCurrentUser, getMasterFilterOptions, getOverviewData } from "./fetch";
+import {
+  getCurrentUser,
+  getMasterFilterOptions,
+  getOverviewData,
+  getHodProgramStats,
+  getHodCourseStats,
+  getHodInstructorStats,
+} from "./fetch";
 import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
 import { HodStatsCollapsible } from "./_components/hod-stats-collapsible";
 import { HodProgramStats } from "./_components/hod-program-stats";
 import { HodInstructorStats } from "./_components/hod-instructor-stats";
+import { HodCourseStats } from "./_components/hod-course-stats";
 import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
 import { WellbeingChartClient } from "./_components/WellbeingChartClient";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
@@ -77,9 +85,26 @@ export default async function Home({ searchParams }: PropsType) {
   const attendanceFilters = attendanceFiltersRaw.filter(validAlertDim) as AlertDimensionFilter[];
   const interventionFilters = parseMultiParam(params.intervention_filter);
 
-  // Keep initial paint fast; detailed HoD stats render in their own sections.
-  const hodProgramCount = 0;
-  const hodInstructorCount = 0;
+  let hodProgramCount = 0;
+  let hodCourseCount = 0;
+  let hodInstructorCount = 0;
+  if (user.role === "hod" && user.department_ids?.length) {
+    const [programStats, courseStats, instructorStats] = await Promise.all([
+      getHodProgramStats(user.department_ids),
+      getHodCourseStats(user.department_ids, {
+        ...(programs[0] ? { programIds: [programs[0]] } : {}),
+        ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
+      }),
+      getHodInstructorStats(user.department_ids, {
+        ...(programs[0] ? { programIds: [programs[0]] } : {}),
+        ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
+        ...(instructorIds[0] ? { instructorIds: [instructorIds[0]] } : {}),
+      }),
+    ]);
+    hodProgramCount = programStats.length;
+    hodCourseCount = courseStats.length;
+    hodInstructorCount = instructorStats.length;
+  }
 
   const filterOptions = await getMasterFilterOptions(user, masterFilter);
 
@@ -166,8 +191,10 @@ export default async function Home({ searchParams }: PropsType) {
             {user?.role === "hod" && (
               <HodStatsCollapsible
                 programCount={hodProgramCount}
+                courseCount={hodCourseCount}
                 instructorCount={hodInstructorCount}
                 selectedProgramId={programs[0]}
+                selectedCourseId={courseIds[0]}
                 programContent={
                   <HodProgramStats
                     user={user}
@@ -177,10 +204,18 @@ export default async function Home({ searchParams }: PropsType) {
                     }
                   />
                 }
+                courseContent={
+                  <HodCourseStats
+                    user={user}
+                    selectedProgramId={programs[0]}
+                    selectedCourseId={courseIds[0]}
+                  />
+                }
                 instructorContent={
                   <HodInstructorStats
                     user={user}
                     selectedProgramId={programs[0]}
+                    selectedCourseId={courseIds[0]}
                     selectedInstructorId={instructorIds[0]}
                   />
                 }

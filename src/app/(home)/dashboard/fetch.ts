@@ -318,10 +318,47 @@ type DbOverviewRow = {
   red_attendance: number | string | null;
 };
 
+type DbDimensionCountRow = {
+  dimension_id: string;
+  dimension_name: string;
+  total_students: number | string | null;
+  yellow_gpa: number | string | null;
+  red_gpa: number | string | null;
+  yellow_attendance: number | string | null;
+  red_attendance: number | string | null;
+};
+
 function toInt(value: number | string | null | undefined): number {
   if (value == null) return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+async function getDimensionCountsFromDb(
+  dimensionType: "program" | "instructor",
+  ids: string[]
+): Promise<Map<string, DbDimensionCountRow>> {
+  const map = new Map<string, DbDimensionCountRow>();
+  if (!pool || !ids.length) return map;
+  const res = await pool.query<DbDimensionCountRow>(
+    `SELECT
+       dimension_id,
+       dimension_name,
+       total_students,
+       yellow_gpa,
+       red_gpa,
+       yellow_attendance,
+       red_attendance
+     FROM alert_counts_by_dimension
+     WHERE snapshot_date = CURRENT_DATE
+       AND dimension_type = $1
+       AND dimension_id = ANY($2)`,
+    [dimensionType, ids]
+  );
+  for (const row of res.rows) {
+    map.set(row.dimension_id, row);
+  }
+  return map;
 }
 
 function applyDimensionFilterToCounts(
@@ -722,6 +759,63 @@ export async function getMasterFilterOptions(
       const instructors = (byType.get("instructor") ?? []).sort((a, b) =>
         a.label.localeCompare(b.label)
       );
+
+      if (user?.role === "hod" && user.department_ids?.length) {
+        const data = await getDataFromEnrollment();
+        const deptSet = new Set(user.department_ids);
+        const scopedCourses = data.courses.filter((c) => deptSet.has(c.department_id));
+        const scopedCourseIds = new Set(scopedCourses.map((c) => c.id));
+        const scopedProgramIds = new Set(
+          scopedCourses.map((c) => getProgramFromCourse(c.id))
+        );
+
+        const departmentsScoped = departments.filter((d) =>
+          deptSet.has(d.value)
+        );
+
+        const selectedPrograms = current?.programs?.length
+          ? new Set(current.programs)
+          : null;
+        const selectedCourses = current?.course_ids?.length
+          ? new Set(current.course_ids)
+          : null;
+
+        const programsScoped = programs.filter((p) =>
+          scopedProgramIds.has(p.value)
+        );
+        const coursesScoped = courses.filter((c) => {
+          if (!scopedCourseIds.has(c.value)) return false;
+          if (selectedPrograms && !selectedPrograms.has(getProgramFromCourse(c.value))) {
+            return false;
+          }
+          return true;
+        });
+
+        const courseIdsForInstructorFilter = selectedCourses
+          ? selectedCourses
+          : new Set(coursesScoped.map((c) => c.value));
+        const instructorIdsInScope = new Set(
+          data.users
+            .filter((u) =>
+              u.role === "teacher" &&
+              u.department_id &&
+              deptSet.has(u.department_id) &&
+              (u.course_ids ?? []).some((cid) => courseIdsForInstructorFilter.has(cid))
+            )
+            .map((u) => u.id)
+        );
+        const instructorsScoped = instructors.filter((i) =>
+          instructorIdsInScope.has(i.value)
+        );
+
+        return {
+          departments: departmentsScoped,
+          programs: programsScoped,
+          courses: coursesScoped,
+          instructors: instructorsScoped,
+        };
+      }
+
       if (
         departments.length ||
         programs.length ||
@@ -1194,6 +1288,16 @@ export type ProgramStats = {
   redAttendance: number;
 };
 
+export type CourseStats = {
+  courseId: string;
+  courseName: string;
+  total: number;
+  yellowGpa: number;
+  redGpa: number;
+  yellowAttendance: number;
+  redAttendance: number;
+};
+
 /** Stats per program for HoD (departments they head). */
 export async function getHodProgramStats(
   departmentIds: string[]
@@ -1208,9 +1312,35 @@ export async function getHodProgramStats(
     if (!byProgram.has(programId)) byProgram.set(programId, []);
     byProgram.get(programId)!.push(s);
   }
-  const entries = Array.from(byProgram.entries()).sort(([a], [b]) => a.localeCompare(b));
+  const entries = Array.from(byProgram.entries()).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+  const programIds = entries.map(([programId]) => programId);
+
+  if (pool) {
+    try {
+      const dbCounts = await getDimensionCountsFromDb("program", programIds);
+      return entries.map(([programId]) => {
+        const row = dbCounts.get(programId);
+        return {
+          programId,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived alert calculations if DB aggregate read fails.
+    }
+  }
+
   return entries.map(([programId, progStudents]) => {
-    let yellowGpa = 0, redGpa = 0, yellowAttendance = 0, redAttendance = 0;
+    let yellowGpa = 0,
+      redGpa = 0,
+      yellowAttendance = 0,
+      redAttendance = 0;
     for (const s of progStudents) {
       if (s.gpa.alert_level === "critical") redGpa += 1;
       if (s.gpa.alert_level === "warning") yellowGpa += 1;
@@ -1231,7 +1361,7 @@ export async function getHodProgramStats(
 /** Instructor stats for HoD: teachers in the given department IDs. */
 export async function getHodInstructorStats(
   departmentIds: string[],
-  options?: { instructorIds?: string[]; programIds?: string[] }
+  options?: { instructorIds?: string[]; programIds?: string[]; courseIds?: string[] }
 ): Promise<InstructorStats[]> {
   if (!departmentIds.length) return [];
   const data = await getDataFromEnrollment();
@@ -1256,6 +1386,33 @@ export async function getHodInstructorStats(
       return courseIds.some((cid) => programSet.has(getProgramFromCourse(cid)));
     });
   }
+  if (options?.courseIds?.length) {
+    const selectedCourses = new Set(options.courseIds);
+    teachers = teachers.filter((t) =>
+      (t.course_ids ?? []).some((cid) => selectedCourses.has(cid))
+    );
+  }
+
+  if (pool) {
+    try {
+      const instructorIds = teachers.map((t) => t.id);
+      const dbCounts = await getDimensionCountsFromDb("instructor", instructorIds);
+      return teachers.map((teacher) => {
+        const row = dbCounts.get(teacher.id);
+        return {
+          instructorId: teacher.id,
+          instructorName: teacher.name,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived alert calculations if DB aggregate read fails.
+    }
+  }
 
   return teachers.map((teacher) => {
     const courseIds = new Set(teacher.course_ids ?? []);
@@ -1274,6 +1431,108 @@ export async function getHodInstructorStats(
       instructorId: teacher.id,
       instructorName: teacher.name,
       total: students.length,
+      yellowGpa,
+      redGpa,
+      yellowAttendance,
+      redAttendance,
+    };
+  });
+}
+
+/** Course stats for HoD scoped to departments and optionally programs/courses. */
+export async function getHodCourseStats(
+  departmentIds: string[],
+  options?: { programIds?: string[]; courseIds?: string[] }
+): Promise<CourseStats[]> {
+  if (!departmentIds.length) return [];
+  const data = await getDataFromEnrollment();
+  const deptSet = new Set(departmentIds);
+
+  let courses = data.courses.filter((c) => deptSet.has(c.department_id));
+  if (options?.programIds?.length) {
+    const programSet = new Set(options.programIds);
+    courses = courses.filter((c) => programSet.has(getProgramFromCourse(c.id)));
+  }
+  if (options?.courseIds?.length) {
+    const selectedCourseSet = new Set(options.courseIds);
+    courses = courses.filter((c) => selectedCourseSet.has(c.id));
+  }
+  if (!courses.length) return [];
+
+  const courseNameById = new Map(courses.map((c) => [c.id, c.name]));
+  const sortedCourseIds = Array.from(new Set(courses.map((c) => c.id))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+
+  if (pool) {
+    try {
+      const res = await pool.query<{
+        course_id: string;
+        course_name: string;
+        total_students: number | string | null;
+        yellow_gpa: number | string | null;
+        red_gpa: number | string | null;
+        yellow_attendance: number | string | null;
+        red_attendance: number | string | null;
+      }>(
+        `SELECT
+           split_part(dimension_id, '|', 1) AS course_id,
+           MAX(dimension_name) AS course_name,
+           COALESCE(SUM(total_students), 0) AS total_students,
+           COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+           COALESCE(SUM(red_gpa), 0) AS red_gpa,
+           COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+           COALESCE(SUM(red_attendance), 0) AS red_attendance
+         FROM alert_counts_by_dimension
+         WHERE snapshot_date = CURRENT_DATE
+           AND dimension_type = 'course'
+           AND split_part(dimension_id, '|', 1) = ANY($1)
+         GROUP BY split_part(dimension_id, '|', 1)`,
+        [sortedCourseIds]
+      );
+
+      const byCourse = new Map(res.rows.map((r) => [r.course_id, r]));
+      return sortedCourseIds.map((courseId) => {
+        const row = byCourse.get(courseId);
+        return {
+          courseId,
+          courseName: row?.course_name ?? courseNameById.get(courseId) ?? courseId,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived alert calculations if DB aggregate read fails.
+    }
+  }
+
+  const courseSet = new Set(sortedCourseIds);
+  const students = data.students.filter((s) => courseSet.has(s.course_id));
+  const byCourseStudents = new Map<string, Student[]>();
+  for (const s of students) {
+    if (!byCourseStudents.has(s.course_id)) byCourseStudents.set(s.course_id, []);
+    byCourseStudents.get(s.course_id)!.push(s);
+  }
+
+  return sortedCourseIds.map((courseId) => {
+    const courseStudents = byCourseStudents.get(courseId) ?? [];
+    let yellowGpa = 0;
+    let redGpa = 0;
+    let yellowAttendance = 0;
+    let redAttendance = 0;
+    for (const s of courseStudents) {
+      if (s.gpa.alert_level === "critical") redGpa += 1;
+      if (s.gpa.alert_level === "warning") yellowGpa += 1;
+      if (s.attendance.alert_level === "critical") redAttendance += 1;
+      if (s.attendance.alert_level === "warning") yellowAttendance += 1;
+    }
+    return {
+      courseId,
+      courseName: courseNameById.get(courseId) ?? courseId,
+      total: courseStudents.length,
       yellowGpa,
       redGpa,
       yellowAttendance,

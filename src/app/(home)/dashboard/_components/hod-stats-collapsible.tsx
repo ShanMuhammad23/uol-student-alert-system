@@ -73,22 +73,28 @@ function ChevronDownIcon({ className }: { className?: string }) {
 
 type HodStatsCollapsibleProps = {
   programContent: ReactNode;
+  courseContent: ReactNode;
   instructorContent: ReactNode;
   /** When set, Instructors section is open by default. */
   selectedProgramId?: string;
+  selectedCourseId?: string;
   programCount?: number;
+  courseCount?: number;
   instructorCount?: number;
 };
 
 export function HodStatsCollapsible({
   programContent,
+  courseContent,
   instructorContent,
   selectedProgramId,
+  selectedCourseId,
   programCount,
+  courseCount,
   instructorCount,
 }: HodStatsCollapsibleProps) {
   return (
-    <div className="mt-4 border-t border-gray-3 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="mt-4 border-t border-gray-3 pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
       <CollapsibleSection
         title="Program"
         count={programCount}
@@ -97,9 +103,16 @@ export function HodStatsCollapsible({
         {programContent}
       </CollapsibleSection>
       <CollapsibleSection
+        title="Course"
+        count={courseCount}
+        defaultOpen={!!selectedProgramId}
+      >
+        {courseContent}
+      </CollapsibleSection>
+      <CollapsibleSection
         title="Instructors"
         count={instructorCount}
-        defaultOpen={!!selectedProgramId}
+        defaultOpen={!!selectedProgramId || !!selectedCourseId}
       >
         {instructorContent}
       </CollapsibleSection>

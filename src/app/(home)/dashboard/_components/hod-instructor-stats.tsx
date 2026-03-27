@@ -6,23 +6,27 @@ import { cn } from "@/lib/utils";
 type PropsType = {
   user: AppUser | null;
   selectedProgramId?: string;
+  selectedCourseId?: string;
   selectedInstructorId?: string;
 };
 
 function buildInstructorUrl(
   instructorId: string,
   departmentIds: string[],
-  programId?: string
+  programId?: string,
+  courseId?: string
 ): string {
   const params = new URLSearchParams({ selected_alert: "all", instructor: instructorId });
   if (departmentIds.length) params.set("department", departmentIds.join(","));
   if (programId) params.set("program", programId);
+  if (courseId) params.set("course", courseId);
   return `/?${params.toString()}`;
 }
 
 export async function HodInstructorStats({
   user,
   selectedProgramId,
+  selectedCourseId,
   selectedInstructorId,
 }: PropsType) {
   if (!user || user.role !== "hod" || !user.department_ids?.length) return null;
@@ -30,6 +34,7 @@ export async function HodInstructorStats({
   const stats = await getHodInstructorStats(user.department_ids, {
     ...(selectedInstructorId ? { instructorIds: [selectedInstructorId] } : {}),
     ...(selectedProgramId ? { programIds: [selectedProgramId] } : {}),
+    ...(selectedCourseId ? { courseIds: [selectedCourseId] } : {}),
   });
   if (!stats.length) return null;
 
@@ -38,7 +43,12 @@ export async function HodInstructorStats({
       {stats.map((i) => (
         <Link
           key={i.instructorId}
-          href={buildInstructorUrl(i.instructorId, user.department_ids ?? [], selectedProgramId)}
+          href={buildInstructorUrl(
+            i.instructorId,
+            user.department_ids ?? [],
+            selectedProgramId,
+            selectedCourseId
+          )}
           className={cn(
             "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
             "min-w-[160px]"
