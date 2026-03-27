@@ -79,6 +79,14 @@ function selectStudentForCourse(
   );
 }
 
+function getWorstLevel(
+  levels: Array<"critical" | "warning" | null | undefined>
+): "critical" | "warning" | "none" {
+  if (levels.some((l) => l === "critical")) return "critical";
+  if (levels.some((l) => l === "warning")) return "warning";
+  return "none";
+}
+
 export function StudentMetricsClient({
   sapId,
   section,
@@ -103,24 +111,33 @@ export function StudentMetricsClient({
         </div>
       );
     }
+
+    const studentRows = (data?.students ?? []).filter(
+      (r) => String(r.sap_id).trim() === String(sapId).trim()
+    );
+    const attendanceLevel = getWorstLevel(
+      studentRows.map((r) => r.attendance.alert_level)
+    );
+    const gpaLevel = getWorstLevel(studentRows.map((r) => r.gpa.alert_level));
+
     return (
       <div className="flex gap-3">
         <AlertBadge
-          level={student?.attendance.alert_level || "none"}
+          level={attendanceLevel}
           label={`Att: ${
-            student?.attendance.alert_level === "critical"
+            attendanceLevel === "critical"
               ? "Red"
-              : student?.attendance.alert_level === "warning"
+              : attendanceLevel === "warning"
               ? "Yellow"
               : "Normal"
           }`}
         />
         <AlertBadge
-          level={student?.gpa.alert_level || "none"}
+          level={gpaLevel}
           label={`GPA: ${
-            student?.gpa.alert_level === "critical"
+            gpaLevel === "critical"
               ? "Red"
-              : student?.gpa.alert_level === "warning"
+              : gpaLevel === "warning"
               ? "Yellow"
               : "Normal"
           }`}

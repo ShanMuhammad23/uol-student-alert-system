@@ -1288,6 +1288,145 @@ export type ProgramStats = {
   redAttendance: number;
 };
 
+export type FacultyStats = {
+  facultyId: string;
+  facultyName: string;
+  total: number;
+  yellowGpa: number;
+  redGpa: number;
+  yellowAttendance: number;
+  redAttendance: number;
+};
+
+export type AlertSnapshotTrendPoint = {
+  snapshotDate: string;
+  totalStudents: number;
+  yellowGpa: number;
+  redGpa: number;
+  yellowAttendance: number;
+  redAttendance: number;
+};
+
+/** Stats per faculty for Superadmin view. */
+export async function getSuperadminFacultyStats(): Promise<FacultyStats[]> {
+  if (pool) {
+    try {
+      const res = await pool.query<{
+        dimension_id: string;
+        dimension_name: string;
+        total_students: number | string | null;
+        yellow_gpa: number | string | null;
+        red_gpa: number | string | null;
+        yellow_attendance: number | string | null;
+        red_attendance: number | string | null;
+      }>(
+        `SELECT
+           dimension_id,
+           dimension_name,
+           total_students,
+           yellow_gpa,
+           red_gpa,
+           yellow_attendance,
+           red_attendance
+         FROM alert_counts_by_dimension
+         WHERE snapshot_date = CURRENT_DATE
+           AND dimension_type = 'faculty'
+         ORDER BY dimension_name ASC`
+      );
+      return res.rows.map((row) => ({
+        facultyId: row.dimension_id,
+        facultyName: row.dimension_name || row.dimension_id,
+        total: toInt(row.total_students),
+        yellowGpa: toInt(row.yellow_gpa),
+        redGpa: toInt(row.red_gpa),
+        yellowAttendance: toInt(row.yellow_attendance),
+        redAttendance: toInt(row.red_attendance),
+      }));
+    } catch {
+      // Fall back to file-derived aggregation if DB aggregate read fails.
+    }
+  }
+
+  const data = await getDataFromEnrollment();
+  const byFaculty = new Map<string, Student[]>();
+  for (const s of data.students) {
+    const facultyId = (s.faculty_id ?? "").trim();
+    if (!facultyId) continue;
+    if (!byFaculty.has(facultyId)) byFaculty.set(facultyId, []);
+    byFaculty.get(facultyId)!.push(s);
+  }
+
+  const facultyNameById = new Map(data.faculties.map((f) => [f.id, f.name]));
+  return Array.from(byFaculty.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([facultyId, students]) => {
+      let yellowGpa = 0;
+      let redGpa = 0;
+      let yellowAttendance = 0;
+      let redAttendance = 0;
+      for (const s of students) {
+        if (s.gpa.alert_level === "warning") yellowGpa += 1;
+        if (s.gpa.alert_level === "critical") redGpa += 1;
+        if (s.attendance.alert_level === "warning") yellowAttendance += 1;
+        if (s.attendance.alert_level === "critical") redAttendance += 1;
+      }
+      return {
+        facultyId,
+        facultyName: facultyNameById.get(facultyId) ?? facultyId,
+        total: students.length,
+        yellowGpa,
+        redGpa,
+        yellowAttendance,
+        redAttendance,
+      };
+    });
+}
+
+/** Daily alert snapshot trend for Superadmin charts. */
+export async function getSuperadminAlertSnapshotTrend(
+  limit = 30
+): Promise<AlertSnapshotTrendPoint[]> {
+  if (!pool) return [];
+  try {
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(365, limit)) : 30;
+    const res = await pool.query<{
+      snapshot_date: string;
+      total_students: number | string | null;
+      yellow_gpa: number | string | null;
+      red_gpa: number | string | null;
+      yellow_attendance: number | string | null;
+      red_attendance: number | string | null;
+    }>(
+      `SELECT
+         snapshot_date::text AS snapshot_date,
+         COALESCE(SUM(total_students), 0) AS total_students,
+         COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+         COALESCE(SUM(red_gpa), 0) AS red_gpa,
+         COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+         COALESCE(SUM(red_attendance), 0) AS red_attendance
+       FROM alert_counts_by_dimension
+       WHERE dimension_type = 'faculty'
+       GROUP BY snapshot_date
+       ORDER BY snapshot_date DESC
+       LIMIT $1`,
+      [safeLimit]
+    );
+
+    return res.rows
+      .map((row) => ({
+        snapshotDate: row.snapshot_date,
+        totalStudents: toInt(row.total_students),
+        yellowGpa: toInt(row.yellow_gpa),
+        redGpa: toInt(row.red_gpa),
+        yellowAttendance: toInt(row.yellow_attendance),
+        redAttendance: toInt(row.red_attendance),
+      }))
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
 export type CourseStats = {
   courseId: string;
   courseName: string;
