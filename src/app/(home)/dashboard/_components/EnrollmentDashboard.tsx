@@ -155,16 +155,45 @@ export function EnrollmentDashboard({
           user.role === "dean" ? user.faculty_id ?? undefined : undefined,
         )
       : undefined;
+
+  // Keep collapsible section counts stable: each section uses only its parent scope.
+  const departmentSectionData = scopedEnrollmentData ?? [];
+  const programSectionData =
+    scopedEnrollmentData?.length && user.role
+      ? filterEnrollmentByMasterFilter(
+          scopedEnrollmentData,
+          {
+            department_ids: localMasterFilter.department_ids,
+          },
+          user.role === "dean" ? user.faculty_id ?? undefined : undefined,
+        )
+      : [];
+  const courseSectionData =
+    scopedEnrollmentData?.length && user.role
+      ? filterEnrollmentByMasterFilter(
+          scopedEnrollmentData,
+          {
+            department_ids: localMasterFilter.department_ids,
+            programs: localMasterFilter.programs,
+          },
+          user.role === "dean" ? user.faculty_id ?? undefined : undefined,
+        )
+      : [];
+  const instructorSectionData =
+    scopedEnrollmentData?.length && user.role
+      ? filterEnrollmentByMasterFilter(
+          scopedEnrollmentData,
+          {
+            department_ids: localMasterFilter.department_ids,
+            programs: localMasterFilter.programs,
+            course_ids: localMasterFilter.course_ids,
+          },
+          user.role === "dean" ? user.faculty_id ?? undefined : undefined,
+        )
+      : [];
   const instructorStats =
-    filteredData?.length && user.role === "dean"
-      ? getInstructorStats(filteredData, user.faculty_id, {
-          instructorIds:
-            localMasterFilter.instructor_ids?.length
-              ? localMasterFilter.instructor_ids
-              : instructorIds.length
-                ? instructorIds
-                : undefined,
-        })
+    instructorSectionData.length && user.role === "dean"
+      ? getInstructorStats(instructorSectionData, user.faculty_id)
       : undefined;
 
   return (
@@ -195,6 +224,10 @@ export function EnrollmentDashboard({
         departmentStats={departmentStats}
         programStats={programStats}
         instructorStats={instructorStats}
+        departmentSectionData={departmentSectionData}
+        programSectionData={programSectionData}
+        courseSectionData={courseSectionData}
+        instructorSectionData={instructorSectionData}
       />
     </DashboardUiStateProvider>
   );
@@ -223,6 +256,10 @@ type InnerProps = {
   departmentStats: ReturnType<typeof getDepartmentStats> | undefined;
   programStats: ReturnType<typeof getProgramStats> | undefined;
   instructorStats: ReturnType<typeof getInstructorStats> | undefined;
+  departmentSectionData: ReturnType<typeof filterEnrollmentByMasterFilter>;
+  programSectionData: ReturnType<typeof filterEnrollmentByMasterFilter>;
+  courseSectionData: ReturnType<typeof filterEnrollmentByMasterFilter>;
+  instructorSectionData: ReturnType<typeof filterEnrollmentByMasterFilter>;
 };
 
 function EnrollmentDashboardInner({
@@ -248,6 +285,10 @@ function EnrollmentDashboardInner({
   departmentStats,
   programStats,
   instructorStats,
+  departmentSectionData,
+  programSectionData,
+  courseSectionData,
+  instructorSectionData,
 }: InnerProps) {
   const { viewMode } = useDashboardUiState();
 
@@ -255,9 +296,9 @@ function EnrollmentDashboardInner({
   const programCount = programStats?.length ?? 0;
   const instructorCount = instructorStats?.length ?? 0;
   const courseCount =
-    filteredData?.length && user.role === "dean"
+    courseSectionData.length && user.role === "dean"
       ? new Set(
-          (filteredData ?? [])
+          courseSectionData
             .map((r) => (r.CrCode ?? r.CrTitle ?? "").toString().trim())
             .filter(Boolean),
         ).size
@@ -326,7 +367,7 @@ function EnrollmentDashboardInner({
                       : undefined
                   }
                   stats={departmentStats}
-                  enrollmentData={filteredData ?? []}
+                  enrollmentData={departmentSectionData}
                   onSelectDepartmentId={(id) =>
                     setLocalMasterFilter({
                       department_ids: [id],
@@ -343,7 +384,7 @@ function EnrollmentDashboardInner({
                   selectedProgramId={
                     localMasterFilter.programs?.[0]
                   }
-                  enrollmentData={filteredData ?? []}
+                  enrollmentData={programSectionData}
                   masterFilterProgramIds={
                     localMasterFilter.programs?.length
                       ? localMasterFilter.programs
@@ -375,7 +416,7 @@ function EnrollmentDashboardInner({
                       ? localMasterFilter.course_ids
                       : undefined
                   }
-                  enrollmentData={filteredData ?? []}
+                  enrollmentData={courseSectionData}
                   onSelectCourseId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,
@@ -394,7 +435,7 @@ function EnrollmentDashboardInner({
                     localMasterFilter.instructor_ids?.[0]
                   }
                   stats={instructorStats}
-                  enrollmentData={filteredData ?? []}
+                  enrollmentData={instructorSectionData}
                   onSelectInstructorId={(id) =>
                     setLocalMasterFilter((prev) => ({
                       ...prev,
