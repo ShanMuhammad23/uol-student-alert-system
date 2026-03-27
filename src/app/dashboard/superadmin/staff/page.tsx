@@ -10,11 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StaffDetailsDialog } from "./_components/StaffDetailsDialog";
 
 type StaffListRow = {
   id: string;
   pernr: string;
   name: string;
+  img: string | null;
   email: string;
   role: "superadmin" | "dean" | "hod" | "instructor";
   faculty_id: string | null;
@@ -51,7 +53,7 @@ function resolveFacultyName(row: StaffListRow): string {
 async function getStaffList(): Promise<StaffListRow[]> {
   if (!pool) return [];
   const res = await pool.query<StaffListRow>(
-    `SELECT s.id, s.pernr, s.name, s.email, s.role, s.faculty_id, f.name AS faculty_name
+    `SELECT s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name AS faculty_name
      FROM staff s
      LEFT JOIN faculties f ON f.id = s.faculty_id
      ORDER BY role ASC, name ASC`
@@ -328,7 +330,16 @@ export default async function SuperadminStaffPage(props: {
                     className="text-base font-medium text-dark dark:text-white"
                   >
                     <TableCell className="!text-left font-medium text-dark dark:text-white">
-                      {row.name || "—"}
+                      <StaffDetailsDialog
+                        staff={{
+                          name: row.name || "—",
+                          img: row.img,
+                          email: row.email,
+                          role: row.role,
+                          pernr: row.pernr || "—",
+                          facultyName: resolveFacultyName(row),
+                        }}
+                      />
                     </TableCell>
                     <TableCell className="!text-left text-dark-6">
                       {row.email}

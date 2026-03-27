@@ -103,8 +103,9 @@ function FilterMultiSelect({
         ? selected.map((v) => items.find((i) => i.value === v)?.label ?? v).join(", ")
         : `${selected.length} selected`;
 
-  const labelWithCount =
-    selected.length > 0 ? `${label} (${selected.length})` : label;
+  const totalOptions = items.length;
+  const selectedCount = selected.length;
+  const labelWithCount = `${label} (${selectedCount}/${totalOptions})`;
 
   return (
     <div className="flex flex-col gap-1.5 relative mb-8" data-testid={testId}>
