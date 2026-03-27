@@ -368,22 +368,20 @@ export function MasterFilter({
         data-testid="filter-resolution"
       />
 
-      <div className="flex flex-col gap-1.5 absolute right-4 bottom-4">
-        <span className="text-body-sm font-medium text-transparent select-none">Clear</span>
-        <button
-          type="button"
-          onClick={handleClearAll}
-          disabled={!hasActiveFilter}
-          className={cn(
-            "rounded-lg border px-4 py-2.5 text-sm font-medium outline-none transition min-w-[100px]",
-            hasActiveFilter
-              ? "border-stroke bg-red-600 text-white hover:bg-gray-50 dark:border-dark-3 dark:bg-gray-dark dark:text-white dark:hover:bg-dark-3"
-              : "cursor-not-allowed border-stroke/50 text-white dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5 bg-red-600"
-          )}
-        >
-          Clear all
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleClearAll}
+        disabled={!hasActiveFilter}
+        className={cn(
+          "fixed right-4 top-1/2 z-50 -translate-y-1/2 rounded-full border px-4 py-2.5 text-sm font-medium shadow-lg outline-none transition",
+          "focus-visible:ring-2 focus-visible:ring-primary",
+          hasActiveFilter
+            ? "border-stroke bg-red-600 text-white hover:bg-red-700 dark:border-dark-3 dark:bg-red-600 dark:hover:bg-red-700"
+            : "cursor-not-allowed border-stroke/50 bg-red-600/60 text-white/80 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5"
+        )}
+      >
+        Clear All
+      </button>
     </div>
   );
 }
