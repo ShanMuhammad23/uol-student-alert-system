@@ -17,6 +17,8 @@ type InputGroupProps = {
   iconPosition?: "left" | "right";
   height?: "sm" | "default";
   defaultValue?: string;
+  showPassword?: boolean;
+  togglePasswordVisibility?: () => void;
 };
 
 const InputGroup: React.FC<InputGroupProps> = ({
@@ -29,9 +31,14 @@ const InputGroup: React.FC<InputGroupProps> = ({
   active,
   handleChange,
   icon,
+  showPassword,
+  togglePasswordVisibility,
   ...props
 }) => {
   const id = useId();
+  const hasToggleButton = typeof togglePasswordVisibility === "function";
+  const isLeftIcon = props.iconPosition === "left";
+  const isRightIcon = !isLeftIcon;
 
   return (
     <div className={className}>
@@ -44,12 +51,7 @@ const InputGroup: React.FC<InputGroupProps> = ({
       </label>
 
       <div
-        className={cn(
-          "relative mt-3 [&_svg]:absolute [&_svg]:top-1/2 [&_svg]:-translate-y-1/2",
-          props.iconPosition === "left"
-            ? "[&_svg]:left-4.5"
-            : "[&_svg]:right-4.5",
-        )}
+        className="relative mt-3"
       >
         <input
           id={id}
@@ -64,7 +66,8 @@ const InputGroup: React.FC<InputGroupProps> = ({
             type === "file"
               ? getFileStyles(props.fileStyleVariant!)
               : "px-5.5 py-3 text-dark placeholder:text-dark-6 dark:text-white",
-            props.iconPosition === "left" && "pl-12.5",
+            isLeftIcon && "pl-12.5",
+            (isRightIcon || hasToggleButton) && "pr-12.5",
             props.height === "sm" && "py-2.5",
           )}
           required={required}
@@ -72,7 +75,27 @@ const InputGroup: React.FC<InputGroupProps> = ({
           data-active={active}
         />
 
-        {icon}
+        {icon && !hasToggleButton && (
+          <span
+            className={cn(
+              "pointer-events-none absolute top-1/2 -translate-y-1/2",
+              isLeftIcon ? "left-4.5" : "right-4.5",
+            )}
+          >
+            {icon}
+          </span>
+        )}
+
+        {hasToggleButton && (
+          <button
+            type="button"
+            onClick={togglePasswordVisibility}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="absolute right-4.5 top-1/2 -translate-y-1/2 text-dark-5 transition hover:text-primary dark:text-dark-6 dark:hover:text-primary"
+          >
+            {icon}
+          </button>
+        )}
       </div>
     </div>
   );

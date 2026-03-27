@@ -1,6 +1,6 @@
 "use client";
 
-import { EmailIcon, PasswordIcon } from "@/assets/icons";
+import { EmailIcon, PasswordIcon, EyeOpenIcon, EyeClosedIcon } from "@/assets/icons";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,10 @@ import { signIn } from "next-auth/react";
 import InputGroup from "../FormElements/InputGroup";
 
 export default function SigninWithPassword() {
+  const [showPassword, setShowPassword] = useState(false);
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState({
@@ -74,14 +78,16 @@ export default function SigninWithPassword() {
       />
 
       <InputGroup
-        type="password"
+        type={showPassword ? "text" : "password"}
         label="Password"
         className="mb-5 [&_input]:py-[15px]"
         placeholder="Enter your password"
         name="password"
         handleChange={handleChange}
         value={data.password}
-        icon={<PasswordIcon />}
+        icon={showPassword ? <EyeOpenIcon /> : <EyeClosedIcon />}
+        showPassword={showPassword}
+        togglePasswordVisibility={togglePasswordVisibility}
       />
 
       <div className="mb-6 flex items-center justify-between gap-2 py-2 font-medium">

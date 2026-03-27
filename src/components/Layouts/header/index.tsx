@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSidebarContext } from "../sidebar/sidebar-context";
 import { MenuIcon } from "./icons";
 import { ThemeToggleSwitch } from "./theme-toggle";
@@ -16,6 +17,8 @@ type HeaderProps = {
 
 export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
   const { toggleSidebar, isMobile } = useSidebarContext();
+  const pathname = usePathname();
+  const hideUserInfo = pathname === "/auth/sign-in";
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stroke bg-white px-4 py-5 shadow-1 dark:border-stroke-dark dark:bg-gray-dark md:px-5 2xl:px-10">
@@ -64,9 +67,11 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         <ThemeToggleSwitch />
 
 
-        <div className="shrink-0">
-          <UserInfo user={user} />
-        </div>
+        {!hideUserInfo && (
+          <div className="shrink-0">
+            <UserInfo user={user} />
+          </div>
+        )}
       </div>
     </header>
   );
