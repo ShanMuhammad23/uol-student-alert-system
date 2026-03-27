@@ -17,6 +17,8 @@ type PropsType = {
   isActive?: boolean;
   yellowCount: number;
   redCount: number;
+  grossYellowCount: number;
+  grossRedCount: number;
   totalStudents: number;
   attendanceFilters?: AlertDimensionFilter[];
   yellowActive?: boolean;
@@ -31,6 +33,8 @@ export function AttendanceOverviewCardClient({
   isActive,
   yellowCount,
   redCount,
+  grossYellowCount,
+  grossRedCount,
   totalStudents,
   attendanceFilters,
   yellowActive,
@@ -47,6 +51,9 @@ export function AttendanceOverviewCardClient({
   const visibleYellow =
     !allowed.size || allowed.has("yellow") ? yellowCount : 0;
   const visibleRed = !allowed.size || allowed.has("red") ? redCount : 0;
+  const visibleGrossYellow =
+    !allowed.size || allowed.has("yellow") ? grossYellowCount : 0;
+  const visibleGrossRed = !allowed.size || allowed.has("red") ? grossRedCount : 0;
   const totalAlerts = visibleYellow + visibleRed;
   const yellowPercentage =
     totalStudents > 0 ? (visibleYellow / totalStudents) * 100 : 0;
@@ -91,6 +98,9 @@ export function AttendanceOverviewCardClient({
                 disabled={visibleYellow === 0}
               >
                 {visibleYellow}
+                <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
+                  {visibleGrossYellow}
+                </span>
               </button>
               <span className="text-dark-4 dark:text-dark-5" aria-hidden>
                 |
@@ -110,6 +120,9 @@ export function AttendanceOverviewCardClient({
                 disabled={visibleRed === 0}
               >
                 {visibleRed}
+                <span className="block text-base font-medium text-red-600 dark:text-red-600">
+                   {visibleGrossRed}
+                </span>
               </button>
             </dt>
           </dl>
@@ -121,7 +134,7 @@ export function AttendanceOverviewCardClient({
           data={[
             { name: "Yellow alert %", amount: yellowPercentage },
             { name: "Red alert %", amount: redPercentage },
-            { name: "No alert %", amount: noAlertPercentage },
+            { name: "Good Standing %", amount: noAlertPercentage },
           ]}
           colors={["#FACC15", "#DC2626", "#22C55E"]}
           centerLabel=""

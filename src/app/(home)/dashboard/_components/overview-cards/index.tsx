@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import type { AppUser, AlertFilter } from "../../fetch";
 import { AttendanceOverviewCardClient } from "./AttendanceOverviewCardClient";
 import { OverviewCard } from "./card";
@@ -47,6 +48,101 @@ export function OverviewCardsGroup({
 
   const attendanceHref = mergeHref({ selected_alert: "attendance" });
   const gpaHref = mergeHref({ selected_alert: "gpa" });
+
+  const [resolved, setResolved] = useState({
+    attendanceYellow: 0,
+    attendanceRed: 0,
+    gpaYellow: 0,
+    gpaRed: 0,
+  });
+
+  const roleScope = useMemo(() => {
+    if (!user?.role) return null;
+    if (user.role === "dean") {
+      return {
+        role: "dean" as const,
+        facultyId: user.faculty_id ?? null,
+        departmentIds: null as string[] | null,
+        courseIds: null as string[] | null,
+        staffId: null as string | null,
+      };
+    }
+    if (user.role === "hod") {
+      return {
+        role: "hod" as const,
+        facultyId: null as string | null,
+        departmentIds: user.department_ids ?? null,
+        courseIds: null as string[] | null,
+        staffId: null as string | null,
+      };
+    }
+    return {
+      role: "teacher" as const,
+      facultyId: null as string | null,
+      departmentIds: null as string[] | null,
+      courseIds: user.course_ids ?? null,
+      staffId: user.id ?? null,
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!roleScope) return;
+    const controller = new AbortController();
+
+    const fetchResolved = async (
+      interventionType: "attendance" | "gpa",
+      alertLevel: "warning" | "critical"
+    ) => {
+      const res = await fetch("/api/interventions/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: roleScope.role,
+          interventionType,
+          alertLevel,
+          facultyId: roleScope.facultyId,
+          departmentIds: roleScope.departmentIds,
+          courseIds: roleScope.courseIds,
+          staffId: roleScope.staffId,
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error("Failed to load resolved counts");
+      const body = (await res.json()) as { resolved?: number };
+      return body.resolved ?? 0;
+    };
+
+    Promise.all([
+      fetchResolved("attendance", "warning"),
+      fetchResolved("attendance", "critical"),
+      fetchResolved("gpa", "warning"),
+      fetchResolved("gpa", "critical"),
+    ])
+      .then(([attendanceYellow, attendanceRed, gpaYellow, gpaRed]) => {
+        setResolved({
+          attendanceYellow,
+          attendanceRed,
+          gpaYellow,
+          gpaRed,
+        });
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setResolved({
+          attendanceYellow: 0,
+          attendanceRed: 0,
+          gpaYellow: 0,
+          gpaRed: 0,
+        });
+      });
+
+    return () => controller.abort();
+  }, [roleScope]);
+
+  const netAttendanceYellow = Math.max(0, yellowAttendance - resolved.attendanceYellow);
+  const netAttendanceRed = Math.max(0, redAttendance - resolved.attendanceRed);
+  const netGpaYellow = Math.max(0, yellowGpa - resolved.gpaYellow);
+  const netGpaRed = Math.max(0, redGpa - resolved.gpaRed);
 
   const toggleAttendanceYellow = () => {
     if (!setAttendanceFilters) return;
@@ -98,8 +194,10 @@ export function OverviewCardsGroup({
           label="Attendance"
           titleHref={attendanceHref}
           isActive={active === "attendance"}
-          yellowCount={yellowAttendance}
-          redCount={redAttendance}
+          yellowCount={netAttendanceYellow}
+          redCount={netAttendanceRed}
+          grossYellowCount={yellowAttendance}
+          grossRedCount={redAttendance}
           totalStudents={totalStudents}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
@@ -115,7 +213,12 @@ export function OverviewCardsGroup({
         <OverviewCard
           label="GPA"
           titleHref={gpaHref}
-          data={{ yellow: yellowGpa, red: redGpa }}
+          data={{
+            yellow: netGpaYellow,
+            red: netGpaRed,
+            grossYellow: yellowGpa,
+            grossRed: redGpa,
+          }}
           isActive={active === "gpa"}
           user={user}
           masterFilter={filter?.masterFilter}

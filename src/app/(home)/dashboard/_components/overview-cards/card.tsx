@@ -13,6 +13,8 @@ type PropsType = {
     /** Yellow | Red counts in one card (e.g. GPA or Attendance) */
     yellow?: number;
     red?: number;
+    grossYellow?: number;
+    grossRed?: number;
     growthRate?: number;
   };
   isActive?: boolean;
@@ -78,6 +80,11 @@ export function OverviewCard({
                   disabled={data.yellow === 0}
                 >
                   {data.yellow}
+                  {data.grossYellow !== undefined && (
+                    <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
+                      {data.grossYellow}
+                    </span>
+                  )}
                 </button>
                 <span className="text-dark-4 dark:text-dark-5" aria-hidden>
                   |
@@ -98,6 +105,11 @@ export function OverviewCard({
                   disabled={data.red === 0}
                 >
                   {data.red}
+                  {data.grossRed !== undefined && (
+                    <span className="block text-base font-medium text-red-600 dark:text-red-600">
+                      {data.grossRed}
+                    </span>
+                  )}
                 </button>
               </dt>
             ) : (
