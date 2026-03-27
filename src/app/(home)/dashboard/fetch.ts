@@ -363,7 +363,9 @@ function getDbScope(
     return { dimensionType: "department", ids: user.department_ids };
   }
   if (user?.role === "dean" && user.faculty_id) {
-    return { dimensionType: "faculty", ids: [user.faculty_id] };
+    const mappedFacultyId =
+      FACULTY_ID_TO_ENROLLMENT_FAC_ID[user.faculty_id] ?? user.faculty_id;
+    return { dimensionType: "faculty", ids: [mappedFacultyId] };
   }
   return { dimensionType: "faculty" };
 }

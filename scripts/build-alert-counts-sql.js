@@ -22,7 +22,7 @@ function buildSql(rows) {
         Number(row.red_gpa) || 0
       }, ${Number(row.yellow_attendance) || 0}, ${
         Number(row.red_attendance) || 0
-      }, NOW())`;
+      })`;
     })
     .join(",\n  ");
 
@@ -35,8 +35,7 @@ function buildSql(rows) {
   yellow_gpa,
   red_gpa,
   yellow_attendance,
-  red_attendance,
-  updated_at
+  red_attendance
 )
 VALUES
   ${values}
@@ -47,8 +46,7 @@ DO UPDATE SET
   yellow_gpa = EXCLUDED.yellow_gpa,
   red_gpa = EXCLUDED.red_gpa,
   yellow_attendance = EXCLUDED.yellow_attendance,
-  red_attendance = EXCLUDED.red_attendance,
-  updated_at = NOW();
+  red_attendance = EXCLUDED.red_attendance;
 `;
 }
 
