@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { PropsWithChildren } from "react";
-import { Sidebar } from "@/components/Layouts/sidebar";
 import { getCurrentUser } from "@/app/(home)/dashboard/fetch";
+import { SuperadminDashboardShell } from "./_components/SuperadminDashboardShell";
 
 export default async function SuperadminDashboardLayout({
   children,
@@ -16,10 +16,5 @@ export default async function SuperadminDashboardLayout({
     redirect("/dashboard");
   }
 
-  return (
-    <div className="mt-4 flex min-h-[calc(100vh-10rem)] gap-4">
-      <Sidebar user={user} />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
+  return <SuperadminDashboardShell user={user}>{children}</SuperadminDashboardShell>;
 }

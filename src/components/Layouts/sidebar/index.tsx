@@ -103,16 +103,15 @@ export function Sidebar({ user }: SidebarProps) {
               <Logo />
             </Link>
 
-            {isMobile && (
-              <button
-                onClick={toggleSidebar}
-                className="absolute left-3/4 right-4.5 top-1/2 -translate-y-1/2 text-right"
-              >
-                <span className="sr-only">Close Menu</span>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="absolute right-4.5 top-1/2 -translate-y-1/2 text-right"
+            >
+              <span className="sr-only">Close Menu</span>
+              <ArrowLeftIcon className="ml-auto size-7" />
+            </button>
 
-                <ArrowLeftIcon className="ml-auto size-7" />
-              </button>
-            )}
           </div>
 
           {/* Navigation */}
