@@ -35,6 +35,8 @@ function parseMultiParam(
 
 type PropsType = {
   searchParams: Promise<{
+    as?: string | string[];
+    faculty?: string | string[];
     selected_alert?: string;
     department?: string | string[];
     program?: string | string[];
@@ -59,18 +61,38 @@ export default async function Home({ searchParams }: PropsType) {
     redirect("/auth/sign-in");
   }
 
+  const asParam = Array.isArray(params.as) ? params.as[0] : params.as;
+  const facultyParam = Array.isArray(params.faculty)
+    ? params.faculty[0]
+    : params.faculty;
+
+  // When superadmin navigates from the faculties tiles, emulate dean view.
+  const effectiveUser =
+    user.role === "superadmin" &&
+    asParam === "dean" &&
+    typeof facultyParam === "string" &&
+    facultyParam.trim().length > 0
+      ? { ...user, role: "dean" as const, faculty_id: facultyParam.trim() }
+      : user;
+
   const departmentIds = parseMultiParam(params.department);
   const programs = parseMultiParam(params.program);
   let instructorIds = parseMultiParam(params.instructor);
   const courseIds = parseMultiParam(params.course);
 
   // Scope by session: Instructor sees only their courses (Pernr = sap_id); HoD sees only their departments
-  if (user.role === "teacher" && !instructorIds.length && user.sap_id) {
-    instructorIds = [user.sap_id];
+  if (
+    effectiveUser.role === "teacher" &&
+    !instructorIds.length &&
+    effectiveUser.sap_id
+  ) {
+    instructorIds = [effectiveUser.sap_id];
   }
   const effectiveDeptIds =
-    user.role === "hod" && user.department_ids?.length && !departmentIds.length
-      ? user.department_ids
+    effectiveUser.role === "hod" &&
+    effectiveUser.department_ids?.length &&
+    !departmentIds.length
+      ? effectiveUser.department_ids
       : departmentIds;
 
   const masterFilter: MasterFilterParams = {
@@ -92,14 +114,17 @@ export default async function Home({ searchParams }: PropsType) {
   let hodCourseCount = 0;
   let hodInstructorCount = 0;
   let instructorCourseCount = 0;
-  if (user.role === "hod" && user.department_ids?.length) {
+  if (
+    effectiveUser.role === "hod" &&
+    effectiveUser.department_ids?.length
+  ) {
     const [programStats, courseStats, instructorStats] = await Promise.all([
-      getHodProgramStats(user.department_ids),
-      getHodCourseStats(user.department_ids, {
+      getHodProgramStats(effectiveUser.department_ids),
+      getHodCourseStats(effectiveUser.department_ids, {
         ...(programs[0] ? { programIds: [programs[0]] } : {}),
         ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
       }),
-      getHodInstructorStats(user.department_ids, {
+      getHodInstructorStats(effectiveUser.department_ids, {
         ...(programs[0] ? { programIds: [programs[0]] } : {}),
         ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
         ...(instructorIds[0] ? { instructorIds: [instructorIds[0]] } : {}),
@@ -109,17 +134,20 @@ export default async function Home({ searchParams }: PropsType) {
     hodCourseCount = courseStats.length;
     hodInstructorCount = instructorStats.length;
   }
-  if (user.role === "teacher") {
-    const instructorCourses = await getInstructorCourseStats(user, {
+  if (effectiveUser.role === "teacher") {
+    const instructorCourses = await getInstructorCourseStats(effectiveUser, {
       ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
     });
     instructorCourseCount = instructorCourses.length;
   }
 
-  const filterOptions = await getMasterFilterOptions(user, masterFilter);
+  const filterOptions = await getMasterFilterOptions(
+    effectiveUser,
+    masterFilter
+  );
 
   const { totalStudents, yellowGpa, redGpa, yellowAttendance, redAttendance } = await getOverviewData(
-    user,
+    effectiveUser,
     masterFilter,
     gpaFilters,
     attendanceFilters
@@ -141,6 +169,13 @@ export default async function Home({ searchParams }: PropsType) {
   if (gpaFilters.length) returnToParams.set("gpa_filter", gpaFilters.join(","));
   if (attendanceFilters.length) returnToParams.set("attendance_filter", attendanceFilters.join(","));
   if (interventionFilters.length) returnToParams.set("intervention_filter", interventionFilters.join(","));
+  if (effectiveUser.role === "dean" && user.role === "superadmin") {
+    // Preserve dean emulation when returning from a student profile.
+    returnToParams.set("as", "dean");
+    if (effectiveUser.faculty_id) {
+      returnToParams.set("faculty", effectiveUser.faculty_id);
+    }
+  }
   if (expandedParam) returnToParams.set("expanded", expandedParam);
   if (viewMode === "nested") returnToParams.set("view", "nested");
   if (sortBy) returnToParams.set("sort", sortBy);
@@ -167,7 +202,7 @@ export default async function Home({ searchParams }: PropsType) {
             <Suspense fallback={<OverviewCardsSkeleton />}>
               <OverviewCardsGroup
                 selectedAlert={selectedAlert}
-                user={user}
+                user={effectiveUser}
                 totalStudents={totalStudents}
                 yellowGpa={yellowGpa.value}
                 redGpa={redGpa.value}
@@ -179,7 +214,7 @@ export default async function Home({ searchParams }: PropsType) {
           <div className=" col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
             <InterventionStatusChartClient
               title="Outreach & Intervention"
-              user={user}
+              user={effectiveUser}
               masterFilter={masterFilter}
               gpaFilters={gpaFilters}
               attendanceFilters={attendanceFilters}
@@ -198,7 +233,7 @@ export default async function Home({ searchParams }: PropsType) {
 
         <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
           <div className="col-span-12">
-            {user?.role === "hod" && (
+            {effectiveUser?.role === "hod" && (
               <HodStatsCollapsible
                 programCount={hodProgramCount}
                 courseCount={hodCourseCount}
@@ -207,7 +242,7 @@ export default async function Home({ searchParams }: PropsType) {
                 selectedCourseId={courseIds[0]}
                 programContent={
                   <HodProgramStats
-                    user={user}
+                    user={effectiveUser}
                     selectedProgramId={programs[0]}
                     masterFilterProgramIds={
                       programs.length ? programs : undefined
@@ -216,14 +251,14 @@ export default async function Home({ searchParams }: PropsType) {
                 }
                 courseContent={
                   <HodCourseStats
-                    user={user}
+                    user={effectiveUser}
                     selectedProgramId={programs[0]}
                     selectedCourseId={courseIds[0]}
                   />
                 }
                 instructorContent={
                   <HodInstructorStats
-                    user={user}
+                    user={effectiveUser}
                     selectedProgramId={programs[0]}
                     selectedCourseId={courseIds[0]}
                     selectedInstructorId={instructorIds[0]}
@@ -231,12 +266,12 @@ export default async function Home({ searchParams }: PropsType) {
                 }
               />
             )}
-            {user?.role === "teacher" && (
+            {effectiveUser?.role === "teacher" && (
               <InstructorStatsCollapsible
                 courseCount={instructorCourseCount}
                 courseContent={
                   <InstructorCourseStats
-                    user={user}
+                    user={effectiveUser}
                     selectedCourseId={courseIds[0]}
                   />
                 }
@@ -246,7 +281,7 @@ export default async function Home({ searchParams }: PropsType) {
         </div>
 
         <EnrollmentDashboard
-          user={user}
+          user={effectiveUser}
           masterFilter={masterFilter}
           filterOptionsFromServer={filterOptions}
           selectedAlert={selectedAlert}

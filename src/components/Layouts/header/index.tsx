@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSidebarContext } from "../sidebar/sidebar-context";
 import { MenuIcon } from "./icons";
 import { ThemeToggleSwitch } from "./theme-toggle";
 import { UserInfo } from "./user-info";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
+import { useEffect, useMemo, useState } from "react";
 
 type HeaderProps = {
   user?: AppUser | null;
@@ -18,7 +19,80 @@ type HeaderProps = {
 export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
   const { toggleSidebar, isMobile } = useSidebarContext();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const hideUserInfo = pathname === "/auth/sign-in";
+  const [emulatedHeading, setEmulatedHeading] = useState<string | null>(null);
+  const [emulatedTotalStudents, setEmulatedTotalStudents] = useState<
+    number | undefined
+  >(undefined);
+
+  const asParam = searchParams.get("as");
+  const emulatedFacultyId = searchParams.get("faculty");
+  const isSuperadminDeanMode =
+    user?.role === "superadmin" &&
+    pathname === "/dashboard" &&
+    asParam === "dean" &&
+    typeof emulatedFacultyId === "string" &&
+    emulatedFacultyId.trim().length > 0;
+
+  useEffect(() => {
+    if (!isSuperadminDeanMode || !emulatedFacultyId) {
+      setEmulatedHeading(null);
+      setEmulatedTotalStudents(undefined);
+      return;
+    }
+
+    const controller = new AbortController();
+    fetch(
+      `/api/dashboard/header-faculty?faculty=${encodeURIComponent(
+        emulatedFacultyId
+      )}`,
+      { signal: controller.signal }
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to fetch emulated header");
+        return (await res.json()) as {
+          screenHeading?: string;
+          totalStudents?: number;
+        };
+      })
+      .then((data) => {
+        setEmulatedHeading(data.screenHeading ?? emulatedFacultyId);
+        setEmulatedTotalStudents(
+          typeof data.totalStudents === "number"
+            ? data.totalStudents
+            : undefined
+        );
+      })
+      .catch((err: unknown) => {
+        if (
+          typeof err === "object" &&
+          err != null &&
+          "name" in err &&
+          (err as { name?: string }).name === "AbortError"
+        ) {
+          return;
+        }
+        setEmulatedHeading(emulatedFacultyId);
+        setEmulatedTotalStudents(undefined);
+      });
+
+    return () => controller.abort();
+  }, [isSuperadminDeanMode, emulatedFacultyId]);
+
+  const resolvedHeading = useMemo(
+    () => (isSuperadminDeanMode ? emulatedHeading ?? emulatedFacultyId : screenHeading),
+    [isSuperadminDeanMode, emulatedHeading, emulatedFacultyId, screenHeading]
+  );
+  const resolvedTotalStudents = isSuperadminDeanMode
+    ? emulatedTotalStudents
+    : totalStudents;
+  const shouldShowTotalStudents =
+    typeof resolvedTotalStudents === "number" &&
+    (isSuperadminDeanMode ||
+      user?.role === "dean" ||
+      user?.role === "hod" ||
+      user?.role === "teacher");
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stroke bg-white px-4 py-5 shadow-1 dark:border-stroke-dark dark:bg-gray-dark md:px-5 2xl:px-10">
@@ -46,12 +120,12 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         <h1 className="mb-0.5 text-heading-5 font-bold text-dark dark:text-white">
           Student Early Alert System
         </h1>
-        {screenHeading && (
+        {resolvedHeading && (
           <div className="space-y-0.5">
             <p className="text-lg font-medium text-green-600 dark:text-dark-5">
-              {screenHeading} {(user?.role === "dean" || user?.role === "hod" || user?.role === "teacher") && typeof totalStudents === "number" && (
+              {resolvedHeading} {shouldShowTotalStudents && (
                 <span className="font-semibold  dark:text-white">
-                  {totalStudents.toLocaleString()}
+                  {resolvedTotalStudents.toLocaleString()}
                 </span>
             
             )}

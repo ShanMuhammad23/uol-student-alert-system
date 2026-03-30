@@ -5,6 +5,7 @@ import {
   getSuperadminAlertSnapshotTrend,
 } from "@/app/(home)/dashboard/fetch";
 import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
+import Link from "next/link";
 
 function MetricCard({
   label,
@@ -83,9 +84,13 @@ export default async function SuperadminDashboardPage() {
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {facultyStats.map((f) => (
-            <div
+            <Link
               key={f.facultyId}
-              className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card"
+              href={`/dashboard?as=dean&faculty=${encodeURIComponent(
+                f.facultyId
+              )}`}
+              aria-label={`Open dean dashboard for ${f.facultyName}`}
+              className="block rounded-[10px] bg-white p-5 shadow-1 transition-shadow hover:shadow-2xl dark:bg-gray-dark dark:shadow-card"
             >
               <p className="text-sm font-semibold text-dark dark:text-white">
                 {f.facultyName} ( {f.total.toLocaleString()})
@@ -124,7 +129,7 @@ export default async function SuperadminDashboardPage() {
                 </div>
                 
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
