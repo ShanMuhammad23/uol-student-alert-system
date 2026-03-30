@@ -1427,6 +1427,67 @@ export async function getSuperadminAlertSnapshotTrend(
   }
 }
 
+/** Daily alert snapshot trend scoped to the current user's access/filter scope. */
+export async function getAlertSnapshotTrend(
+  user?: AppUser | null,
+  masterFilter?: MasterFilterParams,
+  limit = 30
+): Promise<AlertSnapshotTrendPoint[]> {
+  if (!pool) return [];
+  try {
+    const safeLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.min(365, limit))
+      : 30;
+    const scope = getDbScope(user, masterFilter);
+    const params: unknown[] = [scope.dimensionType];
+    let where = "dimension_type = $1";
+
+    if (scope.ids?.length) {
+      params.push(scope.ids);
+      where += ` AND dimension_id = ANY($2)`;
+    }
+
+    params.push(safeLimit);
+    const limitParamIndex = params.length;
+
+    const res = await pool.query<{
+      snapshot_date: string;
+      total_students: number | string | null;
+      yellow_gpa: number | string | null;
+      red_gpa: number | string | null;
+      yellow_attendance: number | string | null;
+      red_attendance: number | string | null;
+    }>(
+      `SELECT
+         snapshot_date::text AS snapshot_date,
+         COALESCE(SUM(total_students), 0) AS total_students,
+         COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+         COALESCE(SUM(red_gpa), 0) AS red_gpa,
+         COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+         COALESCE(SUM(red_attendance), 0) AS red_attendance
+       FROM alert_counts_by_dimension
+       WHERE ${where}
+       GROUP BY snapshot_date
+       ORDER BY snapshot_date DESC
+       LIMIT $${limitParamIndex}`,
+      params
+    );
+
+    return res.rows
+      .map((row) => ({
+        snapshotDate: row.snapshot_date,
+        totalStudents: toInt(row.total_students),
+        yellowGpa: toInt(row.yellow_gpa),
+        redGpa: toInt(row.red_gpa),
+        yellowAttendance: toInt(row.yellow_attendance),
+        redAttendance: toInt(row.red_attendance),
+      }))
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
 export type CourseStats = {
   courseId: string;
   courseName: string;

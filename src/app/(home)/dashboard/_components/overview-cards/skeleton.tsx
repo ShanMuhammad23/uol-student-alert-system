@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function OverviewCardsSkeleton() {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex h-full flex-col gap-2">
       {Array.from({ length: 2 }).map((_, i) => (
         <div
           key={i}

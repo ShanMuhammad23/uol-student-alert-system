@@ -214,7 +214,7 @@ export function OverviewCardsGroup({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex h-full flex-col gap-2">
       <div
         className="rounded-[10px] bg-white dark:bg-gray-dark p-4 shadow-xl transition-shadow md:min-w-[240px] flex-1 border border-gray-200 data-[active=true]:ring-2 data-[active=true]:ring-primary data-[active=true]:shadow-md"
         data-active={active === "attendance"}

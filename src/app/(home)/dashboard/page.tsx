@@ -6,6 +6,7 @@ import {
   getCurrentUser,
   getMasterFilterOptions,
   getOverviewData,
+  getAlertSnapshotTrend,
   getHodProgramStats,
   getHodCourseStats,
   getHodInstructorStats,
@@ -20,6 +21,7 @@ import { InstructorStatsCollapsible } from "./_components/instructor-stats-colla
 import { InstructorCourseStats } from "./_components/instructor-course-stats";
 import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
 import { WellbeingChartClient } from "./_components/WellbeingChartClient";
+import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
@@ -146,12 +148,11 @@ export default async function Home({ searchParams }: PropsType) {
     masterFilter
   );
 
-  const { totalStudents, yellowGpa, redGpa, yellowAttendance, redAttendance } = await getOverviewData(
-    effectiveUser,
-    masterFilter,
-    gpaFilters,
-    attendanceFilters
-  );
+  const [{ totalStudents, yellowGpa, redGpa, yellowAttendance, redAttendance }, snapshotTrend] =
+    await Promise.all([
+      getOverviewData(effectiveUser, masterFilter, gpaFilters, attendanceFilters),
+      getAlertSnapshotTrend(effectiveUser, masterFilter, 60),
+    ]);
 
   const viewMode = params.view === "nested" ? "nested" : "table";
   const expandedParam = params.expanded;
@@ -211,7 +212,12 @@ export default async function Home({ searchParams }: PropsType) {
               />
             </Suspense>
           </div>
-          <div className=" col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
+          <div className="col-span-12 md:col-span-8">
+            <AlertSnapshotsLineChart points={snapshotTrend} />
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-12 gap-4">
+          <div className=" col-span-12 md:col-span-6 bg-white rounded-lg shadow-1 pt-4">
             <InterventionStatusChartClient
               title="Outreach & Intervention"
               user={effectiveUser}
@@ -225,7 +231,7 @@ export default async function Home({ searchParams }: PropsType) {
               redAttendance={redAttendance.value}
             />
           </div>
-          <div className="col-span-12 md:col-span-4 bg-white rounded-lg shadow-1 pt-4">
+          <div className="col-span-12 md:col-span-6 bg-white rounded-lg shadow-1 pt-4">
             <WellbeingChartClient title="Wellbeing Resolution" />
           </div>
         </div>
