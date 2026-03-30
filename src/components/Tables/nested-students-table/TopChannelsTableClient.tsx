@@ -711,7 +711,7 @@ export function TopChannelsTableClient({
                           title="View profile"
                         >
                           <span className="text-base font-medium text-green-500">{row.Name ?? "—"}</span>
-                          <span className="text-sm text-[#1f4a3d]">SAPID: {row.SapNo}</span>
+                          <span className="text-sm text-[#1f4a3d] dark:text-white">SAPID: {row.SapNo}</span>
                         </StudentProfileLink>
                       ) : (
                         row.Name ?? "—"
@@ -727,7 +727,7 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left">
                       <div className="flex flex-col gap-1">
                         <span>{row.CrCode}-{row.CrTitle ?? row.CrCode ?? "—"}</span>
-                        <span className="text-sm text-[#1f4a3d]">
+                        <span className="text-sm text-[#1f4a3d] dark:text-white">
                           {totalForCourse} students
                         </span>
                       </div>

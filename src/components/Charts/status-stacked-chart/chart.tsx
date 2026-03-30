@@ -2,6 +2,7 @@
 
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
+import { useTheme } from "next-themes";
 
 const CATEGORIES = [
   "Counselling",
@@ -36,6 +37,12 @@ export function StatusStackedChart({
   title = "Intervention Status by Type",
   data = defaultData,
 }: PropsType) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const titleColor = isDark ? "#E5E7EB" : "#111827";
+  const dataLabelColor = isDark ? "#F9FAFB" : "#111827";
+  const axisLabelColor = isDark ? "#9CA3AF" : "#6B7280";
+
   const options: ApexOptions = {
     chart: {
       type: "bar",
@@ -49,7 +56,7 @@ export function StatusStackedChart({
       style: {
         fontSize: "16px",
         fontWeight: "bold",
-        color: "#000",
+        color: titleColor,
       },
     },
     colors: [OPEN_COLOR, CLOSED_COLOR],
@@ -70,7 +77,7 @@ export function StatusStackedChart({
       style: {
         fontSize: "12px",
         fontWeight: "bold",
-        colors: ["#000"],
+        colors: [dataLabelColor],
       },
     },
     stroke: {
@@ -87,6 +94,7 @@ export function StatusStackedChart({
         trim: true,
         style: {
           fontSize: "11px",
+          colors: [...CATEGORIES].map(() => axisLabelColor),
         },
       },
     },

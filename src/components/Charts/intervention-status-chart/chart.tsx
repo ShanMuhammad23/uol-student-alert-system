@@ -2,6 +2,7 @@
 
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
+import { useTheme } from "next-themes";
 
 type DataPoint = {
   x: string;
@@ -29,6 +30,11 @@ export function InterventionStatusChart({
   statusColors,
   defaultColor = DEFAULT_BAR_COLOR,
 }: PropsType) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const titleColor = isDark ? "#E5E7EB" : "#111827";
+  const dataLabelColor = isDark ? "#F9FAFB" : "#111827";
+  const axisLabelColor = isDark ? "#9CA3AF" : "#6B7280";
   const colors = data.map((d) => statusColors?.[d.x] ?? defaultColor);
 
   const options: ApexOptions = {
@@ -38,7 +44,7 @@ export function InterventionStatusChart({
     style: {
       fontSize: "16px",
       fontWeight: "bold",
-      color: "#000",
+      color: titleColor,
     },
   },
     colors,
@@ -70,7 +76,7 @@ export function InterventionStatusChart({
       style: {
         fontSize: "12px",
         fontWeight: "bold",
-        colors: ["#000"],
+        colors: [dataLabelColor],
       },
     },
     stroke: {
@@ -90,6 +96,7 @@ export function InterventionStatusChart({
         trim: true,
         style: {
           fontSize: "11px",
+          colors: data.map(() => axisLabelColor),
         },
       },
     },
