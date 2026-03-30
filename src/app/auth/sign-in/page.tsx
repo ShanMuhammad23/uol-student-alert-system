@@ -14,7 +14,11 @@ export default async function SignIn() {
   // If user is already authenticated, skip sign-in UI and go straight to dashboard.
   const session = await getServerSession(authOptions);
   if (session?.user) {
-    redirect("/dashboard");
+    redirect(
+      session.user.role === "superadmin"
+        ? "/dashboard/superadmin"
+        : "/dashboard"
+    );
   }
 
   return (

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import InputGroup from "../FormElements/InputGroup";
 
 export default function SigninWithPassword() {
@@ -49,7 +49,12 @@ export default function SigninWithPassword() {
     if (result?.ok) {
       // Force full document navigation so root server layout/session-dependent
       // header data refreshes immediately after login.
-      window.location.assign("/dashboard");
+      const session = await getSession();
+      const destination =
+        session?.user?.role === "superadmin"
+          ? "/dashboard/superadmin"
+          : "/dashboard";
+      window.location.assign(destination);
       return;
     }
     setLoading(false);
