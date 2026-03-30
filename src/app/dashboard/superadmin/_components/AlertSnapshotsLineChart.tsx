@@ -13,7 +13,22 @@ type Props = {
 };
 
 export function AlertSnapshotsLineChart({ points }: Props) {
-  const categories = points.map((p) => p.snapshotDate);
+  const chartPoints = points;
+  const latestStudentCount = chartPoints[chartPoints.length - 1]?.totalStudents ?? 0;
+  const categories = chartPoints.map((p) => p.snapshotDate);
+  const seriesColors = ["#EAB308", "#DC2626", "#EAB308", "#DC2626"];
+  const getLineStyle = (seriesIndex: number) =>
+    seriesIndex < 2 ? "dashed" : "solid";
+  const series = [
+    { name: "GPA Yellow", data: chartPoints.map((p) => p.yellowGpa) },
+    { name: "GPA Red", data: chartPoints.map((p) => p.redGpa) },
+    {
+      name: "Attendance Yellow",
+      data: chartPoints.map((p) => p.yellowAttendance),
+    },
+    { name: "Attendance Red", data: chartPoints.map((p) => p.redAttendance) },
+  ];
+
   const options: ApexOptions = {
     chart: {
       type: "line",
@@ -24,8 +39,9 @@ export function AlertSnapshotsLineChart({ points }: Props) {
     stroke: {
       curve: "smooth",
       width: 2,
+      dashArray: [6, 6, 0, 0],
     },
-    colors: ["#1F2937", "#EAB308", "#DC2626", "#F59E0B", "#B91C1C"],
+    colors: seriesColors,
     xaxis: {
       categories,
       labels: {
@@ -39,42 +55,63 @@ export function AlertSnapshotsLineChart({ points }: Props) {
     },
     legend: {
       position: "top",
-      horizontalAlign: "left",
+      horizontalAlign: "right",
+      formatter: (seriesName, opts) => {
+        const color = seriesColors[opts.seriesIndex] ?? "#6B7280";
+        const lineStyle = getLineStyle(opts.seriesIndex);
+
+        return `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;border-top:2px ${lineStyle} ${color};"></span>${seriesName}</span>`;
+      },
+      markers: {
+        size: 0,
+      },
     },
     grid: {
       strokeDashArray: 5,
     },
     dataLabels: {
-      enabled: false,
+      enabled: true,
     },
     tooltip: {
       shared: true,
       intersect: false,
+      custom: ({ dataPointIndex, w }) => {
+        const dateLabel =
+          (w.globals.categoryLabels?.[dataPointIndex] as string) ??
+          categories[dataPointIndex] ??
+          "";
+        const rows = w.globals.seriesNames
+          .map((name: string, index: number) => {
+            const color = seriesColors[index] ?? "#6B7280";
+            const lineStyle = getLineStyle(index);
+            const pointValue = w.globals.series?.[index]?.[dataPointIndex];
+            const value =
+              typeof pointValue === "number"
+                ? pointValue.toLocaleString()
+                : "-";
+
+            return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;">
+              <span style="display:inline-flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:14px;border-top:2px ${lineStyle} ${color};"></span>
+                <span>${name}</span>
+              </span>
+              <span style="font-weight:600;">${value}</span>
+            </div>`;
+          })
+          .join("");
+
+        return `<div style="padding:8px 10px;">
+          <div style="font-weight:600;margin-bottom:4px;">${dateLabel}</div>
+          ${rows}
+        </div>`;
+      },
     },
   };
-
-  const series = [
-    { name: "Total Students", data: points.map((p) => p.totalStudents) },
-    { name: "GPA Yellow", data: points.map((p) => p.yellowGpa) },
-    { name: "GPA Red", data: points.map((p) => p.redGpa) },
-    { name: "Attendance Yellow", data: points.map((p) => p.yellowAttendance) },
-    { name: "Attendance Red", data: points.map((p) => p.redAttendance) },
-  ];
-
-  if (!points.length) {
-    return (
-      <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
-        <p className="text-sm text-dark-5 dark:text-dark-6">
-          No snapshot history found yet.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
       <p className="mb-4 text-sm font-semibold text-dark dark:text-white">
-        Alerts Snapshot by Date
+        {latestStudentCount.toLocaleString()} Students
       </p>
       <Chart options={options} series={series} type="line" height={320} />
     </div>

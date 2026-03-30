@@ -128,7 +128,7 @@ export default async function SuperadminDashboardPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-dark dark:text-white">
-          Snapshot Trends
+          Alerts Trend
         </h2>
         <AlertSnapshotsLineChart points={snapshotTrend} />
       </section>
