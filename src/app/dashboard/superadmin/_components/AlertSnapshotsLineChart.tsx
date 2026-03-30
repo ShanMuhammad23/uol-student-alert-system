@@ -74,7 +74,7 @@ export function AlertSnapshotsLineChart({ points }: Props) {
   return (
     <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
       <p className="mb-4 text-sm font-semibold text-dark dark:text-white">
-        Alert Snapshots by Date
+        Alerts Snapshot by Date
       </p>
       <Chart options={options} series={series} type="line" height={320} />
     </div>
