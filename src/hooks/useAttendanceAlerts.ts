@@ -18,6 +18,8 @@ export type AttendanceAlertsState = {
    * used by table filters (yellow/red/good).
    */
   gpaAlertLevelBySapId: Map<string, "critical" | "warning" | null>;
+  /** Current GPA value per student SAP id (from monitoring students). */
+  gpaCurrentBySapId: Map<string, number | null>;
 };
 
 /**
@@ -43,6 +45,21 @@ export function useAttendanceAlerts(
       if (!sapId) continue;
       // Student.gpa.alert_level is already "critical" | "warning" | null.
       map.set(sapId, (s as any).gpa?.alert_level ?? null);
+    }
+    return map;
+  }, [monitoringData]);
+
+  const gpaCurrentBySapId = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const s of monitoringData?.students ?? []) {
+      const sapId = String((s as any).sap_id ?? "").trim();
+      if (!sapId) continue;
+      const rawCurrent = (s as any).gpa?.current;
+      const current =
+        typeof rawCurrent === "number"
+          ? rawCurrent
+          : Number(rawCurrent);
+      map.set(sapId, Number.isFinite(current) ? current : null);
     }
     return map;
   }, [monitoringData]);
@@ -115,6 +132,7 @@ export function useAttendanceAlerts(
     monitoredByCourseSection,
     isAttendanceLoading,
     gpaAlertLevelBySapId,
+    gpaCurrentBySapId,
   };
 }
 

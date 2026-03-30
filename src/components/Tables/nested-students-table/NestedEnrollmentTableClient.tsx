@@ -80,7 +80,7 @@ export function NestedEnrollmentTableClient({
   const { expandedIds } = useDashboardUiState();
   const list = enrollmentData ?? [];
 
-  const openAccordionBg = "bg-primary/5 dark:bg-primary/10";
+  const openAccordionBg = "bg-primary dark:bg-primary/10";
   const closedAccordionBg = "bg-gray-50 dark:bg-dark-2";
 
   const {
@@ -90,6 +90,7 @@ export function NestedEnrollmentTableClient({
     isAttendanceLoading,
     gpaAlertLevelBySapId,
   } = useAttendanceAlerts(list);
+  const [cgpaBySapId, setCgpaBySapId] = useState<Record<string, number>>({});
 
   const filteredList = useMemo(() => {
     let base = list;
@@ -176,13 +177,44 @@ export function NestedEnrollmentTableClient({
     };
   }, []);
 
+  useEffect(() => {
+    const sapIds = Array.from(
+      new Set(list.map((r) => String(r.SapNo ?? "").trim()).filter(Boolean))
+    );
+    if (!sapIds.length) {
+      setCgpaBySapId({});
+      return;
+    }
+    const controller = new AbortController();
+    fetch("/api/gpa/by-sapids", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sapIds }),
+      signal: controller.signal,
+    })
+      .then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error("Failed GPA fetch"))
+      )
+      .then((body: { cgpaBySapId?: Record<string, number> }) => {
+        setCgpaBySapId(body.cgpaBySapId ?? {});
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setCgpaBySapId({});
+      });
+    return () => controller.abort();
+  }, [list]);
+
   const sortedDepts = Array.from(byDept.keys()).sort((a, b) =>
     a.localeCompare(b)
   );
 
-  const getAttendanceAlertCount = (rows: EnrollmentRecord[]): number => {
-    if (!rows.length || !attendanceSummaries) return 0;
-    let count = 0;
+  const getAttendanceAlertCounts = (
+    rows: EnrollmentRecord[]
+  ): { red: number; yellow: number } => {
+    if (!rows.length || !attendanceSummaries) return { red: 0, yellow: 0 };
+    let red = 0;
+    let yellow = 0;
     for (const row of rows) {
       const monitorKey = `${normalizeCourseCode(
         typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
@@ -194,11 +226,10 @@ export function NestedEnrollmentTableClient({
         summary && classAvg != null
           ? getAttendanceAlertLevel(summary.percentage, classAvg)
           : null;
-      if (level === "critical" || level === "warning") {
-        count += 1;
-      }
+      if (level === "critical") red += 1;
+      if (level === "warning") yellow += 1;
     }
-    return count;
+    return { red, yellow };
   };
 
   if (filteredList.length === 0) {
@@ -238,7 +269,7 @@ export function NestedEnrollmentTableClient({
               deptRows.push(...courseRows);
             }
           }
-          const deptAttendanceAlerts = getAttendanceAlertCount(deptRows);
+          const deptAttendanceAlerts = getAttendanceAlertCounts(deptRows);
 
           return (
             <details
@@ -253,14 +284,18 @@ export function NestedEnrollmentTableClient({
             >
               <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-base font-semibold text-dark dark:text-white">
+                  <span className={cn("text-base font-semibold", deptIsOpen ? "text-white" : "text-dark")}>
                     Department:{" "}
-                    <span className="font-bold text-primary">{deptName}</span>
+                    <span className={cn("font-bold text-primary", deptIsOpen ? "text-white" : "text-dark")}>{deptName.replace("Department of ", "")}</span>
                   </span>
-                  <span className="text-xs text-dark-6 dark:text-dark-5">
-                    Attendance alerts:{" "}
-                    <span className="font-semibold text-red">
-                      {deptAttendanceAlerts}
+                  <span className={cn("text-xs", deptIsOpen ? "text-white" : "text-dark-6")}>
+                    Att:{" "}
+                    <span className="font-semibold text-yellow-600">
+                     {deptAttendanceAlerts.yellow}
+                    </span>
+                    {" | "}
+                    <span className="font-semibold text-red-600">
+                      {deptAttendanceAlerts.red}
                     </span>
                   </span>
                 </div>
@@ -288,7 +323,7 @@ export function NestedEnrollmentTableClient({
                       programRows.push(...courseRows);
                     }
                     const programAttendanceAlerts =
-                      getAttendanceAlertCount(programRows);
+                      getAttendanceAlertCounts(programRows);
 
                     return (
                       <details
@@ -303,16 +338,20 @@ export function NestedEnrollmentTableClient({
                       >
                         <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                           <div className="flex flex-col gap-1">
-                            <span className="text-sm font-semibold text-dark dark:text-white">
+                            <span className={cn("text-sm font-semibold", progIsOpen ? "text-white" : "text-dark")}>
                               Program:{" "}
-                              <span className="font-bold text-primary">
+                              <span className={cn("font-bold text-primary", progIsOpen ? "text-white" : "text-dark")}>
                                 {programName}
                               </span>
                             </span>
-                            <span className="text-xs text-dark-6 dark:text-dark-5">
-                              Attendance alerts:{" "}
-                              <span className="font-semibold text-red">
-                                {programAttendanceAlerts}
+                            <span className={cn("text-xs", progIsOpen ? "text-white" : "text-dark-6")}>
+                              Att:{" "}
+                              <span className="font-semibold text-yellow-600">
+                                {programAttendanceAlerts.yellow}
+                              </span>
+                              {" | "}
+                              <span className="font-semibold text-red-600">
+                                {programAttendanceAlerts.red}
                               </span>
                             </span>
                           </div>
@@ -335,7 +374,7 @@ export function NestedEnrollmentTableClient({
                               const courseIsOpen = expandedIds.includes(courseSectionId);
 
                               const courseAttendanceAlerts =
-                                getAttendanceAlertCount(rows);
+                                getAttendanceAlertCounts(rows);
 
                               return (
                                 <details
@@ -350,9 +389,9 @@ export function NestedEnrollmentTableClient({
                                 >
                                   <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                                     <div className="flex flex-col gap-1">
-                                      <span className="text-sm font-semibold text-dark dark:text-white">
+                                      <span className={cn("text-sm font-semibold", courseIsOpen ? "text-white" : "text-dark")}>
                                         Course:{" "}
-                                        <span className="font-bold text-primary">
+                                        <span className={cn("font-bold text-primary", courseIsOpen ? "text-white" : "text-dark")}>
                                           {courseKey}
                                         </span>
                                         {courseTitle && courseTitle !== courseKey && (
@@ -361,7 +400,7 @@ export function NestedEnrollmentTableClient({
                                           </span>
                                         )}
                                       </span>
-                                      <span className="text-xs text-dark-6 dark:text-dark-5">
+                                      <span className={cn("text-xs", courseIsOpen ? "text-white" : "text-dark-6")}>
                                         Instructor(s):{" "}
                                         <span className="font-semibold text-dark dark:text-white">
                                           {rows[0]?.Teacher ?? "—"}
@@ -370,10 +409,14 @@ export function NestedEnrollmentTableClient({
                                         {rows.length} student
                                         {rows.length !== 1 ? "s" : ""}
                                       </span>
-                                      <span className="text-xs text-dark-6 dark:text-dark-5">
-                                        Attendance alerts:{" "}
-                                        <span className="font-semibold text-red">
-                                          {courseAttendanceAlerts}
+                                      <span className={cn("text-xs", courseIsOpen ? "text-white" : "text-dark-6")}>
+                                        Att:{" "}
+                                        <span className="font-semibold text-yellow-600">
+                                          {courseAttendanceAlerts.yellow}
+                                        </span>
+                                        {" | "}
+                                        <span className="font-semibold text-red-600">
+                                          {courseAttendanceAlerts.red}
                                         </span>
                                       </span>
                                     </div>
@@ -445,8 +488,14 @@ export function NestedEnrollmentTableClient({
                                             alertLevel === "critical" ||
                                             alertLevel === "warning";
                                           const gpaLevel =
-                                            gpaAlertLevelBySapId.get(row.SapNo) ??
+                                            gpaAlertLevelBySapId.get(
+                                              String(row.SapNo ?? "").trim(),
+                                            ) ??
                                             null;
+                                          const cgpa =
+                                            cgpaBySapId[
+                                              String(row.SapNo ?? "").trim()
+                                            ];
                                           const gpaColorClass =
                                             gpaLevel === "critical"
                                               ? "text-red-600"
@@ -547,11 +596,9 @@ export function NestedEnrollmentTableClient({
                                               </TableCell>
                                               <TableCell className="!text-left">
                                                 <span className={gpaColorClass}>
-                                                  {gpaLevel === "critical"
-                                                    ? "Critical"
-                                                    : gpaLevel === "warning"
-                                                      ? "Warning"
-                                                      : "—"}
+                                                  {Number.isFinite(cgpa)
+                                                    ? cgpa.toFixed(2)
+                                                    : "-"}
                                                 </span>
                                               </TableCell>
                                               <TableCell className="!text-left">
