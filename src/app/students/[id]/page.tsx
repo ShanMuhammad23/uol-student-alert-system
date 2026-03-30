@@ -132,7 +132,15 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                 </span>
               </div>
             </div>
-      <StudentMetricsClient sapId={sapIdFromUrl} section="badges" currentCgpa={currentCgpa} />
+      <StudentMetricsClient
+        sapId={sapIdFromUrl}
+        section="badges"
+        enrollmentRecords={enrollmentRecords}
+        selectedCourseCode={selectedCourseCode}
+        selectedSection={selectedSection}
+        selectedClassAverage={selectedClassAverage}
+        currentCgpa={currentCgpa}
+      />
           </div>
         </div>
 

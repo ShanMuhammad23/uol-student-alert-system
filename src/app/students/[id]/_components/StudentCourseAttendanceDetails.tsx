@@ -40,11 +40,13 @@ export function StudentCourseAttendanceDetails({
   const {
     selectedSummary,
     selectedLabel,
+    selectedAttendanceKey,
   } = useMemo(() => {
     if (!enrollmentRecords.length || !attendanceSummaries) {
       return {
         selectedSummary: null,
         selectedLabel: null,
+        selectedAttendanceKey: null,
       };
     }
 
@@ -69,6 +71,7 @@ export function StudentCourseAttendanceDetails({
       return {
         selectedSummary: null,
         selectedLabel: null,
+        selectedAttendanceKey: null,
       };
     }
 
@@ -81,6 +84,7 @@ export function StudentCourseAttendanceDetails({
     return {
       selectedSummary: summary,
       selectedLabel: label,
+      selectedAttendanceKey: key,
     };
   }, [
     attendanceSummaries,
@@ -88,6 +92,13 @@ export function StudentCourseAttendanceDetails({
     selectedCourseCode,
     selectedSection,
   ]);
+  const tableRows = useMemo(
+    () =>
+      enrollmentRecords.filter(
+        (record) => getEnrollmentAttendanceKey(record) !== selectedAttendanceKey
+      ),
+    [enrollmentRecords, selectedAttendanceKey]
+  );
 
   // Prefer per-course attendance metrics when available; otherwise fall back to overall.
   const displayTotalHeld =
@@ -189,7 +200,7 @@ export function StudentCourseAttendanceDetails({
         </div>
       </div>
 
-      {enrollmentRecords.length > 0 && (
+      {tableRows.length > 0 && (
         <div className="mt-2 space-y-3">
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
             Attendance details (courses)
@@ -206,7 +217,7 @@ export function StudentCourseAttendanceDetails({
                 </tr>
               </thead>
               <tbody>
-                {enrollmentRecords.map((r) => {
+                {tableRows.map((r) => {
                   const key = getEnrollmentAttendanceKey(r);
                   const summary = attendanceSummaries?.get(key) ?? null;
                   const courseSectionKey = `${normalizeCourseCode(

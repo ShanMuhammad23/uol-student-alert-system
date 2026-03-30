@@ -3,11 +3,16 @@
 import { useMemo } from "react";
 
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
+import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import { useMonitoringStudents } from "@/hooks/useMonitoringStudents";
 import type { Student } from "@/app/(home)/dashboard/fetch";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
-import { normalizeCourseCode } from "@/lib/attendance-utils";
+import {
+  getAttendanceAlertLevel,
+  getEnrollmentAttendanceKey,
+  normalizeCourseCode,
+} from "@/lib/attendance-utils";
 
 import { StudentCourseAttendanceDetails } from "./StudentCourseAttendanceDetails";
 
@@ -97,6 +102,75 @@ export function StudentMetricsClient({
   selectedClassAverage = null,
 }: Props) {
   const { data, isLoading } = useMonitoringStudents();
+  const { attendanceSummaries, classAverageByCourseSection } =
+    useAttendanceAlerts(enrollmentRecords);
+  const studentRows = useMemo(
+    () =>
+      (data?.students ?? []).filter(
+        (r) => String(r.sap_id).trim() === String(sapId).trim()
+      ),
+    [data?.students, sapId]
+  );
+  const worstAttendanceLevel = useMemo(
+    () => getWorstLevel(studentRows.map((r) => r.attendance.alert_level)),
+    [studentRows]
+  );
+  const worstGpaLevel = useMemo(
+    () => getWorstLevel(studentRows.map((r) => r.gpa.alert_level)),
+    [studentRows]
+  );
+  const selectedCourseAttendanceLevel = useMemo(() => {
+    if (!attendanceSummaries || !enrollmentRecords.length) return null;
+
+    const relevantRows = selectedCourseCode
+      ? enrollmentRecords.filter((r) => {
+          const courseMatches =
+            normalizeCourseCode(
+              typeof r.CrCode === "string" ? r.CrCode : String(r.CrCode ?? "")
+            ) === normalizeCourseCode(selectedCourseCode);
+          const sectionMatches =
+            !selectedSection || (r.Section ?? "") === selectedSection;
+          return courseMatches && sectionMatches;
+        })
+      : enrollmentRecords;
+
+    const levels = relevantRows
+      .map((row) => {
+        const key = getEnrollmentAttendanceKey(row);
+        const summary = attendanceSummaries.get(key);
+        if (!summary) return null;
+
+        const courseSectionKey = `${normalizeCourseCode(
+          typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? "")
+        )}__${row.Section ?? ""}`;
+        const classAverage =
+          selectedClassAverage ??
+          classAverageByCourseSection.get(courseSectionKey) ??
+          null;
+
+        return getAttendanceAlertLevel(summary.percentage, classAverage);
+      })
+      .filter((level): level is "critical" | "warning" => level != null);
+
+    return getWorstLevel(levels);
+  }, [
+    attendanceSummaries,
+    classAverageByCourseSection,
+    enrollmentRecords,
+    selectedClassAverage,
+    selectedCourseCode,
+    selectedSection,
+  ]);
+  const effectiveAttendanceLevel = useMemo(
+    () =>
+      getWorstLevel([
+        worstAttendanceLevel === "none" ? null : worstAttendanceLevel,
+        selectedCourseAttendanceLevel === "none"
+          ? null
+          : selectedCourseAttendanceLevel,
+      ]),
+    [selectedCourseAttendanceLevel, worstAttendanceLevel]
+  );
   const student = useMemo(
     () => selectStudentForCourse(data?.students ?? [], sapId, selectedCourseCode),
     [data?.students, sapId, selectedCourseCode]
@@ -106,38 +180,30 @@ export function StudentMetricsClient({
     if (isLoading) {
       return (
         <div className="flex gap-3">
-          <AlertBadge level="none" label="Att: Loading" />
+          <AlertBadge level="none" label="Attendance: Loading" />
           <AlertBadge level="none" label="GPA: Loading" />
         </div>
       );
     }
 
-    const studentRows = (data?.students ?? []).filter(
-      (r) => String(r.sap_id).trim() === String(sapId).trim()
-    );
-    const attendanceLevel = getWorstLevel(
-      studentRows.map((r) => r.attendance.alert_level)
-    );
-    const gpaLevel = getWorstLevel(studentRows.map((r) => r.gpa.alert_level));
-
     return (
       <div className="flex gap-3">
         <AlertBadge
-          level={attendanceLevel}
-          label={`Att: ${
-            attendanceLevel === "critical"
+          level={effectiveAttendanceLevel}
+          label={`Attendance: ${
+            effectiveAttendanceLevel === "critical"
               ? "Red"
-              : attendanceLevel === "warning"
+              : effectiveAttendanceLevel === "warning"
               ? "Yellow"
               : "Normal"
           }`}
         />
         <AlertBadge
-          level={gpaLevel}
+          level={worstGpaLevel}
           label={`GPA: ${
-            gpaLevel === "critical"
+            worstGpaLevel === "critical"
               ? "Red"
-              : gpaLevel === "warning"
+              : worstGpaLevel === "warning"
               ? "Yellow"
               : "Normal"
           }`}
@@ -180,7 +246,8 @@ export function StudentMetricsClient({
       : currentCgpa != null
       ? [{ x: "Fall 2025", y: currentCgpa }]
       : [];
-  const attendanceAlert = student?.attendance.alert_level ?? null;
+  const attendanceAlert =
+    effectiveAttendanceLevel === "none" ? null : effectiveAttendanceLevel;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
