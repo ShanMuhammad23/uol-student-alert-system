@@ -22,6 +22,7 @@ type StaffListRow = {
   role: "superadmin" | "dean" | "hod" | "instructor";
   faculty_id: string | null;
   faculty_name: string | null;
+  department_names: string[] | null;
 };
 
 type FacultyRow = {
@@ -51,13 +52,32 @@ function resolveFacultyName(row: StaffListRow): string {
   return row.faculty_id ?? "—";
 }
 
+function resolveDepartmentNames(row: StaffListRow): string[] {
+  return (row.department_names ?? []).filter((name) => name.trim().length > 0);
+}
+
 async function getStaffList(): Promise<StaffListRow[]> {
   if (!pool) return [];
   const res = await pool.query<StaffListRow>(
-    `SELECT s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name AS faculty_name
+    `SELECT
+       s.id,
+       s.pernr,
+       s.name,
+       s.img,
+       s.email,
+       s.role,
+       s.faculty_id,
+       f.name AS faculty_name,
+       COALESCE(
+         ARRAY_AGG(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL),
+         ARRAY[]::text[]
+       ) AS department_names
      FROM staff s
      LEFT JOIN faculties f ON f.id = s.faculty_id
-     ORDER BY role ASC, name ASC`
+     LEFT JOIN staff_departments sd ON sd.staff_id = s.id
+     LEFT JOIN departments d ON d.id = sd.department_id
+     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name
+     ORDER BY s.role ASC, s.name ASC`
   );
   return res.rows;
 }
@@ -234,6 +254,7 @@ export default async function SuperadminStaffPage(props: {
                   <TableHead className="min-w-[120px]">Role</TableHead>
                   <TableHead className="min-w-[120px]">Pernr</TableHead>
                   <TableHead className="min-w-[220px]">Faculty</TableHead>
+                  <TableHead className="min-w-[240px]">Departments</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -251,6 +272,7 @@ export default async function SuperadminStaffPage(props: {
                           role: row.role,
                           pernr: row.pernr || "—",
                           facultyName: resolveFacultyName(row),
+                          departments: resolveDepartmentNames(row),
                         }}
                       />
                     </TableCell>
@@ -265,6 +287,12 @@ export default async function SuperadminStaffPage(props: {
                     </TableCell>
                     <TableCell className="!text-left text-dark-6">
                       {resolveFacultyName(row)}
+                    </TableCell>
+                    <TableCell className="!text-left text-dark-6">
+                      {(row.role === "hod" || row.role === "instructor") &&
+                      resolveDepartmentNames(row).length
+                        ? resolveDepartmentNames(row).join(", ")
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 ))}

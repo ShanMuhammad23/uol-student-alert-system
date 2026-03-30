@@ -10,6 +10,7 @@ type StaffDetails = {
   role: "superadmin" | "dean" | "hod" | "instructor";
   pernr: string;
   facultyName: string;
+  departments: string[];
 };
 
 type Props = {
@@ -18,6 +19,9 @@ type Props = {
 
 export function StaffDetailsDialog({ staff }: Props) {
   const [open, setOpen] = useState(false);
+  const shouldShowDepartments =
+    (staff.role === "hod" || staff.role === "instructor") &&
+    staff.departments.length > 0;
 
   return (
     <>
@@ -96,6 +100,12 @@ export function StaffDetailsDialog({ staff }: Props) {
                   <p>
                     <span className="text-dark-5 dark:text-dark-6">Faculty: </span>
                     {staff.facultyName || "—"}
+                  </p>
+                  <p>
+                    <span className="text-dark-5 dark:text-dark-6">
+                      Departments:{" "}
+                    </span>
+                    {shouldShowDepartments ? staff.departments.join(", ") : "—"}
                   </p>
                 </div>
               </div>
