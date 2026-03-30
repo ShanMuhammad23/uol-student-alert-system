@@ -21,13 +21,14 @@ export function AlertSnapshotsLineChart({ points }: Props) {
   const getLineStyle = (seriesIndex: number) =>
     seriesIndex < 2 ? "dashed" : "solid";
   const series = [
-    { name: "GPA Yellow", data: chartPoints.map((p) => p.yellowGpa) },
-    { name: "GPA Red", data: chartPoints.map((p) => p.redGpa) },
     {
       name: "Attendance Yellow",
       data: chartPoints.map((p) => p.yellowAttendance),
     },
     { name: "Attendance Red", data: chartPoints.map((p) => p.redAttendance) },
+    { name: "GPA Yellow", data: chartPoints.map((p) => p.yellowGpa) },
+    { name: "GPA Red", data: chartPoints.map((p) => p.redGpa) }
+   
   ];
 
   const options: ApexOptions = {
@@ -35,7 +36,7 @@ export function AlertSnapshotsLineChart({ points }: Props) {
       type: "line",
       toolbar: { show: false },
       fontFamily: "Satoshi, sans-serif",
-      height: 320,
+      height: 160,
     },
     stroke: {
       curve: "smooth",
@@ -110,9 +111,9 @@ export function AlertSnapshotsLineChart({ points }: Props) {
   return (
     <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
       <p className="mb-4 text-sm font-semibold text-dark dark:text-white">
-        {latestStudentCount.toLocaleString()} Students
+       Alerts Trend ({latestStudentCount.toLocaleString()} Students)
       </p>
-      <Chart options={options} series={series} type="line" height={320} />
+      <Chart options={options} series={series} type="line" height={260} />
     </div>
   );
 }

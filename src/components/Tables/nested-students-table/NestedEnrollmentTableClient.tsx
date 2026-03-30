@@ -289,7 +289,7 @@ export function NestedEnrollmentTableClient({
                     <span className={cn("font-bold text-primary", deptIsOpen ? "text-white" : "text-dark")}>{deptName.replace("Department of ", "")}</span>
                   </span>
                   <span className={cn("text-xs", deptIsOpen ? "text-white" : "text-dark-6")}>
-                    Att:{" "}
+                    Attendance:{" "}
                     <span className="font-semibold text-yellow-600">
                      {deptAttendanceAlerts.yellow}
                     </span>
@@ -345,7 +345,7 @@ export function NestedEnrollmentTableClient({
                               </span>
                             </span>
                             <span className={cn("text-xs", progIsOpen ? "text-white" : "text-dark-6")}>
-                              Att:{" "}
+                              Attendance:{" "}
                               <span className="font-semibold text-yellow-600">
                                 {programAttendanceAlerts.yellow}
                               </span>
@@ -410,7 +410,7 @@ export function NestedEnrollmentTableClient({
                                         {rows.length !== 1 ? "s" : ""}
                                       </span>
                                       <span className={cn("text-xs", courseIsOpen ? "text-white" : "text-dark-6")}>
-                                        Att:{" "}
+                                        Attendance:{" "}
                                         <span className="font-semibold text-yellow-600">
                                           {courseAttendanceAlerts.yellow}
                                         </span>
