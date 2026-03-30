@@ -1,23 +1,17 @@
 "use client";
-
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
-
 type DataPoint = {
   x: string;
   y: number;
 };
-
 type PropsType = {
   title: string;
   data: DataPoint[];
-  /** Map each bar (by x-axis label / status) to a hex color. Bars not in the map use defaultColor. */
   statusColors?: Record<string, string>;
-  /** Fallback color when statusColors has no entry for a bar (default: gray) */
   defaultColor?: string;
 };
-
 const Chart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
