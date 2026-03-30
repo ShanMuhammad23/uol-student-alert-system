@@ -217,7 +217,7 @@ export default async function Home({ searchParams }: PropsType) {
           </div>
         </div>
         <div className="mt-4 grid grid-cols-12 gap-4">
-          <div className=" col-span-12 md:col-span-6 bg-white rounded-lg shadow-1 pt-4">
+          <div className=" col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
             <InterventionStatusChartClient
               title="Outreach & Intervention"
               user={effectiveUser}
@@ -231,7 +231,7 @@ export default async function Home({ searchParams }: PropsType) {
               redAttendance={redAttendance.value}
             />
           </div>
-          <div className="col-span-12 md:col-span-6 bg-white rounded-lg shadow-1 pt-4">
+          <div className="col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
             <WellbeingChartClient title="Wellbeing Resolution" />
           </div>
         </div>
