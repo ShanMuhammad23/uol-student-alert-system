@@ -397,6 +397,9 @@ export function TopChannelsTableClient({
                     : "";
                 const hasAttendanceAlert =
                   alertLevel === "critical" || alertLevel === "warning";
+                const hasGpaAlert =
+                  row.gpaAlertLevel === "critical" || row.gpaAlertLevel === "warning";
+                const hasAnyAlert = hasAttendanceAlert || hasGpaAlert;
                 const latestStatus = row.latestInterventionStatus;
 
                 const classesHeld = row.totalClassesHeld ?? 0;
@@ -480,7 +483,7 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left">
                       <InterventionStatusBadge
                         status={latestStatus}
-                        goodStanding={!hasAttendanceAlert}
+                        goodStanding={!hasAnyAlert}
                       />
                     </TableCell>
                   </TableRow>

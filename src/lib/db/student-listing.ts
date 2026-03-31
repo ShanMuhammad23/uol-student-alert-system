@@ -205,7 +205,6 @@ function buildWhere(scope: SessionScope, request: ListingRequest): BaseQueryPart
   if (interventionFilters?.length) {
     const wantsNotStarted = interventionFilters.includes("not_started");
     const statuses = interventionFilters.filter((s) => s !== "not_started");
-    where.push(`a.attendance_alert_level IS NOT NULL`);
     if (wantsNotStarted && statuses.length) {
       params.push(statuses);
       where.push(
@@ -243,11 +242,12 @@ export async function getStudentListing(
 
   const baseCte = `
     WITH latest AS (
-      SELECT DISTINCT ON (student_sap_id)
+      SELECT DISTINCT ON (student_sap_id, COALESCE(course_id, ''))
         student_sap_id,
+        COALESCE(course_id, '') AS course_id,
         status AS latest_intervention_status
       FROM interventions
-      ORDER BY student_sap_id, performed_at DESC
+      ORDER BY student_sap_id, COALESCE(course_id, ''), performed_at DESC
     ),
     base AS (
       SELECT
@@ -277,7 +277,9 @@ export async function getStudentListing(
        AND a.course_id = e.course_id
        AND a.section_code = e.section_code
        AND a.event_package_id = e.event_package_id
-      LEFT JOIN latest ON latest.student_sap_id = e.sap_id
+      LEFT JOIN latest
+        ON latest.student_sap_id = e.sap_id
+       AND (latest.course_id = e.course_id OR latest.course_id = '')
       LEFT JOIN departments d ON d.id = e.department_id
       LEFT JOIN programs p ON p.id = e.program_id
       LEFT JOIN courses c ON c.id = e.course_id
