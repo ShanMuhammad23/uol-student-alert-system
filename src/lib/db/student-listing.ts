@@ -1,6 +1,6 @@
 import { pool } from "@/lib/db";
 
-export type AlertDimensionFilter = "red" | "yellow" | "good";
+export type AlertDimensionFilter = "all" | "red" | "yellow" | "good";
 
 export type ListingFilters = {
   department_ids?: string[];
@@ -102,6 +102,7 @@ function buildAlertLevelClause(
   params: unknown[]
 ): string | null {
   if (!filters?.length) return null;
+  if (filters.includes("all")) return null;
   const hasRed = filters.includes("red");
   const hasYellow = filters.includes("yellow");
   const hasGood = filters.includes("good");

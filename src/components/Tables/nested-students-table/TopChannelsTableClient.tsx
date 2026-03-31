@@ -130,6 +130,12 @@ export function TopChannelsTableClient({
     setIsLoading(true);
     setError(null);
     const effectivePageSize = rowsPerPage === "all" ? 100000 : rowsPerPage;
+    const normalizedAttendanceFilters =
+      attendanceFilters?.includes("all" as AlertDimensionFilter)
+        ? undefined
+        : attendanceFilters;
+    const normalizedGpaFilters =
+      gpaFilters?.includes("all" as AlertDimensionFilter) ? undefined : gpaFilters;
     fetch("/api/students/top-table", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -141,8 +147,8 @@ export function TopChannelsTableClient({
         sortDirection: sortConfig?.direction ?? "asc",
         filters: {
           ...(masterFilter ?? {}),
-          attendanceFilters,
-          gpaFilters,
+          attendanceFilters: normalizedAttendanceFilters,
+          gpaFilters: normalizedGpaFilters,
           interventionFilters,
           search: debouncedSearch || undefined,
         },
