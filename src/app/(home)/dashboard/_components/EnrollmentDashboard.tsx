@@ -486,7 +486,7 @@ function EnrollmentDashboardInner({
         {viewMode === "table" ? (
           <TopChannelsTableClient
             returnToUrl={returnToUrl}
-            enrollmentData={filteredData ?? null}
+            masterFilter={localMasterFilter}
             attendanceFilters={localAttendanceFilters}
             gpaFilters={localGpaFilters}
             interventionFilters={localInterventionFilters}

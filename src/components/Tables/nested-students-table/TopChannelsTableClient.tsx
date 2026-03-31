@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -10,29 +10,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import type { EnrollmentRecord } from "@/lib/enrollment";
 import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
 import { StudentProfileLink } from "./StudentProfileLink";
 import { TopChannelsSkeleton } from "./skeleton";
-import {
-  getEnrollmentAttendanceKey,
-  getAttendanceAlertLevel,
-  normalizeCourseCode,
-} from "@/lib/attendance-utils";
-import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
-import type { AlertDimensionFilter } from "@/app/(home)/dashboard/fetch";
+import type {
+  AlertDimensionFilter,
+  MasterFilterParams,
+} from "@/app/(home)/dashboard/fetch";
 
 type Props = {
   className?: string;
   returnToUrl?: string;
-  /** When provided (e.g. from enrollment hook + MasterFilter), used instead of fetching. Table shows filtered data. */
-  enrollmentData?: EnrollmentRecord[] | null;
-  /** Attendance alert filters (red / yellow / good) from MasterFilter. */
+  masterFilter?: MasterFilterParams;
   attendanceFilters?: AlertDimensionFilter[];
-  /** GPA alert filters (red / yellow / good) from MasterFilter. */
   gpaFilters?: AlertDimensionFilter[];
-  /** Intervention filters (not_started / initiated / in_progress / referred / resolved) from MasterFilter. */
   interventionFilters?: string[];
 };
 
@@ -49,122 +41,50 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 
-/**
- * Deduplicate enrollment records by unique ID
- * This fixes the bug where duplicate records (like Hafiz Shabbir Ahmed and Hafiz Ismail)
- * were appearing multiple times regardless of filters
- */
-function deduplicateEnrollments(data: EnrollmentRecord[]): EnrollmentRecord[] {
-  const seen = new Set<string>();
-  return data.filter((record) => {
-    const id = record.Id ?? `${record.SapNo}-${record.CrCode}-${record.Section}`;
-    if (seen.has(id)) {
-      return false;
-    }
-    seen.add(id);
-    return true;
-  });
-}
+type TopTableRow = {
+  sapId: string;
+  studentName: string;
+  departmentName: string;
+  programTitle: string;
+  courseId: string;
+  courseTitle: string;
+  instructorName: string;
+  sectionCode: string | null;
+  totalClassesHeld: number;
+  classesAttended: number;
+  attendancePercentage: number | null;
+  classAverageAttendance: number | null;
+  attendanceAlertLevel: "warning" | "critical" | null;
+  gpaCurrent: number | null;
+  gpaAlertLevel: "warning" | "critical" | null;
+  latestInterventionStatus: string | null;
+  courseStudentCount: number;
+};
 
 export function TopChannelsTableClient({
   className,
   returnToUrl = "/",
-  enrollmentData: enrollmentDataProp,
+  masterFilter,
   attendanceFilters,
   gpaFilters,
   interventionFilters,
 }: Props) {
-  const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(!enrollmentDataProp);
+  const [rows, setRows] = useState<TopTableRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [sortConfig, setSortConfig] = useState<
     { key: SortKey; direction: SortDirection } | null
   >(null);
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(50);
   const [currentPage, setCurrentPage] = useState(1);
-  const [interventionStatuses, setInterventionStatuses] = useState<
-    Map<string, string | null>
-  >(new Map());
-  const [cgpaBySapId, setCgpaBySapId] = useState<Record<string, number>>({});
-
-  // Track previous prop data to detect actual changes
-  const prevPropDataRef = useRef<EnrollmentRecord[] | null | undefined>(null);
-
-  // CRITICAL FIX: Always deduplicate prop data to prevent duplicate records
-  const hasPropData = enrollmentDataProp != null && Array.isArray(enrollmentDataProp);
-  
-  // Apply deduplication to prevent Hafiz Shabbir Ahmed and Hafiz Ismail duplicates
-  const deduplicatedPropData = useMemo(() => {
-    if (!hasPropData) return [];
-    return deduplicateEnrollments(enrollmentDataProp);
-  }, [enrollmentDataProp, hasPropData]);
-
-  // Use deduplicated data when prop is provided, otherwise use fetched state
-  const displayEnrollments = hasPropData ? deduplicatedPropData : enrollments;
-
-  const {
-    attendanceSummaries,
-    classAverageByCourseSection,
-    monitoredByCourseSection,
-    isAttendanceLoading,
-    gpaAlertLevelBySapId,
-  } = useAttendanceAlerts(displayEnrollments);
-
-  // Fetch latest intervention status per student (by SAP ID) once, then map by SapNo
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(`/api/interventions/status`, {
-      signal: controller.signal,
-    })
-      .then((res) =>
-        res.ok
-          ? res.json()
-          : Promise.reject(new Error("Failed to load intervention statuses")),
-      )
-      .then((data: Record<string, string | null>) => {
-        const map = new Map<string, string | null>();
-        for (const [id, status] of Object.entries(data)) {
-          map.set(id, status ?? null);
-        }
-        setInterventionStatuses(map);
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        // On error, fall back to empty map; UI will show Not Started / hyphen appropriately
-        setInterventionStatuses(new Map());
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
+  const [totalResults, setTotalResults] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
-    const sapIds = Array.from(
-      new Set(displayEnrollments.map((r) => String(r.SapNo ?? "").trim()).filter(Boolean))
-    );
-    if (!sapIds.length) {
-      setCgpaBySapId({});
-      return;
-    }
-    const controller = new AbortController();
-    fetch("/api/gpa/by-sapids", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sapIds }),
-      signal: controller.signal,
-    })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed GPA fetch"))))
-      .then((body: { cgpaBySapId?: Record<string, number> }) => {
-        setCgpaBySapId(body.cgpaBySapId ?? {});
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        setCgpaBySapId({});
-      });
-    return () => controller.abort();
-  }, [displayEnrollments]);
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -178,67 +98,10 @@ export function TopChannelsTableClient({
     });
   };
 
-  const sortedEnrollments = useMemo(() => {
-    const rows = [...displayEnrollments];
-    if (!sortConfig) return rows;
-
-    const { key, direction } = sortConfig;
-    const factor = direction === "asc" ? 1 : -1;
-
-    return rows.sort((a, b) => {
-      const getString = (value: unknown) =>
-        typeof value === "string" ? value.toLowerCase() : (value ?? "").toString().toLowerCase();
-      const getNumber = (value: unknown) =>
-        typeof value === "number" ? value : value == null ? 0 : Number(value) || 0;
-
-      switch (key) {
-        case "name": {
-          const aName = getString(a.Name);
-          const bName = getString(b.Name);
-          if (aName === bName) {
-            return a.SapNo.localeCompare(b.SapNo) * factor;
-          }
-          return aName.localeCompare(bName) * factor;
-        }
-        case "department": {
-          const aDept = getString(a.DeptName);
-          const bDept = getString(b.DeptName);
-          return aDept.localeCompare(bDept) * factor;
-        }
-        case "program": {
-          const aProgram = getString(a.DegreeTitle ?? a.DegreeCode);
-          const bProgram = getString(b.DegreeTitle ?? b.DegreeCode);
-          return aProgram.localeCompare(bProgram) * factor;
-        }
-        case "course": {
-          const aCourse = getString(`${a.CrCode ?? ""} ${a.CrTitle ?? ""}`);
-          const bCourse = getString(`${b.CrCode ?? ""} ${b.CrTitle ?? ""}`);
-          return aCourse.localeCompare(bCourse) * factor;
-        }
-        case "teacher": {
-          const aTeacher = getString(a.Teacher);
-          const bTeacher = getString(b.Teacher);
-          return aTeacher.localeCompare(bTeacher) * factor;
-        }
-        case "classesHeld": {
-          const aKey = `${normalizeCourseCode(
-            typeof a.CrCode === "string" ? a.CrCode : String(a.CrCode ?? "")
-          )}__${a.Section ?? ""}`;
-          const bKey = `${normalizeCourseCode(
-            typeof b.CrCode === "string" ? b.CrCode : String(b.CrCode ?? "")
-          )}__${b.Section ?? ""}`;
-          const aVal = getNumber(monitoredByCourseSection.get(aKey));
-          const bVal = getNumber(monitoredByCourseSection.get(bKey));
-          return (aVal - bVal) * factor;
-        }
-        case "attendance":
-        case "gpa":
-        case "intervention":
-        default:
-          return 0;
-      }
-    });
-  }, [displayEnrollments, monitoredByCourseSection, sortConfig]);
+  const totalPages =
+    rowsPerPage === "all" || totalResults === 0
+      ? 1
+      : Math.ceil(totalResults / rowsPerPage);
 
   const renderSortIcon = (key: SortKey) => {
     const isActive = sortConfig?.key === key;
@@ -263,190 +126,64 @@ export function TopChannelsTableClient({
   };
 
   useEffect(() => {
-    // CRITICAL FIX: Check if prop data has actually changed to prevent stale renders
-    const propDataChanged = 
-      enrollmentDataProp !== prevPropDataRef.current ||
-      (enrollmentDataProp && prevPropDataRef.current && 
-       enrollmentDataProp.length !== prevPropDataRef.current.length);
-
-    if (hasPropData && !propDataChanged) {
-      // Data hasn't changed, skip processing
-      setIsLoading(false);
-      return;
-    }
-
-    // Update ref to current prop data
-    prevPropDataRef.current = enrollmentDataProp;
-
-    if (hasPropData) {
-      // Prop data provided - use it directly (deduplicated via useMemo above)
-      setIsLoading(false);
-      setError(null);
-      // Clear internal state when using props to prevent stale data mixing
-      setEnrollments([]);
-      return;
-    }
-
-    // No prop data - fetch from API
-    let cancelled = false;
-    fetch("/api/enrollment", { cache: "no-store" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load enrollment data");
-        return res.json();
-      })
-      .then((raw: unknown) => {
-        if (cancelled) return;
-        const list = Array.isArray(raw) ? (raw as EnrollmentRecord[]) : [];
-        // Also deduplicate fetched data
-        const deduplicated = deduplicateEnrollments(list);
-        setEnrollments(deduplicated);
-        setError(null);
+    const controller = new AbortController();
+    setIsLoading(true);
+    setError(null);
+    const effectivePageSize = rowsPerPage === "all" ? 100000 : rowsPerPage;
+    fetch("/api/students/top-table", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        page: currentPage,
+        pageSize: effectivePageSize,
+        sortKey: sortConfig?.key ?? "name",
+        sortDirection: sortConfig?.direction ?? "asc",
+        filters: {
+          ...(masterFilter ?? {}),
+          attendanceFilters,
+          gpaFilters,
+          interventionFilters,
+          search: debouncedSearch || undefined,
+        },
+      }),
+    })
+      .then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error("Failed to load students"))
+      )
+      .then((body: { rows?: TopTableRow[]; total?: number }) => {
+        setRows(Array.isArray(body.rows) ? body.rows : []);
+        setTotalResults(Number(body.total ?? 0));
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
+        if (err?.name === "AbortError") return;
+        setError(err instanceof Error ? err : new Error(String(err)));
       })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [enrollmentDataProp]);
-
-  // Calculate student count per course
-  const courseIdToStudentCount = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of displayEnrollments) {
-      const key = e.CrCode ?? e.CrTitle ?? "";
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return map;
-  }, [displayEnrollments]);
-
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredAndSortedEnrollments = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    let base = q
-      ? sortedEnrollments.filter((row) => {
-          const name = (row.Name ?? "").toLowerCase();
-          const sap = (row.SapNo ?? "").toLowerCase();
-          return name.includes(q) || sap.includes(q);
-        })
-      : sortedEnrollments;
-
-    if (attendanceFilters?.length && attendanceSummaries) {
-      const allowed = new Set<string | null>();
-      for (const f of attendanceFilters) {
-        if (f === "red") allowed.add("critical");
-        else if (f === "yellow") allowed.add("warning");
-        else if (f === "good") allowed.add(null);
-      }
-      base = base.filter((row) => {
-        const courseKey = row.CrCode ?? row.CrTitle ?? "";
-        const rowKey =
-          row.Id ?? `${row.SapNo}-${courseKey}-${row.CrTitle}-${row.Name}`;
-        const monitorKey = `${normalizeCourseCode(
-          typeof row.CrCode === "string"
-            ? row.CrCode
-            : String(row.CrCode ?? "")
-        )}__${row.Section ?? ""}`;
-        const attendanceKey = getEnrollmentAttendanceKey(row);
-        const summary = attendanceSummaries.get(attendanceKey);
-        const classAvg =
-          classAverageByCourseSection.get(monitorKey ?? "") ?? null;
-        const level =
-          summary && classAvg != null
-            ? getAttendanceAlertLevel(summary.percentage, classAvg)
-            : null;
-        return allowed.size ? allowed.has(level) : true;
-      });
-    }
-
-    // Apply GPA alert filters using monitoring-derived alert levels.
-    if (gpaFilters?.length && gpaAlertLevelBySapId) {
-      const allowed = new Set<"critical" | "warning" | null>();
-      for (const f of gpaFilters) {
-        if (f === "red") allowed.add("critical");
-        else if (f === "yellow") allowed.add("warning");
-        else if (f === "good") allowed.add(null);
-      }
-
-      base = base.filter((row) => {
-        const sapId = String(row.SapNo ?? "").trim();
-        const level = sapId ? gpaAlertLevelBySapId.get(sapId) ?? null : null;
-        return allowed.size ? allowed.has(level) : true;
-      });
-    }
-
-    // Apply intervention master filter using latest interventionStatuses.
-    if (interventionFilters?.length) {
-      base = base.filter((row) => {
-        // Only consider students with alerts when filtering by intervention.
-        const monitorKey = `${normalizeCourseCode(
-          typeof row.CrCode === "string"
-            ? row.CrCode
-            : String(row.CrCode ?? ""),
-        )}__${row.Section ?? ""}`;
-        const attendanceKey = getEnrollmentAttendanceKey(row);
-        const summary = attendanceSummaries?.get(attendanceKey) ?? null;
-        const classAvg =
-          classAverageByCourseSection.get(monitorKey ?? "") ?? null;
-        const level =
-          summary && classAvg != null
-            ? getAttendanceAlertLevel(summary.percentage, classAvg)
-            : null;
-        const hasAlert =
-          level === "critical" || level === "warning";
-        if (!hasAlert) {
-          // Good-standing students are excluded when any intervention filter is active.
-          return false;
-        }
-
-        const latestStatus = interventionStatuses.get(row.SapNo) ?? null;
-
-        const wantsNotStarted = interventionFilters.includes("not_started");
-        const wantsInitiated = interventionFilters.includes("initiated");
-        const wantsInProgress = interventionFilters.includes("in_progress");
-        const wantsReferred = interventionFilters.includes("referred");
-        const wantsResolved = interventionFilters.includes("resolved");
-
-        if (!latestStatus) {
-          return wantsNotStarted;
-        }
-        if (latestStatus === "initiated" && wantsInitiated) return true;
-        if (latestStatus === "in-progress" && wantsInProgress) return true;
-        if (latestStatus === "referred" && wantsReferred) return true;
-        if (latestStatus === "resolved" && wantsResolved) return true;
-
-        return false;
-      });
-    }
-
-    return base;
+      .finally(() => setIsLoading(false));
+    return () => controller.abort();
   }, [
-    searchQuery,
-    sortedEnrollments,
+    masterFilter,
     attendanceFilters,
     gpaFilters,
-    attendanceSummaries,
-    classAverageByCourseSection,
     interventionFilters,
-    interventionStatuses,
-    gpaAlertLevelBySapId,
+    currentPage,
+    rowsPerPage,
+    sortConfig,
+    debouncedSearch,
   ]);
-
-  const totalResults = filteredAndSortedEnrollments.length;
-
-  const totalPages =
-    rowsPerPage === "all" || totalResults === 0
-      ? 1
-      : Math.ceil(totalResults / rowsPerPage);
 
   useEffect(() => {
     // Reset to first page whenever filters/search/sort or page size change
     setCurrentPage(1);
-  }, [searchQuery, attendanceFilters, gpaFilters, sortConfig, rowsPerPage]);
+  }, [
+    debouncedSearch,
+    attendanceFilters,
+    gpaFilters,
+    interventionFilters,
+    sortConfig,
+    rowsPerPage,
+    masterFilter,
+  ]);
 
   useEffect(() => {
     // Clamp current page when total results change
@@ -454,15 +191,6 @@ export function TopChannelsTableClient({
       setCurrentPage(totalPages || 1);
     }
   }, [currentPage, totalPages]);
-
-  const paginatedEnrollments = useMemo(() => {
-    if (rowsPerPage === "all") {
-      return filteredAndSortedEnrollments;
-    }
-    const startIndex = (currentPage - 1) * rowsPerPage;
-    const endIndex = startIndex + rowsPerPage;
-    return filteredAndSortedEnrollments.slice(startIndex, endIndex);
-  }, [filteredAndSortedEnrollments, rowsPerPage, currentPage]);
 
   const startItem =
     totalResults === 0
@@ -476,11 +204,11 @@ export function TopChannelsTableClient({
       ? totalResults
       : Math.min(currentPage * (rowsPerPage as number), totalResults);
 
-  if (!hasPropData && isLoading) {
+  if (isLoading) {
     return <TopChannelsSkeleton />;
   }
 
-  if (!hasPropData && error) {
+  if (error) {
     return (
       <div
         className={cn(
@@ -503,9 +231,9 @@ export function TopChannelsTableClient({
         className
       )}
     >
-      {displayEnrollments.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="mt-6 rounded-md border border-dashed border-stroke py-8 text-center text-dark-6 dark:border-dark-3">
-          No enrollment data found.
+          No student data found.
         </div>
       ) : (
         <div className="mt-4">
@@ -652,24 +380,9 @@ export function TopChannelsTableClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedEnrollments.map((row) => {
-                const courseKey = row.CrCode ?? row.CrTitle ?? "";
-                const totalForCourse = courseIdToStudentCount.get(courseKey) ?? 0;
-                const rowKey = row.Id ?? `${row.SapNo}-${courseKey}-${row.CrTitle}-${row.Name}`;
-                const monitorKey = `${normalizeCourseCode(
-                  typeof row.CrCode === "string"
-                    ? row.CrCode
-                    : String(row.CrCode ?? "")
-                )}__${row.Section ?? ""}`;
-                const monitoredCount = monitoredByCourseSection.get(monitorKey);
-                const attendanceKey = getEnrollmentAttendanceKey(row);
-                const summary = attendanceSummaries?.get(attendanceKey);
-                const classAvg =
-                  classAverageByCourseSection.get(monitorKey ?? "") ?? null;
-                const alertLevel =
-                  summary && classAvg != null
-                    ? getAttendanceAlertLevel(summary.percentage, classAvg)
-                    : null;
+              {rows.map((row) => {
+                const rowKey = `${row.sapId}-${row.courseId}-${row.sectionCode ?? ""}`;
+                const alertLevel = row.attendanceAlertLevel;
                 const attendanceColorClass =
                   alertLevel === "critical"
                     ? "text-red-600"
@@ -678,17 +391,13 @@ export function TopChannelsTableClient({
                     : "";
                 const hasAttendanceAlert =
                   alertLevel === "critical" || alertLevel === "warning";
-                const latestStatus = interventionStatuses.get(row.SapNo) ?? null;
+                const latestStatus = row.latestInterventionStatus;
 
-                const classesHeld = summary?.totalHeld ?? 0;
-                const classesScheduled =
-                  monitoredCount != null ? monitoredCount : summary?.totalHeld ?? 0;
-                const hasClassLoadSpike =
-                  hasAttendanceAlert &&
-                  classesHeld > 0 &&
-                  classesScheduled > 0 &&
-                  classesHeld / classesScheduled > 0.25;
-                const cgpa = cgpaBySapId[String(row.SapNo ?? "").trim()];
+                const classesHeld = row.totalClassesHeld ?? 0;
+                const classesAttended = row.classesAttended ?? 0;
+                const attendance = row.attendancePercentage;
+                const classAvg = row.classAverageAttendance;
+                const gpa = row.gpaCurrent;
 
                 return (
                   <TableRow
@@ -698,60 +407,56 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left font-medium">
                       {returnToUrl ? (
                         <StudentProfileLink
-                          sapId={row.SapNo}
+                          sapId={row.sapId}
                           returnToUrl={returnToUrl}
-                          courseCode={
-                            typeof row.CrCode === "string"
-                              ? row.CrCode
-                              : String(row.CrCode ?? "")
-                          }
-                          section={row.Section ?? null}
+                          courseCode={row.courseId}
+                          section={row.sectionCode ?? null}
                           classAverage={classAvg}
                           className="flex flex-col gap-1"
                           title="View profile"
                         >
-                          <span className="text-base font-medium text-green-500">{row.Name ?? "—"}</span>
-                          <span className="text-sm text-[#1f4a3d] dark:text-white">SAPID: {row.SapNo}</span>
+                          <span className="text-base font-medium text-green-500">
+                            {row.studentName ?? "—"}
+                          </span>
+                          <span className="text-sm text-[#1f4a3d] dark:text-white">
+                            SAPID: {row.sapId}
+                          </span>
                         </StudentProfileLink>
                       ) : (
-                        row.Name ?? "—"
+                        row.studentName ?? "—"
                       )}
                     </TableCell>
                    
                     <TableCell className="!text-left text-dark-6">
-                      {row.DeptName.replace("Department of", "") ?? "—"}
+                      {row.departmentName?.replace("Department of", "") ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
-                      {row.DegreeTitle ?? row.DegreeCode ?? "—"}
+                      {row.programTitle ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
                       <div className="flex flex-col gap-1">
-                        <span>{row.CrCode}-{row.CrTitle ?? row.CrCode ?? "—"}</span>
+                        <span>{row.courseId}-{row.courseTitle ?? row.courseId ?? "—"}</span>
                         <span className="text-sm text-[#1f4a3d] dark:text-white">
-                          {totalForCourse} students
+                          {row.courseStudentCount ?? 0} students
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="!text-left">
-                      {row.Teacher ?? "—"}
+                      {row.instructorName ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
-                      {classesHeld === 0 && classesScheduled === 0
-                        ? "—"
-                        : `${classesHeld}/${classesScheduled}`}
+                      {classesHeld === 0 ? "—" : `${classesHeld}`}
                     </TableCell>
                     <TableCell className="!text-left">
-                      {summary ? (
+                      {attendance != null ? (
                         <div className="flex flex-col">
                           <span className="inline-flex items-center gap-2">
                             <span className={attendanceColorClass}>
-                              {summary.percentage.toFixed(1)}%
-                            </span> <span className="text-xs text-dark-6 dark:text-dark-5">({summary.attended}/{summary.totalHeld})</span>
-                            {hasClassLoadSpike && (
-                              <span className="inline-flex items-center rounded-full bg-red-500 text-white px-2 py-0.5 text-[10px] font-semibold  dark:bg-red-900/30 dark:text-red-300">
-                                R
-                              </span>
-                            )}
+                              {attendance.toFixed(1)}%
+                            </span>{" "}
+                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                              ({classesAttended}/{classesHeld})
+                            </span>
                           </span>
                           {classAvg != null && (
                             <span className="text-xs text-dark-6 dark:text-dark-5">
@@ -759,16 +464,12 @@ export function TopChannelsTableClient({
                             </span>
                           )}
                         </div>
-                      ) : isAttendanceLoading ? (
-                        "Calculating..."
-                      ) : monitoredCount != null ? (
-                        `0.0% (0/${monitoredCount})`
                       ) : (
                         "—"
                       )}
                     </TableCell>
                     <TableCell className="!text-left">
-                      <span>{Number.isFinite(cgpa) ? cgpa.toFixed(2) : "-"}</span>
+                      <span>{typeof gpa === "number" ? gpa.toFixed(2) : "-"}</span>
                     </TableCell>
                     <TableCell className="!text-left">
                       <InterventionStatusBadge
