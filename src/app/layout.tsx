@@ -14,6 +14,11 @@ import { Providers } from "./providers";
 import { getCurrentUser } from "./(home)/dashboard/fetch";
 import { pool } from "@/lib/db";
 
+const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
+  FAC_ENG: "50000172",
+  FAC_MGT: "50000172",
+};
+
 export const metadata: Metadata = {
   title: {
     template: "UOL | Student Early Alert System",
@@ -31,11 +36,13 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   if (user && pool) {
     try {
       if (user.role === "dean" && user.faculty_id) {
+        const mappedFacultyId =
+          FACULTY_ID_TO_ENROLLMENT_FAC_ID[user.faculty_id] ?? user.faculty_id;
         const faculty = await pool.query<{ name: string }>(
           "SELECT name FROM faculties WHERE id = $1 LIMIT 1",
-          [user.faculty_id]
+          [mappedFacultyId]
         );
-        screenHeading = faculty.rows[0]?.name ?? user.faculty_id;
+        screenHeading = faculty.rows[0]?.name ?? mappedFacultyId;
 
         const total = await pool.query<{ total_students: number | string | null }>(
           `SELECT COALESCE(SUM(total_students), 0) AS total_students
@@ -43,7 +50,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
            WHERE snapshot_date = CURRENT_DATE
              AND dimension_type = 'faculty'
              AND dimension_id = $1`,
-          [user.faculty_id]
+          [mappedFacultyId]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (user.role === "hod" && user.department_ids?.length) {
