@@ -112,22 +112,23 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                   </span>
                 </span>
                 <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">
+                  <span className="text-base">Faculty:</span>
+                  <span className="font-medium">
+                    {facultyName?.replace("Faculty of", "") ?? "—"}
+                  </span>
+                </span>
+                <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">
+                  <span className="text-base">Department:</span>
+                  <span className="font-medium">
+                    {primaryEnrollment?.DeptName.replace("Department of", "") ?? "—"}
+                  </span>
+                </span>
+                <span className="flex  flex-col gap-1.5 ">
                   <span className="text-base">Program:</span>
                   <span className="font-medium">
                     {primaryEnrollment?.DegreeTitle ??
                       primaryEnrollment?.DegreeCode ??
                       "—"}
-                  </span>
-                </span>
-                <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">
-                  <span className="font-medium">
-                    {facultyName ?? "—"}
-                  </span>
-                </span>
-                <span className="flex  flex-col gap-1.5 ">
-                  <span className="text-base">Department:</span>
-                  <span className="font-medium">
-                    {primaryEnrollment?.DeptName ?? "—"}
                   </span>
                 </span>
               </div>

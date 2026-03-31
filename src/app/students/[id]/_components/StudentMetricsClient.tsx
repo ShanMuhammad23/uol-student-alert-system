@@ -275,6 +275,7 @@ export function StudentMetricsClient({
           selectedCourseCode={selectedCourseCode}
           selectedSection={selectedSection}
           overallAttendance={overallAttendance}
+          attendanceAlertLevel={attendanceAlert}
           monitoringClassAverage={
             selectedClassAverage ??
             student?.attendance.class_average_attendance ??

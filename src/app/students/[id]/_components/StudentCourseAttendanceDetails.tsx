@@ -22,6 +22,7 @@ type Props = {
   selectedSection?: string;
   overallAttendance: OverallAttendance;
   monitoringClassAverage?: number | null;
+  attendanceAlertLevel?: "critical" | "warning" | null;
 };
 
 export function StudentCourseAttendanceDetails({
@@ -30,6 +31,7 @@ export function StudentCourseAttendanceDetails({
   selectedSection,
   overallAttendance,
   monitoringClassAverage = null,
+  attendanceAlertLevel = null,
 }: Props) {
   const {
     attendanceSummaries,
@@ -116,8 +118,8 @@ export function StudentCourseAttendanceDetails({
     Number.isFinite(displayClassAvg) && displayClassAvg > 0;
 
   const comparison = hasValidClassAvg ? displayPercentage - displayClassAvg : 0;
-  const isDanger = comparison < -40;
-  const isWarning = !isDanger && comparison < -20;
+  const isDanger = attendanceAlertLevel === "critical";
+  const isWarning = attendanceAlertLevel === "warning";
 
   return (
     <div className="space-y-6">

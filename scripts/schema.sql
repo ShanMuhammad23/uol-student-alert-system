@@ -1,188 +1,319 @@
 -- =============================================================================
--- Student Alert System – Role-based access (Superadmin, Dean, HoD, Instructor)
--- IDs align with enrollment_data.json: FacId, DeptId/DeptCode, CrCode, Pernr
+-- Student Alert System - Scalable DB-first schema (PostgreSQL)
 -- =============================================================================
 
--- Faculties (id = FacId from enrollment_data.json)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- -----------------------------------------------------------------------------
+-- 1) MASTER DIMENSIONS
+-- -----------------------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS faculties (
-  id          VARCHAR(32) PRIMARY KEY,
-  name        VARCHAR(255) NOT NULL,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  id           VARCHAR(32) PRIMARY KEY,       -- FacId
+  name         VARCHAR(255) NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Departments (id = DeptId from enrollment; code = DeptCode for display/lookup)
 CREATE TABLE IF NOT EXISTS departments (
-  id          VARCHAR(32) PRIMARY KEY,
-  code        VARCHAR(32),
-  name        VARCHAR(255) NOT NULL,
-  faculty_id  VARCHAR(32) NOT NULL REFERENCES faculties(id),
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  id           VARCHAR(32) PRIMARY KEY,       -- DeptId
+  code         VARCHAR(32),                   -- DeptCode
+  name         VARCHAR(255) NOT NULL,
+  faculty_id   VARCHAR(32) NOT NULL REFERENCES faculties(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_departments_faculty_id ON departments(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_departments_code ON departments(code);
 
--- Staff: one row per user (Superadmin, Dean, HoD, or Instructor)
--- For Instructors: pernr matches enrollment_data.json "Pernr" (teacher employee number)
+CREATE TABLE IF NOT EXISTS programs (
+  id             VARCHAR(32) PRIMARY KEY,     -- DegreeCode / derived
+  title          VARCHAR(255) NOT NULL,
+  faculty_id     VARCHAR(32) REFERENCES faculties(id),
+  department_id  VARCHAR(32) REFERENCES departments(id),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_programs_faculty_id ON programs(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_programs_department_id ON programs(department_id);
+
+CREATE TABLE IF NOT EXISTS courses (
+  id             VARCHAR(64) PRIMARY KEY,     -- CrCode
+  title          VARCHAR(255),
+  department_id  VARCHAR(32) REFERENCES departments(id),
+  faculty_id     VARCHAR(32) REFERENCES faculties(id),
+  program_id     VARCHAR(32) REFERENCES programs(id),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_courses_department_id ON courses(department_id);
+CREATE INDEX IF NOT EXISTS idx_courses_faculty_id ON courses(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_courses_program_id ON courses(program_id);
+
+-- -----------------------------------------------------------------------------
+-- 2) STAFF + ACCESS SCOPE
+-- -----------------------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS staff (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  pernr         VARCHAR(32) UNIQUE NOT NULL,  -- Employee number; for instructors matches enrollment_data.json Pernr
+  pernr         VARCHAR(32) UNIQUE NOT NULL,
   name          VARCHAR(255) NOT NULL,
-  email         VARCHAR(255) NOT NULL UNIQUE,
+  email         VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255),
   role          VARCHAR(20) NOT NULL CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor')),
   faculty_id    VARCHAR(32) REFERENCES faculties(id),
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ DEFAULT NOW(),
-  img           TEXT
+  img           TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
 CREATE INDEX IF NOT EXISTS idx_staff_faculty_id ON staff(faculty_id);
 CREATE INDEX IF NOT EXISTS idx_staff_pernr ON staff(pernr);
 CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email);
 
--- HoD: which departments this staff member heads (only used when role = 'hod')
 CREATE TABLE IF NOT EXISTS staff_departments (
-  staff_id       UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
-  department_id  VARCHAR(32) NOT NULL REFERENCES departments(id),
-  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  staff_id      UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  department_id VARCHAR(32) NOT NULL REFERENCES departments(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (staff_id, department_id)
 );
-
 CREATE INDEX IF NOT EXISTS idx_staff_departments_staff_id ON staff_departments(staff_id);
 CREATE INDEX IF NOT EXISTS idx_staff_departments_department_id ON staff_departments(department_id);
 
--- Optional: courses reference for lookup (course codes from enrollment_data CrCode)
-CREATE TABLE IF NOT EXISTS courses (
-  id             VARCHAR(64) PRIMARY KEY,
-  title          VARCHAR(255),
-  department_id  VARCHAR(32) REFERENCES departments(id),
-  faculty_id     VARCHAR(32) REFERENCES faculties(id),
-  created_at     TIMESTAMPTZ DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ DEFAULT NOW()
+-- Instructor-course mapping
+CREATE TABLE IF NOT EXISTS instructor_courses (
+  instructor_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  course_id     VARCHAR(64) NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  section_code  VARCHAR(32) NOT NULL DEFAULT '',
+  source_pernr  VARCHAR(32),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (instructor_id, course_id, section_code)
+);
+CREATE INDEX IF NOT EXISTS idx_instructor_courses_course_id ON instructor_courses(course_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_courses_source_pernr ON instructor_courses(source_pernr);
+
+-- -----------------------------------------------------------------------------
+-- 3) STUDENTS + CURRENT ENROLLMENT (listing source of truth)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS students (
+  sap_id       VARCHAR(32) PRIMARY KEY,
+  full_name    VARCHAR(255),
+  gender       VARCHAR(16),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- =============================================================================
--- Seed: 1 Faculty, 1 Department (from enrollment_data.json sample)
--- =============================================================================
+-- One row per student-course-section-package (current window)
+CREATE TABLE IF NOT EXISTS student_enrollment_current (
+  sap_id            VARCHAR(32) NOT NULL REFERENCES students(sap_id) ON DELETE CASCADE,
+  student_name      VARCHAR(255),
+  faculty_id        VARCHAR(32) NOT NULL REFERENCES faculties(id),
+  department_id     VARCHAR(32) NOT NULL REFERENCES departments(id),
+  program_id        VARCHAR(32) REFERENCES programs(id),
+  course_id         VARCHAR(64) NOT NULL REFERENCES courses(id),
+  section_code      VARCHAR(32) NOT NULL DEFAULT '',
+  event_package_id  VARCHAR(64) NOT NULL DEFAULT '',
+  instructor_pernr  VARCHAR(32),
+  instructor_name   VARCHAR(255),
+  term_year         VARCHAR(8),
+  term_session      VARCHAR(8),
+  campus_code       VARCHAR(16),
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+  snapshot_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (sap_id, course_id, section_code, event_package_id)
+);
 
-INSERT INTO faculties (id, name) VALUES
-  ('50000172', 'Faculty of Social Sciences')
-ON CONFLICT (id) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_enroll_current_faculty ON student_enrollment_current(faculty_id, sap_id);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_department ON student_enrollment_current(department_id, sap_id);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_program ON student_enrollment_current(program_id, sap_id);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_course ON student_enrollment_current(course_id, sap_id);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_instructor ON student_enrollment_current(instructor_pernr, sap_id);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_term ON student_enrollment_current(term_year, term_session, campus_code);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_name ON student_enrollment_current(student_name);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_active ON student_enrollment_current(is_active);
 
-INSERT INTO departments (id, code, name, faculty_id) VALUES
-  ('51517449', '111708', 'Department of Criminology', '50000172')
-ON CONFLICT (id) DO NOTHING;
+-- -----------------------------------------------------------------------------
+-- 4) CURRENT ALERT FACTS (for consistent table + cards behavior)
+-- -----------------------------------------------------------------------------
 
--- =============================================================================
--- Seed: 1 user per role (Dean, HoD, Instructor)
--- =============================================================================
+CREATE TABLE IF NOT EXISTS student_alert_current (
+  sap_id                    VARCHAR(32) NOT NULL REFERENCES students(sap_id) ON DELETE CASCADE,
+  course_id                 VARCHAR(64) NOT NULL REFERENCES courses(id),
+  section_code              VARCHAR(32) NOT NULL DEFAULT '',
+  event_package_id          VARCHAR(64) NOT NULL DEFAULT '',
 
--- 1) Dean – faculty_id = 50000172 (Faculty of Social Sciences)
-INSERT INTO staff (id, pernr, name, email, password_hash, role, faculty_id) VALUES
-  ('a0000001-0000-4000-8000-000000000001', '900001', 'Prof. Dr. Rabia Akhtar', 'dean@uol.edu.pk', '$2a$10$placeholder_hash_replace_in_app', 'dean', '50000172')
-ON CONFLICT (email) DO UPDATE SET
-  pernr = EXCLUDED.pernr,
-  name = EXCLUDED.name,
-  role = EXCLUDED.role,
-  faculty_id = EXCLUDED.faculty_id,
-  updated_at = NOW();
+  faculty_id                VARCHAR(32) NOT NULL REFERENCES faculties(id),
+  department_id             VARCHAR(32) NOT NULL REFERENCES departments(id),
+  program_id                VARCHAR(32) REFERENCES programs(id),
+  instructor_pernr          VARCHAR(32),
 
--- 2) HoD – heads Department of Criminology (51517449)
-INSERT INTO staff (id, pernr, name, email, password_hash, role, faculty_id) VALUES
-  ('a0000001-0000-4000-8000-000000000002', '900002', 'Dr. Sara Khan', 'hod.criminology@uol.edu.pk', '$2a$10$placeholder_hash_replace_in_app', 'hod', NULL)
-ON CONFLICT (email) DO UPDATE SET
-  pernr = EXCLUDED.pernr,
-  name = EXCLUDED.name,
-  role = EXCLUDED.role,
-  updated_at = NOW();
+  total_classes_held        INTEGER NOT NULL DEFAULT 0,
+  classes_attended          INTEGER NOT NULL DEFAULT 0,
+  attendance_percentage     NUMERIC(5,2),
+  class_average_attendance  NUMERIC(5,2),
+  attendance_deviation      NUMERIC(6,2),  -- class_avg - student_pct
 
-INSERT INTO staff_departments (staff_id, department_id)
-SELECT s.id, '51517449'
-FROM staff s
-WHERE s.email = 'hod.criminology@uol.edu.pk'
-ON CONFLICT (staff_id, department_id) DO NOTHING;
+  gpa_current               NUMERIC(4,2),
+  gpa_previous              NUMERIC(4,2),
+  gpa_change                NUMERIC(5,2),
 
--- 3) Instructor – pernr matches enrollment_data.json Teacher "Maleeha Amjad" (Pernr 00016932)
-INSERT INTO staff (id, pernr, name, email, password_hash, role, faculty_id) VALUES
-  ('a0000001-0000-4000-8000-000000000003', '00016932', 'Maleeha Amjad', 'maleeha.amjad@law.uol.edu.pk', '$2a$10$placeholder_hash_replace_in_app', 'instructor', '50000172')
-ON CONFLICT (email) DO UPDATE SET
-  pernr = EXCLUDED.pernr,
-  name = EXCLUDED.name,
-  role = EXCLUDED.role,
-  faculty_id = EXCLUDED.faculty_id,
-  updated_at = NOW();
+  attendance_alert_level    VARCHAR(16) CHECK (attendance_alert_level IN ('warning', 'critical') OR attendance_alert_level IS NULL),
+  gpa_alert_level           VARCHAR(16) CHECK (gpa_alert_level IN ('warning', 'critical') OR gpa_alert_level IS NULL),
+  overall_alert_level       VARCHAR(16) NOT NULL CHECK (overall_alert_level IN ('none', 'warning', 'critical')),
 
+  computed_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  etl_run_id                BIGINT,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CREATE TABLE interventions (
-    id              VARCHAR(64) PRIMARY KEY,          -- e.g. "int-1771910179731-cld7bky"
-    student_sap_id  VARCHAR(32) NOT NULL,             -- e.g. "100033"
-    date            DATE NOT NULL,                    -- "2026-02-24"
-    intervention_type VARCHAR(16) NOT NULL DEFAULT 'attendance' CHECK (intervention_type IN ('attendance', 'gpa')),
-  -- Captures which alert cohort the student belonged to when the intervention was recorded.
-  -- Used for Yellow/Red intervention breakdowns in the dashboard.
-  alert_level VARCHAR(16) CHECK (alert_level IN ('warning', 'critical')),
-    outreach_mode   VARCHAR(32) NOT NULL,             -- e.g. "email", "phone-call", "meeting", "flagged"
-    remarks         TEXT NOT NULL DEFAULT '',         -- free-text remarks
-    status          VARCHAR(32) NOT NULL,             -- e.g. "initiated", "in-progress", "referred"
-    performed_at    TIMESTAMPTZ NOT NULL,             -- ISO timestamp string
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    staff_id        UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
-    department_id   VARCHAR(32) NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
-    course_id       VARCHAR(64) NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    faculty_id      VARCHAR(32) NOT NULL REFERENCES faculties(id) ON DELETE CASCADE
-  );
+  PRIMARY KEY (sap_id, course_id, section_code, event_package_id)
+);
 
-  -- Helpful indexes
-  CREATE INDEX idx_interventions_student_sap_id ON interventions(student_sap_id);
-  CREATE INDEX idx_interventions_status ON interventions(status);
-  CREATE INDEX idx_interventions_performed_at ON interventions(performed_at);
-  CREATE INDEX idx_interventions_staff_id ON interventions(staff_id);
-  CREATE INDEX idx_interventions_department_id ON interventions(department_id);
-  CREATE INDEX idx_interventions_course_id ON interventions(course_id);
-  CREATE INDEX idx_interventions_faculty_id ON interventions(faculty_id);
-  
-  CREATE TABLE wellbeing_cases (
+CREATE INDEX IF NOT EXISTS idx_alert_current_faculty_alert
+  ON student_alert_current(faculty_id, overall_alert_level, sap_id);
+
+CREATE INDEX IF NOT EXISTS idx_alert_current_department_alert
+  ON student_alert_current(department_id, overall_alert_level, sap_id);
+
+CREATE INDEX IF NOT EXISTS idx_alert_current_program_alert
+  ON student_alert_current(program_id, overall_alert_level, sap_id);
+
+CREATE INDEX IF NOT EXISTS idx_alert_current_course_alert
+  ON student_alert_current(course_id, overall_alert_level, sap_id);
+
+CREATE INDEX IF NOT EXISTS idx_alert_current_instructor_alert
+  ON student_alert_current(instructor_pernr, overall_alert_level, sap_id);
+
+CREATE INDEX IF NOT EXISTS idx_alert_current_gpa_level
+  ON student_alert_current(gpa_alert_level);
+
+CREATE INDEX IF NOT EXISTS idx_alert_current_attendance_level
+  ON student_alert_current(attendance_alert_level);
+
+-- -----------------------------------------------------------------------------
+-- 5) DAILY SNAPSHOT AGGREGATES (used by dashboard cards/charts)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS alert_counts_by_dimension (
+  snapshot_date      DATE NOT NULL,
+  dimension_type     VARCHAR(20) NOT NULL CHECK (dimension_type IN ('faculty', 'department', 'program', 'course', 'instructor')),
+  dimension_id       VARCHAR(128) NOT NULL,
+  dimension_name     VARCHAR(255) NOT NULL,
+  total_students     INTEGER NOT NULL DEFAULT 0,
+  yellow_gpa         INTEGER NOT NULL DEFAULT 0,
+  red_gpa            INTEGER NOT NULL DEFAULT 0,
+  yellow_attendance  INTEGER NOT NULL DEFAULT 0,
+  red_attendance     INTEGER NOT NULL DEFAULT 0,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (snapshot_date, dimension_type, dimension_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_counts_date ON alert_counts_by_dimension(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_alert_counts_type_date ON alert_counts_by_dimension(dimension_type, snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_alert_counts_type_dim ON alert_counts_by_dimension(dimension_type, dimension_id);
+
+-- Optional detailed daily snapshot for audit/backfill/reporting
+CREATE TABLE IF NOT EXISTS student_alert_daily (
+  snapshot_date             DATE NOT NULL,
+  sap_id                    VARCHAR(32) NOT NULL REFERENCES students(sap_id) ON DELETE CASCADE,
+  course_id                 VARCHAR(64) NOT NULL REFERENCES courses(id),
+  section_code              VARCHAR(32) NOT NULL DEFAULT '',
+  event_package_id          VARCHAR(64) NOT NULL DEFAULT '',
+
+  faculty_id                VARCHAR(32) NOT NULL REFERENCES faculties(id),
+  department_id             VARCHAR(32) NOT NULL REFERENCES departments(id),
+  program_id                VARCHAR(32) REFERENCES programs(id),
+  instructor_pernr          VARCHAR(32),
+
+  attendance_alert_level    VARCHAR(16) CHECK (attendance_alert_level IN ('warning', 'critical') OR attendance_alert_level IS NULL),
+  gpa_alert_level           VARCHAR(16) CHECK (gpa_alert_level IN ('warning', 'critical') OR gpa_alert_level IS NULL),
+  overall_alert_level       VARCHAR(16) NOT NULL CHECK (overall_alert_level IN ('none', 'warning', 'critical')),
+
+  attendance_percentage     NUMERIC(5,2),
+  class_average_attendance  NUMERIC(5,2),
+  gpa_current               NUMERIC(4,2),
+  gpa_previous              NUMERIC(4,2),
+  gpa_change                NUMERIC(5,2),
+
+  etl_run_id                BIGINT,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  PRIMARY KEY (snapshot_date, sap_id, course_id, section_code, event_package_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_alert_daily_dim
+  ON student_alert_daily(snapshot_date, faculty_id, department_id, program_id, course_id, instructor_pernr);
+
+-- -----------------------------------------------------------------------------
+-- 6) ETL RUN TRACKING
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS etl_runs (
+  id                       BIGSERIAL PRIMARY KEY,
+  pipeline_name            VARCHAR(64) NOT NULL,  -- e.g. daily_alert_snapshot
+  started_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at             TIMESTAMPTZ,
+  status                   VARCHAR(16) NOT NULL CHECK (status IN ('running', 'success', 'failed', 'partial')),
+  source_rows_enrollment   BIGINT NOT NULL DEFAULT 0,
+  source_rows_attendance   BIGINT NOT NULL DEFAULT 0,
+  source_rows_monitoring   BIGINT NOT NULL DEFAULT 0,
+  produced_rows_current    BIGINT NOT NULL DEFAULT 0,
+  produced_rows_daily      BIGINT NOT NULL DEFAULT 0,
+  error_message            TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_started ON etl_runs(pipeline_name, started_at DESC);
+
+-- -----------------------------------------------------------------------------
+-- 7) INTERVENTIONS + WELLBEING
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS interventions (
+  id                 VARCHAR(64) PRIMARY KEY,
+  student_sap_id     VARCHAR(32) NOT NULL REFERENCES students(sap_id),
+  date               DATE NOT NULL,
+  intervention_type  VARCHAR(16) NOT NULL DEFAULT 'attendance' CHECK (intervention_type IN ('attendance', 'gpa')),
+  alert_level        VARCHAR(16) CHECK (alert_level IN ('warning', 'critical') OR alert_level IS NULL),
+  outreach_mode      VARCHAR(32) NOT NULL,
+  remarks            TEXT NOT NULL DEFAULT '',
+  status             VARCHAR(32) NOT NULL CHECK (status IN ('initiated', 'in-progress', 'referred', 'resolved')),
+  performed_at       TIMESTAMPTZ NOT NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  staff_id           UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  department_id      VARCHAR(32) REFERENCES departments(id) ON DELETE SET NULL,
+  course_id          VARCHAR(64) REFERENCES courses(id) ON DELETE SET NULL,
+  faculty_id         VARCHAR(32) REFERENCES faculties(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_interventions_student_sap_id ON interventions(student_sap_id);
+CREATE INDEX IF NOT EXISTS idx_interventions_status ON interventions(status);
+CREATE INDEX IF NOT EXISTS idx_interventions_performed_at ON interventions(performed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_interventions_staff_id ON interventions(staff_id);
+CREATE INDEX IF NOT EXISTS idx_interventions_department_id ON interventions(department_id);
+CREATE INDEX IF NOT EXISTS idx_interventions_course_id ON interventions(course_id);
+CREATE INDEX IF NOT EXISTS idx_interventions_faculty_id ON interventions(faculty_id);
+
+CREATE TABLE IF NOT EXISTS wellbeing_cases (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_sap_id   VARCHAR(32) NOT NULL,   -- e.g. SAP id from students/enrollment
-  category         VARCHAR(32) NOT NULL,   -- 'Counselling', 'Monitoring', 'Flex (Academic)', 'Flex (Financial)'
-  wellbeing_status VARCHAR(32) NOT NULL,   -- e.g. 'open', 'in-progress', 'closed'
+  student_sap_id   VARCHAR(32) NOT NULL REFERENCES students(sap_id),
+  category         VARCHAR(32) NOT NULL CHECK (category IN ('Counselling', 'Monitoring', 'Flex (Academic)', 'Flex (Financial)')),
+  wellbeing_status VARCHAR(32) NOT NULL CHECK (wellbeing_status IN ('open', 'closed')),
   remarks          TEXT NOT NULL DEFAULT '',
   opened_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  resolved_at      TIMESTAMPTZ,           -- when resolution_status becomes 'resolved'
-  staff_id UUID REFERENCES staff(id)  -- who initiated the case (optional FK)
+  resolved_at      TIMESTAMPTZ,
+  staff_id         UUID REFERENCES staff(id)
 );
 
--- Optional: constrain categories and statuses to known values
-ALTER TABLE wellbeing_cases
-  ADD CONSTRAINT chk_wellbeing_category
-  CHECK (category IN ('Counselling', 'Monitoring', 'Flex (Academic)', 'Flex (Financial)'));
+CREATE INDEX IF NOT EXISTS idx_wellbeing_cases_student ON wellbeing_cases(student_sap_id);
+CREATE INDEX IF NOT EXISTS idx_wellbeing_cases_category ON wellbeing_cases(category);
+CREATE INDEX IF NOT EXISTS idx_wellbeing_cases_status ON wellbeing_cases(wellbeing_status);
 
-ALTER TABLE wellbeing_cases
-  ADD CONSTRAINT chk_wellbeing_status
-  CHECK (wellbeing_status IN ('open',  'closed'));
-
--- Helpful indexes for charts and filters
-CREATE INDEX idx_wellbeing_cases_student ON wellbeing_cases(student_sap_id);
-CREATE INDEX idx_wellbeing_cases_category ON wellbeing_cases(category);
-CREATE INDEX idx_wellbeing_cases_resolution_status ON wellbeing_cases(resolution_status);
 -- =============================================================================
--- Notes
+-- End schema
 -- =============================================================================
--- - Superadmin: role exists in DB; app access and scoping TBD when wired up.
--- - Dean: dashboard filtered by staff.faculty_id = FacId in enrollment_data.
--- - HoD: dashboard filtered by enrollment DeptId IN (staff_departments.department_id).
--- - Instructor: dashboard filtered by enrollment Pernr = staff.pernr.
--- - Replace password_hash with real bcrypt hash: run `node scripts/hash-password.js demo123` and UPDATE staff SET password_hash = '<hash>' WHERE email = '...';
--- - Add more faculties/departments by parsing enrollment_data.json (distinct FacId, DeptId, DeptName, DeptCode).
--- - Existing DB already created from this file: the role CHECK may be named e.g. staff_role_check (see \d staff).
---   Then: ALTER TABLE staff DROP CONSTRAINT <constraint_name>;
---   ALTER TABLE staff ADD CONSTRAINT staff_role_check CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor'));
--- - Existing DB migration for intervention type:
---   ALTER TABLE interventions ADD COLUMN IF NOT EXISTS intervention_type VARCHAR(16) NOT NULL DEFAULT 'attendance';
---   ALTER TABLE interventions DROP CONSTRAINT IF EXISTS interventions_intervention_type_check;
---   ALTER TABLE interventions ADD CONSTRAINT interventions_intervention_type_check CHECK (intervention_type IN ('attendance', 'gpa'));
