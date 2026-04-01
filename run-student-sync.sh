@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_BASE_URL="${APP_BASE_URL:?missing APP_BASE_URL}"
-CRON_SECRET="${CRON_SECRET:?missing CRON_SECRET}"
+APP_BASE_URL="http://127.0.0.1:3002"
+CRON_SECRET="shan237426"
 
 
 curl -sS -X POST \
