@@ -17,10 +17,12 @@ import {
   getAttendanceAlertLevel,
   normalizeCourseCode,
 } from "@/lib/attendance-utils";
-import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
 import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
 import { useEffect, useMemo, useState } from "react";
-import type { AlertDimensionFilter } from "@/app/(home)/dashboard/fetch";
+import type {
+  AlertDimensionFilter,
+  MasterFilterParams,
+} from "@/app/(home)/dashboard/fetch";
 
 type GroupedEnrollment = {
   byDept: Map<
@@ -64,33 +66,162 @@ type Props = {
   returnToUrl?: string;
   /** Enrollment data (same source as table view). When null/empty, shows empty state. */
   enrollmentData: EnrollmentRecord[] | null;
+  masterFilter?: MasterFilterParams;
   /** Attendance alert filters (red / yellow / good) from MasterFilter. */
   attendanceFilters?: AlertDimensionFilter[];
   /** GPA alert filters (red / yellow / good) from MasterFilter. */
   gpaFilters?: AlertDimensionFilter[];
+  interventionFilters?: string[];
+};
+
+type TopTableRow = {
+  sapId: string;
+  studentName: string;
+  departmentName: string;
+  programTitle: string;
+  courseId: string;
+  courseTitle: string;
+  instructorName: string;
+  sectionCode: string | null;
+  totalClassesHeld: number;
+  classesAttended: number;
+  attendancePercentage: number | null;
+  classAverageAttendance: number | null;
+  attendanceAlertLevel: "warning" | "critical" | null;
+  gpaCurrent: number | null;
+  gpaAlertLevel: "warning" | "critical" | null;
+  latestInterventionStatus: string | null;
 };
 
 export function NestedEnrollmentTableClient({
   className,
   returnToUrl = "/",
-  enrollmentData,
+  enrollmentData: _enrollmentData,
+  masterFilter,
   attendanceFilters,
   gpaFilters,
+  interventionFilters,
 }: Props) {
   const { expandedIds } = useDashboardUiState();
-  const list = enrollmentData ?? [];
+  const [dbRows, setDbRows] = useState<TopTableRow[]>([]);
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoadingDb(true);
+    const normalizedAttendanceFilters =
+      attendanceFilters?.includes("all" as AlertDimensionFilter)
+        ? undefined
+        : attendanceFilters;
+    const normalizedGpaFilters =
+      gpaFilters?.includes("all" as AlertDimensionFilter) ? undefined : gpaFilters;
+    fetch("/api/students/top-table", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        page: 1,
+        pageSize: 100000,
+        sortKey: "name",
+        sortDirection: "asc",
+        filters: {
+          ...(masterFilter ?? {}),
+          attendanceFilters: normalizedAttendanceFilters,
+          gpaFilters: normalizedGpaFilters,
+          interventionFilters,
+        },
+      }),
+    })
+      .then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error("Failed to load nested students"))
+      )
+      .then((body: { rows?: TopTableRow[] }) => {
+        setDbRows(Array.isArray(body.rows) ? body.rows : []);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setDbRows([]);
+      })
+      .finally(() => setIsLoadingDb(false));
+    return () => controller.abort();
+  }, [masterFilter, attendanceFilters, gpaFilters, interventionFilters]);
+
+  const list = useMemo<EnrollmentRecord[]>(
+    () =>
+      dbRows.map((r) => ({
+        SapNo: r.sapId,
+        Name: r.studentName,
+        DeptCode: r.departmentName,
+        DeptId: r.departmentName,
+        DeptName: r.departmentName,
+        DegreeTitle: r.programTitle,
+        CrCode: r.courseId,
+        CrTitle: r.courseTitle,
+        Teacher: r.instructorName,
+        Section: r.sectionCode ?? "",
+        Id: `${r.sapId}-${r.courseId}-${r.sectionCode ?? ""}`,
+      })),
+    [dbRows]
+  );
 
   const openAccordionBg = "bg-primary dark:bg-primary/10";
   const closedAccordionBg = "bg-gray-50 dark:bg-dark-2";
 
-  const {
-    attendanceSummaries,
-    classAverageByCourseSection,
-    monitoredByCourseSection,
-    isAttendanceLoading,
-    gpaAlertLevelBySapId,
-  } = useAttendanceAlerts(list);
-  const [cgpaBySapId, setCgpaBySapId] = useState<Record<string, number>>({});
+  const attendanceSummaries = useMemo(() => {
+    const map = new Map<
+      string,
+      { absences: number; totalHeld: number; attended: number; percentage: number }
+    >();
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      const db = dbRows[i];
+      if (!db) continue;
+      const key = getEnrollmentAttendanceKey(row);
+      map.set(key, {
+        absences: Math.max(0, db.totalClassesHeld - db.classesAttended),
+        totalHeld: db.totalClassesHeld,
+        attended: db.classesAttended,
+        percentage: db.attendancePercentage ?? 0,
+      });
+    }
+    return map;
+  }, [list, dbRows]);
+
+  const classAverageByCourseSection = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of dbRows) {
+      const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
+      if (r.classAverageAttendance != null) map.set(key, r.classAverageAttendance);
+    }
+    return map;
+  }, [dbRows]);
+
+  const monitoredByCourseSection = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of dbRows) {
+      const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
+      map.set(key, r.totalClassesHeld ?? 0);
+    }
+    return map;
+  }, [dbRows]);
+
+  const isAttendanceLoading = isLoadingDb;
+
+  const gpaAlertLevelBySapId = useMemo(() => {
+    const map = new Map<string, "critical" | "warning" | null>();
+    for (const r of dbRows) {
+      map.set(String(r.sapId ?? "").trim(), r.gpaAlertLevel ?? null);
+    }
+    return map;
+  }, [dbRows]);
+
+  const cgpaBySapId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of dbRows) {
+      if (typeof r.gpaCurrent === "number") map[String(r.sapId ?? "").trim()] = r.gpaCurrent;
+    }
+    return map;
+  }, [dbRows]);
 
   const filteredList = useMemo(() => {
     let base = list;
@@ -145,65 +276,13 @@ export function NestedEnrollmentTableClient({
 
   const { byDept } = groupEnrollmentByDeptProgramCourse(filteredList);
 
-  const [interventionStatuses, setInterventionStatuses] = useState<
-    Map<string, string | null>
-  >(new Map());
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(`/api/interventions/status`, {
-      signal: controller.signal,
-    })
-      .then((res) =>
-        res.ok
-          ? res.json()
-          : Promise.reject(new Error("Failed to load intervention statuses")),
-      )
-      .then((data: Record<string, string | null>) => {
-        const map = new Map<string, string | null>();
-        for (const [id, status] of Object.entries(data)) {
-          map.set(id, status ?? null);
-        }
-        setInterventionStatuses(map);
-      })
-      .catch((err) => {
-        if ((err as { name?: string }).name === "AbortError") return;
-        setInterventionStatuses(new Map());
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    const sapIds = Array.from(
-      new Set(list.map((r) => String(r.SapNo ?? "").trim()).filter(Boolean))
-    );
-    if (!sapIds.length) {
-      setCgpaBySapId({});
-      return;
+  const interventionStatuses = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const r of dbRows) {
+      map.set(String(r.sapId ?? "").trim(), r.latestInterventionStatus ?? null);
     }
-    const controller = new AbortController();
-    fetch("/api/gpa/by-sapids", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sapIds }),
-      signal: controller.signal,
-    })
-      .then((res) =>
-        res.ok ? res.json() : Promise.reject(new Error("Failed GPA fetch"))
-      )
-      .then((body: { cgpaBySapId?: Record<string, number> }) => {
-        setCgpaBySapId(body.cgpaBySapId ?? {});
-      })
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        setCgpaBySapId({});
-      });
-    return () => controller.abort();
-  }, [list]);
+    return map;
+  }, [dbRows]);
 
   const sortedDepts = Array.from(byDept.keys()).sort((a, b) =>
     a.localeCompare(b)
