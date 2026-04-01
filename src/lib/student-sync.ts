@@ -4,6 +4,7 @@ import { XMLParser } from "fast-xml-parser";
 import { pool } from "@/lib/db";
 import { fetchMonitoringEntries } from "@/lib/sap-monitoring";
 import { getCgpaMapBySapIds } from "@/lib/db/gpa";
+import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 
 type EnrollmentRow = {
   SapNo?: string;
@@ -147,17 +148,6 @@ function buildMultiInsertPlaceholders(
     rows.push(`(${cols.join(",")})`);
   }
   return rows.join(",");
-}
-
-function getAttendanceAlertLevel(
-  studentPercentage: number,
-  classAverage: number | null
-): "critical" | "warning" | null {
-  if (classAverage == null || !Number.isFinite(studentPercentage)) return null;
-  const diff = classAverage - studentPercentage;
-  if (diff >= 40) return "critical";
-  if (diff >= 20) return "warning";
-  return null;
 }
 
 export async function runStudentSync(snapshotDate?: string): Promise<StudentSyncResult> {

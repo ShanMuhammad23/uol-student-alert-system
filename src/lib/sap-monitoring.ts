@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import type { Student, GpaHistoryEntry } from "@/app/(home)/dashboard/fetch";
 import { THRESHOLDS } from "@/app/(home)/dashboard/fetch";
+import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 
 export type MonitoringParams = {
   Campus: string;
@@ -157,22 +158,6 @@ function toNumber(value: string | number | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * Attendance alert level based on deviation from class average.
- * - 20–39 percentage points below class average → "warning"
- * - ≥ 40 percentage points below class average → "critical"
- */
-function deriveAttendanceAlertLevel(
-  percentage: number,
-  classAverage: number | null | undefined
-): "critical" | "warning" | null {
-  if (classAverage == null) return null;
-  const diff = classAverage - percentage; // positive = student is below class average
-  if (diff >= 40) return "critical";
-  if (diff >= 20) return "warning";
-  return null;
-}
-
 /** Map SAP monitoring rows into Student objects (GPA fields are stubbed for now). */
 export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
   if (!entries.length) return [];
@@ -227,7 +212,7 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
     const averageAttendance = stats?.averageAttendance ?? pct;
     const deviation = pct - averageAttendance;
     const totalStudentsInClass = stats?.totalStudents ?? 0;
-    const attLevel = deriveAttendanceAlertLevel(pct, averageAttendance);
+    const attLevel = getAttendanceAlertLevel(pct, averageAttendance);
 
     const emptyHistory: GpaHistoryEntry[] = [];
 

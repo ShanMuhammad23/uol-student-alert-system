@@ -145,17 +145,18 @@ export async function getAttendanceSummariesForEnrollments(
 }
 
 /**
- * Compare a student's attendance to the class average.
- * - diff 20–39 percentage points below class average → "warning" (yellow)
- * - diff ≥ 40 percentage points below class average → "critical" (red)
+ * Attendance alert rules:
+ * - Red ("critical"): student attendance strictly below 75%.
+ * - Yellow ("warning"): attendance ≥ 75% and at least 20 percentage points below class average.
  */
 export function getAttendanceAlertLevel(
   studentPercentage: number,
   classAverage: number | null | undefined
 ): AttendanceAlertLevel {
-  if (classAverage == null || !Number.isFinite(studentPercentage)) return null;
+  if (!Number.isFinite(studentPercentage)) return null;
+  if (studentPercentage < 75) return "critical";
+  if (classAverage == null || !Number.isFinite(classAverage)) return null;
   const diff = classAverage - studentPercentage; // positive = below class average
-  if (diff >= 40) return "critical";
   if (diff >= 20) return "warning";
   return null;
 }

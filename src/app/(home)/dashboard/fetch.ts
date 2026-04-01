@@ -7,6 +7,7 @@ import { getWellbeingChartDataForStudents } from "@/lib/db/wellbeing";
 import type { StatusStackedChartData } from "@/components/Charts/status-stacked-chart/chart";
 import { pool } from "@/lib/db";
 import { fetchMonitoringEntries, mapMonitoringToStudents, getMonitoringStudentsBySapId } from "@/lib/sap-monitoring";
+import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 
 const ENROLLMENT_DATA_FILE = "enrollment_data.json";
 
@@ -639,22 +640,10 @@ export async function getFullData(): Promise<DataJson> {
 
 function applyAttendanceAlertThreshold(student: Student): void {
   const att = student.attendance;
-  const classAvg = att.class_average_attendance;
-  const pct = att.attendance_percentage;
-
-  if (!Number.isFinite(pct) || !Number.isFinite(classAvg)) {
-    student.attendance.alert_level = null;
-    return;
-  }
-
-  const diff = classAvg - pct; // positive = below class average
-  if (diff >= 40) {
-    student.attendance.alert_level = "critical";
-  } else if (diff >= 20) {
-    student.attendance.alert_level = "warning";
-  } else {
-    student.attendance.alert_level = null;
-  }
+  student.attendance.alert_level = getAttendanceAlertLevel(
+    att.attendance_percentage,
+    att.class_average_attendance
+  );
 }
 
 /** Screen heading by role: Faculty name (dean) from faculties table, Department name(s) (hod), Instructor name (teacher). */
