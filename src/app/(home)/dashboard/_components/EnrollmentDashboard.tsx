@@ -118,7 +118,7 @@ export function EnrollmentDashboard({
     } else if (user.role === "hod" && Array.isArray(anyUser.department_ids) && anyUser.department_ids.length) {
       const deptSet = new Set<string>(anyUser.department_ids);
       list = list.filter((r) => deptSet.has(r.DeptCode) || deptSet.has(r.DeptId));
-    } else if (user.role === "teacher" && anyUser.sap_id) {
+    } else if ((user.role === "teacher" || user.role === "instructor") && anyUser.sap_id) {
       const pernr = String(anyUser.sap_id).trim();
       list = list.filter((r) => (r.Pernr ?? "").trim() === pernr);
     }
@@ -407,7 +407,13 @@ function EnrollmentDashboardInner({
         <MasterFilter
           options={filterOptions}
           current={localMasterFilter}
-          role={user.role === "superadmin" ? "dean" : user.role}
+          role={
+            user.role === "superadmin"
+              ? "dean"
+              : user.role === "instructor"
+                ? "teacher"
+                : user.role
+          }
           selectedAlert={selectedAlert}
           gpaFilters={localGpaFilters}
           attendanceFilters={localAttendanceFilters}
