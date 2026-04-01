@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const OUTREACH_MODES = [
   { value: "email", label: "Email" },
+  { value: "whatsapp", label: "WhatsApp" },
   { value: "phone-call", label: "Phone Call" },
   { value: "meeting", label: "Meeting" },
   { value: "flagged" , label: "Flagged"}
@@ -105,10 +106,15 @@ const InterventionForm = ({
   const [remarks, setRemarks] = useState("");
   const [status, setStatus] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onSubmit) return;
+    setSubmitMessage(null);
     setIsAdding(true);
     try {
       await onSubmit({
@@ -117,6 +123,13 @@ const InterventionForm = ({
         outreachMode,
         remarks,
         status,
+      });
+      setSubmitMessage({ type: "success", text: "Intervention added successfully." });
+      if (onCancel) onCancel();
+    } catch {
+      setSubmitMessage({
+        type: "error",
+        text: "Failed to add intervention. Please try again.",
       });
     } finally {
       setIsAdding(false);
@@ -143,43 +156,35 @@ const InterventionForm = ({
         />
       </div>
 
-      {/* 2. Outreach Mode */}
-      <SelectField
-        id={typeId}
-        label="Type"
-        placeholder="Select type"
-        value={interventionType}
-        onChange={(value) => setInterventionType(value === "gpa" ? "gpa" : "attendance")}
-        items={TYPE_OPTIONS.map((t) => ({ value: t.value, label: t.label }))}
-        required
-      />
-
-      {/* 3. Outreach Mode */}
-      <SelectField
-        id={outreachId}
-        label="Mode"
-        placeholder="Select mode"
-        value={outreachMode}
-        onChange={setOutreachMode}
-        items={OUTREACH_MODES.map((o) => ({ value: o.value, label: o.label }))}
-        required
-      />
-
-      {/* 4. Remarks */}
-      <div>
-        <label className="mb-3 block text-body-sm font-medium text-dark dark:text-white">
-          Remarks
+      {/* 2. Type */}
+      <div className="space-y-3">
+        <label
+          htmlFor={typeId}
+          className="block text-body-sm font-medium text-dark dark:text-white"
+        >
+          Type
         </label>
-        <textarea
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-          rows={4}
-          placeholder="Enter remarks..."
-          className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5.5 py-3 text-dark outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary placeholder:text-dark-6"
-        />
+        <div id={typeId} className="flex flex-wrap items-center gap-4">
+          {TYPE_OPTIONS.map((t) => (
+            <label
+              key={t.value}
+              className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white"
+            >
+              <input
+                type="radio"
+                name="interventionType"
+                value={t.value}
+                checked={interventionType === t.value}
+                onChange={() => setInterventionType(t.value)}
+                className="h-4 w-4 accent-primary"
+              />
+              {t.label}
+            </label>
+          ))}
+        </div>
       </div>
 
-      {/* 5. Status */}
+      {/* 3. Status */}
       <SelectField
         id={statusId}
         label="Status"
@@ -190,9 +195,35 @@ const InterventionForm = ({
         required
       />
 
+      {/* 4. Mode */}
+      <SelectField
+        id={outreachId}
+        label="Mode"
+        placeholder="Select mode"
+        value={outreachMode}
+        onChange={setOutreachMode}
+        items={OUTREACH_MODES.map((o) => ({ value: o.value, label: o.label }))}
+        required
+      />
+
+      {/* 5. Remarks */}
+      <div>
+        <label className="mb-3 block text-body-sm font-medium text-dark dark:text-white">
+          Remarks
+        </label>
+        <textarea
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          rows={4}
+          placeholder="Enter remarks..."
+          className="w-full overflow-y-auto rounded-lg border-[1.5px] border-stroke bg-transparent px-5.5 py-3 text-dark outline-none transition [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary placeholder:text-dark-6"
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button
           type="submit"
+          disabled={isAdding}
           className="inline-flex items-center justify-center gap-2.5 rounded-[5px] bg-primary py-3.5 px-10 text-center font-medium text-white transition hover:bg-opacity-90 focus:outline-none lg:px-8 xl:px-10"
         >
           {isAdding ? "Adding..." : "Add Intervention"}
@@ -207,6 +238,18 @@ const InterventionForm = ({
           </button>
         )}
       </div>
+      {submitMessage && (
+        <p
+          className={cn(
+            "text-sm font-medium",
+            submitMessage.type === "success"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {submitMessage.text}
+        </p>
+      )}
     </form>
   );
 };
