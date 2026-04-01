@@ -92,4 +92,5 @@ main() {
   log "ETL run completed successfully"
 }
 
+
 main "$@"

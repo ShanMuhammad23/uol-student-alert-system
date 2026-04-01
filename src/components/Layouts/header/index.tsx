@@ -16,6 +16,23 @@ type HeaderProps = {
   totalStudents?: number;
 };
 
+const FACULTY_NAME_FALLBACK: Record<string, string> = {
+  "50000172": "Faculty of Social Sciences",
+  FAC_ENG: "Faculty of Social Sciences",
+  FAC_MGT: "Faculty of Social Sciences",
+};
+
+function mapFacultyHeadingName(value?: string | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (FACULTY_NAME_FALLBACK[raw]) return FACULTY_NAME_FALLBACK[raw];
+  if (/^Faculty\s+\d+$/i.test(raw)) {
+    const id = raw.replace(/^Faculty\s+/i, "").trim();
+    return FACULTY_NAME_FALLBACK[id] ?? raw;
+  }
+  return raw;
+}
+
 export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
   const { toggleSidebar, isMobile } = useSidebarContext();
   const pathname = usePathname();
@@ -57,7 +74,11 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         };
       })
       .then((data) => {
-        setEmulatedHeading(data.screenHeading ?? emulatedFacultyId);
+        setEmulatedHeading(
+          mapFacultyHeadingName(data.screenHeading) ??
+            mapFacultyHeadingName(emulatedFacultyId) ??
+            emulatedFacultyId
+        );
         setEmulatedTotalStudents(
           typeof data.totalStudents === "number"
             ? data.totalStudents
@@ -73,17 +94,23 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         ) {
           return;
         }
-        setEmulatedHeading(emulatedFacultyId);
+        setEmulatedHeading(mapFacultyHeadingName(emulatedFacultyId) ?? emulatedFacultyId);
         setEmulatedTotalStudents(undefined);
       });
 
     return () => controller.abort();
   }, [isSuperadminDeanMode, emulatedFacultyId]);
 
-  const resolvedHeading = useMemo(
-    () => (isSuperadminDeanMode ? emulatedHeading ?? emulatedFacultyId : screenHeading),
-    [isSuperadminDeanMode, emulatedHeading, emulatedFacultyId, screenHeading]
-  );
+  const resolvedHeading = useMemo(() => {
+    if (isSuperadminDeanMode) {
+      return (
+        mapFacultyHeadingName(emulatedHeading) ??
+        mapFacultyHeadingName(emulatedFacultyId) ??
+        emulatedFacultyId
+      );
+    }
+    return mapFacultyHeadingName(screenHeading) ?? screenHeading;
+  }, [isSuperadminDeanMode, emulatedHeading, emulatedFacultyId, screenHeading]);
   const resolvedTotalStudents = isSuperadminDeanMode
     ? emulatedTotalStudents
     : totalStudents;

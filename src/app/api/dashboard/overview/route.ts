@@ -14,6 +14,13 @@ import type {
 } from "@/app/(home)/dashboard/fetch";
 
 type Body = {
+  roleScope?: {
+    role: "dean" | "hod" | "teacher";
+    facultyId?: string | null;
+    departmentIds?: string[] | null;
+    courseIds?: string[] | null;
+    staffId?: string | null;
+  };
   masterFilter?: MasterFilterParams;
   gpaFilters?: AlertDimensionFilter[];
   attendanceFilters?: AlertDimensionFilter[];
@@ -43,9 +50,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const user = mapSessionToAppUser(
+  const sessionUser = mapSessionToAppUser(
     session as Parameters<typeof mapSessionToAppUser>[0],
   );
+  let user = sessionUser;
+  // Allow superadmin dean/hod/teacher emulation from dashboard UI scope payload.
+  if (sessionUser.role === "superadmin" && body.roleScope) {
+    user = {
+      ...sessionUser,
+      role: body.roleScope.role,
+      faculty_id: body.roleScope.facultyId ?? null,
+      department_ids: body.roleScope.departmentIds?.length
+        ? body.roleScope.departmentIds
+        : null,
+      department_id: body.roleScope.departmentIds?.[0] ?? null,
+      course_ids: body.roleScope.courseIds?.length ? body.roleScope.courseIds : null,
+      sap_id: body.roleScope.staffId || sessionUser.sap_id,
+    };
+  }
 
   const [overview, attendanceCoverage, attendanceYellow, attendanceRed, gpaYellow, gpaRed] =
     await Promise.all([

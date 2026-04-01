@@ -1,18 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
 import type {
   DepartmentStats,
   DeanStatsUser,
-  EnrollmentRecord,
 } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
-import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
-import {
-  getAttendanceAlertLevel,
-  getEnrollmentAttendanceKey,
-  normalizeCourseCode,
-} from "@/lib/attendance-utils";
 
 type PropsType = {
   user: DeanStatsUser | null;
@@ -21,8 +13,6 @@ type PropsType = {
   masterFilterDepartmentIds?: string[];
   /** Stats from enrollment or server; when empty, nothing is rendered. */
   stats?: DepartmentStats[] | null;
-  /** Filtered enrollment data used for alerts aggregation. */
-  enrollmentData?: EnrollmentRecord[] | null;
   /** Optional callback to update filters client-side instead of navigating. */
   onSelectDepartmentId?: (departmentId: string) => void;
 };
@@ -32,85 +22,13 @@ export function DeanDepartmentStats({
   selectedDepartmentId,
   masterFilterDepartmentIds,
   stats = null,
-  enrollmentData = [],
   onSelectDepartmentId,
 }: PropsType) {
   if (!user || user.role !== "dean") return null;
 
   const baseList = stats ?? [];
   if (!baseList.length) return null;
-
-  const rows = enrollmentData ?? [];
-  const { attendanceSummaries, classAverageByCourseSection } =
-    useAttendanceAlerts(rows);
-
-  const deptAlertCounts = useMemo(() => {
-    const map = new Map<
-      string,
-      { yellowAttendance: number; redAttendance: number }
-    >();
-    if (!rows.length || !attendanceSummaries) return map;
-    const perDeptStudentLevel = new Map<
-      string,
-      Map<string, "warning" | "critical">
-    >();
-
-    for (const row of rows) {
-      const deptId = row.DeptCode || row.DeptId;
-      if (!deptId) continue;
-      const sapId = (row.SapNo ?? "").trim();
-      if (!sapId) continue;
-
-      const monitorKey = `${normalizeCourseCode(
-        typeof row.CrCode === "string"
-          ? row.CrCode
-          : String(row.CrCode ?? ""),
-      )}__${row.Section ?? ""}`;
-
-      const attendanceKey = getEnrollmentAttendanceKey(row);
-      const summary = attendanceSummaries.get(attendanceKey);
-      if (!summary) continue;
-
-      const classAvg =
-        classAverageByCourseSection.get(monitorKey ?? "") ?? null;
-      const level =
-        summary && classAvg != null
-          ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
-          : null;
-
-      if (level !== "critical" && level !== "warning") continue;
-      if (!perDeptStudentLevel.has(deptId)) {
-        perDeptStudentLevel.set(deptId, new Map<string, "warning" | "critical">());
-      }
-      const studentLevels = perDeptStudentLevel.get(deptId)!;
-      const prevLevel = studentLevels.get(sapId);
-      // Keep max severity per student inside each department.
-      if (prevLevel !== "critical") {
-        studentLevels.set(sapId, level);
-      }
-    }
-
-    for (const [deptId, studentLevels] of perDeptStudentLevel.entries()) {
-      let yellowAttendance = 0;
-      let redAttendance = 0;
-      for (const level of studentLevels.values()) {
-        if (level === "critical") redAttendance += 1;
-        else yellowAttendance += 1;
-      }
-      map.set(deptId, { yellowAttendance, redAttendance });
-    }
-
-    return map;
-  }, [rows, attendanceSummaries, classAverageByCourseSection]);
-
-  const list = baseList.map((d) => {
-    const agg = deptAlertCounts.get(d.departmentId);
-    return {
-      ...d,
-      yellowAttendance: agg?.yellowAttendance ?? d.yellowAttendance,
-      redAttendance: agg?.redAttendance ?? d.redAttendance,
-    };
-  });
+  const list = baseList;
 
   if (!list.length) return null;
 

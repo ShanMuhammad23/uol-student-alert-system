@@ -7,6 +7,10 @@ import {
   getMasterFilterOptions,
   getOverviewData,
   getAlertSnapshotTrend,
+  getDeanDepartmentStats,
+  getDeanProgramStats,
+  getDeanInstructorStats,
+  getDeanCourseStats,
   getHodProgramStats,
   getHodCourseStats,
   getHodInstructorStats,
@@ -116,6 +120,30 @@ export default async function Home({ searchParams }: PropsType) {
   let hodCourseCount = 0;
   let hodInstructorCount = 0;
   let instructorCourseCount = 0;
+  let deanDepartmentStats: Awaited<ReturnType<typeof getDeanDepartmentStats>> | undefined = undefined;
+  let deanProgramStats: Awaited<ReturnType<typeof getDeanProgramStats>> | undefined = undefined;
+  let deanInstructorStats: Awaited<ReturnType<typeof getDeanInstructorStats>> | undefined = undefined;
+  let deanCourseStats: Awaited<ReturnType<typeof getDeanCourseStats>> | undefined = undefined;
+  if (effectiveUser.role === "dean") {
+    const deanFacultyId = effectiveUser.faculty_id ?? null;
+    [deanDepartmentStats, deanProgramStats, deanInstructorStats, deanCourseStats] = await Promise.all([
+      getDeanDepartmentStats(deanFacultyId, {
+        ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
+      }),
+      getDeanProgramStats(deanFacultyId, {
+        ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
+      }),
+      getDeanInstructorStats(deanFacultyId, {
+        ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
+        ...(instructorIds.length ? { instructorIds } : {}),
+      }),
+      getDeanCourseStats(deanFacultyId, {
+        ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
+        ...(programs.length ? { programIds: programs } : {}),
+        ...(courseIds.length ? { courseIds } : {}),
+      }),
+    ]);
+  }
   if (
     effectiveUser.role === "hod" &&
     effectiveUser.department_ids?.length
@@ -290,6 +318,10 @@ export default async function Home({ searchParams }: PropsType) {
           user={effectiveUser}
           masterFilter={masterFilter}
           filterOptionsFromServer={filterOptions}
+          deanDepartmentStats={deanDepartmentStats}
+          deanProgramStats={deanProgramStats}
+          deanInstructorStats={deanInstructorStats}
+          deanCourseStats={deanCourseStats}
           selectedAlert={selectedAlert}
           gpaFilters={gpaFilters}
           attendanceFilters={attendanceFilters}

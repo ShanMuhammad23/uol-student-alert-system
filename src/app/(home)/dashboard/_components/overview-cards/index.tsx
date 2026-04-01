@@ -114,6 +114,7 @@ export function OverviewCardsGroup({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        roleScope,
         masterFilter: filter.masterFilter,
         gpaFilters: filter.gpaFilters,
         attendanceFilters: filter.attendanceFilters,
