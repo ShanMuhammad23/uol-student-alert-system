@@ -49,6 +49,15 @@ type EnrollmentRow = {
   Name?: string;
 };
 
+type DbEnrollmentContext = {
+  departmentId: string | null;
+  facultyId: string | null;
+  courseId: string | null;
+  courseTitle: string | null;
+  attendanceAlertLevel: "warning" | "critical" | null;
+  gpaAlertLevel: "warning" | "critical" | null;
+};
+
 function readEnrollmentForStudent(sapId: string): EnrollmentRow | null {
   const dataPath = path.join(process.cwd(), "public", "enrollment_data.json");
   if (!existsSync(dataPath)) return null;
@@ -110,6 +119,55 @@ async function ensureDepartmentFromEnrollment(enrollment: EnrollmentRow): Promis
        updated_at = NOW()`,
     [deptId, deptCode, deptName, facId]
   );
+}
+
+async function getEnrollmentContextFromDb(
+  sapId: string
+): Promise<DbEnrollmentContext | null> {
+  if (!pool) return null;
+  const res = await pool.query<{
+    department_id: string | null;
+    faculty_id: string | null;
+    course_id: string | null;
+    course_title: string | null;
+    attendance_alert_level: "warning" | "critical" | null;
+    gpa_alert_level: "warning" | "critical" | null;
+  }>(
+    `SELECT
+       e.department_id,
+       e.faculty_id,
+       e.course_id,
+       c.title AS course_title,
+       a.attendance_alert_level,
+       a.gpa_alert_level
+     FROM student_enrollment_current e
+     LEFT JOIN student_alert_current a
+       ON a.sap_id = e.sap_id
+      AND a.course_id = e.course_id
+      AND a.section_code = e.section_code
+      AND a.event_package_id = e.event_package_id
+     LEFT JOIN courses c ON c.id = e.course_id
+     WHERE e.sap_id = $1
+     ORDER BY
+       CASE
+         WHEN a.attendance_alert_level = 'critical' OR a.gpa_alert_level = 'critical' THEN 3
+         WHEN a.attendance_alert_level = 'warning' OR a.gpa_alert_level = 'warning' THEN 2
+         ELSE 1
+       END DESC,
+       e.course_id ASC
+     LIMIT 1`,
+    [sapId]
+  );
+  if (!res.rows.length) return null;
+  const row = res.rows[0];
+  return {
+    departmentId: row.department_id ?? null,
+    facultyId: row.faculty_id ?? null,
+    courseId: row.course_id ?? null,
+    courseTitle: row.course_title ?? null,
+    attendanceAlertLevel: row.attendance_alert_level ?? null,
+    gpaAlertLevel: row.gpa_alert_level ?? null,
+  };
 }
 
 function readStore(): InterventionRecord[] {
@@ -357,35 +415,27 @@ export async function recordIntervention(
     if (!session?.user?.id) {
       throw new Error("You must be signed in to record an intervention.");
     }
-    // Use enrollment_data.json as the single source of truth for student context
-    // (DeptId, FacId, CrCode). SAP monitoring is *not* used for IDs here.
-    const enrollment = readEnrollmentForStudent(studentSapId);
-    // Compute which Yellow/Red cohort the student currently belongs to for the
-    // chosen intervention type. This ensures DB counts can be filtered later
-    // without sending SAP IDs to the database.
-    const student = await getStudentBySapId(studentSapId);
+    const dbContext = await getEnrollmentContextFromDb(studentSapId);
     const alertLevel =
       data.intervention_type === "attendance"
-        ? student?.attendance?.alert_level ?? null
-        : student?.gpa?.alert_level ?? null;
+        ? dbContext?.attendanceAlertLevel ?? null
+        : dbContext?.gpaAlertLevel ?? null;
 
     let departmentId: string | null = null;
     let facultyId: string | null = null;
     let courseId: string | null = null;
     let courseTitle: string | undefined;
 
-    if (enrollment?.DeptId && enrollment?.FacId) {
-      departmentId = String(enrollment.DeptId).trim();
-      facultyId = String(enrollment.FacId).trim();
-      courseId = (enrollment.CrCode ?? "").trim() || "unknown";
-      courseTitle = enrollment.CrTitle as string | undefined;
-      // Ensure faculty/department rows exist in the DB for this enrollment.
-      await ensureDepartmentFromEnrollment(enrollment);
+    if (dbContext?.departmentId && dbContext?.facultyId) {
+      departmentId = String(dbContext.departmentId).trim();
+      facultyId = String(dbContext.facultyId).trim();
+      courseId = String(dbContext.courseId ?? "").trim() || "unknown";
+      courseTitle = dbContext.courseTitle ?? undefined;
     }
 
     if (!departmentId || !facultyId) {
       throw new Error(
-        "Student context not found in enrollment data. Ensure enrollment_data.json includes this student with DeptId and FacId."
+        "Student context not found in database enrollment tables for this SAP ID."
       );
     }
 

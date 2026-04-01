@@ -193,7 +193,10 @@ export function InterventionHistorySection({ interventions, studentSapId, canDel
           </button>
         </div>
         <div className="px-6 py-4">
-          <InterventionFormWithAction studentSapId={studentSapId} />
+          <InterventionFormWithAction
+            studentSapId={studentSapId}
+            onClose={() => setOpen(false)}
+          />
         </div>
       </dialog>
     </div>

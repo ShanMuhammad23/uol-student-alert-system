@@ -42,8 +42,23 @@ type Props = {
   className?: string;
 };
 
+function normalizeStatus(status: string | null): string {
+  const raw = String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+  if (!raw) return "not_started";
+  if (raw === "not-started") return "not_started";
+  return raw;
+}
+
 export function InterventionStatusBadge({ status, goodStanding, className }: Props) {
-  if (goodStanding) {
+  const normalized = normalizeStatus(status);
+  const hasStatus = normalized !== "not_started";
+
+  // Always show an explicit intervention status if present, even for good-standing students.
+  if (goodStanding && !hasStatus) {
     return (
       <span
         className={cn("inline-flex items-center text-muted-foreground text-xs", className)}
@@ -54,7 +69,7 @@ export function InterventionStatusBadge({ status, goodStanding, className }: Pro
     );
   }
 
-  const key = status ?? "not_started";
+  const key = normalized;
   const style = INTERVENTION_STATUS_STYLES[key] ?? INTERVENTION_STATUS_STYLES.not_started;
 
   return (

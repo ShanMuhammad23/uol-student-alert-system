@@ -8,7 +8,7 @@ import { recordIntervention } from "@/app/(home)/dashboard/intervention-actions"
 
 type Props = { studentSapId: string };
 
-export function InterventionFormWithAction({ studentSapId }: Props) {
+export function InterventionFormWithAction({ studentSapId, onClose }: Props & { onClose?: () => void }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -26,6 +26,7 @@ export function InterventionFormWithAction({ studentSapId }: Props) {
       });
       setSuccess("Intervention added successfully.");
       router.refresh();
+      if (onClose) onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save intervention.");
     }
@@ -43,7 +44,7 @@ export function InterventionFormWithAction({ studentSapId }: Props) {
           {error}
         </p>
       )}
-      <InterventionForm onSubmit={handleSubmit} />
+      <InterventionForm onSubmit={handleSubmit} onCancel={onClose} />
     </div>
   );
 }
