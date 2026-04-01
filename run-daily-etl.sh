@@ -1,26 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Production cron runner for dashboard ETL endpoints.
-# Usage:
-#   APP_BASE_URL="https://your-domain.com" CRON_SECRET="..." bash scripts/run-daily-etl.sh
-#
-# Optional env:
-#   ETL_ENDPOINTS="/api/cron/alert-counts,/api/cron/student-sync"
-#   CURL_CONNECT_TIMEOUT=10
-#   CURL_MAX_TIME=1800
-#   RETRY_COUNT=3
-#   RETRY_DELAY_SECONDS=10
-#   LOG_DIR="/var/log/student-alert-system"
-
-APP_BASE_URL="${APP_BASE_URL:-}"
-CRON_SECRET="${CRON_SECRET:-}"
-ETL_ENDPOINTS="${ETL_ENDPOINTS:-/api/cron/alert-counts}"
-CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-10}"
-CURL_MAX_TIME="${CURL_MAX_TIME:-1800}"
-RETRY_COUNT="${RETRY_COUNT:-3}"
-RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-10}"
-LOG_DIR="${LOG_DIR:-/var/log/student-alert-system}"
+APP_BASE_URL="http://127.0.0.1:3000"
+CRON_SECRET="shan2374"
+ETL_ENDPOINTS="/api/cron/student-sync,/api/cron/alert-counts"
+CURL_CONNECT_TIMEOUT="10"
+CURL_MAX_TIME="1800"
+RETRY_COUNT="3"
+RETRY_DELAY_SECONDS="10"
+LOG_DIR="/var/log/student-alert-system"
 
 if [[ -z "${APP_BASE_URL}" ]]; then
   echo "ERROR: APP_BASE_URL is required" >&2
@@ -32,7 +20,7 @@ if [[ -z "${CRON_SECRET}" ]]; then
   exit 1
 fi
 
-mkdir -p "${LOG_DIR}"
+mkdir -p "${LOG_DIR}" 
 LOG_FILE="${LOG_DIR}/etl-$(date +%Y-%m-%d).log"
 
 timestamp() {
