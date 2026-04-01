@@ -75,7 +75,7 @@ export function DeanDepartmentStats({
         classAverageByCourseSection.get(monitorKey ?? "") ?? null;
       const level =
         summary && classAvg != null
-          ? getAttendanceAlertLevel(summary.percentage, classAvg)
+          ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
           : null;
 
       if (level !== "critical" && level !== "warning") continue;

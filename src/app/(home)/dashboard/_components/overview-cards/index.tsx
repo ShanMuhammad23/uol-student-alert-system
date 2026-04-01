@@ -59,6 +59,8 @@ export function OverviewCardsGroup({
     totalStudents,
     grossAttendanceYellow: yellowAttendance,
     grossAttendanceRed: redAttendance,
+    attendanceUpdatedCount: 0,
+    attendanceHeldCount: 0,
     grossGpaYellow: yellowGpa,
     grossGpaRed: redGpa,
   });
@@ -97,6 +99,8 @@ export function OverviewCardsGroup({
       totalStudents,
       grossAttendanceYellow: yellowAttendance,
       grossAttendanceRed: redAttendance,
+      attendanceUpdatedCount: 0,
+      attendanceHeldCount: 0,
       grossGpaYellow: yellowGpa,
       grossGpaRed: redGpa,
     });
@@ -125,6 +129,8 @@ export function OverviewCardsGroup({
             grossRed: number;
             resolvedYellow: number;
             resolvedRed: number;
+            updatedAttendance: number;
+            totalClassesHeld: number;
           };
           gpa: {
             grossYellow: number;
@@ -139,6 +145,8 @@ export function OverviewCardsGroup({
           totalStudents: body.totalStudents,
           grossAttendanceYellow: body.attendance.grossYellow,
           grossAttendanceRed: body.attendance.grossRed,
+          attendanceUpdatedCount: body.attendance.updatedAttendance ?? 0,
+          attendanceHeldCount: body.attendance.totalClassesHeld ?? 0,
           grossGpaYellow: body.gpa.grossYellow,
           grossGpaRed: body.gpa.grossRed,
         });
@@ -228,6 +236,8 @@ export function OverviewCardsGroup({
           grossYellowCount={liveCounts.grossAttendanceYellow}
           grossRedCount={liveCounts.grossAttendanceRed}
           totalStudents={liveCounts.totalStudents}
+          updatedAttendanceCount={liveCounts.attendanceUpdatedCount}
+          totalHeldCount={liveCounts.attendanceHeldCount}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
           redActive={attendanceRedActive}

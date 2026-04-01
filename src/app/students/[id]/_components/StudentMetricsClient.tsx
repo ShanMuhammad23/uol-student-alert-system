@@ -148,7 +148,11 @@ export function StudentMetricsClient({
           classAverageByCourseSection.get(courseSectionKey) ??
           null;
 
-        return getAttendanceAlertLevel(summary.percentage, classAverage);
+        return getAttendanceAlertLevel(
+          summary.percentage,
+          classAverage,
+          summary.totalHeld
+        );
       })
       .filter((level): level is "critical" | "warning" => level != null);
 

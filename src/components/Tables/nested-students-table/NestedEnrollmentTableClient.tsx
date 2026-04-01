@@ -112,7 +112,7 @@ export function NestedEnrollmentTableClient({
         const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
         const level =
           summary && classAvg != null
-            ? getAttendanceAlertLevel(summary.percentage, classAvg)
+            ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
             : null;
         return allowed.size ? allowed.has(level) : true;
       });
@@ -224,7 +224,7 @@ export function NestedEnrollmentTableClient({
       const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
       const level =
         summary && classAvg != null
-          ? getAttendanceAlertLevel(summary.percentage, classAvg)
+          ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
           : null;
       if (level === "critical") red += 1;
       if (level === "warning") yellow += 1;
@@ -476,6 +476,7 @@ export function NestedEnrollmentTableClient({
                                               ? getAttendanceAlertLevel(
                                                   summary.percentage,
                                                   classAvg,
+                                                  summary.totalHeld,
                                                 )
                                               : null;
                                           const attendanceColorClass =

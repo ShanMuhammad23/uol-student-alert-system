@@ -20,6 +20,8 @@ type PropsType = {
   grossYellowCount: number;
   grossRedCount: number;
   totalStudents: number;
+  updatedAttendanceCount: number;
+  totalHeldCount: number;
   attendanceFilters?: AlertDimensionFilter[];
   yellowActive?: boolean;
   redActive?: boolean;
@@ -36,6 +38,8 @@ export function AttendanceOverviewCardClient({
   grossYellowCount,
   grossRedCount,
   totalStudents,
+  updatedAttendanceCount,
+  totalHeldCount,
   attendanceFilters,
   yellowActive,
   redActive,
@@ -128,6 +132,12 @@ export function AttendanceOverviewCardClient({
           </dl>
           {hasGrowth ? null : null}
         </div>
+        <p className="mt-3 text-xs font-medium text-dark-6 dark:text-dark-5">
+          Updated Attendance / Total Classes Held:{" "}
+          <span className="font-semibold text-dark dark:text-white">
+            {updatedAttendanceCount.toLocaleString()} / {totalHeldCount.toLocaleString()}
+          </span>
+        </p>
       </div>
       <div className="ml-4 flex items-center">
         <DonutChart

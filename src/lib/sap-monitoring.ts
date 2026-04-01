@@ -212,7 +212,7 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
     const averageAttendance = stats?.averageAttendance ?? pct;
     const deviation = pct - averageAttendance;
     const totalStudentsInClass = stats?.totalStudents ?? 0;
-    const attLevel = getAttendanceAlertLevel(pct, averageAttendance);
+    const attLevel = getAttendanceAlertLevel(pct, averageAttendance, held);
 
     const emptyHistory: GpaHistoryEntry[] = [];
 

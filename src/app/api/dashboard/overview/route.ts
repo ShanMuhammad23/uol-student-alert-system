@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import {
   getOverviewData,
+  getAttendanceCoverageData,
   getStudentsByAlert,
   mapSessionToAppUser,
 } from "@/app/(home)/dashboard/fetch";
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     session as Parameters<typeof mapSessionToAppUser>[0],
   );
 
-  const [overview, attendanceYellow, attendanceRed, gpaYellow, gpaRed] =
+  const [overview, attendanceCoverage, attendanceYellow, attendanceRed, gpaYellow, gpaRed] =
     await Promise.all([
       getOverviewData(
         user,
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
         body.gpaFilters,
         body.attendanceFilters,
       ),
+      getAttendanceCoverageData(user, body.masterFilter),
       getStudentsByAlert(
         "yellow_attendance",
         { page: 1, pageSize: 100000 },
@@ -121,6 +123,8 @@ export async function POST(req: Request) {
       resolvedRed: resolvedAttendanceRed,
       netYellow: Math.max(0, grossAttendanceYellow - resolvedAttendanceYellow),
       netRed: Math.max(0, grossAttendanceRed - resolvedAttendanceRed),
+      updatedAttendance: attendanceCoverage.updatedAttendance,
+      totalClassesHeld: attendanceCoverage.totalClassesHeld,
     },
     gpa: {
       grossYellow: grossGpaYellow,

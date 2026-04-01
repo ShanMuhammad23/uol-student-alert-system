@@ -100,7 +100,7 @@ export function DeanCourseStats({
       const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
       const level =
         summary && classAvg != null
-          ? getAttendanceAlertLevel(summary.percentage, classAvg)
+          ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
           : null;
       map.set(attendanceKey, level);
     }

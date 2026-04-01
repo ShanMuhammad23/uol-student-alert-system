@@ -455,6 +455,59 @@ async function getOverviewDataFromDb(
   };
 }
 
+export type AttendanceCoverageData = {
+  updatedAttendance: number;
+  totalClassesHeld: number;
+};
+
+export async function getAttendanceCoverageData(
+  user?: AppUser | null,
+  masterFilter?: MasterFilterParams
+): Promise<AttendanceCoverageData> {
+  if (!pool) return { updatedAttendance: 0, totalClassesHeld: 0 };
+  const scope = getDbScope(user, masterFilter);
+  const dimColumn: Record<
+    "faculty" | "department" | "program" | "course" | "instructor",
+    string
+  > = {
+    faculty: "e.faculty_id",
+    department: "e.department_id",
+    program: "e.program_id",
+    course: "e.course_id",
+    instructor: "e.instructor_pernr",
+  };
+  const params: unknown[] = [];
+  const where: string[] = ["e.is_active = TRUE"];
+  if (scope.ids?.length) {
+    params.push(scope.ids);
+    where.push(`${dimColumn[scope.dimensionType]} = ANY($${params.length}::text[])`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const res = await pool.query<{
+    updated_attendance: number | string | null;
+    total_classes_held: number | string | null;
+  }>(
+    `
+      SELECT
+        COALESCE(SUM(COALESCE(a.attendance_marked_classes, 0)), 0) AS updated_attendance,
+        COALESCE(SUM(COALESCE(a.total_classes_held, 0)), 0) AS total_classes_held
+      FROM student_enrollment_current e
+      LEFT JOIN student_alert_current a
+        ON a.sap_id = e.sap_id
+       AND a.course_id = e.course_id
+       AND a.section_code = e.section_code
+       AND a.event_package_id = e.event_package_id
+      ${whereSql}
+    `,
+    params
+  );
+  const row = res.rows[0];
+  return {
+    updatedAttendance: toInt(row?.updated_attendance),
+    totalClassesHeld: toInt(row?.total_classes_held),
+  };
+}
+
 export async function getOverviewData(
   user?: AppUser | null,
   masterFilter?: MasterFilterParams,
@@ -642,7 +695,8 @@ function applyAttendanceAlertThreshold(student: Student): void {
   const att = student.attendance;
   student.attendance.alert_level = getAttendanceAlertLevel(
     att.attendance_percentage,
-    att.class_average_attendance
+    att.class_average_attendance,
+    att.total_classes_held
   );
 }
 

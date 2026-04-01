@@ -195,16 +195,28 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
 
   const classesHeldByCourseSection = new Map<string, number>();
   const classesHeldByCourse = new Map<string, number>();
+  const attendanceMarkedByCourseSection = new Map<string, number>();
+  const attendanceMarkedByCourse = new Map<string, number>();
   for (const entry of monitoringEntries) {
     const course = normalizeCourseCode(String(entry.CrCode ?? ""));
     const section = String(entry.SecCode ?? "").trim();
     if (!course) continue;
-    const toDateRaw = entry.ToDate;
+    const heldRaw = entry.Held ?? entry.ToDate;
     const held =
-      typeof toDateRaw === "number" ? toDateRaw : Number(toDateRaw ?? 0) || 0;
+      typeof heldRaw === "number" ? heldRaw : Number(heldRaw ?? 0) || 0;
+    const markedRaw = entry.Att;
+    const marked =
+      typeof markedRaw === "number" ? markedRaw : Number(markedRaw ?? 0) || 0;
     if (section) classesHeldByCourseSection.set(`${course}__${section}`, held);
+    if (section) {
+      const key = `${course}__${section}`;
+      const currentMarked = attendanceMarkedByCourseSection.get(key) ?? 0;
+      if (marked > currentMarked) attendanceMarkedByCourseSection.set(key, marked);
+    }
     const current = classesHeldByCourse.get(course) ?? 0;
     if (held > current) classesHeldByCourse.set(course, held);
+    const currentMarkedCourse = attendanceMarkedByCourse.get(course) ?? 0;
+    if (marked > currentMarkedCourse) attendanceMarkedByCourse.set(course, marked);
   }
 
   const absencesByEnrollmentKey = new Map<string, number>();
@@ -285,13 +297,20 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
       classesHeldByCourseSection.get(classKey) ??
       classesHeldByCourse.get(courseNorm) ??
       0;
+    const attendanceMarked =
+      attendanceMarkedByCourseSection.get(classKey) ??
+      attendanceMarkedByCourse.get(courseNorm) ??
+      0;
     const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
-    const attended = Math.max(0, totalHeld - absences);
-    const pct = totalHeld > 0 ? (attended / totalHeld) * 100 : 0;
+    const attended = Math.max(0, attendanceMarked - absences);
+    const pct =
+      attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : Number.NaN;
 
     attendancePctByEnrollmentKey.set(enrollKey, pct);
-    classSumByCourseSection.set(classKey, (classSumByCourseSection.get(classKey) ?? 0) + pct);
-    classCountByCourseSection.set(classKey, (classCountByCourseSection.get(classKey) ?? 0) + 1);
+    if (Number.isFinite(pct)) {
+      classSumByCourseSection.set(classKey, (classSumByCourseSection.get(classKey) ?? 0) + pct);
+      classCountByCourseSection.set(classKey, (classCountByCourseSection.get(classKey) ?? 0) + 1);
+    }
   }
 
   const classAvgByCourseSection = new Map<string, number>();
@@ -481,8 +500,10 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
       programId: string | null;
       instructorPernr: string | null;
       totalHeld: number;
+      attendanceMarked: number;
+      attendanceNotUpdated: number;
       attended: number;
-      attendancePct: number;
+      attendancePct: number | null;
       classAvg: number | null;
       deviation: number | null;
       attendanceLevel: "warning" | "critical" | null;
@@ -499,11 +520,20 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
         classesHeldByCourseSection.get(classKey) ??
         classesHeldByCourse.get(courseNorm) ??
         0;
+      const attendanceMarked =
+        attendanceMarkedByCourseSection.get(classKey) ??
+        attendanceMarkedByCourse.get(courseNorm) ??
+        0;
+      const attendanceNotUpdated = Math.max(0, totalHeld - attendanceMarked);
       const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
-      const attended = Math.max(0, totalHeld - absences);
-      const attendancePct = totalHeld > 0 ? (attended / totalHeld) * 100 : 0;
+      const attended = Math.max(0, attendanceMarked - absences);
+      const attendancePct =
+        attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
       const classAvg = classAvgByCourseSection.get(classKey) ?? null;
-      const attendanceLevel = getAttendanceAlertLevel(attendancePct, classAvg);
+      const attendanceLevel =
+        attendancePct == null
+          ? null
+          : getAttendanceAlertLevel(attendancePct, classAvg, totalHeld);
       const gpaCurrent = cgpaMap[row.sapId] ?? null;
       const gpaLevel: "warning" | "critical" | null = null;
       const overall: "none" | "warning" | "critical" =
@@ -522,10 +552,15 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
         programId: row.programId,
         instructorPernr: row.instructorPernr,
         totalHeld,
+        attendanceMarked,
+        attendanceNotUpdated,
         attended,
         attendancePct,
         classAvg,
-        deviation: classAvg == null ? null : classAvg - attendancePct,
+        deviation:
+          classAvg == null || attendancePct == null
+            ? null
+            : classAvg - attendancePct,
         attendanceLevel,
         gpaCurrent,
         gpaLevel,
@@ -538,13 +573,14 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
         `INSERT INTO student_alert_current (
            sap_id, course_id, section_code, event_package_id,
            faculty_id, department_id, program_id, instructor_pernr,
-           total_classes_held, classes_attended, attendance_percentage,
+           total_classes_held, attendance_marked_classes, attendance_not_updated_classes,
+           classes_attended, attendance_percentage,
            class_average_attendance, attendance_deviation, gpa_current,
            attendance_alert_level, gpa_alert_level, overall_alert_level,
            computed_at
          )
          VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW()
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW()
          )
          ON CONFLICT (sap_id, course_id, section_code, event_package_id) DO UPDATE SET
            faculty_id = EXCLUDED.faculty_id,
@@ -552,6 +588,8 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
            program_id = EXCLUDED.program_id,
            instructor_pernr = EXCLUDED.instructor_pernr,
            total_classes_held = EXCLUDED.total_classes_held,
+           attendance_marked_classes = EXCLUDED.attendance_marked_classes,
+           attendance_not_updated_classes = EXCLUDED.attendance_not_updated_classes,
            classes_attended = EXCLUDED.classes_attended,
            attendance_percentage = EXCLUDED.attendance_percentage,
            class_average_attendance = EXCLUDED.class_average_attendance,
@@ -572,6 +610,8 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
           row.programId,
           row.instructorPernr,
           row.totalHeld,
+          row.attendanceMarked,
+          row.attendanceNotUpdated,
           row.attended,
           row.attendancePct,
           row.classAvg,

@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS student_alert_current (
   instructor_pernr          VARCHAR(32),
 
   total_classes_held        INTEGER NOT NULL DEFAULT 0,
+  attendance_marked_classes INTEGER NOT NULL DEFAULT 0, -- monitoring Att
+  attendance_not_updated_classes INTEGER NOT NULL DEFAULT 0, -- GREATEST(Held - Att, 0)
   classes_attended          INTEGER NOT NULL DEFAULT 0,
   attendance_percentage     NUMERIC(5,2),
   class_average_attendance  NUMERIC(5,2),
@@ -234,6 +236,10 @@ CREATE TABLE IF NOT EXISTS student_alert_daily (
   gpa_alert_level           VARCHAR(16) CHECK (gpa_alert_level IN ('warning', 'critical') OR gpa_alert_level IS NULL),
   overall_alert_level       VARCHAR(16) NOT NULL CHECK (overall_alert_level IN ('none', 'warning', 'critical')),
 
+  total_classes_held        INTEGER NOT NULL DEFAULT 0,
+  attendance_marked_classes INTEGER NOT NULL DEFAULT 0, -- monitoring Att
+  attendance_not_updated_classes INTEGER NOT NULL DEFAULT 0, -- GREATEST(Held - Att, 0)
+  classes_attended          INTEGER NOT NULL DEFAULT 0,
   attendance_percentage     NUMERIC(5,2),
   class_average_attendance  NUMERIC(5,2),
   gpa_current               NUMERIC(4,2),
