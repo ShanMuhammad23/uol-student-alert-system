@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_BASE_URL="http://127.0.0.1:3000"
+APP_BASE_URL="http://127.0.0.1:3002"
 CRON_SECRET="shan2374"
 ETL_ENDPOINTS="/api/cron/student-sync,/api/cron/alert-counts"
 CURL_CONNECT_TIMEOUT="10"
