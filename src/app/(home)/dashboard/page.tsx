@@ -82,7 +82,7 @@ export default async function Home({ searchParams }: PropsType) {
 
   // Scope by session: Instructor sees only their courses (Pernr = sap_id); HoD sees only their departments
   if (
-    effectiveUser.role === "teacher" &&
+    (effectiveUser.role === "teacher" || effectiveUser.role === "instructor") &&
     !instructorIds.length &&
     effectiveUser.sap_id
   ) {
@@ -165,7 +165,7 @@ export default async function Home({ searchParams }: PropsType) {
     hodCourseCount = courseStats.length;
     hodInstructorCount = instructorStats.length;
   }
-  if (effectiveUser.role === "teacher") {
+  if (effectiveUser.role === "teacher" || effectiveUser.role === "instructor") {
     const instructorCourses = await getInstructorCourseStats(effectiveUser, {
       ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
     });

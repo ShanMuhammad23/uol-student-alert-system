@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           [user.department_ids]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
-      } else if (user.role === "teacher") {
+      } else if (user.role === "teacher" || user.role === "instructor") {
         screenHeading = user.name;
         const total = await pool.query<{ total_students: number | string | null }>(
           `SELECT COALESCE(SUM(total_students), 0) AS total_students
@@ -76,7 +76,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
            WHERE snapshot_date = CURRENT_DATE
              AND dimension_type = 'instructor'
              AND dimension_id = $1`,
-          [user.id]
+          [user.sap_id]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       }

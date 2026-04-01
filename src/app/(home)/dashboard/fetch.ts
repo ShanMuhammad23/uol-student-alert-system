@@ -861,6 +861,46 @@ export async function getMasterFilterOptions(
         };
       }
 
+      if (user?.role === "instructor") {
+        const instructorPernr = String(user.sap_id ?? "").trim();
+        if (!instructorPernr) {
+          return { departments: [], programs: [], courses: [], instructors: [] };
+        }
+        const scopedRows = await pool.query<{
+          department_id: string | null;
+          course_id: string;
+          program_id: string | null;
+          instructor_pernr: string | null;
+        }>(
+          `SELECT DISTINCT department_id, course_id, program_id, instructor_pernr
+           FROM student_enrollment_current
+           WHERE is_active = TRUE
+             AND instructor_pernr = $1`,
+          [instructorPernr]
+        );
+        const courseIds = new Set(
+          scopedRows.rows.map((r) => r.course_id).filter(Boolean)
+        );
+        const departmentIds = new Set(
+          scopedRows.rows.map((r) => r.department_id).filter(Boolean) as string[]
+        );
+        const programIds = new Set(
+          scopedRows.rows
+            .map((r) => (r.program_id && r.program_id.trim() ? r.program_id : getProgramFromCourse(r.course_id)))
+            .filter(Boolean) as string[]
+        );
+        const departmentsScoped = departments.filter((d) => departmentIds.has(d.value));
+        const programsScoped = programs.filter((p) => programIds.has(p.value));
+        const coursesScoped = courses.filter((c) => courseIds.has(c.value));
+        const instructorsScoped = instructors.filter((i) => i.value === instructorPernr);
+        return {
+          departments: departmentsScoped,
+          programs: programsScoped,
+          courses: coursesScoped,
+          instructors: instructorsScoped,
+        };
+      }
+
       if (
         departments.length ||
         programs.length ||

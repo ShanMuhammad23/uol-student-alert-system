@@ -323,7 +323,7 @@ function EnrollmentDashboardInner({
               }
             />
           )}
-          {user.role === "teacher" && (
+          {(user.role === "teacher" || user.role === "instructor") && (
             <InstructorStatsCollapsible
               courseCount={instructorCourseCount}
               courseContent={
