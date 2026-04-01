@@ -73,7 +73,7 @@ export function OverviewCardsGroup({
         facultyId: user.faculty_id ?? null,
         departmentIds: null as string[] | null,
         courseIds: null as string[] | null,
-        staffId: null as string | null,
+        pernr: null as string | null,
       };
     }
     if (user.role === "hod") {
@@ -82,7 +82,7 @@ export function OverviewCardsGroup({
         facultyId: null as string | null,
         departmentIds: user.department_ids ?? null,
         courseIds: null as string[] | null,
-        staffId: null as string | null,
+        pernr: null as string | null,
       };
     }
     return {
@@ -90,7 +90,7 @@ export function OverviewCardsGroup({
       facultyId: null as string | null,
       departmentIds: null as string[] | null,
       courseIds: user.course_ids ?? null,
-      staffId: user.id ?? null,
+      pernr: user.sap_id ?? null,
     };
   }, [user]);
 
@@ -171,14 +171,8 @@ export function OverviewCardsGroup({
     filter?.attendanceFilters,
   ]);
 
-  const netAttendanceYellow = Math.max(
-    0,
-    liveCounts.grossAttendanceYellow - resolved.attendanceYellow,
-  );
-  const netAttendanceRed = Math.max(
-    0,
-    liveCounts.grossAttendanceRed - resolved.attendanceRed,
-  );
+  const netAttendanceYellow = liveCounts.grossAttendanceYellow;
+  const netAttendanceRed = liveCounts.grossAttendanceRed;
   const netGpaYellow = Math.max(0, liveCounts.grossGpaYellow - resolved.gpaYellow);
   const netGpaRed = Math.max(0, liveCounts.grossGpaRed - resolved.gpaRed);
 

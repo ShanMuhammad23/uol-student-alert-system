@@ -18,6 +18,17 @@ type OverallAttendance = {
 
 type Props = {
   enrollmentRecords: EnrollmentRecord[];
+  dbMetricRows?: {
+    courseId: string;
+    courseTitle: string | null;
+    sectionCode: string | null;
+    instructorName: string | null;
+    totalClassesHeld: number;
+    classesAttended: number;
+    attendancePercentage: number | null;
+    classAverageAttendance: number | null;
+    attendanceAlertLevel: "warning" | "critical" | null;
+  }[];
   selectedCourseCode?: string;
   selectedSection?: string;
   overallAttendance: OverallAttendance;
@@ -27,6 +38,7 @@ type Props = {
 
 export function StudentCourseAttendanceDetails({
   enrollmentRecords,
+  dbMetricRows = [],
   selectedCourseCode,
   selectedSection,
   overallAttendance,
@@ -43,12 +55,48 @@ export function StudentCourseAttendanceDetails({
     selectedSummary,
     selectedLabel,
     selectedAttendanceKey,
+    selectedDbRow,
   } = useMemo(() => {
+    if (dbMetricRows.length) {
+      const selected =
+        (selectedCourseCode
+          ? dbMetricRows.find((r) => {
+              const courseMatches =
+                normalizeCourseCode(String(r.courseId ?? "")) ===
+                normalizeCourseCode(selectedCourseCode);
+              const sectionMatches =
+                !selectedSection || (r.sectionCode ?? "") === selectedSection;
+              return courseMatches && sectionMatches;
+            })
+          : null) ?? dbMetricRows[0] ?? null;
+      return {
+        selectedSummary: selected
+          ? {
+              totalHeld: selected.totalClassesHeld,
+              attended: selected.classesAttended,
+              percentage: selected.attendancePercentage ?? 0,
+              absences: Math.max(
+                0,
+                selected.totalClassesHeld - selected.classesAttended
+              ),
+            }
+          : null,
+        selectedLabel: selected
+          ? `${selected.courseTitle ?? selected.courseId}${
+              selected.sectionCode ? ` (${selected.sectionCode})` : ""
+            }`
+          : null,
+        selectedAttendanceKey: null,
+        selectedDbRow: selected,
+      };
+    }
+
     if (!enrollmentRecords.length || !attendanceSummaries) {
       return {
         selectedSummary: null,
         selectedLabel: null,
         selectedAttendanceKey: null,
+        selectedDbRow: null,
       };
     }
 
@@ -74,6 +122,7 @@ export function StudentCourseAttendanceDetails({
         selectedSummary: null,
         selectedLabel: null,
         selectedAttendanceKey: null,
+        selectedDbRow: null,
       };
     }
 
@@ -87,8 +136,10 @@ export function StudentCourseAttendanceDetails({
       selectedSummary: summary,
       selectedLabel: label,
       selectedAttendanceKey: key,
+      selectedDbRow: null,
     };
   }, [
+    dbMetricRows,
     attendanceSummaries,
     enrollmentRecords,
     selectedCourseCode,
@@ -101,6 +152,10 @@ export function StudentCourseAttendanceDetails({
       ),
     [enrollmentRecords, selectedAttendanceKey]
   );
+  const dbTableRows = useMemo(() => {
+    if (!dbMetricRows.length) return [];
+    return dbMetricRows.filter((r) => r !== selectedDbRow);
+  }, [dbMetricRows, selectedDbRow]);
 
   // Prefer per-course attendance metrics when available; otherwise fall back to overall.
   const displayTotalHeld =
@@ -202,7 +257,7 @@ export function StudentCourseAttendanceDetails({
         </div>
       </div>
 
-      {tableRows.length > 0 && (
+      {(dbTableRows.length > 0 || tableRows.length > 0) && (
         <div className="mt-2 space-y-3">
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
             Attendance details (courses)
@@ -219,7 +274,7 @@ export function StudentCourseAttendanceDetails({
                 </tr>
               </thead>
               <tbody>
-                {tableRows.map((r) => {
+                {(dbMetricRows.length ? [] : tableRows).map((r) => {
                   const key = getEnrollmentAttendanceKey(r);
                   const summary = attendanceSummaries?.get(key) ?? null;
                   const courseSectionKey = `${normalizeCourseCode(
@@ -284,6 +339,51 @@ export function StudentCourseAttendanceDetails({
                           : classesHeld
                             ? `0.0% (0/${classesHeld})`
                             : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {dbTableRows.map((r) => {
+                  const classAvg = r.classAverageAttendance ?? monitoringClassAverage;
+                  const level =
+                    r.attendanceAlertLevel ??
+                    (classAvg != null
+                      ? (comparison => {
+                          if (comparison >= 40) return "critical" as const;
+                          if (comparison >= 20) return "warning" as const;
+                          return null;
+                        })(classAvg - (r.attendancePercentage ?? 0))
+                      : null);
+                  return (
+                    <tr
+                      key={`${r.courseId}__${r.sectionCode ?? ""}`}
+                      className={cn(
+                        "border-b border-gray-100 last:border-0 dark:border-gray-800",
+                        level === "critical" &&
+                          "bg-red-50/60 dark:bg-red-900/10",
+                        level === "warning" &&
+                          "bg-yellow-50/70 dark:bg-yellow-900/15",
+                      )}
+                    >
+                      <td className="px-4 py-2 text-gray-900 dark:text-gray-100">
+                        {(r.courseTitle ?? r.courseId ?? "—") +
+                          " - " +
+                          (r.courseId ?? "—")}
+                      </td>
+                      <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                        {r.instructorName ?? "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-4 py-2 text-center",
+                          level === "critical" &&
+                            "text-red-500 dark:text-red-300 font-semibold",
+                          level === "warning" &&
+                            "text-yellow-700 dark:text-yellow-300 font-semibold",
+                          level == null && "text-black dark:text-emerald-300",
+                        )}
+                      >
+                        {`${(r.attendancePercentage ?? 0).toFixed(1)}% (${r.classesAttended}/${r.totalClassesHeld})`}
                       </td>
                     </tr>
                   );

@@ -17,6 +17,42 @@ type PropsType = {
   searchParams: Promise<{ from?: string; course?: string; section?: string; class_avg?: string }>;
 };
 
+const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
+  FAC_ENG: "50000172",
+  FAC_MGT: "50000172",
+};
+
+const FACULTY_NAME_FALLBACK: Record<string, string> = {
+  "50000172": "Faculty of Social Sciences",
+  FAC_ENG: "Faculty of Social Sciences",
+  FAC_MGT: "Faculty of Social Sciences",
+};
+
+function mapFacultyHeadingName(value?: string | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (FACULTY_NAME_FALLBACK[raw]) return FACULTY_NAME_FALLBACK[raw];
+  if (/^Faculty\s+\d+$/i.test(raw)) {
+    const id = raw.replace(/^Faculty\s+/i, "").trim();
+    return FACULTY_NAME_FALLBACK[id] ?? raw;
+  }
+  return raw;
+}
+
+type StudentProfileMetricRow = {
+  courseId: string;
+  courseTitle: string | null;
+  sectionCode: string | null;
+  instructorName: string | null;
+  totalClassesHeld: number;
+  classesAttended: number;
+  attendancePercentage: number | null;
+  classAverageAttendance: number | null;
+  attendanceAlertLevel: "warning" | "critical" | null;
+  gpaCurrent: number | null;
+  gpaAlertLevel: "warning" | "critical" | null;
+};
+
 async function getEnrollmentForStudentSapId(
   sapId: string
 ): Promise<EnrollmentRecord[]> {
@@ -88,6 +124,69 @@ async function getEnrollmentForStudentSapId(
   return data.filter((r) => r.SapNo === sapId);
 }
 
+async function getStudentProfileMetricRows(
+  sapId: string
+): Promise<StudentProfileMetricRow[]> {
+  if (!pool) return [];
+  try {
+    const res = await pool.query<{
+      course_id: string;
+      course_title: string | null;
+      section_code: string | null;
+      instructor_name: string | null;
+      total_classes_held: number | null;
+      classes_attended: number | null;
+      attendance_percentage: number | null;
+      class_average_attendance: number | null;
+      attendance_alert_level: "warning" | "critical" | null;
+      gpa_current: number | null;
+      gpa_alert_level: "warning" | "critical" | null;
+    }>(
+      `SELECT
+         e.course_id,
+         c.title AS course_title,
+         NULLIF(e.section_code, '') AS section_code,
+         e.instructor_name,
+         COALESCE(a.total_classes_held, 0) AS total_classes_held,
+         COALESCE(a.classes_attended, 0) AS classes_attended,
+         a.attendance_percentage,
+         a.class_average_attendance,
+         a.attendance_alert_level,
+         a.gpa_current,
+         a.gpa_alert_level
+       FROM student_enrollment_current e
+       LEFT JOIN student_alert_current a
+         ON a.sap_id = e.sap_id
+        AND a.course_id = e.course_id
+        AND a.section_code = e.section_code
+        AND a.event_package_id = e.event_package_id
+       LEFT JOIN courses c ON c.id = e.course_id
+       WHERE e.sap_id = $1
+       ORDER BY e.course_id ASC, e.section_code ASC`,
+      [sapId]
+    );
+    return res.rows.map((r) => ({
+      courseId: r.course_id,
+      courseTitle: r.course_title,
+      sectionCode: r.section_code,
+      instructorName: r.instructor_name,
+      totalClassesHeld: Number(r.total_classes_held ?? 0),
+      classesAttended: Number(r.classes_attended ?? 0),
+      attendancePercentage:
+        r.attendance_percentage == null ? null : Number(r.attendance_percentage),
+      classAverageAttendance:
+        r.class_average_attendance == null
+          ? null
+          : Number(r.class_average_attendance),
+      attendanceAlertLevel: r.attendance_alert_level,
+      gpaCurrent: r.gpa_current == null ? null : Number(r.gpa_current),
+      gpaAlertLevel: r.gpa_alert_level,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function generateMetadata({ params }: PropsType): Promise<Metadata> {
   const { id } = await params;
   const enrollment = await getEnrollmentForStudentSapId(id);
@@ -118,6 +217,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const currentCgpa = await getCgpaBySapId(sapIdFromUrl);
 
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
+  const dbMetricRows = await getStudentProfileMetricRows(sapIdFromUrl);
   if (!enrollmentRecords.length) notFound();
   const primaryEnrollment = enrollmentRecords[0] ?? null;
 
@@ -153,16 +253,28 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const facultyId = primaryEnrollment?.FacId;
   if (facultyId && pool) {
     try {
+      const mappedFacultyId =
+        FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
       const res = await pool.query<{ name: string }>(
         "SELECT name FROM faculties WHERE id = $1",
-        [facultyId]
+        [mappedFacultyId]
       );
-      facultyName = res.rows[0]?.name?.trim() ?? null;
+      facultyName =
+        mapFacultyHeadingName(res.rows[0]?.name?.trim() ?? null) ??
+        mapFacultyHeadingName(mappedFacultyId) ??
+        null;
     } catch {
       facultyName = null;
     }
   }
-  if (facultyId && !facultyName) facultyName = `Faculty ${facultyId}`;
+  if (facultyId && !facultyName) {
+    const mappedFacultyId =
+      FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
+    facultyName =
+      mapFacultyHeadingName(facultyId) ??
+      mapFacultyHeadingName(mappedFacultyId) ??
+      `Faculty ${mappedFacultyId}`;
+  }
 
   return (
     <div className="w-full space-y-6 mt-4">
@@ -226,6 +338,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         sapId={sapIdFromUrl}
         section="badges"
         enrollmentRecords={enrollmentRecords}
+        dbMetricRows={dbMetricRows}
         selectedCourseCode={selectedCourseCode}
         selectedSection={selectedSection}
         selectedClassAverage={selectedClassAverage}
@@ -241,6 +354,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         sapId={sapIdFromUrl}
         section="analytics"
         enrollmentRecords={enrollmentRecords}
+        dbMetricRows={dbMetricRows}
         selectedCourseCode={selectedCourseCode}
         selectedSection={selectedSection}
         currentCgpa={currentCgpa}

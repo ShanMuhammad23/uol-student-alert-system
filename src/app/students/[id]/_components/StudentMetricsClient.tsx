@@ -3,14 +3,10 @@
 import { useMemo } from "react";
 
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
-import { useAttendanceAlerts } from "@/hooks/useAttendanceAlerts";
-import { useMonitoringStudents } from "@/hooks/useMonitoringStudents";
-import type { Student } from "@/app/(home)/dashboard/fetch";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
 import {
   getAttendanceAlertLevel,
-  getEnrollmentAttendanceKey,
   normalizeCourseCode,
 } from "@/lib/attendance-utils";
 
@@ -22,6 +18,19 @@ type Props = {
   sapId: string;
   section: SectionKind;
   enrollmentRecords?: EnrollmentRecord[];
+  dbMetricRows?: {
+    courseId: string;
+    courseTitle: string | null;
+    sectionCode: string | null;
+    instructorName: string | null;
+    totalClassesHeld: number;
+    classesAttended: number;
+    attendancePercentage: number | null;
+    classAverageAttendance: number | null;
+    attendanceAlertLevel: "warning" | "critical" | null;
+    gpaCurrent: number | null;
+    gpaAlertLevel: "warning" | "critical" | null;
+  }[];
   selectedCourseCode?: string;
   selectedSection?: string;
   currentCgpa?: number | null;
@@ -60,30 +69,6 @@ function AlertBadge({ level, label }: { level: string; label: string }) {
   );
 }
 
-function selectStudent(rows: Student[], sapId: string): Student | null {
-  for (const row of rows) {
-    if (String(row.sap_id).trim() === String(sapId).trim()) return row;
-  }
-  return null;
-}
-
-function selectStudentForCourse(
-  rows: Student[],
-  sapId: string,
-  selectedCourseCode?: string
-): Student | null {
-  const sap = String(sapId).trim();
-  const studentRows = rows.filter((r) => String(r.sap_id).trim() === sap);
-  if (!studentRows.length) return null;
-  if (!selectedCourseCode) return studentRows[0];
-  const targetCourse = normalizeCourseCode(selectedCourseCode);
-  return (
-    studentRows.find(
-      (r) => normalizeCourseCode(String(r.course_id ?? "")) === targetCourse
-    ) ?? studentRows[0]
-  );
-}
-
 function getWorstLevel(
   levels: Array<"critical" | "warning" | null | undefined>
 ): "critical" | "warning" | "none" {
@@ -96,71 +81,47 @@ export function StudentMetricsClient({
   sapId,
   section,
   enrollmentRecords = [],
+  dbMetricRows = [],
   selectedCourseCode,
   selectedSection,
   currentCgpa = null,
   selectedClassAverage = null,
 }: Props) {
-  const { data, isLoading } = useMonitoringStudents();
-  const { attendanceSummaries, classAverageByCourseSection } =
-    useAttendanceAlerts(enrollmentRecords);
-  const studentRows = useMemo(
-    () =>
-      (data?.students ?? []).filter(
-        (r) => String(r.sap_id).trim() === String(sapId).trim()
-      ),
-    [data?.students, sapId]
-  );
+  const isLoading = false;
+  const studentRows = dbMetricRows;
   const worstAttendanceLevel = useMemo(
-    () => getWorstLevel(studentRows.map((r) => r.attendance.alert_level)),
+    () => getWorstLevel(studentRows.map((r) => r.attendanceAlertLevel)),
     [studentRows]
   );
   const worstGpaLevel = useMemo(
-    () => getWorstLevel(studentRows.map((r) => r.gpa.alert_level)),
+    () => getWorstLevel(studentRows.map((r) => r.gpaAlertLevel)),
     [studentRows]
   );
   const selectedCourseAttendanceLevel = useMemo(() => {
-    if (!attendanceSummaries || !enrollmentRecords.length) return null;
-
     const relevantRows = selectedCourseCode
-      ? enrollmentRecords.filter((r) => {
+      ? studentRows.filter((r) => {
           const courseMatches =
-            normalizeCourseCode(
-              typeof r.CrCode === "string" ? r.CrCode : String(r.CrCode ?? "")
-            ) === normalizeCourseCode(selectedCourseCode);
+            normalizeCourseCode(String(r.courseId ?? "")) ===
+            normalizeCourseCode(selectedCourseCode);
           const sectionMatches =
-            !selectedSection || (r.Section ?? "") === selectedSection;
+            !selectedSection || (r.sectionCode ?? "") === selectedSection;
           return courseMatches && sectionMatches;
         })
-      : enrollmentRecords;
+      : studentRows;
 
     const levels = relevantRows
-      .map((row) => {
-        const key = getEnrollmentAttendanceKey(row);
-        const summary = attendanceSummaries.get(key);
-        if (!summary) return null;
-
-        const courseSectionKey = `${normalizeCourseCode(
-          typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? "")
-        )}__${row.Section ?? ""}`;
-        const classAverage =
-          selectedClassAverage ??
-          classAverageByCourseSection.get(courseSectionKey) ??
-          null;
-
-        return getAttendanceAlertLevel(
-          summary.percentage,
-          classAverage,
-          summary.totalHeld
-        );
-      })
+      .map((r) =>
+        getAttendanceAlertLevel(
+          Number(r.attendancePercentage ?? NaN),
+          selectedClassAverage ?? r.classAverageAttendance ?? null,
+          r.totalClassesHeld
+        )
+      )
       .filter((level): level is "critical" | "warning" => level != null);
 
     return getWorstLevel(levels);
   }, [
-    attendanceSummaries,
-    classAverageByCourseSection,
-    enrollmentRecords,
+    studentRows,
     selectedClassAverage,
     selectedCourseCode,
     selectedSection,
@@ -176,8 +137,19 @@ export function StudentMetricsClient({
     [selectedCourseAttendanceLevel, worstAttendanceLevel]
   );
   const student = useMemo(
-    () => selectStudentForCourse(data?.students ?? [], sapId, selectedCourseCode),
-    [data?.students, sapId, selectedCourseCode]
+    () => {
+      if (!studentRows.length) return null;
+      if (!selectedCourseCode) return studentRows[0];
+      const targetCourse = normalizeCourseCode(selectedCourseCode);
+      return (
+        studentRows.find(
+          (r) =>
+            normalizeCourseCode(String(r.courseId ?? "")) === targetCourse &&
+            (!selectedSection || (r.sectionCode ?? "") === selectedSection)
+        ) ?? studentRows[0]
+      );
+    },
+    [studentRows, selectedCourseCode, selectedSection, sapId]
   );
 
   if (section === "badges") {
@@ -231,27 +203,23 @@ export function StudentMetricsClient({
 
   const overallAttendance = student
     ? {
-        total_classes_held: student.attendance.total_classes_held,
-        classes_attended: student.attendance.classes_attended,
-        attendance_percentage: student.attendance.attendance_percentage,
-        class_average_attendance: student.attendance.class_average_attendance,
+        total_classes_held: student.totalClassesHeld,
+        classes_attended: student.classesAttended,
+        attendance_percentage: student.attendancePercentage ?? 0,
+        class_average_attendance: student.classAverageAttendance ?? 0,
       }
     : EMPTY_ATTENDANCE;
 
-  const gpa = student?.gpa;
-  const currentGpaValue = currentCgpa ?? gpa?.current ?? 0;
-  const previousGpaValue = gpa?.previous ?? 0;
+  const currentGpaValue = currentCgpa ?? student?.gpaCurrent ?? 0;
+  const previousGpaValue = 0;
   const changeValue = currentCgpa != null
     ? Number((currentGpaValue - previousGpaValue).toFixed(2))
-    : (gpa?.change ?? 0);
-  const gpaTrendSeries =
-    gpa?.history?.length && gpa.history.length > 0
-      ? gpa.history.map((h) => ({ x: h.semester, y: h.gpa }))
-      : currentCgpa != null
-      ? [{ x: "Fall 2025", y: currentCgpa }]
-      : [];
+    : Number((currentGpaValue - previousGpaValue).toFixed(2));
+  const gpaTrendSeries = currentCgpa != null ? [{ x: "Current", y: currentCgpa }] : [];
   const attendanceAlert =
-    effectiveAttendanceLevel === "none" ? null : effectiveAttendanceLevel;
+    selectedCourseAttendanceLevel && selectedCourseAttendanceLevel !== "none"
+      ? selectedCourseAttendanceLevel
+      : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -276,13 +244,14 @@ export function StudentMetricsClient({
         </div>
         <StudentCourseAttendanceDetails
           enrollmentRecords={enrollmentRecords}
+          dbMetricRows={dbMetricRows}
           selectedCourseCode={selectedCourseCode}
           selectedSection={selectedSection}
           overallAttendance={overallAttendance}
           attendanceAlertLevel={attendanceAlert}
           monitoringClassAverage={
             selectedClassAverage ??
-            student?.attendance.class_average_attendance ??
+            student?.classAverageAttendance ??
             null
           }
         />

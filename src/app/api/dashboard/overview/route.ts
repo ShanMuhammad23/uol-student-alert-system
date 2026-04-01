@@ -4,10 +4,13 @@ import { authOptions } from "@/lib/auth-config";
 import {
   getOverviewData,
   getAttendanceCoverageData,
-  getStudentsByAlert,
   mapSessionToAppUser,
 } from "@/app/(home)/dashboard/fetch";
 import { getInterventionStatsForStudents } from "@/data/intervention-store";
+import {
+  getStudentListing,
+  type SessionScope,
+} from "@/lib/db/student-listing";
 import type {
   AlertDimensionFilter,
   MasterFilterParams,
@@ -19,22 +22,42 @@ type Body = {
     facultyId?: string | null;
     departmentIds?: string[] | null;
     courseIds?: string[] | null;
-    staffId?: string | null;
+    pernr?: string | null;
   };
   masterFilter?: MasterFilterParams;
   gpaFilters?: AlertDimensionFilter[];
   attendanceFilters?: AlertDimensionFilter[];
 };
 
-function uniqueSapIdsFromStudents(
-  students: Array<{ sap_id?: string | null }>,
+function uniqueSapIdsFromListingRows(
+  rows: Array<{ sapId?: string | null }>
 ): string[] {
   const out = new Set<string>();
-  for (const s of students) {
-    const sapId = String(s.sap_id ?? "").trim();
+  for (const r of rows) {
+    const sapId = String(r.sapId ?? "").trim();
     if (sapId) out.add(sapId);
   }
   return Array.from(out);
+}
+
+function toSessionScope(session: any): SessionScope | null {
+  const role = session?.user?.role;
+  if (
+    role !== "superadmin" &&
+    role !== "dean" &&
+    role !== "hod" &&
+    role !== "instructor"
+  ) {
+    return null;
+  }
+  return {
+    role,
+    faculty_id: session?.user?.faculty_id ?? null,
+    department_ids: Array.isArray(session?.user?.department_ids)
+      ? session.user.department_ids
+      : null,
+    pernr: session?.user?.pernr ?? null,
+  };
 }
 
 export async function POST(req: Request) {
@@ -50,9 +73,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const baseScope = toSessionScope(session as any);
+  if (!baseScope) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const sessionUser = mapSessionToAppUser(
     session as Parameters<typeof mapSessionToAppUser>[0],
   );
+  let scope: SessionScope = baseScope;
   let user = sessionUser;
   // Allow superadmin dean/hod/teacher emulation from dashboard UI scope payload.
   if (sessionUser.role === "superadmin" && body.roleScope) {
@@ -65,7 +94,15 @@ export async function POST(req: Request) {
         : null,
       department_id: body.roleScope.departmentIds?.[0] ?? null,
       course_ids: body.roleScope.courseIds?.length ? body.roleScope.courseIds : null,
-      sap_id: body.roleScope.staffId || sessionUser.sap_id,
+      sap_id: body.roleScope.pernr || sessionUser.sap_id,
+    };
+    scope = {
+      role: body.roleScope.role === "teacher" ? "instructor" : body.roleScope.role,
+      faculty_id: body.roleScope.facultyId ?? null,
+      department_ids: body.roleScope.departmentIds?.length
+        ? body.roleScope.departmentIds
+        : null,
+      pernr: body.roleScope.pernr ?? null,
     };
   }
 
@@ -78,38 +115,42 @@ export async function POST(req: Request) {
         body.attendanceFilters,
       ),
       getAttendanceCoverageData(user, body.masterFilter),
-      getStudentsByAlert(
-        "yellow_attendance",
-        { page: 1, pageSize: 100000 },
-        user,
-        body.masterFilter,
-        body.gpaFilters,
-        body.attendanceFilters,
-      ),
-      getStudentsByAlert(
-        "red_attendance",
-        { page: 1, pageSize: 100000 },
-        user,
-        body.masterFilter,
-        body.gpaFilters,
-        body.attendanceFilters,
-      ),
-      getStudentsByAlert(
-        "yellow_gpa",
-        { page: 1, pageSize: 100000 },
-        user,
-        body.masterFilter,
-        body.gpaFilters,
-        body.attendanceFilters,
-      ),
-      getStudentsByAlert(
-        "red_gpa",
-        { page: 1, pageSize: 100000 },
-        user,
-        body.masterFilter,
-        body.gpaFilters,
-        body.attendanceFilters,
-      ),
+      getStudentListing(scope, {
+        page: 1,
+        pageSize: 100000,
+        filters: {
+          ...(body.masterFilter ?? {}),
+          attendanceFilters: ["yellow"],
+          gpaFilters: body.gpaFilters,
+        },
+      }),
+      getStudentListing(scope, {
+        page: 1,
+        pageSize: 100000,
+        filters: {
+          ...(body.masterFilter ?? {}),
+          attendanceFilters: ["red"],
+          gpaFilters: body.gpaFilters,
+        },
+      }),
+      getStudentListing(scope, {
+        page: 1,
+        pageSize: 100000,
+        filters: {
+          ...(body.masterFilter ?? {}),
+          gpaFilters: ["yellow"],
+          attendanceFilters: body.attendanceFilters,
+        },
+      }),
+      getStudentListing(scope, {
+        page: 1,
+        pageSize: 100000,
+        filters: {
+          ...(body.masterFilter ?? {}),
+          gpaFilters: ["red"],
+          attendanceFilters: body.attendanceFilters,
+        },
+      }),
     ]);
 
   const [
@@ -119,13 +160,14 @@ export async function POST(req: Request) {
     gpaRedStats,
   ] = await Promise.all([
     getInterventionStatsForStudents(
-      uniqueSapIdsFromStudents(attendanceYellow.students),
+      uniqueSapIdsFromListingRows(attendanceYellow.rows),
     ),
-    getInterventionStatsForStudents(uniqueSapIdsFromStudents(attendanceRed.students)),
-    getInterventionStatsForStudents(uniqueSapIdsFromStudents(gpaYellow.students)),
-    getInterventionStatsForStudents(uniqueSapIdsFromStudents(gpaRed.students)),
+    getInterventionStatsForStudents(uniqueSapIdsFromListingRows(attendanceRed.rows)),
+    getInterventionStatsForStudents(uniqueSapIdsFromListingRows(gpaYellow.rows)),
+    getInterventionStatsForStudents(uniqueSapIdsFromListingRows(gpaRed.rows)),
   ]);
 
+  // Keep card gross counts aligned with daily ETL aggregate table (alert_counts_by_dimension).
   const grossAttendanceYellow = overview.yellowAttendance?.value ?? 0;
   const grossAttendanceRed = overview.redAttendance?.value ?? 0;
   const grossGpaYellow = overview.yellowGpa?.value ?? 0;
