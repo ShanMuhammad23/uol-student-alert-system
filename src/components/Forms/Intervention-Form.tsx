@@ -8,8 +8,7 @@ const OUTREACH_MODES = [
   { value: "email", label: "Email" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "phone-call", label: "Phone Call" },
-  { value: "meeting", label: "Meeting" },
-  { value: "flagged" , label: "Flagged"}
+  { value: "meeting", label: "Meeting" }
 ] as const;
 
 const STATUS_OPTIONS = [
