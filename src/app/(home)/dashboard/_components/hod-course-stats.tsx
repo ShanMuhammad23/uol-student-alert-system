@@ -1,46 +1,35 @@
-import Link from "next/link";
-import { getHodCourseStats } from "../fetch";
-import type { AppUser } from "../fetch";
+"use client";
+
+import type { AppUser, CourseStats } from "../fetch";
 import { cn } from "@/lib/utils";
 
 type PropsType = {
   user: AppUser | null;
   selectedProgramId?: string;
   selectedCourseId?: string;
+  stats?: CourseStats[] | null;
+  onSelectCourseId?: (courseId: string) => void;
 };
 
-function buildCourseUrl(
-  courseId: string,
-  departmentIds: string[],
-  programId?: string
-): string {
-  const params = new URLSearchParams({ selected_alert: "all", course: courseId });
-  if (departmentIds.length) params.set("department", departmentIds.join(","));
-  if (programId) params.set("program", programId);
-  return `/?${params.toString()}`;
-}
-
-export async function HodCourseStats({
+export function HodCourseStats({
   user,
-  selectedProgramId,
   selectedCourseId,
+  stats = null,
+  onSelectCourseId,
 }: PropsType) {
   if (!user || user.role !== "hod" || !user.department_ids?.length) return null;
-
-  const stats = await getHodCourseStats(user.department_ids, {
-    ...(selectedProgramId ? { programIds: [selectedProgramId] } : {}),
-    ...(selectedCourseId ? { courseIds: [selectedCourseId] } : {}),
-  });
-  if (!stats.length) return null;
+  const list = stats ?? [];
+  if (!list.length) return null;
 
   return (
     <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
-      {stats.map((c) => (
-        <Link
+      {list.map((c) => (
+        <button
           key={c.courseId}
-          href={buildCourseUrl(c.courseId, user.department_ids ?? [], selectedProgramId)}
+          type="button"
+          onClick={() => onSelectCourseId?.(c.courseId)}
           className={cn(
-            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
+            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
             "min-w-[160px]",
             selectedCourseId === c.courseId && "border-2 border-primary dark:border-primary"
           )}
@@ -64,7 +53,7 @@ export async function HodCourseStats({
             {" | "}
             <span className={cn("text-red-500 font-bold", c.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{c.redGpa}</span>
           </span>
-        </Link>
+        </button>
       ))}
     </div>
   );

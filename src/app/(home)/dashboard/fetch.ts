@@ -804,12 +804,19 @@ export async function getMasterFilterOptions(
       );
 
       if (user?.role === "hod" && user.department_ids?.length) {
-        const data = await getDataFromEnrollment();
         const deptSet = new Set(user.department_ids);
-        const scopedCourses = data.courses.filter((c) => deptSet.has(c.department_id));
-        const scopedCourseIds = new Set(scopedCourses.map((c) => c.id));
+        const scopedCoursesRes = await pool.query<{ course_id: string; instructor_pernr: string | null }>(
+          `SELECT DISTINCT course_id, instructor_pernr
+           FROM student_enrollment_current
+           WHERE is_active = TRUE
+             AND department_id = ANY($1::text[])`,
+          [user.department_ids]
+        );
+        const scopedCourseIds = new Set(
+          scopedCoursesRes.rows.map((r) => r.course_id).filter(Boolean)
+        );
         const scopedProgramIds = new Set(
-          scopedCourses.map((c) => getProgramFromCourse(c.id))
+          Array.from(scopedCourseIds).map((courseId) => getProgramFromCourse(courseId))
         );
 
         const departmentsScoped = departments.filter((d) =>
@@ -838,14 +845,9 @@ export async function getMasterFilterOptions(
           ? selectedCourses
           : new Set(coursesScoped.map((c) => c.value));
         const instructorIdsInScope = new Set(
-          data.users
-            .filter((u) =>
-              u.role === "instructor" &&
-              u.department_id &&
-              deptSet.has(u.department_id) &&
-              (u.course_ids ?? []).some((cid) => courseIdsForInstructorFilter.has(cid))
-            )
-            .map((u) => u.id)
+          scopedCoursesRes.rows
+            .filter((r) => r.instructor_pernr && courseIdsForInstructorFilter.has(r.course_id))
+            .map((r) => String(r.instructor_pernr))
         );
         const instructorsScoped = instructors.filter((i) =>
           instructorIdsInScope.has(i.value)
@@ -1818,68 +1820,48 @@ export async function getHodProgramStats(
   departmentIds: string[]
 ): Promise<ProgramStats[]> {
   if (!departmentIds.length) return [];
-  const data = await getDataFromEnrollment();
-  const deptSet = new Set(departmentIds);
-  // Derive HoD program set from department courses (not student rows) so
-  // programs with alert aggregates are not dropped due to student-source mismatch.
-  const programIds = Array.from(
-    new Set(
-      data.courses
-        .filter((c) => deptSet.has(c.department_id))
-        .map((c) => getProgramFromCourse(c.id))
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b));
-  if (!programIds.length) return [];
-
-  if (pool) {
-    try {
-      const dbCounts = await getDimensionCountsFromDb("program", programIds);
-      return programIds.map((programId) => {
-        const row = dbCounts.get(programId);
-        return {
-          programId,
-          total: row ? toInt(row.total_students) : 0,
-          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
-          redGpa: row ? toInt(row.red_gpa) : 0,
-          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
-          redAttendance: row ? toInt(row.red_attendance) : 0,
-        };
-      });
-    } catch {
-      // Fall back to file-derived alert calculations if DB aggregate read fails.
-    }
+  if (!pool) return [];
+  try {
+    const res = await pool.query<{ program_id: string; program_title: string | null }>(
+      `SELECT DISTINCT
+         e.program_id,
+         p.title AS program_title
+       FROM student_enrollment_current e
+       LEFT JOIN programs p ON p.id = e.program_id
+       WHERE e.is_active = TRUE
+         AND e.department_id = ANY($1::text[])
+         AND e.program_id IS NOT NULL
+         AND e.program_id <> ''`,
+      [departmentIds]
+    );
+    const programRows = Array.from(
+      new Map(
+        res.rows
+          .filter((r) => Boolean(r.program_id))
+          .map((r) => [r.program_id, r])
+      ).values()
+    ).sort((a, b) => a.program_id.localeCompare(b.program_id));
+    const programIds = programRows.map((r) => r.program_id);
+    if (!programIds.length) return [];
+    const dbCounts = await getDimensionCountsFromDb("program", programIds);
+    const titleByProgramId = new Map(
+      programRows.map((r) => [r.program_id, (r.program_title ?? "").trim()])
+    );
+    return programIds.map((programId) => {
+      const row = dbCounts.get(programId);
+      return {
+        programId,
+        programTitle: titleByProgramId.get(programId) || programId,
+        total: row ? toInt(row.total_students) : 0,
+        yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+        redGpa: row ? toInt(row.red_gpa) : 0,
+        yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+        redAttendance: row ? toInt(row.red_attendance) : 0,
+      };
+    });
+  } catch {
+    return [];
   }
-
-  const students = data.students.filter((s) => deptSet.has(s.department_id));
-  const byProgram = new Map<string, Student[]>();
-  for (const s of students) {
-    const programId = getProgramFromCourse(s.course_id);
-    if (!byProgram.has(programId)) byProgram.set(programId, []);
-    byProgram.get(programId)!.push(s);
-  }
-
-  return programIds.map((programId) => {
-    const progStudents = byProgram.get(programId) ?? [];
-    let yellowGpa = 0,
-      redGpa = 0,
-      yellowAttendance = 0,
-      redAttendance = 0;
-    for (const s of progStudents) {
-      if (s.gpa.alert_level === "critical") redGpa += 1;
-      if (s.gpa.alert_level === "warning") yellowGpa += 1;
-      if (s.attendance.alert_level === "critical") redAttendance += 1;
-      if (s.attendance.alert_level === "warning") yellowAttendance += 1;
-    }
-    return {
-      programId,
-      total: progStudents.length,
-      yellowGpa,
-      redGpa,
-      yellowAttendance,
-      redAttendance,
-    };
-  });
 }
 
 /** Instructor stats for HoD: teachers in the given department IDs. */
@@ -1888,6 +1870,56 @@ export async function getHodInstructorStats(
   options?: { instructorIds?: string[]; programIds?: string[]; courseIds?: string[] }
 ): Promise<InstructorStats[]> {
   if (!departmentIds.length) return [];
+  if (pool) {
+    try {
+      const params: unknown[] = [departmentIds];
+      const where: string[] = [
+        "e.is_active = TRUE",
+        "e.department_id = ANY($1::text[])",
+        "e.instructor_pernr IS NOT NULL",
+        "e.instructor_pernr <> ''",
+      ];
+      if (options?.instructorIds?.length) {
+        params.push(options.instructorIds);
+        where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
+      }
+      if (options?.programIds?.length) {
+        params.push(options.programIds);
+        where.push(`e.program_id = ANY($${params.length}::text[])`);
+      }
+      if (options?.courseIds?.length) {
+        params.push(options.courseIds);
+        where.push(`e.course_id = ANY($${params.length}::text[])`);
+      }
+      const res = await pool.query<{ instructor_id: string; instructor_name: string }>(
+        `SELECT DISTINCT
+           e.instructor_pernr AS instructor_id,
+           COALESCE(NULLIF(TRIM(MAX(e.instructor_name)), ''), e.instructor_pernr) AS instructor_name
+         FROM student_enrollment_current e
+         WHERE ${where.join(" AND ")}
+         GROUP BY e.instructor_pernr
+         ORDER BY instructor_name ASC`,
+        params
+      );
+      const instructorIds = res.rows.map((r) => r.instructor_id);
+      if (!instructorIds.length) return [];
+      const dbCounts = await getDimensionCountsFromDb("instructor", instructorIds);
+      return res.rows.map((teacher) => {
+        const row = dbCounts.get(teacher.instructor_id);
+        return {
+          instructorId: teacher.instructor_id,
+          instructorName: teacher.instructor_name,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived calculations when DB path fails.
+    }
+  }
   const data = await getDataFromEnrollment();
   const deptSet = new Set(departmentIds);
 
@@ -1969,6 +2001,80 @@ export async function getHodCourseStats(
   options?: { programIds?: string[]; courseIds?: string[] }
 ): Promise<CourseStats[]> {
   if (!departmentIds.length) return [];
+  if (pool) {
+    try {
+      const params: unknown[] = [departmentIds];
+      const where: string[] = [
+        "e.is_active = TRUE",
+        "e.department_id = ANY($1::text[])",
+      ];
+      if (options?.programIds?.length) {
+        params.push(options.programIds);
+        where.push(`e.program_id = ANY($${params.length}::text[])`);
+      }
+      if (options?.courseIds?.length) {
+        params.push(options.courseIds);
+        where.push(`e.course_id = ANY($${params.length}::text[])`);
+      }
+      const res = await pool.query<{ course_id: string; course_name: string }>(
+        `SELECT DISTINCT
+           e.course_id,
+           COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS course_name
+         FROM student_enrollment_current e
+         LEFT JOIN courses c ON c.id = e.course_id
+         WHERE ${where.join(" AND ")}
+         ORDER BY e.course_id ASC`,
+        params
+      );
+      const sortedCourseIds = res.rows.map((r) => r.course_id);
+      if (!sortedCourseIds.length) return [];
+      const courseNameById = new Map(res.rows.map((r) => [r.course_id, r.course_name]));
+      const courseIdBaseByFull = new Map(
+        sortedCourseIds.map((id) => [id, id.split("|")[0]?.trim() || id])
+      );
+      const normalizedCourseIds = Array.from(new Set(Array.from(courseIdBaseByFull.values())));
+      const counts = await pool.query<{
+        course_id: string;
+        course_name: string;
+        total_students: number | string | null;
+        yellow_gpa: number | string | null;
+        red_gpa: number | string | null;
+        yellow_attendance: number | string | null;
+        red_attendance: number | string | null;
+      }>(
+        `SELECT
+           split_part(dimension_id, '|', 1) AS course_id,
+           MAX(dimension_name) AS course_name,
+           COALESCE(SUM(total_students), 0) AS total_students,
+           COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+           COALESCE(SUM(red_gpa), 0) AS red_gpa,
+           COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+           COALESCE(SUM(red_attendance), 0) AS red_attendance
+         FROM alert_counts_by_dimension
+         WHERE snapshot_date = CURRENT_DATE
+           AND dimension_type = 'course'
+           AND split_part(dimension_id, '|', 1) = ANY($1)
+         GROUP BY split_part(dimension_id, '|', 1)`,
+        [normalizedCourseIds]
+      );
+      const byCourse = new Map(counts.rows.map((r) => [r.course_id, r]));
+      return sortedCourseIds.map((courseId) => {
+        const baseId = courseIdBaseByFull.get(courseId) ?? courseId;
+        const row = byCourse.get(baseId);
+        return {
+          courseId,
+          courseName: row?.course_name ?? courseNameById.get(courseId) ?? courseId,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived calculations when DB path fails.
+    }
+  }
   const data = await getDataFromEnrollment();
   const deptSet = new Set(departmentIds);
 
@@ -2071,6 +2177,78 @@ export async function getInstructorCourseStats(
   options?: { courseIds?: string[] }
 ): Promise<CourseStats[]> {
   if (!user || user.role !== "instructor") return [];
+  if (pool) {
+    try {
+      const pernr = String(user.sap_id ?? "").trim();
+      if (!pernr) return [];
+      const params: unknown[] = [pernr];
+      const where: string[] = [
+        "e.is_active = TRUE",
+        "e.instructor_pernr = $1",
+      ];
+      if (options?.courseIds?.length) {
+        params.push(options.courseIds);
+        where.push(`e.course_id = ANY($${params.length}::text[])`);
+      }
+      const res = await pool.query<{ course_id: string; course_name: string }>(
+        `SELECT DISTINCT
+           e.course_id,
+           COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS course_name
+         FROM student_enrollment_current e
+         LEFT JOIN courses c ON c.id = e.course_id
+         WHERE ${where.join(" AND ")}
+         ORDER BY e.course_id ASC`,
+        params
+      );
+      const courseIds = res.rows.map((r) => r.course_id);
+      if (!courseIds.length) return [];
+      const courseNameById = new Map(res.rows.map((r) => [r.course_id, r.course_name]));
+      const courseIdBaseByFull = new Map(
+        courseIds.map((id) => [id, id.split("|")[0]?.trim() || id])
+      );
+      const normalizedCourseIds = Array.from(new Set(Array.from(courseIdBaseByFull.values())));
+      const counts = await pool.query<{
+        course_id: string;
+        course_name: string;
+        total_students: number | string | null;
+        yellow_gpa: number | string | null;
+        red_gpa: number | string | null;
+        yellow_attendance: number | string | null;
+        red_attendance: number | string | null;
+      }>(
+        `SELECT
+           split_part(dimension_id, '|', 1) AS course_id,
+           MAX(dimension_name) AS course_name,
+           COALESCE(SUM(total_students), 0) AS total_students,
+           COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
+           COALESCE(SUM(red_gpa), 0) AS red_gpa,
+           COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
+           COALESCE(SUM(red_attendance), 0) AS red_attendance
+         FROM alert_counts_by_dimension
+         WHERE snapshot_date = CURRENT_DATE
+           AND dimension_type = 'course'
+           AND split_part(dimension_id, '|', 1) = ANY($1)
+         GROUP BY split_part(dimension_id, '|', 1)`,
+        [normalizedCourseIds]
+      );
+      const byCourse = new Map(counts.rows.map((r) => [r.course_id, r]));
+      return courseIds.map((courseId) => {
+        const baseId = courseIdBaseByFull.get(courseId) ?? courseId;
+        const row = byCourse.get(baseId);
+        return {
+          courseId,
+          courseName: row?.course_name ?? courseNameById.get(courseId) ?? courseId,
+          total: row ? toInt(row.total_students) : 0,
+          yellowGpa: row ? toInt(row.yellow_gpa) : 0,
+          redGpa: row ? toInt(row.red_gpa) : 0,
+          yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
+          redAttendance: row ? toInt(row.red_attendance) : 0,
+        };
+      });
+    } catch {
+      // Fall back to file-derived calculations when DB path fails.
+    }
+  }
   const data = await getDataFromEnrollment();
 
   const teacher =

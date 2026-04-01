@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { getHodInstructorStats } from "../fetch";
-import type { AppUser } from "../fetch";
+"use client";
+
+import type { AppUser, InstructorStats } from "../fetch";
 import { cn } from "@/lib/utils";
 
 type PropsType = {
@@ -8,50 +8,32 @@ type PropsType = {
   selectedProgramId?: string;
   selectedCourseId?: string;
   selectedInstructorId?: string;
+  stats?: InstructorStats[] | null;
+  onSelectInstructorId?: (instructorId: string) => void;
 };
 
-function buildInstructorUrl(
-  instructorId: string,
-  departmentIds: string[],
-  programId?: string,
-  courseId?: string
-): string {
-  const params = new URLSearchParams({ selected_alert: "all", instructor: instructorId });
-  if (departmentIds.length) params.set("department", departmentIds.join(","));
-  if (programId) params.set("program", programId);
-  if (courseId) params.set("course", courseId);
-  return `/?${params.toString()}`;
-}
-
-export async function HodInstructorStats({
+export function HodInstructorStats({
   user,
-  selectedProgramId,
-  selectedCourseId,
   selectedInstructorId,
+  stats = null,
+  onSelectInstructorId,
 }: PropsType) {
   if (!user || user.role !== "hod" || !user.department_ids?.length) return null;
-
-  const stats = await getHodInstructorStats(user.department_ids, {
-    ...(selectedInstructorId ? { instructorIds: [selectedInstructorId] } : {}),
-    ...(selectedProgramId ? { programIds: [selectedProgramId] } : {}),
-    ...(selectedCourseId ? { courseIds: [selectedCourseId] } : {}),
-  });
-  if (!stats.length) return null;
+  const list = stats ?? [];
+  if (!list.length) return null;
 
   return (
     <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
-      {stats.map((i) => (
-        <Link
+      {list.map((i) => (
+        <button
           key={i.instructorId}
-          href={buildInstructorUrl(
-            i.instructorId,
-            user.department_ids ?? [],
-            selectedProgramId,
-            selectedCourseId
-          )}
+          type="button"
+          onClick={() => onSelectInstructorId?.(i.instructorId)}
           className={cn(
-            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
-            "min-w-[160px]"
+            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
+            "min-w-[160px]",
+            selectedInstructorId === i.instructorId &&
+              "border-2 border-primary dark:border-primary"
           )}
         >
           <span className="text-body-sm font-semibold text-dark dark:text-white">
@@ -73,7 +55,7 @@ export async function HodInstructorStats({
             {" | "}
             <span className={cn("text-red-500 font-bold", i.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{i.redGpa}</span>
           </span>
-        </Link>
+        </button>
       ))}
     </div>
   );

@@ -17,12 +17,6 @@ import {
   getInstructorCourseStats,
 } from "./fetch";
 import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
-import { HodStatsCollapsible } from "./_components/hod-stats-collapsible";
-import { HodProgramStats } from "./_components/hod-program-stats";
-import { HodInstructorStats } from "./_components/hod-instructor-stats";
-import { HodCourseStats } from "./_components/hod-course-stats";
-import { InstructorStatsCollapsible } from "./_components/instructor-stats-collapsible";
-import { InstructorCourseStats } from "./_components/instructor-course-stats";
 import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
 import { WellbeingChartClient } from "./_components/WellbeingChartClient";
 import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
@@ -120,6 +114,10 @@ export default async function Home({ searchParams }: PropsType) {
   let hodCourseCount = 0;
   let hodInstructorCount = 0;
   let instructorCourseCount = 0;
+  let hodProgramStatsData: Awaited<ReturnType<typeof getHodProgramStats>> | undefined = undefined;
+  let hodCourseStatsData: Awaited<ReturnType<typeof getHodCourseStats>> | undefined = undefined;
+  let hodInstructorStatsData: Awaited<ReturnType<typeof getHodInstructorStats>> | undefined = undefined;
+  let instructorCourseStatsData: Awaited<ReturnType<typeof getInstructorCourseStats>> | undefined = undefined;
   let deanDepartmentStats: Awaited<ReturnType<typeof getDeanDepartmentStats>> | undefined = undefined;
   let deanProgramStats: Awaited<ReturnType<typeof getDeanProgramStats>> | undefined = undefined;
   let deanInstructorStats: Awaited<ReturnType<typeof getDeanInstructorStats>> | undefined = undefined;
@@ -160,6 +158,9 @@ export default async function Home({ searchParams }: PropsType) {
         ...(instructorIds[0] ? { instructorIds: [instructorIds[0]] } : {}),
       }),
     ]);
+    hodProgramStatsData = programStats;
+    hodCourseStatsData = courseStats;
+    hodInstructorStatsData = instructorStats;
     hodProgramCount = programStats.length;
     hodCourseCount = courseStats.length;
     hodInstructorCount = instructorStats.length;
@@ -168,6 +169,7 @@ export default async function Home({ searchParams }: PropsType) {
     const instructorCourses = await getInstructorCourseStats(effectiveUser, {
       ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
     });
+    instructorCourseStatsData = instructorCourses;
     instructorCourseCount = instructorCourses.length;
   }
 
@@ -265,55 +267,6 @@ export default async function Home({ searchParams }: PropsType) {
         </div>
         </InterventionSliceProvider>
 
-        <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
-          <div className="col-span-12">
-            {effectiveUser?.role === "hod" && (
-              <HodStatsCollapsible
-                programCount={hodProgramCount}
-                courseCount={hodCourseCount}
-                instructorCount={hodInstructorCount}
-                selectedProgramId={programs[0]}
-                selectedCourseId={courseIds[0]}
-                programContent={
-                  <HodProgramStats
-                    user={effectiveUser}
-                    selectedProgramId={programs[0]}
-                    masterFilterProgramIds={
-                      programs.length ? programs : undefined
-                    }
-                  />
-                }
-                courseContent={
-                  <HodCourseStats
-                    user={effectiveUser}
-                    selectedProgramId={programs[0]}
-                    selectedCourseId={courseIds[0]}
-                  />
-                }
-                instructorContent={
-                  <HodInstructorStats
-                    user={effectiveUser}
-                    selectedProgramId={programs[0]}
-                    selectedCourseId={courseIds[0]}
-                    selectedInstructorId={instructorIds[0]}
-                  />
-                }
-              />
-            )}
-            {effectiveUser?.role === "teacher" && (
-              <InstructorStatsCollapsible
-                courseCount={instructorCourseCount}
-                courseContent={
-                  <InstructorCourseStats
-                    user={effectiveUser}
-                    selectedCourseId={courseIds[0]}
-                  />
-                }
-              />
-            )}
-          </div>
-        </div>
-
         <EnrollmentDashboard
           user={effectiveUser}
           masterFilter={masterFilter}
@@ -322,6 +275,14 @@ export default async function Home({ searchParams }: PropsType) {
           deanProgramStats={deanProgramStats}
           deanInstructorStats={deanInstructorStats}
           deanCourseStats={deanCourseStats}
+          hodProgramStats={hodProgramStatsData}
+          hodCourseStats={hodCourseStatsData}
+          hodInstructorStats={hodInstructorStatsData}
+          instructorCourseStats={instructorCourseStatsData}
+          hodProgramCount={hodProgramCount}
+          hodCourseCount={hodCourseCount}
+          hodInstructorCount={hodInstructorCount}
+          instructorCourseCount={instructorCourseCount}
           selectedAlert={selectedAlert}
           gpaFilters={gpaFilters}
           attendanceFilters={attendanceFilters}

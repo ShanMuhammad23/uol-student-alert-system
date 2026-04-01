@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { getHodProgramStats } from "../fetch";
-import type { AppUser } from "../fetch";
+"use client";
+
+import type { AppUser, ProgramStats } from "../fetch";
 import { cn } from "@/lib/utils";
 
 type PropsType = {
@@ -8,45 +8,43 @@ type PropsType = {
   selectedProgramId?: string;
   /** When set, these programs are shown as selected (bordered) from MasterFilter. */
   masterFilterProgramIds?: string[];
+  stats?: ProgramStats[] | null;
+  onSelectProgramId?: (programId: string) => void;
 };
 
-function buildProgramUrl(programId: string, departmentIds: string[]): string {
-  const params = new URLSearchParams({ selected_alert: "all", program: programId });
-  if (departmentIds.length) params.set("department", departmentIds.join(","));
-  return `/?${params.toString()}`;
-}
-
-export async function HodProgramStats({
+export function HodProgramStats({
   user,
   selectedProgramId,
   masterFilterProgramIds,
+  stats = null,
+  onSelectProgramId,
 }: PropsType) {
   if (!user || user.role !== "hod" || !user.department_ids?.length) return null;
-
-  const stats = await getHodProgramStats(user.department_ids);
-  if (!stats.length) return null;
+  const list = stats ?? [];
+  if (!list.length) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {stats.map((p) => {
+    <div className="max-h-[228px] space-y-2 overflow-y-auto pr-1">
+      {list.map((p) => {
         const isSelected =
           (masterFilterProgramIds?.length
             ? masterFilterProgramIds.includes(p.programId)
             : selectedProgramId === p.programId);
         return (
-          <Link
+          <button
             key={p.programId}
-            href={buildProgramUrl(p.programId, user.department_ids ?? [])}
+            type="button"
+            onClick={() => onSelectProgramId?.(p.programId)}
             className={cn(
-              "inline-flex bg-white flex-col rounded-lg border px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
-              "min-w-[160px]",
+              "flex w-full bg-white flex-col rounded-lg border px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
               isSelected
                 ? "border-2 border-primary dark:border-primary"
                 : "border-stroke"
             )}
           >
             <span className="text-body-sm font-semibold text-dark dark:text-white">
-              {p.programId} <span className="text-body-base dark:text-dark-5">({p.total})</span>
+              {p.programTitle ?? p.programId}{" "}
+              <span className="text-body-base dark:text-dark-5">({p.total})</span>
             </span>
             <span className="text-body-base text-dark-6 space-x-2 dark:text-dark-5">
               Att: <span className={cn("text-amber-500 dark:text-amber-500 font-bold", p.yellowAttendance > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>{p.yellowAttendance}</span>
@@ -57,7 +55,7 @@ export async function HodProgramStats({
               {" | "}
               <span className={cn("text-red-500 font-bold", p.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{p.redGpa}</span>
             </span>
-          </Link>
+          </button>
         );
       })}
     </div>

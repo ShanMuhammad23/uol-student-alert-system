@@ -2,10 +2,8 @@
 
 import { useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { useEnrollmentData } from "@/hooks/useEnrollmentData";
 import {
-  getMasterFilterOptions,
-  filterEnrollmentByMasterFilter,
+  type EnrollmentRecord,
 } from "@/lib/enrollment";
 import type {
   MasterFilterOptions,
@@ -23,6 +21,12 @@ import { DeanDepartmentStats } from "./dean-department-stats";
 import { DeanProgramStats } from "./dean-program-stats";
 import { DeanInstructorStats } from "./dean-instructor-stats";
 import { DeanCourseStats } from "./dean-course-stats";
+import { HodStatsCollapsible } from "./hod-stats-collapsible";
+import { HodProgramStats } from "./hod-program-stats";
+import { HodCourseStats } from "./hod-course-stats";
+import { HodInstructorStats } from "./hod-instructor-stats";
+import { InstructorStatsCollapsible } from "./instructor-stats-collapsible";
+import { InstructorCourseStats } from "./instructor-course-stats";
 import { TopChannelsTableClient } from "@/components/Tables/nested-students-table/TopChannelsTableClient";
 import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students-table/NestedEnrollmentTableClient";
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
@@ -38,6 +42,14 @@ type Props = {
   deanProgramStats?: ProgramStats[];
   deanInstructorStats?: InstructorStats[];
   deanCourseStats?: CourseStats[];
+  hodProgramStats?: ProgramStats[];
+  hodCourseStats?: CourseStats[];
+  hodInstructorStats?: InstructorStats[];
+  instructorCourseStats?: CourseStats[];
+  hodProgramCount?: number;
+  hodCourseCount?: number;
+  hodInstructorCount?: number;
+  instructorCourseCount?: number;
   selectedAlert: string;
   gpaFilters: AlertDimensionFilter[];
   attendanceFilters: AlertDimensionFilter[];
@@ -59,6 +71,14 @@ export function EnrollmentDashboard({
   deanProgramStats,
   deanInstructorStats,
   deanCourseStats,
+  hodProgramStats,
+  hodCourseStats,
+  hodInstructorStats,
+  instructorCourseStats,
+  hodProgramCount,
+  hodCourseCount,
+  hodInstructorCount,
+  instructorCourseCount,
   selectedAlert,
   gpaFilters,
   attendanceFilters,
@@ -70,8 +90,6 @@ export function EnrollmentDashboard({
   viewMode,
   expandedIds = [],
 }: Props) {
-  const { data: enrollmentData } = useEnrollmentData();
-
   // Shared filter state (owned by DashboardFiltersStateProvider from Chunk 1).
   const dashboardFilter = useDashboardFilter();
 
@@ -107,36 +125,7 @@ export function EnrollmentDashboard({
     dashboardFilter?.setResolutionFilters ??
     ((_: SetStateAction<string[]>) => {});
 
-  // Scope enrollment data by role: dean → faculty, HoD → departments, teacher → own Pernr.
-  const scopedEnrollmentData = useMemo(() => {
-    if (!enrollmentData?.length || !user.role) return enrollmentData ?? [];
-    let list = enrollmentData;
-    const anyUser = user as any;
-
-    if (user.role === "dean" && user.faculty_id) {
-      list = list.filter((r) => r.FacId === user.faculty_id);
-    } else if (user.role === "hod" && Array.isArray(anyUser.department_ids) && anyUser.department_ids.length) {
-      const deptSet = new Set<string>(anyUser.department_ids);
-      list = list.filter((r) => deptSet.has(r.DeptCode) || deptSet.has(r.DeptId));
-    } else if ((user.role === "teacher" || user.role === "instructor") && anyUser.sap_id) {
-      const pernr = String(anyUser.sap_id).trim();
-      list = list.filter((r) => (r.Pernr ?? "").trim() === pernr);
-    }
-
-    return list;
-  }, [enrollmentData, user, user.role, user.faculty_id]);
-
-  const filterOptions: MasterFilterOptions = useMemo(() => {
-    if (scopedEnrollmentData?.length && user.role) {
-      const facultyIdForDean = user.role === "dean" ? user.faculty_id ?? undefined : undefined;
-      return getMasterFilterOptions(
-        scopedEnrollmentData,
-        facultyIdForDean,
-        localMasterFilter,
-      );
-    }
-    return filterOptionsFromServer;
-  }, [scopedEnrollmentData, user.role, user.faculty_id, localMasterFilter, filterOptionsFromServer]);
+  const filterOptions: MasterFilterOptions = filterOptionsFromServer;
 
   const departmentStats = useMemo(() => {
     if (user.role !== "dean") return undefined;
@@ -152,17 +141,7 @@ export function EnrollmentDashboard({
     const source = deanProgramStats ?? [];
     return source.length ? source : undefined;
   }, [user.role, deanProgramStats]);
-  const filteredData =
-    scopedEnrollmentData?.length && user.role
-      ? filterEnrollmentByMasterFilter(
-          scopedEnrollmentData,
-          localMasterFilter,
-          user.role === "dean" ? user.faculty_id ?? undefined : undefined,
-        )
-      : undefined;
-
-  // Keep collapsible section counts stable: each section uses only its parent scope.
-  const departmentSectionData = scopedEnrollmentData ?? [];
+  const filteredData: EnrollmentRecord[] | null = null;
   const instructorStats = useMemo(() => {
     if (user.role !== "dean") return undefined;
     const source = deanInstructorStats ?? [];
@@ -181,7 +160,7 @@ export function EnrollmentDashboard({
         instructorIds={instructorIds}
         selectedAlert={selectedAlert}
         filterOptions={filterOptions}
-        filteredData={filteredData ?? null}
+        filteredData={filteredData}
         returnToUrl={returnToUrl}
         localMasterFilter={localMasterFilter}
         localGpaFilters={localGpaFilters}
@@ -198,6 +177,14 @@ export function EnrollmentDashboard({
         programStats={programStats}
         instructorStats={instructorStats}
         deanCourseStats={deanCourseStats}
+        hodProgramStats={hodProgramStats}
+        hodCourseStats={hodCourseStats}
+        hodInstructorStats={hodInstructorStats}
+        instructorCourseStats={instructorCourseStats}
+        hodProgramCount={hodProgramCount}
+        hodCourseCount={hodCourseCount}
+        hodInstructorCount={hodInstructorCount}
+        instructorCourseCount={instructorCourseCount}
       />
     </DashboardUiStateProvider>
   );
@@ -210,7 +197,7 @@ type InnerProps = {
   instructorIds: string[];
   selectedAlert: string;
   filterOptions: MasterFilterOptions;
-  filteredData: ReturnType<typeof filterEnrollmentByMasterFilter> | null;
+  filteredData: EnrollmentRecord[] | null;
   returnToUrl: string;
   localMasterFilter: MasterFilterParams;
   localGpaFilters: AlertDimensionFilter[];
@@ -227,6 +214,14 @@ type InnerProps = {
   programStats: ProgramStats[] | undefined;
   instructorStats: InstructorStats[] | undefined;
   deanCourseStats: CourseStats[] | undefined;
+  hodProgramStats?: ProgramStats[];
+  hodCourseStats?: CourseStats[];
+  hodInstructorStats?: InstructorStats[];
+  instructorCourseStats?: CourseStats[];
+  hodProgramCount?: number;
+  hodCourseCount?: number;
+  hodInstructorCount?: number;
+  instructorCourseCount?: number;
 };
 
 function EnrollmentDashboardInner({
@@ -253,6 +248,14 @@ function EnrollmentDashboardInner({
   programStats,
   instructorStats,
   deanCourseStats,
+  hodProgramStats,
+  hodCourseStats,
+  hodInstructorStats,
+  instructorCourseStats,
+  hodProgramCount,
+  hodCourseCount,
+  hodInstructorCount,
+  instructorCourseCount,
 }: InnerProps) {
   const { viewMode } = useDashboardUiState();
 
@@ -265,6 +268,79 @@ function EnrollmentDashboardInner({
     <>
       <div className="mt-4 mb-4 grid grid-cols-12 gap-4">
         <div className="col-span-12">
+          {user.role === "hod" && (
+            <HodStatsCollapsible
+              programCount={hodProgramCount}
+              courseCount={hodCourseCount}
+              instructorCount={hodInstructorCount}
+              selectedProgramId={localMasterFilter.programs?.[0]}
+              selectedCourseId={localMasterFilter.course_ids?.[0]}
+              programContent={
+                <HodProgramStats
+                  user={user as any}
+                  selectedProgramId={localMasterFilter.programs?.[0]}
+                  masterFilterProgramIds={localMasterFilter.programs}
+                  stats={hodProgramStats}
+                  onSelectProgramId={(id) =>
+                    setLocalMasterFilter((prev) => ({
+                      ...prev,
+                      programs: [id],
+                      course_ids: undefined,
+                      instructor_ids: undefined,
+                    }))
+                  }
+                />
+              }
+              courseContent={
+                <HodCourseStats
+                  user={user as any}
+                  selectedProgramId={localMasterFilter.programs?.[0]}
+                  selectedCourseId={localMasterFilter.course_ids?.[0]}
+                  stats={hodCourseStats}
+                  onSelectCourseId={(id) =>
+                    setLocalMasterFilter((prev) => ({
+                      ...prev,
+                      course_ids: [id],
+                      instructor_ids: undefined,
+                    }))
+                  }
+                />
+              }
+              instructorContent={
+                <HodInstructorStats
+                  user={user as any}
+                  selectedProgramId={localMasterFilter.programs?.[0]}
+                  selectedCourseId={localMasterFilter.course_ids?.[0]}
+                  selectedInstructorId={localMasterFilter.instructor_ids?.[0]}
+                  stats={hodInstructorStats}
+                  onSelectInstructorId={(id) =>
+                    setLocalMasterFilter((prev) => ({
+                      ...prev,
+                      instructor_ids: [id],
+                    }))
+                  }
+                />
+              }
+            />
+          )}
+          {user.role === "teacher" && (
+            <InstructorStatsCollapsible
+              courseCount={instructorCourseCount}
+              courseContent={
+                <InstructorCourseStats
+                  user={user as any}
+                  selectedCourseId={localMasterFilter.course_ids?.[0]}
+                  stats={instructorCourseStats}
+                  onSelectCourseId={(id) =>
+                    setLocalMasterFilter((prev) => ({
+                      ...prev,
+                      course_ids: [id],
+                    }))
+                  }
+                />
+              }
+            />
+          )}
           {user.role === "dean" && (
             <DeanStatsCollapsible
               selectedDepartmentId={departmentIds[0]}

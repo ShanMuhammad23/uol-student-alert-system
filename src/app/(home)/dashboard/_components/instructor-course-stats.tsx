@@ -1,37 +1,34 @@
-import Link from "next/link";
-import { getInstructorCourseStats } from "../fetch";
-import type { AppUser } from "../fetch";
+"use client";
+
+import type { AppUser, CourseStats } from "../fetch";
 import { cn } from "@/lib/utils";
 
 type PropsType = {
   user: AppUser | null;
   selectedCourseId?: string;
+  stats?: CourseStats[] | null;
+  onSelectCourseId?: (courseId: string) => void;
 };
 
-function buildCourseUrl(courseId: string): string {
-  const params = new URLSearchParams({ selected_alert: "all", course: courseId });
-  return `/?${params.toString()}`;
-}
-
-export async function InstructorCourseStats({
+export function InstructorCourseStats({
   user,
   selectedCourseId,
+  stats = null,
+  onSelectCourseId,
 }: PropsType) {
-  if (!user || user.role !== "teacher") return null;
-
-  const stats = await getInstructorCourseStats(user, {
-    ...(selectedCourseId ? { courseIds: [selectedCourseId] } : {}),
-  });
-  if (!stats.length) return null;
+  if (!user || (user.role !== "teacher" && user.role !== "instructor")) return null;
+  const list = stats ?? [];
+  if (!list.length) return null;
 
   return (
     <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
-      {stats.map((c) => (
-        <Link
+      {list.map((c) => (
+        <button
           key={c.courseId}
-          href={buildCourseUrl(c.courseId)}
+          type="button"
+          onClick={() => onSelectCourseId?.(c.courseId)}
           className={cn(
-            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
+            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
             "min-w-[160px]",
             selectedCourseId === c.courseId && "border-2 border-primary dark:border-primary"
           )}
@@ -55,7 +52,7 @@ export async function InstructorCourseStats({
             {" | "}
             <span className={cn("text-red-500 font-bold", c.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{c.redGpa}</span>
           </span>
-        </Link>
+        </button>
       ))}
     </div>
   );
