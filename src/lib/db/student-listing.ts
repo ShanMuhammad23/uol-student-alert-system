@@ -580,10 +580,39 @@ export async function getStudentListing(
       courseTitle: row.course_title,
       instructorName: row.instructor_name,
       sectionCode: row.section_code,
-      totalClassesHeld: parseNumber(row.total_classes_held),
-      classesAttended: parseNumber(row.classes_attended),
-      attendancePercentage:
-        row.attendance_percentage == null ? null : Number(row.attendance_percentage),
+      totalClassesHeld: (() => {
+        const total = parseNumber(row.total_classes_held);
+        return total;
+      })(),
+      classesAttended: (() => {
+        const total = parseNumber(row.total_classes_held);
+        const attendedRaw = parseNumber(row.classes_attended);
+        // Guard against impossible data: attended should never exceed held.
+        return total > 0 && attendedRaw > total ? total : attendedRaw;
+      })(),
+      attendancePercentage: (() => {
+        const total = parseNumber(row.total_classes_held);
+        const attendedRaw = parseNumber(row.classes_attended);
+        const attended =
+          total > 0 && attendedRaw > total ? total : attendedRaw;
+
+        const raw = row.attendance_percentage;
+        if (raw == null) {
+          return total > 0 ? (attended / total) * 100 : null;
+        }
+
+        const base = Number(raw);
+        if (!Number.isFinite(base)) {
+          return total > 0 ? (attended / total) * 100 : null;
+        }
+
+        // If DB percentage is based on inconsistent held/attended values, recompute.
+        if (total > 0 && attendedRaw > total) {
+          return (attended / total) * 100;
+        }
+
+        return base;
+      })(),
       classAverageAttendance:
         row.class_average_attendance == null ? null : Number(row.class_average_attendance),
       attendanceAlertLevel: row.attendance_alert_level,

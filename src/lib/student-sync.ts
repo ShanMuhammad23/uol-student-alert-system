@@ -229,7 +229,7 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
     absencesByEnrollmentKey.set(key, (absencesByEnrollmentKey.get(key) ?? 0) + 1);
   }
 
-  const attendancePctByEnrollmentKey = new Map<string, number>();
+  const attendancePctByEnrollmentKey = new Map<string, number | null>();
   const classSumByCourseSection = new Map<string, number>();
   const classCountByCourseSection = new Map<string, number>();
 
@@ -302,12 +302,16 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
       attendanceMarkedByCourse.get(courseNorm) ??
       0;
     const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
-    const attended = Math.max(0, attendanceMarked - absences);
-    const pct =
-      attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : Number.NaN;
+    // Attendance calculation rule:
+    // - Monitoring gives `totalHeld` (classes held for course/section)
+    // - Attendance data gives `absences` for a student in that course/section
+    // - Attended = totalHeld - absences
+    // - Attendance % = attended / totalHeld
+    const attended = Math.max(0, totalHeld - absences);
+    const pct = totalHeld > 0 ? (attended / totalHeld) * 100 : null;
 
     attendancePctByEnrollmentKey.set(enrollKey, pct);
-    if (Number.isFinite(pct)) {
+    if (pct != null && Number.isFinite(pct)) {
       classSumByCourseSection.set(classKey, (classSumByCourseSection.get(classKey) ?? 0) + pct);
       classCountByCourseSection.set(classKey, (classCountByCourseSection.get(classKey) ?? 0) + 1);
     }
@@ -526,9 +530,11 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
         0;
       const attendanceNotUpdated = Math.max(0, totalHeld - attendanceMarked);
       const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
-      const attended = Math.max(0, attendanceMarked - absences);
-      const attendancePct =
-        attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
+      // Attendance calculation rule (aligned with `attendance-utils`):
+      // Attended = totalHeld - absences
+      // Attendance % = attended / totalHeld
+      const attended = Math.max(0, totalHeld - absences);
+      const attendancePct = totalHeld > 0 ? (attended / totalHeld) * 100 : null;
       const classAvg = classAvgByCourseSection.get(classKey) ?? null;
       const attendanceLevel =
         attendancePct == null
