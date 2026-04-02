@@ -89,10 +89,6 @@ export function StudentMetricsClient({
 }: Props) {
   const isLoading = false;
   const studentRows = dbMetricRows;
-  const worstAttendanceLevel = useMemo(
-    () => getWorstLevel(studentRows.map((r) => r.attendanceAlertLevel)),
-    [studentRows]
-  );
   const worstGpaLevel = useMemo(
     () => getWorstLevel(studentRows.map((r) => r.gpaAlertLevel)),
     [studentRows]
@@ -126,16 +122,7 @@ export function StudentMetricsClient({
     selectedCourseCode,
     selectedSection,
   ]);
-  const effectiveAttendanceLevel = useMemo(
-    () =>
-      getWorstLevel([
-        worstAttendanceLevel === "none" ? null : worstAttendanceLevel,
-        selectedCourseAttendanceLevel === "none"
-          ? null
-          : selectedCourseAttendanceLevel,
-      ]),
-    [selectedCourseAttendanceLevel, worstAttendanceLevel]
-  );
+  const badgeAttendanceLevel = selectedCourseAttendanceLevel;
   const student = useMemo(
     () => {
       if (!studentRows.length) return null;
@@ -165,11 +152,11 @@ export function StudentMetricsClient({
     return (
       <div className="flex gap-3">
         <AlertBadge
-          level={effectiveAttendanceLevel}
+          level={badgeAttendanceLevel}
           label={`Attendance: ${
-            effectiveAttendanceLevel === "critical"
+            badgeAttendanceLevel === "critical"
               ? "Red"
-              : effectiveAttendanceLevel === "warning"
+              : badgeAttendanceLevel === "warning"
               ? "Yellow"
               : "Normal"
           }`}
