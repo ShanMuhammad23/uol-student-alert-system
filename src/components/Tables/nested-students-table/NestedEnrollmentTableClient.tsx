@@ -24,19 +24,32 @@ import type {
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
 
+type NestedEnrollmentRow = EnrollmentRecord & {
+  gpaCurrent: number | null;
+  gpaPrevious: number | null;
+  gpaChange: number | null;
+  gpaAlertLevel: "warning" | "critical" | null;
+  attendanceAlertLevel: "warning" | "critical" | null;
+  attendancePercentage: number | null;
+  classAverageAttendance: number | null;
+  totalClassesHeld: number;
+  classesAttended: number;
+  latestInterventionStatus: string | null;
+};
+
 type GroupedEnrollment = {
   byDept: Map<
     string,
-    Map<string, Map<string, EnrollmentRecord[]>>
+    Map<string, Map<string, NestedEnrollmentRow[]>>
   >;
 };
 
 function groupEnrollmentByDeptProgramCourse(
-  records: EnrollmentRecord[]
+  records: NestedEnrollmentRow[]
 ): GroupedEnrollment {
   const byDept = new Map<
     string,
-    Map<string, Map<string, EnrollmentRecord[]>>
+    Map<string, Map<string, NestedEnrollmentRow[]>>
   >();
 
   for (const row of records) {
@@ -154,7 +167,7 @@ export function NestedEnrollmentTableClient({
     return () => controller.abort();
   }, [masterFilter, attendanceFilters, gpaFilters, interventionFilters, resolutionFilters]);
 
-  const list = useMemo<EnrollmentRecord[]>(
+  const list = useMemo<NestedEnrollmentRow[]>(
     () =>
       dbRows.map((r) => ({
         SapNo: r.sapId,
@@ -168,6 +181,16 @@ export function NestedEnrollmentTableClient({
         Teacher: r.instructorName,
         Section: r.sectionCode ?? "",
         Id: `${r.sapId}-${r.courseId}-${r.sectionCode ?? ""}`,
+        gpaCurrent: r.gpaCurrent ?? null,
+        gpaPrevious: r.gpaPrevious ?? null,
+        gpaChange: r.gpaChange ?? null,
+        gpaAlertLevel: r.gpaAlertLevel ?? null,
+        attendanceAlertLevel: r.attendanceAlertLevel ?? null,
+        attendancePercentage: r.attendancePercentage ?? null,
+        classAverageAttendance: r.classAverageAttendance ?? null,
+        totalClassesHeld: r.totalClassesHeld ?? 0,
+        classesAttended: r.classesAttended ?? 0,
+        latestInterventionStatus: r.latestInterventionStatus ?? null,
       })),
     [dbRows]
   );
@@ -215,22 +238,6 @@ export function NestedEnrollmentTableClient({
 
   const isAttendanceLoading = isLoadingDb;
 
-  const gpaAlertLevelBySapId = useMemo(() => {
-    const map = new Map<string, "critical" | "warning" | null>();
-    for (const r of dbRows) {
-      map.set(String(r.sapId ?? "").trim(), r.gpaAlertLevel ?? null);
-    }
-    return map;
-  }, [dbRows]);
-
-  const cgpaBySapId = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of dbRows) {
-      if (typeof r.gpaCurrent === "number") map[String(r.sapId ?? "").trim()] = r.gpaCurrent;
-    }
-    return map;
-  }, [dbRows]);
-
   const filteredList = useMemo(() => {
     let base = list;
 
@@ -257,7 +264,7 @@ export function NestedEnrollmentTableClient({
       });
     }
 
-    if (gpaFilters?.length && gpaAlertLevelBySapId) {
+    if (gpaFilters?.length) {
       const allowed = new Set<"critical" | "warning" | null>();
       for (const f of gpaFilters) {
         if (f === "red") allowed.add("critical");
@@ -266,8 +273,7 @@ export function NestedEnrollmentTableClient({
       }
 
       base = base.filter((row) => {
-        const sapId = String(row.SapNo ?? "").trim();
-        const level = sapId ? gpaAlertLevelBySapId.get(sapId) ?? null : null;
+        const level = row.gpaAlertLevel ?? null;
         return allowed.size ? allowed.has(level) : true;
       });
     }
@@ -279,7 +285,6 @@ export function NestedEnrollmentTableClient({
     attendanceSummaries,
     classAverageByCourseSection,
     gpaFilters,
-    gpaAlertLevelBySapId,
   ]);
 
   const { byDept } = groupEnrollmentByDeptProgramCourse(filteredList);
@@ -323,12 +328,10 @@ export function NestedEnrollmentTableClient({
     rows: EnrollmentRecord[]
   ): { red: number; yellow: number } => {
     if (!rows.length) return { red: 0, yellow: 0 };
-    if (!gpaAlertLevelBySapId) return { red: 0, yellow: 0 };
     let red = 0;
     let yellow = 0;
     for (const row of rows) {
-      const sapId = String(row.SapNo ?? "").trim();
-      const level = sapId ? gpaAlertLevelBySapId.get(sapId) ?? null : null;
+      const level = (row as NestedEnrollmentRow).gpaAlertLevel ?? null;
       if (level === "critical") red += 1;
       if (level === "warning") yellow += 1;
     }
@@ -651,15 +654,8 @@ export function NestedEnrollmentTableClient({
                                           const hasAttendanceAlert =
                                             alertLevel === "critical" ||
                                             alertLevel === "warning";
-                                          const gpaLevel =
-                                            gpaAlertLevelBySapId.get(
-                                              String(row.SapNo ?? "").trim(),
-                                            ) ??
-                                            null;
-                                          const cgpa =
-                                            cgpaBySapId[
-                                              String(row.SapNo ?? "").trim()
-                                            ];
+                                          const gpaLevel = row.gpaAlertLevel ?? null;
+                                          const cgpa = row.gpaCurrent;
                                           const gpaColorClass =
                                             gpaLevel === "critical"
                                               ? "text-red-600"
@@ -681,6 +677,7 @@ export function NestedEnrollmentTableClient({
                                             gpaLevel === "critical" ||
                                             gpaLevel === "warning";
                                           const latestStatus =
+                                            row.latestInterventionStatus ??
                                             interventionStatuses.get(row.SapNo) ??
                                             null;
 
@@ -774,7 +771,7 @@ export function NestedEnrollmentTableClient({
                                               <TableCell className="!text-left">
                                                 <div className="flex flex-col">
                                                   <span className={gpaColorClass}>
-                                                    {Number.isFinite(cgpa)
+                                                    {typeof cgpa === "number"
                                                       ? cgpa.toFixed(2)
                                                       : "-"}
                                                   </span>
