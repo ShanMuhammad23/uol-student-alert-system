@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { cn } from "@/lib/utils";
 import type { FilterDropdownCounts } from "@/lib/db/student-listing";
 import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options";
+import { saveScrollBeforeFilterNav } from "@/app/(home)/dashboard/_components/FilterScrollPreserve";
+import { useMergeDashboardHref } from "../useDashboardHref";
 import type {
   MasterFilterParams,
   MasterFilterOptions,
@@ -204,6 +207,8 @@ export function MasterFilter({
 }: PropsType) {
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [dropdownCounts, setDropdownCounts] = useState<FilterDropdownCounts | null>(null);
+  const router = useRouter();
+  const mergeHref = useMergeDashboardHref();
   const filterPanelRef = useClickOutside<HTMLDivElement>(() => setOpenFilter(null));
 
   useEffect(() => {
@@ -402,6 +407,21 @@ export function MasterFilter({
     onChangeAttendanceFilters?.([]);
     onChangeInterventionFilters?.([]);
     onChangeResolutionFilters?.([]);
+
+    // Also clear URL params so server-rendered counts/charts update.
+    // Keep unrelated params (like `selected_alert`, `view`, `expanded`) intact.
+    saveScrollBeforeFilterNav();
+    const href = mergeHref({
+      department: null,
+      program: null,
+      instructor: null,
+      course: null,
+      gpa_filter: null,
+      attendance_filter: null,
+      intervention_filter: null,
+      resolution_filter: null,
+    });
+    router.replace(href, { scroll: false });
   };
 
   const toggleFilter = (key: FilterKey) => () =>
