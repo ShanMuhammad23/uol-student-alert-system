@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
+import { saveScrollBeforeStudentProfileNav } from "@/app/(home)/dashboard/_components/FilterScrollPreserve";
 
 type Props = {
   sapId: string;
@@ -46,7 +47,12 @@ export function StudentProfileLink({
   const href = `/students/${sapId}?${params.toString()}`;
 
   return (
-    <Link href={href} className={className} title={title}>
+    <Link
+      href={href}
+      className={className}
+      title={title}
+      onClick={() => saveScrollBeforeStudentProfileNav()}
+    >
       {children}
     </Link>
   );

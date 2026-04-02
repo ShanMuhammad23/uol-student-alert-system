@@ -257,12 +257,59 @@ function EnrollmentDashboardInner({
   hodInstructorCount,
   instructorCourseCount,
 }: InnerProps) {
-  const { viewMode } = useDashboardUiState();
+  const { viewMode, expandedIds } = useDashboardUiState();
 
   const departmentCount = departmentStats?.length ?? 0;
   const programCount = programStats?.length ?? 0;
   const instructorCount = instructorStats?.length ?? 0;
   const courseCount = user.role === "dean" ? (deanCourseStats?.length ?? 0) : 0;
+
+  const liveReturnToUrl = useMemo(() => {
+    const base = new URL(returnToUrl, "http://localhost");
+    const params = base.searchParams;
+
+    const setMulti = (key: string, values: string[] | undefined) => {
+      if (values?.length) params.set(key, values.join(","));
+      else params.delete(key);
+    };
+
+    setMulti("department", localMasterFilter.department_ids);
+    setMulti("program", localMasterFilter.programs);
+    setMulti("instructor", localMasterFilter.instructor_ids);
+    setMulti("course", localMasterFilter.course_ids);
+    setMulti("gpa_filter", localGpaFilters);
+    setMulti("attendance_filter", localAttendanceFilters);
+    setMulti("intervention_filter", localInterventionFilters);
+    setMulti("resolution_filter", localResolutionFilters);
+
+    if (selectedAlert && selectedAlert !== "all") {
+      params.set("selected_alert", selectedAlert);
+    } else {
+      params.delete("selected_alert");
+    }
+
+    if (viewMode === "nested") params.set("view", "nested");
+    else params.delete("view");
+
+    if (expandedIds.length) params.set("expanded", expandedIds.join(","));
+    else params.delete("expanded");
+
+    const query = params.toString();
+    return query ? `/dashboard/?${query}` : "/dashboard/";
+  }, [
+    returnToUrl,
+    localMasterFilter.department_ids,
+    localMasterFilter.programs,
+    localMasterFilter.instructor_ids,
+    localMasterFilter.course_ids,
+    localGpaFilters,
+    localAttendanceFilters,
+    localInterventionFilters,
+    localResolutionFilters,
+    selectedAlert,
+    viewMode,
+    expandedIds,
+  ]);
 
   return (
     <>
@@ -521,7 +568,7 @@ function EnrollmentDashboardInner({
         </div>
         {viewMode === "table" ? (
           <TopChannelsTableClient
-            returnToUrl={returnToUrl}
+            returnToUrl={liveReturnToUrl}
             masterFilter={localMasterFilter}
             attendanceFilters={localAttendanceFilters}
             gpaFilters={localGpaFilters}
@@ -531,7 +578,7 @@ function EnrollmentDashboardInner({
         ) : (
           <ExpandableListUrlSync>
             <NestedEnrollmentTableClient
-              returnToUrl={returnToUrl}
+              returnToUrl={liveReturnToUrl}
               enrollmentData={filteredData ?? null}
               masterFilter={localMasterFilter}
               attendanceFilters={localAttendanceFilters}
