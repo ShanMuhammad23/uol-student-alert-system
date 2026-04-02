@@ -125,20 +125,17 @@ export default async function Home({ searchParams }: PropsType) {
   if (effectiveUser.role === "dean") {
     const deanFacultyId = effectiveUser.faculty_id ?? null;
     [deanDepartmentStats, deanProgramStats, deanInstructorStats, deanCourseStats] = await Promise.all([
-      getDeanDepartmentStats(deanFacultyId, {
-        ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
-      }),
+      // Keep department list fully visible; selection should only narrow children.
+      getDeanDepartmentStats(deanFacultyId),
       getDeanProgramStats(deanFacultyId, {
         ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
       }),
       getDeanInstructorStats(deanFacultyId, {
         ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
-        ...(instructorIds.length ? { instructorIds } : {}),
       }),
       getDeanCourseStats(deanFacultyId, {
         ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
         ...(programs.length ? { programIds: programs } : {}),
-        ...(courseIds.length ? { courseIds } : {}),
       }),
     ]);
   }
@@ -150,12 +147,10 @@ export default async function Home({ searchParams }: PropsType) {
       getHodProgramStats(effectiveUser.department_ids),
       getHodCourseStats(effectiveUser.department_ids, {
         ...(programs[0] ? { programIds: [programs[0]] } : {}),
-        ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
       }),
       getHodInstructorStats(effectiveUser.department_ids, {
         ...(programs[0] ? { programIds: [programs[0]] } : {}),
         ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
-        ...(instructorIds[0] ? { instructorIds: [instructorIds[0]] } : {}),
       }),
     ]);
     hodProgramStatsData = programStats;
@@ -166,9 +161,7 @@ export default async function Home({ searchParams }: PropsType) {
     hodInstructorCount = instructorStats.length;
   }
   if (effectiveUser.role === "teacher" || effectiveUser.role === "instructor") {
-    const instructorCourses = await getInstructorCourseStats(effectiveUser, {
-      ...(courseIds[0] ? { courseIds: [courseIds[0]] } : {}),
-    });
+    const instructorCourses = await getInstructorCourseStats(effectiveUser);
     instructorCourseStatsData = instructorCourses;
     instructorCourseCount = instructorCourses.length;
   }

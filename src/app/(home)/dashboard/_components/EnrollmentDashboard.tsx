@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useRouter } from "next/navigation";
 import {
   type EnrollmentRecord,
 } from "@/lib/enrollment";
@@ -33,6 +34,8 @@ import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
 import { StudentsViewTabs } from "./StudentsViewTabs";
 import { DashboardUiStateProvider, useDashboardUiState } from "./DashboardUiStateContext";
 import { useDashboardFilter } from "./DashboardFilterContext";
+import { useMergeDashboardHref } from "./useDashboardHref";
+import { saveScrollBeforeFilterNav } from "./FilterScrollPreserve";
 
 type Props = {
   user: DashboardUser;
@@ -130,11 +133,8 @@ export function EnrollmentDashboard({
   const departmentStats = useMemo(() => {
     if (user.role !== "dean") return undefined;
     const source = deanDepartmentStats ?? [];
-    if (!source.length) return undefined;
-    if (!localMasterFilter.department_ids?.length) return source;
-    const selected = new Set(localMasterFilter.department_ids);
-    return source.filter((d) => selected.has(d.departmentId));
-  }, [user.role, deanDepartmentStats, localMasterFilter.department_ids]);
+    return source.length ? source : undefined;
+  }, [user.role, deanDepartmentStats]);
 
   const programStats = useMemo(() => {
     if (user.role !== "dean") return undefined;
@@ -258,6 +258,34 @@ function EnrollmentDashboardInner({
   instructorCourseCount,
 }: InnerProps) {
   const { viewMode, expandedIds } = useDashboardUiState();
+  const router = useRouter();
+  const mergeHref = useMergeDashboardHref();
+
+  const applyMasterFilterUpdate = useCallback(
+    (updater: SetStateAction<MasterFilterParams>) => {
+      setLocalMasterFilter((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (p: MasterFilterParams) => MasterFilterParams)(prev)
+            : updater;
+
+        saveScrollBeforeFilterNav();
+        const href = mergeHref({
+          department: next.department_ids?.length
+            ? next.department_ids.join(",")
+            : null,
+          program: next.programs?.length ? next.programs.join(",") : null,
+          instructor: next.instructor_ids?.length
+            ? next.instructor_ids.join(",")
+            : null,
+          course: next.course_ids?.length ? next.course_ids.join(",") : null,
+        });
+        router.replace(href, { scroll: false });
+        return next;
+      });
+    },
+    [mergeHref, router, setLocalMasterFilter]
+  );
 
   const departmentCount = departmentStats?.length ?? 0;
   const programCount = programStats?.length ?? 0;
@@ -329,12 +357,15 @@ function EnrollmentDashboardInner({
                   masterFilterProgramIds={localMasterFilter.programs}
                   stats={hodProgramStats}
                   onSelectProgramId={(id) =>
-                    setLocalMasterFilter((prev) => ({
-                      ...prev,
-                      programs: [id],
-                      course_ids: undefined,
-                      instructor_ids: undefined,
-                    }))
+                    applyMasterFilterUpdate((prev) => {
+                      const isSame = prev.programs?.[0] === id;
+                      return {
+                        ...prev,
+                        programs: isSame ? undefined : [id],
+                        course_ids: undefined,
+                        instructor_ids: undefined,
+                      };
+                    })
                   }
                 />
               }
@@ -345,11 +376,14 @@ function EnrollmentDashboardInner({
                   selectedCourseId={localMasterFilter.course_ids?.[0]}
                   stats={hodCourseStats}
                   onSelectCourseId={(id) =>
-                    setLocalMasterFilter((prev) => ({
-                      ...prev,
-                      course_ids: [id],
-                      instructor_ids: undefined,
-                    }))
+                    applyMasterFilterUpdate((prev) => {
+                      const isSame = prev.course_ids?.[0] === id;
+                      return {
+                        ...prev,
+                        course_ids: isSame ? undefined : [id],
+                        instructor_ids: undefined,
+                      };
+                    })
                   }
                 />
               }
@@ -361,9 +395,10 @@ function EnrollmentDashboardInner({
                   selectedInstructorId={localMasterFilter.instructor_ids?.[0]}
                   stats={hodInstructorStats}
                   onSelectInstructorId={(id) =>
-                    setLocalMasterFilter((prev) => ({
+                    applyMasterFilterUpdate((prev) => ({
                       ...prev,
-                      instructor_ids: [id],
+                      instructor_ids:
+                        prev.instructor_ids?.[0] === id ? undefined : [id],
                     }))
                   }
                 />
@@ -379,9 +414,9 @@ function EnrollmentDashboardInner({
                   selectedCourseId={localMasterFilter.course_ids?.[0]}
                   stats={instructorCourseStats}
                   onSelectCourseId={(id) =>
-                    setLocalMasterFilter((prev) => ({
+                    applyMasterFilterUpdate((prev) => ({
                       ...prev,
-                      course_ids: [id],
+                      course_ids: prev.course_ids?.[0] === id ? undefined : [id],
                     }))
                   }
                 />
@@ -397,7 +432,7 @@ function EnrollmentDashboardInner({
               instructorCount={instructorCount}
               courseCount={courseCount}
               onClearDepartmentFilters={() =>
-                setLocalMasterFilter((prev) => ({
+                applyMasterFilterUpdate((prev) => ({
                   ...prev,
                   department_ids: undefined,
                   programs: undefined,
@@ -406,7 +441,7 @@ function EnrollmentDashboardInner({
                 }))
               }
               onClearProgramFilters={() =>
-                setLocalMasterFilter((prev) => ({
+                applyMasterFilterUpdate((prev) => ({
                   ...prev,
                   programs: undefined,
                   course_ids: undefined,
@@ -414,13 +449,13 @@ function EnrollmentDashboardInner({
                 }))
               }
               onClearInstructorFilters={() =>
-                setLocalMasterFilter((prev) => ({
+                applyMasterFilterUpdate((prev) => ({
                   ...prev,
                   instructor_ids: undefined,
                 }))
               }
               onClearCourseFilters={() =>
-                setLocalMasterFilter((prev) => ({
+                applyMasterFilterUpdate((prev) => ({
                   ...prev,
                   course_ids: undefined,
                 }))
@@ -448,11 +483,24 @@ function EnrollmentDashboardInner({
                   }
                   stats={departmentStats}
                   onSelectDepartmentId={(id) =>
-                    setLocalMasterFilter({
-                      department_ids: [id],
-                      programs: undefined,
-                      course_ids: undefined,
-                      instructor_ids: undefined,
+                    applyMasterFilterUpdate((prev) => {
+                      const isSame = prev.department_ids?.[0] === id;
+                      if (isSame) {
+                        return {
+                          ...prev,
+                          department_ids: undefined,
+                          programs: undefined,
+                          course_ids: undefined,
+                          instructor_ids: undefined,
+                        };
+                      }
+                      return {
+                        ...prev,
+                        department_ids: [id],
+                        programs: undefined,
+                        course_ids: undefined,
+                        instructor_ids: undefined,
+                      };
                     })
                   }
                 />
@@ -475,12 +523,15 @@ function EnrollmentDashboardInner({
                   }
                   stats={programStats}
                   onSelectProgramId={(id) =>
-                    setLocalMasterFilter((prev) => ({
-                      ...prev,
-                      programs: [id],
-                      course_ids: undefined,
-                      instructor_ids: undefined,
-                    }))
+                    applyMasterFilterUpdate((prev) => {
+                      const isSame = prev.programs?.[0] === id;
+                      return {
+                        ...prev,
+                        programs: isSame ? undefined : [id],
+                        course_ids: undefined,
+                        instructor_ids: undefined,
+                      };
+                    })
                   }
                 />
               }
@@ -496,9 +547,9 @@ function EnrollmentDashboardInner({
                   }
                   stats={deanCourseStats}
                   onSelectCourseId={(id) =>
-                    setLocalMasterFilter((prev) => ({
+                    applyMasterFilterUpdate((prev) => ({
                       ...prev,
-                      course_ids: [id],
+                      course_ids: prev.course_ids?.[0] === id ? undefined : [id],
                     }))
                   }
                 />
@@ -514,9 +565,10 @@ function EnrollmentDashboardInner({
                   }
                   stats={instructorStats}
                   onSelectInstructorId={(id) =>
-                    setLocalMasterFilter((prev) => ({
+                    applyMasterFilterUpdate((prev) => ({
                       ...prev,
-                      instructor_ids: [id],
+                      instructor_ids:
+                        prev.instructor_ids?.[0] === id ? undefined : [id],
                     }))
                   }
                 />
@@ -544,7 +596,7 @@ function EnrollmentDashboardInner({
           resolutionFilters={localResolutionFilters}
           interventionStatusFilters={localInterventionStatusFilters}
           onChangeMasterFilter={(updates) =>
-            setLocalMasterFilter((prev) => ({
+            applyMasterFilterUpdate((prev) => ({
               ...prev,
               ...updates,
             }))
