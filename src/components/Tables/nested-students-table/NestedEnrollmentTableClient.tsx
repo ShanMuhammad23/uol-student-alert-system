@@ -368,12 +368,12 @@ export function NestedEnrollmentTableClient({
               )}
             >
               <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
-                <div className="flex flex-col gap-1">
-                  <span className={cn("text-base font-semibold", deptIsOpen ? "text-white" : "text-dark")}>
+                <div className="flex flex-col gap-1 dark:text-white">
+                  <span className={cn("text-base font-semibold dark:text-white", deptIsOpen ? "text-white" : "text-dark")}>
                     Department:{" "}
-                    <span className={cn("font-bold text-primary", deptIsOpen ? "text-white" : "text-dark")}>{deptName.replace("Department of ", "")}</span>
+                    <span className={cn("font-bold text-primary dark:text-green", deptIsOpen ? "text-white" : "text-dark")}>{deptName.replace("Department of ", "")}</span>
                   </span>
-                  <span className={cn("text-xs", deptIsOpen ? "text-white" : "text-dark-6")}>
+                  <span className={cn("text-sm ", deptIsOpen ? "text-white" : "text-dark-6")}>
                     Attendance:{" "}
                     <span className="font-semibold text-yellow-600">
                      {deptAttendanceAlerts.yellow}
@@ -383,6 +383,7 @@ export function NestedEnrollmentTableClient({
                       {deptAttendanceAlerts.red}
                     </span>
                   </span>
+
                 </div>
                 <span
                   className={cn(
@@ -423,13 +424,13 @@ export function NestedEnrollmentTableClient({
                       >
                         <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                           <div className="flex flex-col gap-1">
-                            <span className={cn("text-sm font-semibold", progIsOpen ? "text-white" : "text-dark")}>
+                            <span className={cn("text-sm font-semibold dark:text-white", progIsOpen ? "text-white" : "text-dark")}>
                               Program:{" "}
-                              <span className={cn("font-bold text-primary", progIsOpen ? "text-white" : "text-dark")}>
+                              <span className={cn("font-bold text-primary dark:text-green", progIsOpen ? "text-white" : "text-dark")}>
                                 {programName}
                               </span>
                             </span>
-                            <span className={cn("text-xs", progIsOpen ? "text-white" : "text-dark-6")}>
+                            <span className={cn("text-sm", progIsOpen ? "text-white" : "text-dark-6")}>
                               Attendance:{" "}
                               <span className="font-semibold text-yellow-600">
                                 {programAttendanceAlerts.yellow}
@@ -474,18 +475,18 @@ export function NestedEnrollmentTableClient({
                                 >
                                   <summary className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
                                     <div className="flex flex-col gap-1">
-                                      <span className={cn("text-sm font-semibold", courseIsOpen ? "text-white" : "text-dark")}>
+                                      <span className={cn("text-sm font-semibold dark:text-white", courseIsOpen ? "text-white" : "text-dark")}>
                                         Course:{" "}
-                                        <span className={cn("font-bold text-primary", courseIsOpen ? "text-white" : "text-dark")}>
+                                        <span className={cn("font-bold text-primary dark:text-green", courseIsOpen ? "text-white" : "text-dark")}>
                                           {courseKey}
                                         </span>
                                         {courseTitle && courseTitle !== courseKey && (
-                                          <span className="ml-2 text-xs text-dark-6 dark:text-dark-5">
+                                          <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                             ({courseTitle})
                                           </span>
                                         )}
                                       </span>
-                                      <span className={cn("text-xs", courseIsOpen ? "text-white" : "text-dark-6")}>
+                                      <span className={cn("text-sm", courseIsOpen ? "text-white" : "text-dark-6")}>
                                         Instructor(s):{" "}
                                         <span className="font-semibold text-dark dark:text-white">
                                           {rows[0]?.Teacher ?? "—"}
@@ -494,7 +495,7 @@ export function NestedEnrollmentTableClient({
                                         {rows.length} student
                                         {rows.length !== 1 ? "s" : ""}
                                       </span>
-                                      <span className={cn("text-xs", courseIsOpen ? "text-white" : "text-dark-6")}>
+                                      <span className={cn("text-sm", courseIsOpen ? "text-white" : "text-dark-6")}>
                                         Attendance:{" "}
                                         <span className="font-semibold text-yellow-600">
                                           {courseAttendanceAlerts.yellow}
@@ -596,6 +597,8 @@ export function NestedEnrollmentTableClient({
                                             null;
 
                                           const classesHeld = summary?.totalHeld ?? 0;
+                                          const classesAttended =
+                                            summary?.attended ?? 0;
                                           const classesScheduled =
                                             monitoredCount != null
                                               ? monitoredCount
@@ -625,10 +628,10 @@ export function NestedEnrollmentTableClient({
                                                     className="flex flex-col gap-0.5"
                                                     title="View profile"
                                                   >
-                                                    <span className="text-base font-medium text-green-500">
+                                                    <span className="text-base font-medium text-green-500 dark:text-green">
                                                       {row.Name ?? "—"}
                                                     </span>
-                                                    <span className="text-sm text-[#1f4a3d]">
+                                                    <span className="text-sm text-[#1f4a3d] dark:text-white">
                                                       SAPID: {row.SapNo}
                                                     </span>
                                                   </StudentProfileLink>
@@ -658,7 +661,7 @@ export function NestedEnrollmentTableClient({
                                                         {summary.percentage.toFixed(
                                                           1,
                                                         )}
-                                                        %
+                                                        % ({classesAttended}/{classesHeld})
                                                       </span>
                                                       {hasClassLoadSpike && (
                                                         <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
@@ -667,7 +670,7 @@ export function NestedEnrollmentTableClient({
                                                       )}
                                                     </span>
                                                     {classAvg != null && (
-                                                      <span className="text-xs text-dark-6 dark:text-dark-5">
+                                                      <span className="text-xs text-dark-6 dark:text-white">
                                                         {classAvg.toFixed(1)}%
                                                       </span>
                                                     )}

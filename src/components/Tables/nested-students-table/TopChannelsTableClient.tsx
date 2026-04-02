@@ -447,10 +447,10 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left text-dark-6">
                       {row.departmentName?.replace("Department of", "") ?? "—"}
                     </TableCell>
-                    <TableCell className="!text-left">
+                    <TableCell className="!text-left text-sm">
                       {row.programTitle ?? "—"}
                     </TableCell>
-                    <TableCell className="!text-left">
+                    <TableCell className="!text-left text-sm">
                       <div className="flex flex-col gap-1">
                         <span>{row.courseId}-{row.courseTitle ?? row.courseId ?? "—"}</span>
                         <span className="text-sm text-[#1f4a3d] dark:text-white">
@@ -458,7 +458,7 @@ export function TopChannelsTableClient({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="!text-left">
+                    <TableCell className="!text-left text-sm">
                       {row.instructorName ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
@@ -471,12 +471,12 @@ export function TopChannelsTableClient({
                             <span className={attendanceColorClass}>
                               {attendance.toFixed(1)}%
                             </span>{" "}
-                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                            <span className="text-xs text-dark-6 dark:text-white">
                               ({classesAttended}/{classesHeld})
                             </span>
                           </span>
                           {classAvg != null && (
-                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                            <span className="text-xs text-dark-6 dark:text-white">
                               {classAvg.toFixed(1)}%
                             </span>
                           )}
