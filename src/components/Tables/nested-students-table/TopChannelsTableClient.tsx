@@ -82,6 +82,9 @@ export function TopChannelsTableClient({
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
+  const [totalUniqueStudents, setTotalUniqueStudents] = useState<
+    number | null
+  >(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -160,14 +163,24 @@ export function TopChannelsTableClient({
               : undefined,
           search: debouncedSearch || undefined,
         },
+        uniqueStudentsForTotal: true,
       }),
     })
       .then((res) =>
         res.ok ? res.json() : Promise.reject(new Error("Failed to load students"))
       )
-      .then((body: { rows?: TopTableRow[]; total?: number }) => {
+      .then((body: {
+        rows?: TopTableRow[];
+        total?: number;
+        totalUniqueStudents?: number;
+      }) => {
         setRows(Array.isArray(body.rows) ? body.rows : []);
         setTotalResults(Number(body.total ?? 0));
+        setTotalUniqueStudents(
+          (body.totalUniqueStudents ?? (body as any).total_unique_students) == null
+            ? null
+            : Number(body.totalUniqueStudents ?? (body as any).total_unique_students)
+        );
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -256,9 +269,9 @@ export function TopChannelsTableClient({
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-dark-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <span className="font-medium">
-                Total results:{" "}
+                Total Students:{" "}
                 <span className="font-semibold text-dark dark:text-white">
-                  {totalResults.toLocaleString()}
+                  {(totalUniqueStudents ?? totalResults).toLocaleString()}
                 </span>
               </span>
               <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
@@ -285,7 +298,7 @@ export function TopChannelsTableClient({
                   Showing{" "}
                   <span className="font-semibold text-dark dark:text-white">
                     {startItem.toLocaleString()}-{endItem.toLocaleString()}
-                  </span>{" "}
+                  </span>{" "} rows out
                   of{" "}
                   <span className="font-semibold text-dark dark:text-white">
                     {totalResults.toLocaleString()}

@@ -39,6 +39,10 @@ export type ListingRequest = {
   pageSize?: number;
   sortKey?: ListingSortKey;
   sortDirection?: ListingSortDirection;
+  /** When true, pagination/total is based on distinct students (sap_id). */
+  uniqueStudents?: boolean;
+  /** When true, also return distinct-student total without changing row shape. */
+  uniqueStudentsForTotal?: boolean;
 };
 
 export type SessionScope = {
@@ -73,6 +77,8 @@ export type StudentListingRow = {
 export type StudentListingResult = {
   rows: StudentListingRow[];
   total: number;
+  /** Distinct student count (sap_id), when requested. */
+  totalUniqueStudents?: number;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -372,10 +378,10 @@ export async function getFilterDropdownCounts(
     const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]));
     const gpaSql = `${buildListingBaseCte(gpaParts.whereSql)}
       SELECT
-        COUNT(*)::int AS total_all,
-        COUNT(*) FILTER (WHERE gpa_alert_level = 'critical')::int AS red,
-        COUNT(*) FILTER (WHERE gpa_alert_level = 'warning')::int AS yellow,
-        COUNT(*) FILTER (WHERE gpa_alert_level IS NULL)::int AS good
+        COUNT(DISTINCT sap_id)::int AS total_all,
+        COUNT(DISTINCT sap_id) FILTER (WHERE gpa_alert_level = 'critical')::int AS red,
+        COUNT(DISTINCT sap_id) FILTER (WHERE gpa_alert_level = 'warning')::int AS yellow,
+        COUNT(DISTINCT sap_id) FILTER (WHERE gpa_alert_level IS NULL)::int AS good
       FROM base`;
     const gpaRes = await pool.query<{
       total_all: number;
@@ -388,10 +394,10 @@ export async function getFilterDropdownCounts(
     const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]));
     const attSql = `${buildListingBaseCte(attParts.whereSql)}
       SELECT
-        COUNT(*)::int AS total_all,
-        COUNT(*) FILTER (WHERE attendance_alert_level = 'critical')::int AS red,
-        COUNT(*) FILTER (WHERE attendance_alert_level = 'warning')::int AS yellow,
-        COUNT(*) FILTER (WHERE attendance_alert_level IS NULL)::int AS good
+        COUNT(DISTINCT sap_id)::int AS total_all,
+        COUNT(DISTINCT sap_id) FILTER (WHERE attendance_alert_level = 'critical')::int AS red,
+        COUNT(DISTINCT sap_id) FILTER (WHERE attendance_alert_level = 'warning')::int AS yellow,
+        COUNT(DISTINCT sap_id) FILTER (WHERE attendance_alert_level IS NULL)::int AS good
       FROM base`;
     const attRes = await pool.query<{
       total_all: number;
@@ -515,21 +521,60 @@ export async function getStudentListing(
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSizeRaw));
   const offset = (page - 1) * pageSize;
   const orderBy = buildOrderBy(request.sortKey, request.sortDirection);
+  const uniqueStudents = request.uniqueStudents === true;
+  const uniqueStudentsForTotal = request.uniqueStudentsForTotal === true;
 
   const { whereSql, params } = buildWhere(scope, request.filters ?? {});
 
   const baseCte = buildListingBaseCte(whereSql);
 
-  const countSql = `${baseCte} SELECT COUNT(*)::int AS total FROM base`;
-  const countRes = await pool.query<{ total: number }>(countSql, params);
-  const total = Number(countRes.rows[0]?.total ?? 0);
+  const countSql = uniqueStudentsForTotal
+    ? `${baseCte}
+      SELECT
+        COUNT(*)::int AS total_rows,
+        COUNT(DISTINCT sap_id)::int AS total_unique_students
+      FROM base`
+    : uniqueStudents
+      ? `${baseCte} SELECT COUNT(DISTINCT sap_id)::int AS total FROM base`
+      : `${baseCte} SELECT COUNT(*)::int AS total FROM base`;
+
+  type CountRow = {
+    total?: number;
+    total_rows?: number;
+    total_unique_students?: number;
+  };
+  const countRes = await pool.query<CountRow>(countSql, params);
+  const countRow = countRes.rows[0] ?? {};
+
+  const total = uniqueStudents
+    ? Number(countRow.total ?? 0)
+    : uniqueStudentsForTotal
+      ? Number(countRow.total_rows ?? 0)
+      : Number(countRow.total ?? 0);
+
+  const totalUniqueStudents = uniqueStudents
+    ? total
+    : uniqueStudentsForTotal
+      ? Number(countRow.total_unique_students ?? 0)
+      : undefined;
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const listParams = [...params, pageSize, offset];
   const limitParam = listParams.length - 1;
   const offsetParam = listParams.length;
+  const rankedCte = uniqueStudents
+    ? `
+    , ranked AS (
+      SELECT
+        base.*,
+        ROW_NUMBER() OVER (PARTITION BY sap_id ORDER BY ${orderBy}) AS rn
+      FROM base
+    )`
+    : "";
+
   const listSql = `
-    ${baseCte}
+    ${baseCte}${rankedCte}
     SELECT
       sap_id,
       student_name,
@@ -550,7 +595,8 @@ export async function getStudentListing(
       gpa_alert_level,
       latest_intervention_status,
       course_student_count
-    FROM base
+    FROM ${uniqueStudents ? "ranked" : "base"}
+    ${uniqueStudents ? "WHERE rn = 1" : ""}
     ORDER BY ${orderBy}
     LIMIT $${limitParam}
     OFFSET $${offsetParam}
@@ -632,6 +678,7 @@ export async function getStudentListing(
       courseStudentCount: parseNumber(row.course_student_count),
     })),
     total,
+    totalUniqueStudents,
     page,
     pageSize,
     totalPages,
