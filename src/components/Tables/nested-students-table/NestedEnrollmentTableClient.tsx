@@ -72,6 +72,7 @@ type Props = {
   /** GPA alert filters (red / yellow / good) from MasterFilter. */
   gpaFilters?: AlertDimensionFilter[];
   interventionFilters?: string[];
+  resolutionFilters?: string[];
 };
 
 type TopTableRow = {
@@ -101,6 +102,7 @@ export function NestedEnrollmentTableClient({
   attendanceFilters,
   gpaFilters,
   interventionFilters,
+  resolutionFilters,
 }: Props) {
   const { expandedIds } = useDashboardUiState();
   const [dbRows, setDbRows] = useState<TopTableRow[]>([]);
@@ -129,6 +131,10 @@ export function NestedEnrollmentTableClient({
           attendanceFilters: normalizedAttendanceFilters,
           gpaFilters: normalizedGpaFilters,
           interventionFilters,
+          resolutionFilters:
+            resolutionFilters?.length && !resolutionFilters.includes("all")
+              ? resolutionFilters.filter((v) => v !== "all")
+              : undefined,
         },
       }),
     })
@@ -144,7 +150,7 @@ export function NestedEnrollmentTableClient({
       })
       .finally(() => setIsLoadingDb(false));
     return () => controller.abort();
-  }, [masterFilter, attendanceFilters, gpaFilters, interventionFilters]);
+  }, [masterFilter, attendanceFilters, gpaFilters, interventionFilters, resolutionFilters]);
 
   const list = useMemo<EnrollmentRecord[]>(
     () =>

@@ -26,6 +26,7 @@ type Props = {
   attendanceFilters?: AlertDimensionFilter[];
   gpaFilters?: AlertDimensionFilter[];
   interventionFilters?: string[];
+  resolutionFilters?: string[];
 };
 
 type SortKey =
@@ -68,6 +69,7 @@ export function TopChannelsTableClient({
   attendanceFilters,
   gpaFilters,
   interventionFilters,
+  resolutionFilters,
 }: Props) {
   const [rows, setRows] = useState<TopTableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -150,6 +152,10 @@ export function TopChannelsTableClient({
           attendanceFilters: normalizedAttendanceFilters,
           gpaFilters: normalizedGpaFilters,
           interventionFilters,
+          resolutionFilters:
+            resolutionFilters?.length && !resolutionFilters.includes("all")
+              ? resolutionFilters.filter((v) => v !== "all")
+              : undefined,
           search: debouncedSearch || undefined,
         },
       }),
@@ -172,6 +178,7 @@ export function TopChannelsTableClient({
     attendanceFilters,
     gpaFilters,
     interventionFilters,
+    resolutionFilters,
     currentPage,
     rowsPerPage,
     sortConfig,
@@ -186,6 +193,7 @@ export function TopChannelsTableClient({
     attendanceFilters,
     gpaFilters,
     interventionFilters,
+    resolutionFilters,
     sortConfig,
     rowsPerPage,
     masterFilter,

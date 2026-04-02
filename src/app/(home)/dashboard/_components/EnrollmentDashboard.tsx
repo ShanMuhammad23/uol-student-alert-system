@@ -526,6 +526,7 @@ function EnrollmentDashboardInner({
             attendanceFilters={localAttendanceFilters}
             gpaFilters={localGpaFilters}
             interventionFilters={localInterventionFilters}
+            resolutionFilters={localResolutionFilters}
           />
         ) : (
           <ExpandableListUrlSync>
@@ -536,6 +537,7 @@ function EnrollmentDashboardInner({
               attendanceFilters={localAttendanceFilters}
               gpaFilters={localGpaFilters}
               interventionFilters={localInterventionFilters}
+              resolutionFilters={localResolutionFilters}
             />
           </ExpandableListUrlSync>
         )}

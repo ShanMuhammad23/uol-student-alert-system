@@ -1,4 +1,9 @@
 import { pool } from "@/lib/db";
+import {
+  WELLBEING_RESOLUTION_BY_VALUE,
+  WELLBEING_RESOLUTION_OPTIONS,
+  type WellbeingResolutionValue,
+} from "@/lib/wellbeing-resolution-options";
 
 export type AlertDimensionFilter = "all" | "red" | "yellow" | "good";
 
@@ -10,6 +15,8 @@ export type ListingFilters = {
   attendanceFilters?: AlertDimensionFilter[];
   gpaFilters?: AlertDimensionFilter[];
   interventionFilters?: string[];
+  /** Wellbeing resolution keys (see `WELLBEING_RESOLUTION_OPTIONS`). */
+  resolutionFilters?: string[];
   search?: string;
 };
 
@@ -147,10 +154,56 @@ type BaseQueryParts = {
   params: unknown[];
 };
 
-function buildWhere(scope: SessionScope, request: ListingRequest): BaseQueryParts {
+export type ListingWhereSkip = "gpa" | "attendance" | "intervention" | "resolution";
+
+function normalizeResolutionFilters(filters?: string[]): string[] | undefined {
+  if (!filters?.length) return undefined;
+  const allowed = new Set(
+    WELLBEING_RESOLUTION_OPTIONS.map((o) => o.value as string)
+  );
+  const out = filters.map((v) => String(v).trim()).filter((v) => allowed.has(v));
+  return out.length ? out : undefined;
+}
+
+function buildResolutionWhereClause(
+  resolutionValues: string[] | undefined,
+  params: unknown[]
+): string | null {
+  const normalized = normalizeResolutionFilters(resolutionValues);
+  if (!normalized?.length) return null;
+  const parts: string[] = [];
+  for (const val of normalized) {
+    const spec = WELLBEING_RESOLUTION_BY_VALUE.get(val as WellbeingResolutionValue);
+    if (!spec) continue;
+    params.push(spec.category);
+    const p = params.length;
+    if (spec.closed) {
+      parts.push(`EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = e.sap_id
+          AND wb.category = $${p}::text
+          AND (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+      )`);
+    } else {
+      parts.push(`EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = e.sap_id
+          AND wb.category = $${p}::text
+          AND NOT (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+      )`);
+    }
+  }
+  if (!parts.length) return null;
+  return parts.length === 1 ? parts[0]! : `(${parts.join(" OR ")})`;
+}
+
+function buildWhere(
+  scope: SessionScope,
+  filters: ListingFilters,
+  skip?: Set<ListingWhereSkip>
+): BaseQueryParts {
   const params: unknown[] = [];
   const where: string[] = [];
-  const filters = request.filters ?? {};
 
   if (scope.role === "dean" && scope.faculty_id) {
     params.push(scope.faculty_id);
@@ -184,15 +237,19 @@ function buildWhere(scope: SessionScope, request: ListingRequest): BaseQueryPart
     where.push(`e.course_id = ANY($${params.length}::text[])`);
   }
 
-  const attendanceClause = buildAlertLevelClause(
-    "a.attendance_alert_level",
-    filters.attendanceFilters,
-    params
-  );
-  if (attendanceClause) where.push(attendanceClause);
+  if (!skip?.has("attendance")) {
+    const attendanceClause = buildAlertLevelClause(
+      "a.attendance_alert_level",
+      filters.attendanceFilters,
+      params
+    );
+    if (attendanceClause) where.push(attendanceClause);
+  }
 
-  const gpaClause = buildAlertLevelClause("a.gpa_alert_level", filters.gpaFilters, params);
-  if (gpaClause) where.push(gpaClause);
+  if (!skip?.has("gpa")) {
+    const gpaClause = buildAlertLevelClause("a.gpa_alert_level", filters.gpaFilters, params);
+    if (gpaClause) where.push(gpaClause);
+  }
 
   const search = String(filters.search ?? "").trim();
   if (search) {
@@ -201,21 +258,28 @@ function buildWhere(scope: SessionScope, request: ListingRequest): BaseQueryPart
     where.push(`(e.student_name ILIKE $${i} OR e.sap_id ILIKE $${i})`);
   }
 
-  const interventionFilters = normalizeInterventionFilters(filters.interventionFilters);
-  if (interventionFilters?.length) {
-    const wantsNotStarted = interventionFilters.includes("not_started");
-    const statuses = interventionFilters.filter((s) => s !== "not_started");
-    if (wantsNotStarted && statuses.length) {
-      params.push(statuses);
-      where.push(
-        `(latest.latest_intervention_status IS NULL OR latest.latest_intervention_status = ANY($${params.length}::text[]))`
-      );
-    } else if (wantsNotStarted) {
-      where.push(`latest.latest_intervention_status IS NULL`);
-    } else {
-      params.push(statuses);
-      where.push(`latest.latest_intervention_status = ANY($${params.length}::text[])`);
+  if (!skip?.has("intervention")) {
+    const interventionFilters = normalizeInterventionFilters(filters.interventionFilters);
+    if (interventionFilters?.length) {
+      const wantsNotStarted = interventionFilters.includes("not_started");
+      const statuses = interventionFilters.filter((s) => s !== "not_started");
+      if (wantsNotStarted && statuses.length) {
+        params.push(statuses);
+        where.push(
+          `(latest.latest_intervention_status IS NULL OR latest.latest_intervention_status = ANY($${params.length}::text[]))`
+        );
+      } else if (wantsNotStarted) {
+        where.push(`latest.latest_intervention_status IS NULL`);
+      } else {
+        params.push(statuses);
+        where.push(`latest.latest_intervention_status = ANY($${params.length}::text[])`);
+      }
     }
+  }
+
+  if (!skip?.has("resolution")) {
+    const resClause = buildResolutionWhereClause(filters.resolutionFilters, params);
+    if (resClause) where.push(resClause);
   }
 
   return {
@@ -224,23 +288,8 @@ function buildWhere(scope: SessionScope, request: ListingRequest): BaseQueryPart
   };
 }
 
-export async function getStudentListing(
-  scope: SessionScope,
-  request: ListingRequest
-): Promise<StudentListingResult> {
-  if (!pool) {
-    return { rows: [], total: 0, page: 1, pageSize: DEFAULT_PAGE_SIZE, totalPages: 1 };
-  }
-
-  const page = Math.max(1, Number(request.page ?? 1) || 1);
-  const pageSizeRaw = Number(request.pageSize ?? DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE;
-  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSizeRaw));
-  const offset = (page - 1) * pageSize;
-  const orderBy = buildOrderBy(request.sortKey, request.sortDirection);
-
-  const { whereSql, params } = buildWhere(scope, request);
-
-  const baseCte = `
+function buildListingBaseCte(whereSql: string): string {
+  return `
     WITH latest AS (
       SELECT DISTINCT ON (student_sap_id, COALESCE(course_id, ''))
         student_sap_id,
@@ -286,6 +335,186 @@ export async function getStudentListing(
       ${whereSql}
     )
   `;
+}
+
+export type FilterDropdownCounts = {
+  gpa: { all: number; red: number; yellow: number; good: number };
+  attendance: { all: number; red: number; yellow: number; good: number };
+  intervention: {
+    all: number;
+    not_started: number;
+    initiated: number;
+    in_progress: number;
+    referred: number;
+    resolved: number;
+  };
+  /** Enrollment rows matching filters (excluding wellbeing), for the "All" wellbeing option. */
+  wellbeingAll: number;
+  wellbeing: number[];
+};
+
+/** Row counts per master-filter dropdown option; each group excludes its own filter so options reflect the rest of the filter stack. */
+export async function getFilterDropdownCounts(
+  scope: SessionScope,
+  filters: ListingFilters
+): Promise<FilterDropdownCounts | null> {
+  if (!pool) return null;
+
+  const zeroWellbeing = WELLBEING_RESOLUTION_OPTIONS.map(() => 0);
+
+  const eligibleSql = `(gpa_alert_level IS NOT NULL OR attendance_alert_level IS NOT NULL)`;
+
+  try {
+    const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]));
+    const gpaSql = `${buildListingBaseCte(gpaParts.whereSql)}
+      SELECT
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE gpa_alert_level = 'critical')::int AS red,
+        COUNT(*) FILTER (WHERE gpa_alert_level = 'warning')::int AS yellow,
+        COUNT(*) FILTER (WHERE gpa_alert_level IS NULL)::int AS good
+      FROM base`;
+    const gpaRes = await pool.query<{
+      total_all: number;
+      red: number;
+      yellow: number;
+      good: number;
+    }>(gpaSql, gpaParts.params);
+    const gRow = gpaRes.rows[0];
+
+    const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]));
+    const attSql = `${buildListingBaseCte(attParts.whereSql)}
+      SELECT
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE attendance_alert_level = 'critical')::int AS red,
+        COUNT(*) FILTER (WHERE attendance_alert_level = 'warning')::int AS yellow,
+        COUNT(*) FILTER (WHERE attendance_alert_level IS NULL)::int AS good
+      FROM base`;
+    const attRes = await pool.query<{
+      total_all: number;
+      red: number;
+      yellow: number;
+      good: number;
+    }>(attSql, attParts.params);
+    const aRow = attRes.rows[0];
+
+    const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]));
+    const intSql = `${buildListingBaseCte(intParts.whereSql)}
+      SELECT
+        COUNT(*) FILTER (WHERE ${eligibleSql})::int AS int_all,
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status IS NULL)::int AS not_started,
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'initiated')::int AS initiated,
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'in-progress')::int AS in_progress,
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'referred')::int AS referred,
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'resolved')::int AS resolved
+      FROM base`;
+    const intRes = await pool.query<{
+      int_all: number;
+      not_started: number;
+      initiated: number;
+      in_progress: number;
+      referred: number;
+      resolved: number;
+    }>(intSql, intParts.params);
+    const iRow = intRes.rows[0];
+
+    let wellbeingAll = 0;
+    let wellbeing = zeroWellbeing;
+    try {
+      const wbParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["resolution"]));
+      const wbSelectParts: string[] = [];
+      const wbParams = [...wbParts.params];
+      for (let idx = 0; idx < WELLBEING_RESOLUTION_OPTIONS.length; idx++) {
+        const spec = WELLBEING_RESOLUTION_OPTIONS[idx]!;
+        wbParams.push(spec.category);
+        const p = wbParams.length;
+        const existsClosed = `EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = sap_id
+          AND wb.category = $${p}::text
+          AND (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+      )`;
+        const existsOpen = `EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = sap_id
+          AND wb.category = $${p}::text
+          AND NOT (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+      )`;
+        const pred = spec.closed ? existsClosed : existsOpen;
+        wbSelectParts.push(`COUNT(*) FILTER (WHERE ${pred})::int AS wb_${idx}`);
+      }
+      const wbSql = `${buildListingBaseCte(wbParts.whereSql)}
+      SELECT COUNT(*)::int AS wb_all, ${wbSelectParts.join(", ")}
+      FROM base`;
+      const wbRes = await pool.query(wbSql, wbParams);
+      const wbRow = wbRes.rows[0] as Record<string, number> | undefined;
+      wellbeingAll = Number(wbRow?.wb_all ?? 0);
+      wellbeing = WELLBEING_RESOLUTION_OPTIONS.map((_, idx) =>
+        Number(wbRow?.[`wb_${idx}`] ?? 0)
+      );
+    } catch {
+      wellbeingAll = 0;
+      wellbeing = zeroWellbeing;
+    }
+
+    return {
+      gpa: {
+        all: Number(gRow?.total_all ?? 0),
+        red: Number(gRow?.red ?? 0),
+        yellow: Number(gRow?.yellow ?? 0),
+        good: Number(gRow?.good ?? 0),
+      },
+      attendance: {
+        all: Number(aRow?.total_all ?? 0),
+        red: Number(aRow?.red ?? 0),
+        yellow: Number(aRow?.yellow ?? 0),
+        good: Number(aRow?.good ?? 0),
+      },
+      intervention: {
+        all: Number(iRow?.int_all ?? 0),
+        not_started: Number(iRow?.not_started ?? 0),
+        initiated: Number(iRow?.initiated ?? 0),
+        in_progress: Number(iRow?.in_progress ?? 0),
+        referred: Number(iRow?.referred ?? 0),
+        resolved: Number(iRow?.resolved ?? 0),
+      },
+      wellbeingAll,
+      wellbeing,
+    };
+  } catch {
+    return {
+      gpa: { all: 0, red: 0, yellow: 0, good: 0 },
+      attendance: { all: 0, red: 0, yellow: 0, good: 0 },
+      intervention: {
+        all: 0,
+        not_started: 0,
+        initiated: 0,
+        in_progress: 0,
+        referred: 0,
+        resolved: 0,
+      },
+      wellbeingAll: 0,
+      wellbeing: zeroWellbeing,
+    };
+  }
+}
+
+export async function getStudentListing(
+  scope: SessionScope,
+  request: ListingRequest
+): Promise<StudentListingResult> {
+  if (!pool) {
+    return { rows: [], total: 0, page: 1, pageSize: DEFAULT_PAGE_SIZE, totalPages: 1 };
+  }
+
+  const page = Math.max(1, Number(request.page ?? 1) || 1);
+  const pageSizeRaw = Number(request.pageSize ?? DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE;
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSizeRaw));
+  const offset = (page - 1) * pageSize;
+  const orderBy = buildOrderBy(request.sortKey, request.sortDirection);
+
+  const { whereSql, params } = buildWhere(scope, request.filters ?? {});
+
+  const baseCte = buildListingBaseCte(whereSql);
 
   const countSql = `${baseCte} SELECT COUNT(*)::int AS total FROM base`;
   const countRes = await pool.query<{ total: number }>(countSql, params);

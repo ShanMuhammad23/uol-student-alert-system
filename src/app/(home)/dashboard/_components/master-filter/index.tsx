@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { cn } from "@/lib/utils";
+import type { FilterDropdownCounts } from "@/lib/db/student-listing";
+import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options";
 import type {
   MasterFilterParams,
   MasterFilterOptions,
@@ -24,17 +26,24 @@ const INTERVENTION_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "referred", label: "Referred" },
   { value: "resolved", label: "Resolved" },
 ];
-const RESOLUTION_STATUS_OPTIONS: { value: string; label: string }[] = [
+
+const WELLBEING_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "not_started", label: "Counselling (Open)" },
-  { value: "not_started", label: "Counselling (Closed)" },
-  { value: "initiated", label: "Monitoring (Open)" },
-  { value: "initiated", label: "Monitoring (Closed)" },
-  { value: "in_progress", label: "Flex-Academic (Open)" },
-  { value: "in_progress", label: "Flex-Academic (Closed)" },
-  { value: "referred", label: "Flex-Financial (Open)" },
-  { value: "referred", label: "Flex-Financial (Closed)" },
+  ...WELLBEING_RESOLUTION_OPTIONS.map(({ value, label }) => ({ value, label })),
 ];
+
+function normalizeDimFiltersForApi(
+  filters: AlertDimensionFilter[] | undefined
+): AlertDimensionFilter[] | undefined {
+  if (!filters?.length) return undefined;
+  if (filters.includes("all")) return undefined;
+  return filters;
+}
+
+function labelWithOptionalCount(label: string, count: number | undefined) {
+  if (count === undefined) return label;
+  return `${label} (${count.toLocaleString()})`;
+}
 type PropsType = {
   options: MasterFilterOptions;
   current: MasterFilterParams;
@@ -61,7 +70,7 @@ type FilterKey =
   | "attendance"
   | "gpa"
   | "intervention"
-  | "resolution";
+  | "wellbeing";
 
 function FilterMultiSelect({
   label,
@@ -154,9 +163,9 @@ function FilterMultiSelect({
               Clear all
             </button>
           </div>
-          {items.map((item) => (
+          {items.map((item, itemIdx) => (
             <label
-              key={item.value}
+              key={`${item.value}-${itemIdx}`}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 cursor-pointer text-sm hover:bg-gray-2 dark:hover:bg-dark-3",
                 selected.includes(item.value) && "bg-primary/10 dark:bg-primary/20"
@@ -194,7 +203,128 @@ export function MasterFilter({
   onChangeResolutionFilters,
 }: PropsType) {
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
+  const [dropdownCounts, setDropdownCounts] = useState<FilterDropdownCounts | null>(null);
   const filterPanelRef = useClickOutside<HTMLDivElement>(() => setOpenFilter(null));
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const filters = {
+      department_ids: current.department_ids,
+      programs: current.programs,
+      instructor_ids: current.instructor_ids,
+      course_ids: current.course_ids,
+      attendanceFilters: normalizeDimFiltersForApi(attendanceFilters),
+      gpaFilters: normalizeDimFiltersForApi(gpaFilters),
+      interventionFilters:
+        interventionFilters?.length && !interventionFilters.includes("all")
+          ? interventionFilters.filter((v) => v !== "all")
+          : undefined,
+      resolutionFilters:
+        resolutionFilters?.length && !resolutionFilters.includes("all")
+          ? resolutionFilters.filter((v) => v !== "all")
+          : undefined,
+    };
+    fetch("/api/dashboard/filter-counts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({ filters }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("counts"))))
+      .then((body: FilterDropdownCounts) => {
+        if (!controller.signal.aborted) setDropdownCounts(body);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setDropdownCounts(null);
+      });
+    return () => controller.abort();
+  }, [
+    current.department_ids?.join(","),
+    current.programs?.join(","),
+    current.instructor_ids?.join(","),
+    current.course_ids?.join(","),
+    attendanceFilters?.join(","),
+    gpaFilters?.join(","),
+    interventionFilters?.join(","),
+    resolutionFilters?.join(","),
+  ]);
+
+  const gpaItemsWithCounts = useMemo(() => {
+    if (!dropdownCounts) return GPA_ATTENDANCE_OPTIONS;
+    const c = dropdownCounts.gpa;
+    return GPA_ATTENDANCE_OPTIONS.map((o) => ({
+      value: o.value,
+      label: labelWithOptionalCount(
+        o.label,
+        o.value === "all"
+          ? c.all
+          : o.value === "red"
+            ? c.red
+            : o.value === "yellow"
+              ? c.yellow
+              : o.value === "good"
+                ? c.good
+                : undefined
+      ),
+    }));
+  }, [dropdownCounts]);
+
+  const attendanceItemsWithCounts = useMemo(() => {
+    if (!dropdownCounts) return GPA_ATTENDANCE_OPTIONS;
+    const c = dropdownCounts.attendance;
+    return GPA_ATTENDANCE_OPTIONS.map((o) => ({
+      value: o.value,
+      label: labelWithOptionalCount(
+        o.label,
+        o.value === "all"
+          ? c.all
+          : o.value === "red"
+            ? c.red
+            : o.value === "yellow"
+              ? c.yellow
+              : o.value === "good"
+                ? c.good
+                : undefined
+      ),
+    }));
+  }, [dropdownCounts]);
+
+  const interventionItemsWithCounts = useMemo(() => {
+    if (!dropdownCounts) return INTERVENTION_STATUS_OPTIONS;
+    const c = dropdownCounts.intervention;
+    return INTERVENTION_STATUS_OPTIONS.map((o) => {
+      const n =
+        o.value === "all"
+          ? c.all
+          : o.value === "not_started"
+            ? c.not_started
+            : o.value === "initiated"
+              ? c.initiated
+              : o.value === "in_progress"
+                ? c.in_progress
+                : o.value === "referred"
+                  ? c.referred
+                  : o.value === "resolved"
+                    ? c.resolved
+                    : undefined;
+      return { value: o.value, label: labelWithOptionalCount(o.label, n) };
+    });
+  }, [dropdownCounts]);
+
+  const wellbeingItemsWithCounts = useMemo(() => {
+    if (!dropdownCounts) return WELLBEING_FILTER_OPTIONS;
+    return WELLBEING_FILTER_OPTIONS.map((o) => {
+      if (o.value === "all") {
+        return {
+          value: o.value,
+          label: labelWithOptionalCount(o.label, dropdownCounts.wellbeingAll),
+        };
+      }
+      const idx = WELLBEING_RESOLUTION_OPTIONS.findIndex((x) => x.value === o.value);
+      const n = idx >= 0 ? dropdownCounts.wellbeing[idx] : undefined;
+      return { value: o.value, label: labelWithOptionalCount(o.label, n) };
+    });
+  }, [dropdownCounts]);
 
   // When parent filter changes, clear child selections so options stay in sync.
   // These handlers update local state in the parent via callbacks instead of navigating.
@@ -258,7 +388,8 @@ export function MasterFilter({
     (current.course_ids?.length ?? 0) > 0 ||
     (gpaFilters?.length ?? 0) > 0 ||
     (attendanceFilters?.length ?? 0) > 0 ||
-    (interventionFilters?.length ?? 0) > 0;
+    (interventionFilters?.length ?? 0) > 0 ||
+    (resolutionFilters?.length ?? 0) > 0;
 
   const handleClearAll = () => {
     onChangeMasterFilter?.({
@@ -334,7 +465,7 @@ export function MasterFilter({
       <FilterMultiSelect
         label="Attendance"
         selected={attendanceFilters ?? []}
-        items={GPA_ATTENDANCE_OPTIONS}
+        items={attendanceItemsWithCounts}
         onChange={handleAttendanceFilters}
         isOpen={openFilter === "attendance"}
         onOpenChange={toggleFilter("attendance")}
@@ -343,7 +474,7 @@ export function MasterFilter({
       <FilterMultiSelect
         label="GPA"
         selected={gpaFilters ?? []}
-        items={GPA_ATTENDANCE_OPTIONS}
+        items={gpaItemsWithCounts}
         onChange={handleGpaFilters}
         isOpen={openFilter === "gpa"}
         onOpenChange={toggleFilter("gpa")}
@@ -352,20 +483,20 @@ export function MasterFilter({
       <FilterMultiSelect
         label="Intervention"
         selected={interventionFilters ?? []}
-        items={INTERVENTION_STATUS_OPTIONS}
+        items={interventionItemsWithCounts}
         onChange={handleInterventionFilters}
         isOpen={openFilter === "intervention"}
         onOpenChange={toggleFilter("intervention")}
         data-testid="filter-intervention"
       />
-       <FilterMultiSelect
-        label="Resolution"
+      <FilterMultiSelect
+        label="Wellbeing"
         selected={resolutionFilters ?? []}
-        items={RESOLUTION_STATUS_OPTIONS}
+        items={wellbeingItemsWithCounts}
         onChange={handleResolutionFilters}
-        isOpen={openFilter === "resolution"}
-        onOpenChange={toggleFilter("resolution")}
-        data-testid="filter-resolution"
+        isOpen={openFilter === "wellbeing"}
+        onOpenChange={toggleFilter("wellbeing")}
+        data-testid="filter-wellbeing"
       />
 
       <button
