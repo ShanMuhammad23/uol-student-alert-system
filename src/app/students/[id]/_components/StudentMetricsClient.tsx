@@ -34,6 +34,10 @@ type Props = {
   selectedCourseCode?: string;
   selectedSection?: string;
   currentCgpa?: number | null;
+  gpaPrevious?: number | null;
+  gpaChange?: number | null;
+  gpaTrendLevel?: "warning" | "critical" | null;
+  gpaTrendSeries?: { key?: string; label?: string; x?: string; value?: number; y?: number }[];
   selectedClassAverage?: number | null;
 };
 
@@ -85,14 +89,19 @@ export function StudentMetricsClient({
   selectedCourseCode,
   selectedSection,
   currentCgpa = null,
+  gpaPrevious = null,
+  gpaChange = null,
+  gpaTrendLevel = null,
+  gpaTrendSeries = [],
   selectedClassAverage = null,
 }: Props) {
   const isLoading = false;
   const studentRows = dbMetricRows;
-  const worstGpaLevel = useMemo(
-    () => getWorstLevel(studentRows.map((r) => r.gpaAlertLevel)),
-    [studentRows]
-  );
+  const worstGpaLevel = useMemo(() => {
+    if (gpaTrendLevel === "critical") return "critical";
+    if (gpaTrendLevel === "warning") return "warning";
+    return getWorstLevel(studentRows.map((r) => r.gpaAlertLevel));
+  }, [studentRows, gpaTrendLevel]);
   const selectedCourseAttendanceLevel = useMemo(() => {
     const relevantRows = selectedCourseCode
       ? studentRows.filter((r) => {
@@ -198,11 +207,19 @@ export function StudentMetricsClient({
     : EMPTY_ATTENDANCE;
 
   const currentGpaValue = currentCgpa ?? student?.gpaCurrent ?? 0;
-  const previousGpaValue = 0;
-  const changeValue = currentCgpa != null
-    ? Number((currentGpaValue - previousGpaValue).toFixed(2))
-    : Number((currentGpaValue - previousGpaValue).toFixed(2));
-  const gpaTrendSeries = currentCgpa != null ? [{ x: "Current", y: currentCgpa }] : [];
+  const previousGpaValue = gpaPrevious ?? 0;
+  const changeValue =
+    typeof gpaChange === "number"
+      ? Number(gpaChange.toFixed(2))
+      : Number((currentGpaValue - previousGpaValue).toFixed(2));
+  const chartSeries = gpaTrendSeries
+    .map((p) => {
+      const x = p.label ?? p.x ?? p.key ?? "";
+      const y = typeof p.value === "number" ? p.value : p.y;
+      if (!x || typeof y !== "number" || !Number.isFinite(y)) return null;
+      return { x, y };
+    })
+    .filter((p): p is { x: string; y: number } => p != null);
   const attendanceAlert =
     selectedCourseAttendanceLevel && selectedCourseAttendanceLevel !== "none"
       ? selectedCourseAttendanceLevel
@@ -265,27 +282,28 @@ export function StudentMetricsClient({
         </div>
         <div className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl bg-blue-50 p-3 text-center dark:bg-blue-900/20">
-              <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{currentGpaValue.toFixed(2)}</p>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600/70">Current</p>
-            </div>
+           
             <div className="rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-800">
               <p className="text-xl font-bold text-gray-700 dark:text-gray-400">{previousGpaValue.toFixed(2)}</p>
               <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Previous</p>
             </div>
-            <div className="rounded-xl bg-emerald-50 p-3 text-center dark:bg-emerald-900/20">
-              <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
+            <div className="rounded-xl bg-blue-50 p-3 text-center dark:bg-blue-900/20">
+              <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{currentGpaValue.toFixed(2)}</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600/70">Current</p>
+            </div>
+            <div className={cn("rounded-xl bg-emerald-50 p-3 text-center dark:bg-emerald-900/20", changeValue > 0 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400")}>
+              <p className={cn("text-xl font-bold", changeValue > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
                 {changeValue > 0 ? "+" : ""}
                 {changeValue.toFixed(2)}
               </p>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600/70">Change</p>
+              <p className={cn("text-[10px] font-medium uppercase tracking-wide", changeValue > 0 ? "text-emerald-600/70" : "text-red-600/70")}>Change</p>
             </div>
           </div>
 
-          {gpaTrendSeries.length ? (
+          {chartSeries.length ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
               <InterventionStatusChart
-                data={gpaTrendSeries}
+                data={chartSeries}
                 title="GPA Trend"
               />
             </div>

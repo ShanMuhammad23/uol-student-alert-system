@@ -10,7 +10,7 @@ import { StudentMetricsClient } from "./_components/StudentMetricsClient";
 import { pool } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-import { getCgpaBySapId } from "@/lib/db/gpa";
+import { getStudentGpaProfileBySapId } from "@/lib/db/gpa";
 
 type PropsType = {
   params: Promise<{ id: string }>;
@@ -214,7 +214,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       : null;
   const sapIdFromUrl = id;
   const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
-  const currentCgpa = await getCgpaBySapId(sapIdFromUrl);
+  const gpaProfile = await getStudentGpaProfileBySapId(sapIdFromUrl);
 
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
   const dbMetricRows = await getStudentProfileMetricRows(sapIdFromUrl);
@@ -342,7 +342,11 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         selectedCourseCode={selectedCourseCode}
         selectedSection={selectedSection}
         selectedClassAverage={selectedClassAverage}
-        currentCgpa={currentCgpa}
+        currentCgpa={gpaProfile?.current ?? null}
+        gpaPrevious={gpaProfile?.previous ?? null}
+        gpaChange={gpaProfile?.change ?? null}
+        gpaTrendLevel={gpaProfile?.level ?? null}
+        gpaTrendSeries={gpaProfile?.semesters ?? []}
       />
           </div>
         </div>
@@ -357,7 +361,11 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         dbMetricRows={dbMetricRows}
         selectedCourseCode={selectedCourseCode}
         selectedSection={selectedSection}
-        currentCgpa={currentCgpa}
+        currentCgpa={gpaProfile?.current ?? null}
+        gpaPrevious={gpaProfile?.previous ?? null}
+        gpaChange={gpaProfile?.change ?? null}
+        gpaTrendLevel={gpaProfile?.level ?? null}
+        gpaTrendSeries={gpaProfile?.semesters ?? []}
         selectedClassAverage={selectedClassAverage}
       />
 

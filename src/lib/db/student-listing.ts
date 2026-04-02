@@ -63,6 +63,8 @@ export type StudentListingRow = {
   classAverageAttendance: number | null;
   attendanceAlertLevel: "warning" | "critical" | null;
   gpaCurrent: number | null;
+  gpaPrevious: number | null;
+  gpaChange: number | null;
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
   courseStudentCount: number;
@@ -316,6 +318,8 @@ function buildListingBaseCte(whereSql: string): string {
         a.class_average_attendance,
         a.attendance_alert_level,
         a.gpa_current,
+        a.gpa_previous,
+        a.gpa_change,
         a.gpa_alert_level,
         latest.latest_intervention_status,
         CONCAT(e.course_id, ' ', COALESCE(c.title, '')) AS course_sort_text,
@@ -541,6 +545,8 @@ export async function getStudentListing(
       class_average_attendance,
       attendance_alert_level,
       gpa_current,
+      gpa_previous,
+      gpa_change,
       gpa_alert_level,
       latest_intervention_status,
       course_student_count
@@ -565,6 +571,8 @@ export async function getStudentListing(
     class_average_attendance: number | null;
     attendance_alert_level: "warning" | "critical" | null;
     gpa_current: number | null;
+    gpa_previous: number | null;
+    gpa_change: number | null;
     gpa_alert_level: "warning" | "critical" | null;
     latest_intervention_status: string | null;
     course_student_count: number;
@@ -617,6 +625,8 @@ export async function getStudentListing(
         row.class_average_attendance == null ? null : Number(row.class_average_attendance),
       attendanceAlertLevel: row.attendance_alert_level,
       gpaCurrent: row.gpa_current == null ? null : Number(row.gpa_current),
+      gpaPrevious: row.gpa_previous == null ? null : Number(row.gpa_previous),
+      gpaChange: row.gpa_change == null ? null : Number(row.gpa_change),
       gpaAlertLevel: row.gpa_alert_level,
       latestInterventionStatus: row.latest_intervention_status,
       courseStudentCount: parseNumber(row.course_student_count),

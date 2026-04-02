@@ -3,7 +3,7 @@ import path from "path";
 import { XMLParser } from "fast-xml-parser";
 import { pool } from "@/lib/db";
 import { fetchMonitoringEntries } from "@/lib/sap-monitoring";
-import { getCgpaMapBySapIds } from "@/lib/db/gpa";
+import { getGpaTrendMapBySapIds } from "@/lib/db/gpa";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 
 type EnrollmentRow = {
@@ -324,7 +324,7 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
   }
 
   const sapIds = Array.from(new Set(prepared.map((r) => r.sapId)));
-  const cgpaMap = await getCgpaMapBySapIds(sapIds);
+  const gpaTrendMap = await getGpaTrendMapBySapIds(sapIds);
 
   const studentRows = Array.from(
     new Map(prepared.map((r) => [r.sapId, { sapId: r.sapId, name: r.studentName }])).values()
@@ -512,6 +512,8 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
       deviation: number | null;
       attendanceLevel: "warning" | "critical" | null;
       gpaCurrent: number | null;
+      gpaPrevious: number | null;
+      gpaChange: number | null;
       gpaLevel: "warning" | "critical" | null;
       overall: "none" | "warning" | "critical";
     };
@@ -540,8 +542,11 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
         attendancePct == null
           ? null
           : getAttendanceAlertLevel(attendancePct, classAvg, totalHeld);
-      const gpaCurrent = cgpaMap[row.sapId] ?? null;
-      const gpaLevel: "warning" | "critical" | null = null;
+      const gpaTrend = gpaTrendMap[row.sapId];
+      const gpaCurrent = gpaTrend?.current ?? null;
+      const gpaPrevious = gpaTrend?.previous ?? null;
+      const gpaChange = gpaTrend?.change ?? null;
+      const gpaLevel: "warning" | "critical" | null = gpaTrend?.level ?? null;
       const overall: "none" | "warning" | "critical" =
         attendanceLevel === "critical" || gpaLevel === "critical"
           ? "critical"
@@ -569,6 +574,8 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
             : classAvg - attendancePct,
         attendanceLevel,
         gpaCurrent,
+        gpaPrevious,
+        gpaChange,
         gpaLevel,
         overall,
       };
@@ -581,12 +588,12 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
            faculty_id, department_id, program_id, instructor_pernr,
            total_classes_held, attendance_marked_classes, attendance_not_updated_classes,
            classes_attended, attendance_percentage,
-           class_average_attendance, attendance_deviation, gpa_current,
+           class_average_attendance, attendance_deviation, gpa_current, gpa_previous, gpa_change,
            attendance_alert_level, gpa_alert_level, overall_alert_level,
            computed_at
          )
          VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW()
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW()
          )
          ON CONFLICT (sap_id, course_id, section_code, event_package_id) DO UPDATE SET
            faculty_id = EXCLUDED.faculty_id,
@@ -601,6 +608,8 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
            class_average_attendance = EXCLUDED.class_average_attendance,
            attendance_deviation = EXCLUDED.attendance_deviation,
            gpa_current = EXCLUDED.gpa_current,
+           gpa_previous = EXCLUDED.gpa_previous,
+           gpa_change = EXCLUDED.gpa_change,
            attendance_alert_level = EXCLUDED.attendance_alert_level,
            gpa_alert_level = EXCLUDED.gpa_alert_level,
            overall_alert_level = EXCLUDED.overall_alert_level,
@@ -623,6 +632,8 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
           row.classAvg,
           row.deviation,
           row.gpaCurrent,
+          row.gpaPrevious,
+          row.gpaChange,
           row.attendanceLevel,
           row.gpaLevel,
           row.overall,

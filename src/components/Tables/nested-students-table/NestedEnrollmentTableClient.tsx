@@ -90,6 +90,8 @@ type TopTableRow = {
   classAverageAttendance: number | null;
   attendanceAlertLevel: "warning" | "critical" | null;
   gpaCurrent: number | null;
+  gpaPrevious: number | null;
+  gpaChange: number | null;
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
 };
@@ -664,6 +666,17 @@ export function NestedEnrollmentTableClient({
                                               : gpaLevel === "warning"
                                                 ? "text-yellow-600"
                                                 : "";
+                                          const gpaPrev = row.gpaPrevious;
+                                          const gpaChange = row.gpaChange;
+                                          const hasGpaTrend =
+                                            typeof gpaChange === "number" &&
+                                            Number.isFinite(gpaChange);
+                                          const gpaDropped = hasGpaTrend && gpaChange < 0;
+                                          const gpaTrendClass = gpaDropped
+                                            ? "text-red-600"
+                                            : hasGpaTrend
+                                              ? "text-emerald-600"
+                                              : "text-dark-6 dark:text-dark-5";
                                           const hasGpaAlert =
                                             gpaLevel === "critical" ||
                                             gpaLevel === "warning";
@@ -759,11 +772,29 @@ export function NestedEnrollmentTableClient({
                                                 )}
                                               </TableCell>
                                               <TableCell className="!text-left">
-                                                <span className={gpaColorClass}>
-                                                  {Number.isFinite(cgpa)
-                                                    ? cgpa.toFixed(2)
-                                                    : "-"}
-                                                </span>
+                                                <div className="flex flex-col">
+                                                  <span className={gpaColorClass}>
+                                                    {Number.isFinite(cgpa)
+                                                      ? cgpa.toFixed(2)
+                                                      : "-"}
+                                                  </span>
+                                                  <span
+                                                    className={cn(
+                                                      "text-xs",
+                                                      gpaTrendClass
+                                                    )}
+                                                  >
+                                                    {hasGpaTrend
+                                                      ? `${gpaDropped ? "▼" : "▲"} ${Math.abs(
+                                                          gpaChange
+                                                        ).toFixed(2)}${
+                                                          typeof gpaPrev === "number"
+                                                            ? ` vs ${gpaPrev.toFixed(2)}`
+                                                            : ""
+                                                        }`
+                                                      : "—"}
+                                                  </span>
+                                                </div>
                                               </TableCell>
                                               <TableCell className="!text-left">
                                                 <InterventionStatusBadge
