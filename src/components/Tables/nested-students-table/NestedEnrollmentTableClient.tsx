@@ -361,18 +361,20 @@ export function NestedEnrollmentTableClient({
       )}
     >
       {expandedIds.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setExpandedIds([])}
-          className={cn(
-            "fixed right-4 bottom-6 z-50 rounded-full border px-4 py-2.5 text-sm font-medium shadow-lg outline-none transition",
-            "focus-visible:ring-2 focus-visible:ring-primary",
-            "bg-white border-stroke hover:bg-gray-50 dark:bg-gray-dark dark:border-dark-3 dark:hover:bg-dark-3"
-          )}
-          aria-label="Collapse all accordions"
-        >
-          Collapse all
-        </button>
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setExpandedIds([])}
+            className={cn(
+              "rounded-md border px-3 py-2 text-sm font-medium outline-none transition",
+              "focus-visible:ring-2 focus-visible:ring-primary",
+              "bg-white border-stroke hover:bg-gray-50 dark:bg-gray-dark dark:border-dark-3 dark:hover:bg-dark-3"
+            )}
+            aria-label="Collapse all accordions"
+          >
+            Collapse all
+          </button>
+        </div>
       )}
       <div className="mt-4 space-y-4">
         {sortedDepts.map((deptName) => {
