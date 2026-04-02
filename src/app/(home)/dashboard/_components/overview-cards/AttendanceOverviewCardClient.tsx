@@ -132,10 +132,11 @@ export function AttendanceOverviewCardClient({
           </dl>
           {hasGrowth ? null : null}
         </div>
-        <p className="mt-3 text-xs font-medium text-dark-6 dark:text-dark-5">
-          Updated Attendance / Total Classes Held:{" "}
+        <p className="mt-3 text-base font-medium text-dark-6 dark:text-dark-5">
+          
           <span className="font-semibold text-dark dark:text-white">
-            {updatedAttendanceCount.toLocaleString()} / {totalHeldCount.toLocaleString()}
+            {totalHeldCount - updatedAttendanceCount} / {totalHeldCount.toLocaleString()}
+            
           </span>
         </p>
       </div>

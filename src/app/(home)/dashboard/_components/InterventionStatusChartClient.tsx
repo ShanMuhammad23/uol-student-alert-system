@@ -50,6 +50,14 @@ export function InterventionStatusChartClient({
   yellowAttendance = 0,
   redAttendance = 0,
 }: Props): JSX.Element {
+  type ChartMode = "attendance" | "gpa" | "all";
+  type InterventionCounts = {
+    initiated: number;
+    inProgress: number;
+    referred: number;
+    resolved: number;
+  };
+
   const debug =
     process.env.NODE_ENV === "development" ||
     process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "true" ||
@@ -59,10 +67,15 @@ export function InterventionStatusChartClient({
   const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
   const setGpaFilters = dashboardFilter?.setGpaFilters;
 
-  const selectedAlertMode = useMemo(() => {
-    if (dashboardFilter?.gpaFilters?.length) return "gpa" as const;
-    if (dashboardFilter?.attendanceFilters?.length) return "attendance" as const;
-    return selectedAlert === "gpa" ? ("gpa" as const) : ("attendance" as const);
+  const chartMode = useMemo<ChartMode>(() => {
+    // If the user explicitly filtered alert dimensions, prioritize that.
+    if (dashboardFilter?.gpaFilters?.length) return "gpa";
+    if (dashboardFilter?.attendanceFilters?.length) return "attendance";
+
+    // Otherwise, fall back to the page-level selected alert.
+    if (selectedAlert === "gpa") return "gpa";
+    if (selectedAlert === "attendance") return "attendance";
+    return "all";
   }, [dashboardFilter?.gpaFilters, dashboardFilter?.attendanceFilters, selectedAlert]);
 
   const masterFilter =
@@ -88,12 +101,12 @@ export function InterventionStatusChartClient({
     return null;
   }, [attendanceFilters, gpaFilters]);
 
-  const [interventionCounts, setInterventionCounts] = useState<{
-    initiated: number;
-    inProgress: number;
-    referred: number;
-    resolved: number;
-  }>({ initiated: 0, inProgress: 0, referred: 0, resolved: 0 });
+  const [interventionCounts, setInterventionCounts] = useState<InterventionCounts>({
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+  });
 
   const [gpaCohortSapIds, setGpaCohortSapIds] = useState<string[] | null>(
     null
@@ -154,18 +167,25 @@ export function InterventionStatusChartClient({
     };
   }, [effectiveSlice, masterFilterKey, gpaFiltersKey, attendanceFiltersKey]);
 
-  const interventionTypeForDb = useMemo<"attendance" | "gpa">(() => {
+  const interventionTypesForDb = useMemo<("attendance" | "gpa")[]>(() => {
     if (
       effectiveSlice === "attendance_yellow" ||
       effectiveSlice === "attendance_red"
     ) {
-      return "attendance";
+      return ["attendance"];
     }
     if (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") {
-      return "gpa";
+      return ["gpa"];
     }
-    return selectedAlertMode;
-  }, [effectiveSlice, selectedAlertMode]);
+    if (chartMode === "gpa") return ["gpa"];
+    if (chartMode === "attendance") return ["attendance"];
+    return ["attendance", "gpa"];
+  }, [effectiveSlice, chartMode]);
+
+  const interventionTypesKey = useMemo(
+    () => interventionTypesForDb.slice().sort().join(","),
+    [interventionTypesForDb]
+  );
 
   const totalAlerts = useMemo(() => {
     if (effectiveSlice === "attendance_yellow") return yellowAttendance;
@@ -174,14 +194,15 @@ export function InterventionStatusChartClient({
       return gpaCohortSapIds?.length ?? 0;
     }
     // No slice selected: use overview-card totals.
-    if (selectedAlertMode === "gpa") return yellowGpa + redGpa;
-    return yellowAttendance + redAttendance;
+    if (chartMode === "gpa") return yellowGpa + redGpa;
+    if (chartMode === "attendance") return yellowAttendance + redAttendance;
+    return yellowAttendance + redAttendance + yellowGpa + redGpa;
   }, [
     effectiveSlice,
     yellowAttendance,
     redAttendance,
     gpaCohortSapIds,
-    selectedAlertMode,
+    chartMode,
     yellowGpa,
     redGpa,
   ]);
@@ -227,36 +248,42 @@ export function InterventionStatusChartClient({
       const roleScope =
         user.role === "teacher" ? "teacher" : (user.role as "dean" | "hod");
 
-      fetch("/api/interventions/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: roleScope,
-          interventionType: interventionTypeForDb,
-          alertLevel: alertLevelForRequest,
-          facultyId: facultyIdForRequest,
-          departmentIds: departmentIdsForRequest,
-          courseIds: courseIdsForRequest,
-          staffId: staffIdForRequest,
-        }),
-        signal: controller.signal,
-      })
-        .then((res) => {
+      const fetchCountsForType = async (interventionType: "attendance" | "gpa") =>
+        fetch("/api/interventions/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: roleScope,
+            interventionType,
+            alertLevel: alertLevelForRequest,
+            facultyId: facultyIdForRequest,
+            departmentIds: departmentIdsForRequest,
+            courseIds: courseIdsForRequest,
+            staffId: staffIdForRequest,
+          }),
+          signal: controller.signal,
+        }).then(async (res) => {
           if (!res.ok) throw new Error("Failed to load intervention counts");
-          return res.json() as Promise<{
+          return (await res.json()) as Promise<{
             initiated?: number;
             inProgress?: number;
             referred?: number;
             resolved?: number;
           }>;
-        })
-        .then((counts) => {
-          setInterventionCounts({
-            initiated: counts.initiated ?? 0,
-            inProgress: counts.inProgress ?? 0,
-            referred: counts.referred ?? 0,
-            resolved: counts.resolved ?? 0,
-          });
+        });
+
+      Promise.all(interventionTypesForDb.map(fetchCountsForType))
+        .then((countResults) => {
+          const summed = countResults.reduce<InterventionCounts>(
+            (acc, counts) => ({
+              initiated: acc.initiated + (counts.initiated ?? 0),
+              inProgress: acc.inProgress + (counts.inProgress ?? 0),
+              referred: acc.referred + (counts.referred ?? 0),
+              resolved: acc.resolved + (counts.resolved ?? 0),
+            }),
+            { initiated: 0, inProgress: 0, referred: 0, resolved: 0 }
+          );
+          setInterventionCounts(summed);
         })
         .catch((err) => {
           if (err.name === "AbortError") return;
@@ -279,7 +306,7 @@ export function InterventionStatusChartClient({
     departmentIdsKey,
     courseIdsKey,
     staffIdForRequest,
-    interventionTypeForDb,
+    interventionTypesKey,
     alertLevelForRequest,
   ]);
 
@@ -352,8 +379,8 @@ export function InterventionStatusChartClient({
       {debug && (
         <div className="px-2 pt-2">
           <p className="text-[10px] text-neutral-500">
-            Role: {user?.role ?? "—"}; Slice: {effectiveSlice ?? "—"}; Intervention type:{" "}
-            {interventionTypeForDb}; alertLevel: {alertLevelForRequest ?? "—"}; Total alerts:{" "}
+            Role: {user?.role ?? "—"}; Slice: {effectiveSlice ?? "—"}; Intervention type(s):{" "}
+            {interventionTypesForDb.join(",")}; alertLevel: {alertLevelForRequest ?? "—"}; Total alerts:{" "}
             {totalAlerts}
           </p>
           <p className="text-[10px] text-neutral-500">

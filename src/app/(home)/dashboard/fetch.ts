@@ -488,16 +488,27 @@ export async function getAttendanceCoverageData(
     total_classes_held: number | string | null;
   }>(
     `
+      WITH scoped_class_rows AS (
+        SELECT
+          e.course_id,
+          e.section_code,
+          -- student_alert_current stores class metrics per enrollment row.
+          -- Use MAX per class (course+section) to avoid multiplying by student count.
+          COALESCE(MAX(COALESCE(a.attendance_marked_classes, 0)), 0) AS attendance_marked_classes,
+          COALESCE(MAX(COALESCE(a.total_classes_held, 0)), 0) AS total_classes_held
+        FROM student_enrollment_current e
+        LEFT JOIN student_alert_current a
+          ON a.sap_id = e.sap_id
+         AND a.course_id = e.course_id
+         AND a.section_code = e.section_code
+         AND a.event_package_id = e.event_package_id
+        ${whereSql}
+        GROUP BY e.course_id, e.section_code
+      )
       SELECT
-        COALESCE(SUM(COALESCE(a.attendance_marked_classes, 0)), 0) AS updated_attendance,
-        COALESCE(SUM(COALESCE(a.total_classes_held, 0)), 0) AS total_classes_held
-      FROM student_enrollment_current e
-      LEFT JOIN student_alert_current a
-        ON a.sap_id = e.sap_id
-       AND a.course_id = e.course_id
-       AND a.section_code = e.section_code
-       AND a.event_package_id = e.event_package_id
-      ${whereSql}
+        COALESCE(SUM(attendance_marked_classes), 0) AS updated_attendance,
+        COALESCE(SUM(total_classes_held), 0) AS total_classes_held
+      FROM scoped_class_rows
     `,
     params
   );
