@@ -24,6 +24,7 @@ import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
+import { ScrollToTopButton } from "./_components/ScrollToTopButton";
 
 function parseMultiParam(
   value: string | string[] | undefined
@@ -288,6 +289,7 @@ export default async function Home({ searchParams }: PropsType) {
           expandedIds={expandedIds}
         />
       </DashboardFiltersStateProvider>
+      <ScrollToTopButton />
     </>
   );
 }

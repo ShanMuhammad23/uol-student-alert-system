@@ -9,11 +9,13 @@ import { getStudentBySapId } from "@/app/(home)/dashboard/fetch";
 import {
   ensureCourseExists,
   deleteInterventionByIdFromDb,
+  getInterventionByIdFromDb,
   insertIntervention,
   getInterventionsByStudentSapIdFromDb,
   getLatestInterventionStatusMapFromDb,
   getInterventionStatsForStudentsFromDb,
   getInterventionStatsForRoleScopeFromDb,
+  updateInterventionByIdFromDb,
   type InterventionRoleScope,
   type InterventionRoleScopeStats,
 } from "@/lib/db/interventions";
@@ -29,6 +31,8 @@ export type InterventionRecord = {
   remarks: string;
   status: string; // initiated | in-progress | referred | resolved
   performed_at: string; // ISO date
+  staff_id?: string;
+  uploader_pernr?: string | null;
 };
 
 const STORE_DIR = ".data";
@@ -192,6 +196,8 @@ function readStore(): InterventionRecord[] {
       remarks: String(r.remarks ?? ""),
       status: String(r.status ?? ""),
       performed_at: String(r.performed_at ?? new Date().toISOString()),
+      staff_id: String(r.staff_id ?? ""),
+      uploader_pernr: null,
     }));
   } catch {
     return [];
@@ -517,4 +523,57 @@ export async function deleteInterventionById(id: string): Promise<{ studentSapId
   revalidatePath("/");
   revalidatePath(`/students/${studentSapId}`);
   return { studentSapId };
+}
+
+export async function getInterventionById(
+  id: string
+): Promise<InterventionRecord | null> {
+  if (pool) {
+    const row = await getInterventionByIdFromDb(id);
+    return (row as InterventionRecord | null) ?? null;
+  }
+  const stored = readStore();
+  return stored.find((r) => r.id === id) ?? null;
+}
+
+export async function updateInterventionById(
+  id: string,
+  data: {
+    date: string;
+    intervention_type: "attendance" | "gpa";
+    outreach_mode: string;
+    remarks: string;
+    status: string;
+  }
+): Promise<{ studentSapId: string | null }> {
+  if (pool) {
+    const updated = await updateInterventionByIdFromDb(id, data);
+    if (!updated) return { studentSapId: null };
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    revalidatePath(`/students/${updated.student_sap_id}`);
+    return { studentSapId: updated.student_sap_id };
+  }
+  const stored = readStore();
+  const idx = stored.findIndex((r) => r.id === id);
+  if (idx === -1) return { studentSapId: null };
+  const existing = stored[idx];
+  const updatedRow: InterventionRecord = {
+    ...existing,
+    date: data.date,
+    intervention_type: data.intervention_type,
+    outreach_mode: data.outreach_mode,
+    remarks: data.remarks,
+    status: data.status,
+  };
+  stored[idx] = updatedRow;
+  const storePath = getStorePath();
+  const dir = path.dirname(storePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(storePath, JSON.stringify(stored, null, 2), "utf-8");
+  revalidatePath("/");
+  revalidatePath(`/students/${existing.student_sap_id}`);
+  return { studentSapId: existing.student_sap_id };
 }

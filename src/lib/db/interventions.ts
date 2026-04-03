@@ -56,6 +56,8 @@ export type InterventionRow = {
   remarks: string;
   status: string;
   performed_at: string;
+  staff_id?: string | null;
+  uploader_pernr?: string | null;
 };
 
 /** Ensure a course exists in the courses table (for intervention FK). Upserts by id. */
@@ -209,16 +211,20 @@ export async function getInterventionsByStudentSapIdFromDb(
     remarks: string;
     status: string;
     performed_at: Date;
+    staff_id: string | null;
+    uploader_pernr: string | null;
   }>(
     hasType
-      ? `SELECT id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at
-         FROM interventions
-         WHERE student_sap_id = $1
-         ORDER BY performed_at DESC`
-      : `SELECT id, student_sap_id, date, outreach_mode, remarks, status, performed_at
-         FROM interventions
-         WHERE student_sap_id = $1
-         ORDER BY performed_at DESC`,
+      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+         FROM interventions i
+         LEFT JOIN staff s ON s.id = i.staff_id
+         WHERE i.student_sap_id = $1
+         ORDER BY i.performed_at DESC`
+      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+         FROM interventions i
+         LEFT JOIN staff s ON s.id = i.staff_id
+         WHERE i.student_sap_id = $1
+         ORDER BY i.performed_at DESC`,
     [sapId]
   );
   return res.rows.map((r) => ({
@@ -229,6 +235,8 @@ export async function getInterventionsByStudentSapIdFromDb(
       typeof r.performed_at === "string"
         ? r.performed_at
         : (r.performed_at as Date).toISOString(),
+    staff_id: r.staff_id ?? null,
+    uploader_pernr: r.uploader_pernr ?? null,
   }));
 }
 
@@ -237,6 +245,87 @@ export async function deleteInterventionByIdFromDb(id: string): Promise<{ studen
   const res = await pool.query<{ student_sap_id: string }>(
     `DELETE FROM interventions WHERE id = $1 RETURNING student_sap_id`,
     [id]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function getInterventionByIdFromDb(
+  id: string
+): Promise<InterventionRow | null> {
+  if (!pool) return null;
+  const hasType = await hasInterventionTypeColumn();
+  const res = await pool.query<{
+    id: string;
+    student_sap_id: string;
+    date: string;
+    intervention_type?: "attendance" | "gpa" | null;
+    outreach_mode: string;
+    remarks: string;
+    status: string;
+    performed_at: Date;
+    staff_id: string | null;
+    uploader_pernr: string | null;
+  }>(
+    hasType
+      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+         FROM interventions i
+         LEFT JOIN staff s ON s.id = i.staff_id
+         WHERE i.id = $1
+         LIMIT 1`
+      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+         FROM interventions i
+         LEFT JOIN staff s ON s.id = i.staff_id
+         WHERE i.id = $1
+         LIMIT 1`,
+    [id]
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    intervention_type: row.intervention_type === "gpa" ? "gpa" : "attendance",
+    date: typeof row.date === "string" ? row.date : (row.date as unknown as Date).toISOString().slice(0, 10),
+    performed_at:
+      typeof row.performed_at === "string"
+        ? row.performed_at
+        : (row.performed_at as Date).toISOString(),
+    staff_id: row.staff_id ?? null,
+    uploader_pernr: row.uploader_pernr ?? null,
+  };
+}
+
+export async function updateInterventionByIdFromDb(
+  id: string,
+  data: {
+    date: string;
+    intervention_type: "attendance" | "gpa";
+    outreach_mode: string;
+    remarks: string;
+    status: string;
+  }
+): Promise<{ student_sap_id: string } | null> {
+  if (!pool) return null;
+  const hasType = await hasInterventionTypeColumn();
+  const res = await pool.query<{ student_sap_id: string }>(
+    hasType
+      ? `UPDATE interventions
+         SET
+           date = $2::date,
+           intervention_type = $3,
+           outreach_mode = $4,
+           remarks = $5,
+           status = $6
+         WHERE id = $1
+         RETURNING student_sap_id`
+      : `UPDATE interventions
+         SET
+           date = $2::date,
+           outreach_mode = $4,
+           remarks = $5,
+           status = $6
+         WHERE id = $1
+         RETURNING student_sap_id`,
+    [id, data.date, data.intervention_type, data.outreach_mode, data.remarks, data.status]
   );
   return res.rows[0] ?? null;
 }

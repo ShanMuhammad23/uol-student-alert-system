@@ -198,7 +198,8 @@ export async function generateMetadata({ params }: PropsType): Promise<Metadata>
 
 export default async function StudentPage({ params, searchParams }: PropsType) {
   const session = await getServerSession(authOptions);
-  const canDeleteIntervention = session?.user?.role === "superadmin";
+  const currentUserRole = session?.user?.role ?? null;
+  const currentUserPernr = session?.user?.pernr ?? null;
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
   const returnToUrl =
@@ -373,7 +374,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       <InterventionHistorySection
         interventions={interventionHistory}
         studentSapId={sapIdFromUrl}
-        canDelete={canDeleteIntervention}
+        currentUserRole={currentUserRole}
+        currentUserPernr={currentUserPernr}
       />
 
      
