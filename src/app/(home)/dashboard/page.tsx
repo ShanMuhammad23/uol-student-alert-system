@@ -175,7 +175,7 @@ export default async function Home({ searchParams }: PropsType) {
   const [{ totalStudents, yellowGpa, redGpa, yellowAttendance, redAttendance }, snapshotTrend] =
     await Promise.all([
       getOverviewData(effectiveUser, masterFilter, gpaFilters, attendanceFilters),
-      getAlertSnapshotTrend(effectiveUser, masterFilter, 60),
+      getAlertSnapshotTrend(effectiveUser, masterFilter, 365),
     ]);
 
   const viewMode = params.view === "nested" ? "nested" : "table";

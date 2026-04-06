@@ -38,7 +38,7 @@ export default async function SuperadminDashboardPage() {
   const [overview, facultyStats, snapshotTrend] = await Promise.all([
     getOverviewData(user),
     getSuperadminFacultyStats(),
-    getSuperadminAlertSnapshotTrend(60),
+    getSuperadminAlertSnapshotTrend(365),
   ]);
 
   return (
