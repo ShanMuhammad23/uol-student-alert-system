@@ -390,12 +390,20 @@ export async function getFilterDropdownCounts(
   try {
     const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]));
     const gpaSql = `${buildListingBaseCte(gpaParts.whereSql)}
+      , gpa_per_student AS (
+        SELECT
+          sap_id,
+          COALESCE(BOOL_OR(gpa_alert_level = 'critical'), false) AS has_red,
+          COALESCE(BOOL_OR(gpa_alert_level = 'warning'), false) AS has_yellow
+        FROM base
+        GROUP BY sap_id
+      )
       SELECT
-        COUNT(DISTINCT sap_id)::int AS total_all,
-        COUNT(DISTINCT sap_id) FILTER (WHERE gpa_alert_level = 'critical')::int AS red,
-        COUNT(DISTINCT sap_id) FILTER (WHERE gpa_alert_level = 'warning')::int AS yellow,
-        COUNT(DISTINCT sap_id) FILTER (WHERE gpa_alert_level IS NULL)::int AS good
-      FROM base`;
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE has_red)::int AS red,
+        COUNT(*) FILTER (WHERE has_yellow AND NOT has_red)::int AS yellow,
+        COUNT(*) FILTER (WHERE NOT has_red AND NOT has_yellow)::int AS good
+      FROM gpa_per_student`;
     const gpaRes = await pool.query<{
       total_all: number;
       red: number;
@@ -406,12 +414,20 @@ export async function getFilterDropdownCounts(
 
     const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]));
     const attSql = `${buildListingBaseCte(attParts.whereSql)}
+      , att_per_student AS (
+        SELECT
+          sap_id,
+          COALESCE(BOOL_OR(attendance_alert_level = 'critical'), false) AS has_red,
+          COALESCE(BOOL_OR(attendance_alert_level = 'warning'), false) AS has_yellow
+        FROM base
+        GROUP BY sap_id
+      )
       SELECT
-        COUNT(DISTINCT sap_id)::int AS total_all,
-        COUNT(DISTINCT sap_id) FILTER (WHERE attendance_alert_level = 'critical')::int AS red,
-        COUNT(DISTINCT sap_id) FILTER (WHERE attendance_alert_level = 'warning')::int AS yellow,
-        COUNT(DISTINCT sap_id) FILTER (WHERE attendance_alert_level IS NULL)::int AS good
-      FROM base`;
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE has_red)::int AS red,
+        COUNT(*) FILTER (WHERE has_yellow AND NOT has_red)::int AS yellow,
+        COUNT(*) FILTER (WHERE NOT has_red AND NOT has_yellow)::int AS good
+      FROM att_per_student`;
     const attRes = await pool.query<{
       total_all: number;
       red: number;
