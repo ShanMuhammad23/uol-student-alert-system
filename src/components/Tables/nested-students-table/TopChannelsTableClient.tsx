@@ -427,19 +427,30 @@ export function TopChannelsTableClient({
 
                 const classesHeld = row.totalClassesHeld ?? 0;
                 const classesAttended = row.classesAttended ?? 0;
+                const attendanceMissing = Math.max(0, classesHeld - classesAttended);
                 const attendance = row.attendancePercentage;
                 const classAvg = row.classAverageAttendance;
                 const gpa = row.gpaCurrent;
                 const gpaPrev = row.gpaPrevious;
                 const gpaChange = row.gpaChange;
+                const gpaLevel = row.gpaAlertLevel ?? null;
+                const gpaValueColorClass =
+                  gpaLevel === "critical"
+                    ? "text-red-600 dark:text-red-500"
+                    : gpaLevel === "warning"
+                      ? "text-yellow-600 dark:text-yellow-500"
+                      : "";
                 const hasTrend =
                   typeof gpaChange === "number" && Number.isFinite(gpaChange);
                 const isDrop = hasTrend && gpaChange < 0;
-                const trendClass = isDrop
-                  ? "text-red-600"
-                  : hasTrend
-                  ? "text-emerald-600"
-                  : "text-dark-6 dark:text-dark-5";
+                const gpaDeviationClass =
+                  gpaLevel === "critical"
+                    ? "text-red-600 dark:text-red-500"
+                    : gpaLevel === "warning"
+                      ? "text-yellow-600 dark:text-yellow-500"
+                      : hasTrend
+                        ? "text-dark dark:text-white"
+                        : "text-dark-6 dark:text-dark-5";
 
                 return (
                   <TableRow
@@ -487,7 +498,23 @@ export function TopChannelsTableClient({
                       {row.instructorName ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
-                      {classesHeld === 0 ? "—" : `${classesHeld}`}
+                      {classesHeld === 0 ? (
+                        "—"
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <span>{classesHeld}</span>
+                          <span
+                            className={cn(
+                              "text-xs",
+                              attendanceMissing > 0
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-dark-6 dark:text-dark-5"
+                            )}
+                          >
+                            Attendance Missing ({attendanceMissing})
+                          </span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="!text-left">
                       {attendance != null ? (
@@ -512,8 +539,10 @@ export function TopChannelsTableClient({
                     </TableCell>
                     <TableCell className="!text-left">
                       <div className="flex flex-col">
-                        <span>{typeof gpa === "number" ? gpa.toFixed(2) : "-"}</span>
-                        <span className={cn("text-xs", trendClass)}>
+                        <span className={gpaValueColorClass}>
+                          {typeof gpa === "number" ? gpa.toFixed(2) : "-"}
+                        </span>
+                        <span className={cn("text-xs", gpaDeviationClass)}>
                           {hasTrend
                             ? `${isDrop ? "▼" : "▲"} ${Math.abs(gpaChange).toFixed(
                                 2
