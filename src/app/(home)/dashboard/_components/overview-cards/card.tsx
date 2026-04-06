@@ -1,9 +1,10 @@
 "use client";
 import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
+import { DonutChart } from "@/components/Charts/used-devices/chart";
 import { cn } from "@/lib/utils";
-import type { JSX } from "react";
-import * as icons from "./icons";
 import Link from "next/link";
+import type { AlertDimensionFilter } from "../../fetch";
+import { useDashboardFilter } from "../DashboardFilterContext";
 
 type PropsType = {
   label: string;
@@ -17,10 +18,12 @@ type PropsType = {
     grossRed?: number;
     growthRate?: number;
   };
+  /** Total cohort size for GPA donut percentages (same basis as attendance overview). */
+  totalStudents?: number;
   isActive?: boolean;
   user?: unknown;
   masterFilter?: unknown;
-  gpaFilters?: unknown;
+  gpaFilters?: AlertDimensionFilter[];
   attendanceFilters?: unknown;
   yellowActive?: boolean;
   redActive?: boolean;
@@ -32,15 +35,44 @@ export function OverviewCard({
   label,
   titleHref,
   data,
+  totalStudents = 0,
   isActive,
+  gpaFilters,
   yellowActive,
   redActive,
   onYellowClick,
   onRedClick,
 }: PropsType) {
+  const dashboardFilter = useDashboardFilter();
   const hasGrowth = data.growthRate !== undefined;
   const isDecreasing = hasGrowth && data.growthRate! < 0;
   const hasYellowRed = data.yellow !== undefined && data.red !== undefined;
+
+  const effectiveGpaFilters =
+    dashboardFilter?.gpaFilters ?? gpaFilters;
+  const allowed = new Set(effectiveGpaFilters ?? []);
+  const visibleYellow =
+    hasYellowRed && (!allowed.size || allowed.has("yellow"))
+      ? data.yellow!
+      : 0;
+  const visibleRed =
+    hasYellowRed && (!allowed.size || allowed.has("red")) ? data.red! : 0;
+  const visibleGrossYellow =
+    hasYellowRed && (!allowed.size || allowed.has("yellow"))
+      ? (data.grossYellow ?? 0)
+      : 0;
+  const visibleGrossRed =
+    hasYellowRed && (!allowed.size || allowed.has("red"))
+      ? (data.grossRed ?? 0)
+      : 0;
+  const totalAlerts = visibleYellow + visibleRed;
+  const yellowPercentage =
+    totalStudents > 0 ? (visibleYellow / totalStudents) * 100 : 0;
+  const redPercentage =
+    totalStudents > 0 ? (visibleRed / totalStudents) * 100 : 0;
+  const alertsPercentage =
+    totalStudents > 0 ? (totalAlerts / totalStudents) * 100 : 0;
+  const noAlertPercentage = Math.max(0, 100 - yellowPercentage - redPercentage);
 
   return (
     <div
@@ -69,7 +101,7 @@ export function OverviewCard({
                   onClick={onYellowClick}
                   className={cn(
                     "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    data.yellow! > 0
+                    visibleYellow > 0
                       ? "text-yellow-400 dark:text-yellow-400 hover:bg-yellow-400/10 cursor-pointer"
                       : "text-gray-600 dark:text-gray-400 cursor-default",
                     yellowActive &&
@@ -77,12 +109,12 @@ export function OverviewCard({
                   )}
                   aria-pressed={yellowActive}
                   aria-label="Show intervention breakdown for yellow GPA alerts"
-                  disabled={data.yellow === 0}
+                  disabled={visibleYellow === 0}
                 >
-                  {data.yellow}
+                  {visibleYellow}
                   {data.grossYellow !== undefined && (
                     <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
-                      {data.grossYellow}
+                      {visibleGrossYellow}
                     </span>
                   )}
                 </button>
@@ -94,7 +126,7 @@ export function OverviewCard({
                   onClick={onRedClick}
                   className={cn(
                     "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    data.red! > 0
+                    visibleRed > 0
                       ? "text-red-600 dark:text-red-600 hover:bg-red-600/10 cursor-pointer"
                       : "text-grey-600 dark:text-white cursor-default",
                     redActive &&
@@ -102,12 +134,12 @@ export function OverviewCard({
                   )}
                   aria-pressed={redActive}
                   aria-label="Show intervention breakdown for red GPA alerts"
-                  disabled={data.red === 0}
+                  disabled={visibleRed === 0}
                 >
-                  {data.red}
+                  {visibleRed}
                   {data.grossRed !== undefined && (
                     <span className="block text-base font-medium text-red-600 dark:text-red-600">
-                      {data.grossRed}
+                      {visibleGrossRed}
                     </span>
                   )}
                 </button>
@@ -143,11 +175,21 @@ export function OverviewCard({
         </div>
       </div>
 
-      {label === "Attendance" && (
+      {hasYellowRed && label === "GPA" ? (
         <div className="ml-4 flex items-center">
-          <icons.YellowAlert className="h-10 w-10 text-yellow-400 dark:text-yellow-400" />
+          <DonutChart
+            data={[
+              { name: "Yellow alert %", amount: yellowPercentage },
+              { name: "Red alert %", amount: redPercentage },
+              { name: "Good Standing %", amount: noAlertPercentage },
+            ]}
+            colors={["#FACC15", "#DC2626", "#22C55E"]}
+            centerLabel=""
+            centerValue={`${alertsPercentage.toFixed(1)}%`}
+            size="sm"
+          />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

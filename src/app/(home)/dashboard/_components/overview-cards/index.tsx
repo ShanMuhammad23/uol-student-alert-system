@@ -247,6 +247,7 @@ export function OverviewCardsGroup({
         <OverviewCard
           label="GPA"
           titleHref={gpaHref}
+          totalStudents={liveCounts.totalStudents}
           data={{
             yellow: netGpaYellow,
             red: netGpaRed,
