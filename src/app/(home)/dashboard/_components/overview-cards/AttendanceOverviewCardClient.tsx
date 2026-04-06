@@ -135,8 +135,11 @@ export function AttendanceOverviewCardClient({
         <p className="mt-3 text-base font-medium text-dark-6 dark:text-dark-5">
           
           <span className="font-semibold text-dark dark:text-white">
-            {totalHeldCount - updatedAttendanceCount} / {totalHeldCount.toLocaleString()}
-            
+            Attendance Missing: {totalHeldCount - updatedAttendanceCount} / {totalHeldCount.toLocaleString()} Classes (
+            {totalHeldCount > 0
+              ? `${(((totalHeldCount - updatedAttendanceCount) / totalHeldCount) * 100).toFixed(1)}%`
+              : "0%"}
+            )
           </span>
         </p>
       </div>
