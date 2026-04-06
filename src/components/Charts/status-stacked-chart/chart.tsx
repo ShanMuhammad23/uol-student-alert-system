@@ -2,6 +2,7 @@
 
 import type { ApexOptions } from "apexcharts";
 import dynamic from "next/dynamic";
+import { useMemo } from "react";
 import { useTheme } from "next-themes";
 
 const CATEGORIES = [
@@ -9,12 +10,21 @@ const CATEGORIES = [
   "Monitoring",
   "Flex (Acad)",
   "Flex (Fin)",
+  "Others",
 ] as const;
+
+const CATEGORY_COUNT = CATEGORIES.length;
 
 export type StatusStackedChartData = {
   open: number[];
   closed: number[];
 };
+
+function padSeries(arr: number[] | undefined, len: number): number[] {
+  const out = [...(arr ?? [])].slice(0, len);
+  while (out.length < len) out.push(0);
+  return out;
+}
 
 type PropsType = {
   title?: string;
@@ -29,14 +39,22 @@ const OPEN_COLOR = "#ef4444";
 const CLOSED_COLOR = "#22c55e";
 
 const defaultData: StatusStackedChartData = {
-  open: [12, 8, 15, 6],
-  closed: [5, 10, 4, 9],
+  open: [12, 8, 15, 6, 2],
+  closed: [5, 10, 4, 9, 1],
 };
 
 export function StatusStackedChart({
   title = "Intervention Status by Type",
   data = defaultData,
 }: PropsType) {
+  const { open, closed } = useMemo(
+    () => ({
+      open: padSeries(data.open, CATEGORY_COUNT),
+      closed: padSeries(data.closed, CATEGORY_COUNT),
+    }),
+    [data.open, data.closed]
+  );
+
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const titleColor = isDark ? "#E5E7EB" : "#111827";
@@ -145,8 +163,8 @@ export function StatusStackedChart({
   };
 
   const series = [
-    { name: "Open", data: data.open },
-    { name: "Closed", data: data.closed },
+    { name: "Open", data: open },
+    { name: "Closed", data: closed },
   ];
 
   return (

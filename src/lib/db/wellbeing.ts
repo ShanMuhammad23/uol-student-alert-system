@@ -1,19 +1,21 @@
 import { pool } from "./index";
 import type { StatusStackedChartData } from "@/components/Charts/status-stacked-chart/chart";
 
-const CATEGORIES = [
+const KNOWN_CATEGORIES = [
   "Counselling",
   "Monitoring",
   "Flex (Academic)",
   "Flex (Financial)",
 ] as const;
 
+const SLOT_COUNT = KNOWN_CATEGORIES.length + 1; // + Others
+
 /** Wellbeing open/closed counts per category for a set of students. */
 export async function getWellbeingChartDataForStudents(
   sapIds: string[]
 ): Promise<StatusStackedChartData> {
-  const open = Array(CATEGORIES.length).fill(0);
-  const closed = Array(CATEGORIES.length).fill(0);
+  const open = Array<number>(SLOT_COUNT).fill(0);
+  const closed = Array<number>(SLOT_COUNT).fill(0);
 
   if (!pool || !sapIds.length) return { open, closed };
 
@@ -31,15 +33,19 @@ export async function getWellbeingChartDataForStudents(
     [sapIds]
   );
 
+  const othersIndex = KNOWN_CATEGORIES.length;
+
   for (const row of res.rows) {
-    const idx = CATEGORIES.indexOf(row.category as (typeof CATEGORIES)[number]);
-    if (idx === -1) continue;
+    const idx = KNOWN_CATEGORIES.indexOf(
+      row.category as (typeof KNOWN_CATEGORIES)[number]
+    );
+    const slot = idx === -1 ? othersIndex : idx;
 
     const isClosed =
       row.wellbeing_status === "closed" || row.resolution_status === "resolved";
 
-    if (isClosed) closed[idx] += 1;
-    else open[idx] += 1;
+    if (isClosed) closed[slot] += 1;
+    else open[slot] += 1;
   }
 
   return { open, closed };
