@@ -56,6 +56,7 @@ export function InterventionStatusChartClient({
     inProgress: number;
     referred: number;
     resolved: number;
+    noActionRequired: number;
   };
 
   const debug =
@@ -106,6 +107,7 @@ export function InterventionStatusChartClient({
     inProgress: 0,
     referred: 0,
     resolved: 0,
+    noActionRequired: 0,
   });
 
   const [gpaCohortSapIds, setGpaCohortSapIds] = useState<string[] | null>(
@@ -269,6 +271,7 @@ export function InterventionStatusChartClient({
             inProgress?: number;
             referred?: number;
             resolved?: number;
+            noActionRequired?: number;
           }>;
         });
 
@@ -280,8 +283,16 @@ export function InterventionStatusChartClient({
               inProgress: acc.inProgress + (counts.inProgress ?? 0),
               referred: acc.referred + (counts.referred ?? 0),
               resolved: acc.resolved + (counts.resolved ?? 0),
+              noActionRequired:
+                acc.noActionRequired + (counts.noActionRequired ?? 0),
             }),
-            { initiated: 0, inProgress: 0, referred: 0, resolved: 0 }
+            {
+              initiated: 0,
+              inProgress: 0,
+              referred: 0,
+              resolved: 0,
+              noActionRequired: 0,
+            }
           );
           setInterventionCounts(summed);
         })
@@ -292,6 +303,7 @@ export function InterventionStatusChartClient({
             inProgress: 0,
             referred: 0,
             resolved: 0,
+            noActionRequired: 0,
           });
         });
     }, 200);
@@ -310,23 +322,27 @@ export function InterventionStatusChartClient({
     alertLevelForRequest,
   ]);
 
-  const { initiated, inProgress, referred, resolved, notStarted } = useMemo(() => {
+  const { initiated, inProgress, referred, resolved, noActionRequired, notStarted } =
+    useMemo(() => {
     const totalInterventionStudents =
       interventionCounts.initiated +
       interventionCounts.inProgress +
       interventionCounts.referred +
-      interventionCounts.resolved;
+      interventionCounts.resolved +
+      interventionCounts.noActionRequired;
     return {
       initiated: interventionCounts.initiated,
       inProgress: interventionCounts.inProgress,
       referred: interventionCounts.referred,
       resolved: interventionCounts.resolved,
+      noActionRequired: interventionCounts.noActionRequired,
       notStarted: Math.max(0, totalAlerts - totalInterventionStudents),
     };
   }, [interventionCounts, totalAlerts]);
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
+    "No Action Required": "#64748B",
     Initiated: "#B5B126",
     "In-Progress": "#DBBE0F",
     Referred: "#9C5A99",
@@ -335,6 +351,7 @@ export function InterventionStatusChartClient({
 
   const data = [
     { x: "Not Started", y: notStarted },
+    { x: "No Action Required", y: noActionRequired },
     { x: "Initiated", y: initiated },
     { x: "In-Progress", y: inProgress },
     { x: "Resolved", y: resolved },
@@ -385,7 +402,8 @@ export function InterventionStatusChartClient({
           </p>
           <p className="text-[10px] text-neutral-500">
             DB counts: initiated={initiated}, in-progress={inProgress}, referred=
-            {referred}, resolved={resolved}, notStarted={notStarted}
+            {referred}, resolved={resolved}, noActionRequired={noActionRequired}, notStarted=
+            {notStarted}
           </p>
           <p className="text-[10px] text-neutral-500">
             Shared filters: attendance=[{attendanceFilters.join(",") || "—"}], gpa=[{gpaFilters.join(",") || "—"}]

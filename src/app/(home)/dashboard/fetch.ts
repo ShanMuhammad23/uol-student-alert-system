@@ -2528,6 +2528,7 @@ export async function getInterventionChartData(
   let inProgress = 0;
   let referred = 0;
   let resolved = 0;
+  let noActionRequired = 0;
 
   if (pool) {
     const whereParts: string[] = [];
@@ -2574,6 +2575,7 @@ export async function getInterventionChartData(
       else if (status === "in-progress") inProgress += 1;
       else if (status === "referred") referred += 1;
       else if (status === "resolved") resolved += 1;
+      else if (status === "no-action-required") noActionRequired += 1;
       else {
         // Unknown status: treat as initiated bucket by default.
         initiated += 1;
@@ -2582,7 +2584,7 @@ export async function getInterventionChartData(
 
     // 3) Not Started = Total Alerts (yellow+red) − total interventions count
     const totalInterventionStudents =
-      initiated + inProgress + referred + resolved;
+      initiated + inProgress + referred + resolved + noActionRequired;
     notStarted = Math.max(
       0,
       totalAlertStudents - totalInterventionStudents,
@@ -2593,6 +2595,7 @@ export async function getInterventionChartData(
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
+    "No Action Required": "#64748B",
     Initiated: "#B5B126",
     "In-Progress": "#DBBE0F",
     Referred: "#9C5A99",
@@ -2601,6 +2604,7 @@ export async function getInterventionChartData(
 
   const data: InterventionChartDataPoint[] = [
     { x: "Not Started", y: notStarted },
+    { x: "No Action Required", y: noActionRequired },
     { x: "Initiated", y: initiated },
     { x: "In-Progress", y: inProgress },
     { x: "Resolved", y: resolved },

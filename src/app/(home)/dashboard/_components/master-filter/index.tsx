@@ -28,6 +28,7 @@ const INTERVENTION_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "in_progress", label: "In-Progress" },
   { value: "referred", label: "Referred" },
   { value: "resolved", label: "Resolved" },
+  { value: "no_action_required", label: "No Action Required" },
 ];
 
 const WELLBEING_FILTER_OPTIONS: { value: string; label: string }[] = [
@@ -305,7 +306,9 @@ export function MasterFilter({
                   ? c.referred
                   : o.value === "resolved"
                     ? c.resolved
-                    : undefined;
+                    : o.value === "no_action_required"
+                      ? c.no_action_required
+                      : undefined;
       return { value: o.value, label: labelWithOptionalCount(o.label, n) };
     });
   }, [dropdownCounts]);

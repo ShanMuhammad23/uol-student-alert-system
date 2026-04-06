@@ -102,12 +102,24 @@ function normalizeInterventionFilters(filters?: string[]): string[] | undefined 
     "in_progress",
     "referred",
     "resolved",
+    "no_action_required",
   ]);
   const mapped = (filters ?? [])
     .map((v) => String(v).trim().toLowerCase())
-    .map((v) => (v === "in_progress" ? "in-progress" : v))
-    .filter((v) => allowed.has(v === "in-progress" ? "in_progress" : v))
-    .map((v) => (v === "in_progress" ? "in-progress" : v));
+    .map((v) => {
+      if (v === "in_progress") return "in-progress";
+      if (v === "no_action_required") return "no-action-required";
+      return v;
+    })
+    .filter((v) =>
+      allowed.has(
+        v === "in-progress"
+          ? "in_progress"
+          : v === "no-action-required"
+            ? "no_action_required"
+            : v
+      )
+    );
   return mapped.length ? mapped : undefined;
 }
 
@@ -357,6 +369,7 @@ export type FilterDropdownCounts = {
     in_progress: number;
     referred: number;
     resolved: number;
+    no_action_required: number;
   };
   /** Enrollment rows matching filters (excluding wellbeing), for the "All" wellbeing option. */
   wellbeingAll: number;
@@ -415,7 +428,8 @@ export async function getFilterDropdownCounts(
         COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'initiated')::int AS initiated,
         COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'in-progress')::int AS in_progress,
         COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'referred')::int AS referred,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'resolved')::int AS resolved
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'resolved')::int AS resolved,
+        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'no-action-required')::int AS no_action_required
       FROM base`;
     const intRes = await pool.query<{
       int_all: number;
@@ -424,6 +438,7 @@ export async function getFilterDropdownCounts(
       in_progress: number;
       referred: number;
       resolved: number;
+      no_action_required: number;
     }>(intSql, intParts.params);
     const iRow = intRes.rows[0];
 
@@ -486,6 +501,7 @@ export async function getFilterDropdownCounts(
         in_progress: Number(iRow?.in_progress ?? 0),
         referred: Number(iRow?.referred ?? 0),
         resolved: Number(iRow?.resolved ?? 0),
+        no_action_required: Number(iRow?.no_action_required ?? 0),
       },
       wellbeingAll,
       wellbeing,
@@ -501,6 +517,7 @@ export async function getFilterDropdownCounts(
         in_progress: 0,
         referred: 0,
         resolved: 0,
+        no_action_required: 0,
       },
       wellbeingAll: 0,
       wellbeing: zeroWellbeing,

@@ -336,6 +336,7 @@ export type InterventionStatsCounts = {
   "in-progress": number;
   referred: number;
   resolved: number;
+  noActionRequired: number;
 };
 
 /** Batch: latest intervention status per student from DB. */
@@ -380,6 +381,7 @@ export async function getInterventionStatsForStudentsFromDb(
     "in-progress": 0,
     referred: 0,
     resolved: 0,
+    noActionRequired: 0,
   };
 
   if (!pool || !sapIds.length) return base;
@@ -411,6 +413,7 @@ export async function getInterventionStatsForStudentsFromDb(
   let inProgress = 0;
   let referred = 0;
   let resolved = 0;
+  let noActionRequired = 0;
 
   for (const id of sapIds) {
     const status = latest.get(normalizeSapId(id));
@@ -422,6 +425,7 @@ export async function getInterventionStatsForStudentsFromDb(
     else if (status === "in-progress") inProgress += 1;
     else if (status === "referred") referred += 1;
     else if (status === "resolved") resolved += 1;
+    else if (status === "no-action-required") noActionRequired += 1;
     else notStarted += 1;
   }
 
@@ -431,6 +435,7 @@ export async function getInterventionStatsForStudentsFromDb(
     "in-progress": inProgress,
     referred,
     resolved,
+    noActionRequired,
   };
 }
 
@@ -449,6 +454,7 @@ export type InterventionRoleScopeStats = {
   inProgress: number;
   referred: number;
   resolved: number;
+  noActionRequired: number;
   totalInterventionStudents: number;
 };
 
@@ -470,6 +476,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
       inProgress: 0,
       referred: 0,
       resolved: 0,
+      noActionRequired: 0,
       totalInterventionStudents: 0,
     };
   }
@@ -480,6 +487,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
       inProgress: 0,
       referred: 0,
       resolved: 0,
+      noActionRequired: 0,
       totalInterventionStudents: 0,
     };
   }
@@ -498,6 +506,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
         inProgress: 0,
         referred: 0,
         resolved: 0,
+        noActionRequired: 0,
         totalInterventionStudents: 0,
       };
     }
@@ -513,6 +522,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
         inProgress: 0,
         referred: 0,
         resolved: 0,
+        noActionRequired: 0,
         totalInterventionStudents: 0,
       };
     }
@@ -530,6 +540,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
         inProgress: 0,
         referred: 0,
         resolved: 0,
+        noActionRequired: 0,
         totalInterventionStudents: 0,
       };
     } else {
@@ -577,6 +588,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
     inProgress: 0,
     referred: 0,
     resolved: 0,
+    noActionRequired: 0,
   };
 
   for (const row of res.rows) {
@@ -585,10 +597,15 @@ export async function getInterventionStatsForRoleScopeFromDb(
     else if (row.status === "in-progress") counts.inProgress = n;
     else if (row.status === "referred") counts.referred = n;
     else if (row.status === "resolved") counts.resolved = n;
+    else if (row.status === "no-action-required") counts.noActionRequired = n;
   }
 
   const totalInterventionStudents =
-    counts.initiated + counts.inProgress + counts.referred + counts.resolved;
+    counts.initiated +
+    counts.inProgress +
+    counts.referred +
+    counts.resolved +
+    counts.noActionRequired;
 
   return { ...counts, totalInterventionStudents };
 }

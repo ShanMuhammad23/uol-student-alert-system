@@ -28,6 +28,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string }> = {
   "in-progress": { label: "In-Progress", bg: "#DBBE0F" },
   referred: { label: "Referred", bg: "#9C5A99" },
   resolved: { label: "Resolved", bg: "#477061" },
+  "no-action-required": { label: "No Action Required", bg: "#64748B" },
 };
 
 function formatOutreachMode(mode: string): string {
@@ -385,6 +386,7 @@ export function InterventionHistorySection({
                 <option value="in-progress">In-Progress</option>
                 <option value="referred">Referred</option>
                 <option value="resolved">Resolved</option>
+                <option value="no-action-required">No Action Required</option>
               </select>
             </div>
             <div>

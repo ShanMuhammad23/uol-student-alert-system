@@ -46,6 +46,7 @@ function emptyCounts() {
       in_progress: 0,
       referred: 0,
       resolved: 0,
+      no_action_required: 0,
     },
     wellbeingAll: 0,
     wellbeing: WELLBEING_RESOLUTION_OPTIONS.map(() => 0),

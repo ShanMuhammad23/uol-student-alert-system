@@ -29,7 +29,7 @@ export type InterventionRecord = {
   alert_level?: "warning" | "critical" | null;
   outreach_mode: string; // email | phone-call | meeting
   remarks: string;
-  status: string; // initiated | in-progress | referred | resolved
+  status: string; // initiated | in-progress | referred | resolved | no-action-required
   performed_at: string; // ISO date
   staff_id?: string;
   uploader_pernr?: string | null;
@@ -309,6 +309,7 @@ export type InterventionStatsCounts = {
   "in-progress": number;
   referred: number;
   resolved: number;
+  noActionRequired: number;
 };
 
 export type InterventionRoleScopeStatsCounts = InterventionRoleScopeStats;
@@ -346,17 +347,24 @@ export async function getInterventionStatsForRoleScope(
     inProgress: 0,
     referred: 0,
     resolved: 0,
+    noActionRequired: 0,
   };
   for (const r of latestRecords) {
     if (r.status === "initiated") out.initiated += 1;
     else if (r.status === "in-progress") out.inProgress += 1;
     else if (r.status === "referred") out.referred += 1;
     else if (r.status === "resolved") out.resolved += 1;
+    else if (r.status === "no-action-required") out.noActionRequired += 1;
   }
 
   return {
     ...out,
-    totalInterventionStudents: out.initiated + out.inProgress + out.referred + out.resolved,
+    totalInterventionStudents:
+      out.initiated +
+      out.inProgress +
+      out.referred +
+      out.resolved +
+      out.noActionRequired,
   };
 }
 
@@ -387,6 +395,7 @@ export async function getInterventionStatsForStudents(
   let inProgress = 0;
   let referred = 0;
   let resolved = 0;
+  let noActionRequired = 0;
   for (const sapId of sapIds) {
     const record = latestBySapId.get(sapId);
     const status = record?.status ?? null;
@@ -395,6 +404,7 @@ export async function getInterventionStatsForStudents(
     else if (status === "in-progress") inProgress += 1;
     else if (status === "referred") referred += 1;
     else if (status === "resolved") resolved += 1;
+    else if (status === "no-action-required") noActionRequired += 1;
     else notStarted += 1;
   }
   return {
@@ -403,6 +413,7 @@ export async function getInterventionStatsForStudents(
     "in-progress": inProgress,
     referred,
     resolved,
+    noActionRequired,
   };
 }
 

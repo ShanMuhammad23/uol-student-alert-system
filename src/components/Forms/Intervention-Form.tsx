@@ -16,6 +16,7 @@ const STATUS_OPTIONS = [
   { value: "in-progress", label: "In-Progress" },
   { value: "referred", label: "Referred" },
   { value: "resolved", label: "Resolved" },
+  { value: "no-action-required", label: "No Action Required" },
 ] as const;
 
 const TYPE_OPTIONS = [

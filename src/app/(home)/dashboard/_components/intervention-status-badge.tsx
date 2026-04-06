@@ -32,6 +32,11 @@ const INTERVENTION_STATUS_STYLES: Record<
     bg: "#477061",
     text: "#ffffff",
   },
+  "no-action-required": {
+    label: "No Action Required",
+    bg: "#64748B",
+    text: "#ffffff",
+  },
 };
 
 type Props = {
