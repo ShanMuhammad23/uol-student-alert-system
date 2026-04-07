@@ -45,7 +45,7 @@ export function DeanInstructorStats({
           )}
         >
           <span className="text-body-sm font-semibold text-dark dark:text-white">
-            {i.instructorName}{" "}
+            {i.instructorName.replace("00000000", "Online Class")}{" "}
             <span className="text-body-base dark:text-dark-5">
               ({i.total})
             </span>
