@@ -88,6 +88,7 @@ export function TopChannelsTableClient({
   >(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
@@ -133,39 +134,140 @@ export function TopChannelsTableClient({
     );
   };
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setIsLoading(true);
-    setError(null);
-    const effectivePageSize = rowsPerPage === "all" ? 100000 : rowsPerPage;
+  const buildTopTableRequest = (
+    page: number,
+    pageSize: number,
+    uniqueStudentsForTotal: boolean
+  ) => {
     const normalizedAttendanceFilters =
       attendanceFilters?.includes("all" as AlertDimensionFilter)
         ? undefined
         : attendanceFilters;
     const normalizedGpaFilters =
       gpaFilters?.includes("all" as AlertDimensionFilter) ? undefined : gpaFilters;
+    return {
+      page,
+      pageSize,
+      sortKey: sortConfig?.key ?? "name",
+      sortDirection: sortConfig?.direction ?? "asc",
+      filters: {
+        ...(masterFilter ?? {}),
+        attendanceFilters: normalizedAttendanceFilters,
+        gpaFilters: normalizedGpaFilters,
+        interventionFilters,
+        resolutionFilters:
+          resolutionFilters?.length && !resolutionFilters.includes("all")
+            ? resolutionFilters.filter((v) => v !== "all")
+            : undefined,
+        search: debouncedSearch || undefined,
+      },
+      uniqueStudentsForTotal,
+    };
+  };
+
+  const csvEscape = (value: string): string => {
+    if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  const interventionStatusLabel = (status: string | null): string => {
+    if (!status) return "Not Started";
+    if (status === "in-progress") return "In-Progress";
+    if (status === "no-action-required") return "No Action Required";
+    return status
+      .split("-")
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(" ");
+  };
+
+  const exportAllFilteredStudentsCsv = async () => {
+    setIsExportingCsv(true);
+    setError(null);
+    // User requested auto switch to all mode before exporting.
+    setRowsPerPage("all");
+    setCurrentPage(1);
+    try {
+      const res = await fetch("/api/students/top-table", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildTopTableRequest(1, 100000, false)),
+      });
+      if (!res.ok) throw new Error("Failed to export student listing");
+      const body = (await res.json()) as { rows?: TopTableRow[] };
+      const exportRows = Array.isArray(body.rows) ? body.rows : [];
+
+      const headers = [
+        "Name",
+        "SAP ID",
+        "Department",
+        "Program",
+        "Course",
+        "Instructor Name",
+        "Classes Held",
+        "Attendance %",
+        "GPA",
+        "Intervention Status",
+      ];
+
+      const lines = [headers.join(",")];
+      for (const row of exportRows) {
+        const classesHeld = row.totalClassesHeld ?? 0;
+        const classesAttended = row.classesAttended ?? 0;
+        const attendanceValue =
+          row.attendancePercentage != null
+            ? `${row.attendancePercentage.toFixed(1)}% (${classesAttended}/${classesHeld})`
+            : "—";
+        const gpaValue =
+          typeof row.gpaCurrent === "number" ? row.gpaCurrent.toFixed(2) : "—";
+        const courseValue = `${row.courseId}-${row.courseTitle ?? row.courseId ?? "—"}`;
+
+        const values = [
+          row.studentName ?? "—",
+          row.sapId ?? "—",
+          row.departmentName?.replace("Department of", "") ?? "—",
+          row.programTitle ?? "—",
+          courseValue,
+          row.instructorName ?? "—",
+          classesHeld === 0 ? "—" : String(classesHeld),
+          attendanceValue,
+          gpaValue,
+          interventionStatusLabel(row.latestInterventionStatus),
+        ].map((v) => csvEscape(String(v)));
+        lines.push(values.join(","));
+      }
+
+      const csv = lines.join("\n");
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `student-top-table-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+    setError(null);
+    const effectivePageSize = rowsPerPage === "all" ? 100000 : rowsPerPage;
     fetch("/api/students/top-table", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({
-        page: currentPage,
-        pageSize: effectivePageSize,
-        sortKey: sortConfig?.key ?? "name",
-        sortDirection: sortConfig?.direction ?? "asc",
-        filters: {
-          ...(masterFilter ?? {}),
-          attendanceFilters: normalizedAttendanceFilters,
-          gpaFilters: normalizedGpaFilters,
-          interventionFilters,
-          resolutionFilters:
-            resolutionFilters?.length && !resolutionFilters.includes("all")
-              ? resolutionFilters.filter((v) => v !== "all")
-              : undefined,
-          search: debouncedSearch || undefined,
-        },
-        uniqueStudentsForTotal: true,
-      }),
+      body: JSON.stringify(
+        buildTopTableRequest(currentPage, effectivePageSize, true)
+      ),
     })
       .then((res) =>
         res.ok ? res.json() : Promise.reject(new Error("Failed to load students"))
@@ -322,6 +424,17 @@ export function TopChannelsTableClient({
                 className="w-full rounded-lg border border-stroke bg-white px-3 py-2.5 text-sm text-dark outline-none transition focus:border-primary focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white"
               />
             </div>
+            <button
+              type="button"
+              onClick={exportAllFilteredStudentsCsv}
+              disabled={isExportingCsv}
+              className={cn(
+                "inline-flex h-[42px] shrink-0 items-center justify-center rounded-lg border border-primary px-4 text-sm font-medium text-primary transition hover:bg-primary/10",
+                "focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+              )}
+            >
+              {isExportingCsv ? "Exporting..." : "Export CSV"}
+            </button>
           </div>
 
           <Table>
