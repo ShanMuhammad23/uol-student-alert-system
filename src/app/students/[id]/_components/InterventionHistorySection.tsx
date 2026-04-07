@@ -285,7 +285,7 @@ export function InterventionHistorySection({
         ref={dialogRef}
         onCancel={() => setOpen(false)}
         className={cn(
-          "w-full max-w-lg rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
+          "fixed left-1/2 top-1/2 z-[60] m-0 w-[min(92vw,42rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
           "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
           "open:animate-in open:fade-in open:zoom-in-95 open:duration-200",
           "[&::backdrop]:bg-black/50"
@@ -319,7 +319,7 @@ export function InterventionHistorySection({
           open
           onCancel={() => setEditingId(null)}
           className={cn(
-            "w-full max-w-lg rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
+            "fixed left-1/2 top-1/2 z-[70] m-0 w-[min(92vw,42rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
             "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
             "[&::backdrop]:bg-black/50"
           )}
