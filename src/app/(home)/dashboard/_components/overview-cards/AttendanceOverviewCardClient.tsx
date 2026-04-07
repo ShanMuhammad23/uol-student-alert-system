@@ -69,10 +69,11 @@ export function AttendanceOverviewCardClient({
   return (
     <div
       className={cn(
-        "flex justify-between h-full flex-1 md:min-w-[240px]",
+        "flex justify-between flex-col h-full flex-1 md:min-w-[240px]",
         isActive && "ring-0"
       )}
     >
+      <div className="flex justify-between">
       <div>
         <Link
           href={titleHref}
@@ -132,16 +133,7 @@ export function AttendanceOverviewCardClient({
           </dl>
           {hasGrowth ? null : null}
         </div>
-        <p className="mt-3 text-base font-medium text-dark-6 dark:text-dark-5">
-          
-          <span className="font-semibold text-dark dark:text-white">
-            Attendance Missing: {totalHeldCount - updatedAttendanceCount} / {totalHeldCount.toLocaleString()} Classes (
-            {totalHeldCount > 0
-              ? `${(((totalHeldCount - updatedAttendanceCount) / totalHeldCount) * 100).toFixed(1)}%`
-              : "0%"}
-            )
-          </span>
-        </p>
+       
       </div>
       <div className="ml-4 flex items-center">
         <DonutChart
@@ -156,6 +148,18 @@ export function AttendanceOverviewCardClient({
           size="sm"
         />
       </div>
+      </div>
+   
+      <p className="mt-3 text-base  text-dark-6 dark:text-dark-5">
+          
+          <span className=" text-dark dark:text-white">
+            Attendance Missing: {totalHeldCount - updatedAttendanceCount} / {totalHeldCount.toLocaleString()} Classes (
+            {totalHeldCount > 0
+              ? `${(((totalHeldCount - updatedAttendanceCount) / totalHeldCount) * 100).toFixed(1)}%`
+              : "0%"}
+            )
+          </span>
+        </p>
     </div>
   );
 }

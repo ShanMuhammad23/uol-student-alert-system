@@ -261,22 +261,6 @@ export function AlertSnapshotsLineChart({ points }: Props) {
                 onChange={(e) => setRangeTo(e.target.value)}
               />
             </label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={applyLast10Days}
-                className="rounded-md border border-stroke px-2.5 py-1.5 text-xs font-medium text-dark transition-colors hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-2"
-              >
-                Last {DEFAULT_VISIBLE_DAYS} days
-              </button>
-              <button
-                type="button"
-                onClick={applyFullRange}
-                className="rounded-md border border-stroke px-2.5 py-1.5 text-xs font-medium text-dark transition-colors hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-2"
-              >
-                All data
-              </button>
-            </div>
           </div>
         ) : null}
       </div>

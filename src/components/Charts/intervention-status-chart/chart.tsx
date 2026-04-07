@@ -87,7 +87,7 @@ export function InterventionStatusChart({
       },
       labels: {
         rotate: -30,
-        trim: true,
+        trim: false,
         style: {
           fontSize: "11px",
           colors: data.map(() => axisLabelColor),
