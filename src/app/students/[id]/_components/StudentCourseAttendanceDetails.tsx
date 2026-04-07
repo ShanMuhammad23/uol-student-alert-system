@@ -205,13 +205,11 @@ export function StudentCourseAttendanceDetails({
               </span>
               {hasValidClassAvg && (
                 <span
-                  className={cn(
-                    "text-xs font-medium",
-                    comparison >= 0 ? "text-emerald-600" : "text-red-500",
-                  )}
+                  className="text-xs font-medium"
+                  
                 >
-                  Deviation: {comparison >= 0 ? "+" : ""}
-                  {comparison.toFixed(1)}% vs class avg
+                ({comparison >= 0 ? "+" : ""}
+                  {comparison.toFixed(1)}% vs class Avg: {displayClassAvg.toFixed(1)}%)
                 </span>
               )}
             </div>
