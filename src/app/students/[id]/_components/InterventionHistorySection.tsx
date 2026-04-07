@@ -25,6 +25,18 @@ type InterventionRecord = {
   uploader_pernr?: string | null;
 };
 
+type SentEmailRecord = {
+  id: string;
+  template_key: "sos_check_in" | "student_referral";
+  subject: string;
+  body_html?: string | null;
+  recipient_email?: string | null;
+  sender_name: string | null;
+  sender_email: string | null;
+  sender_pernr: string | null;
+  sent_at: string;
+};
+
 const STATUS_STYLES: Record<string, { label: string; bg: string }> = {
   initiated: { label: "Initiated", bg: "#B5B126" },
   "in-progress": { label: "In-Progress", bg: "#DBBE0F" },
@@ -45,7 +57,18 @@ function formatInterventionType(type: InterventionRecord["intervention_type"]): 
 
 type Props = {
   interventions: InterventionRecord[];
+  sentEmails: SentEmailRecord[];
   studentSapId: string;
+  studentName?: string | null;
+  attendancePercent?: number | null;
+  gpaPrevious?: number | null;
+  gpaCurrent?: number | null;
+  gpaDrop?: number | null;
+  senderName?: string | null;
+  senderDesignation?: string | null;
+  senderDepartment?: string | null;
+  senderFaculty?: string | null;
+  senderEmail?: string | null;
   currentUserRole: "superadmin" | "dean" | "hod" | "instructor" | null;
   currentUserPernr: string | null;
 };
@@ -69,7 +92,18 @@ function canEditIntervention(
 
 export function InterventionHistorySection({
   interventions,
+  sentEmails,
   studentSapId,
+  studentName,
+  attendancePercent,
+  gpaPrevious,
+  gpaCurrent,
+  gpaDrop,
+  senderName,
+  senderDesignation,
+  senderDepartment,
+  senderFaculty,
+  senderEmail,
   currentUserRole,
   currentUserPernr,
 }: Props) {
@@ -258,13 +292,15 @@ export function InterventionHistorySection({
         >
           {isExportingPdf ? "Preparing PDF..." : "Download PDF"}
         </button>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-gray-dark"
-        >
-          Add Intervention
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-gray-dark"
+          >
+            Add Intervention
+          </button>
+        </div>
       </div>
 
       {deleteError && (
@@ -288,12 +324,14 @@ export function InterventionHistorySection({
                 <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Added By</TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">Emails</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((int) => {
+              {rows.map((int, idx) => {
                 const statusStyle = STATUS_STYLES[int.status] ?? { label: int.status, bg: "#94A3B8" };
+                const latestEmail = sentEmails[0];
                 return (
                   <TableRow key={int.id} className="border-stroke dark:border-dark-3">
                     <TableCell className="text-dark dark:text-white">
@@ -326,6 +364,59 @@ export function InterventionHistorySection({
                           {int.uploader_email || "—"}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-dark dark:text-white">
+                      {idx === 0 ? (
+                        sentEmails.length > 0 ? (
+                          <div className="flex flex-col gap-2">
+                            <span className="text-sm font-medium">
+                              {sentEmails.length} sent
+                            </span>
+                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                              {latestEmail.subject}
+                            </span>
+                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                              {new Date(latestEmail.sent_at).toLocaleString()}
+                            </span>
+                            <details className="rounded-md border border-stroke p-2 dark:border-dark-3">
+                              <summary className="cursor-pointer text-xs font-medium text-primary">
+                                View full sent emails
+                              </summary>
+                              <div className="mt-2 max-h-72 space-y-3 overflow-y-auto">
+                                {sentEmails.map((email) => (
+                                  <div
+                                    key={email.id}
+                                    className="rounded border border-stroke p-2 text-xs dark:border-dark-3"
+                                  >
+                                    <p className="font-semibold text-dark dark:text-white">
+                                      {email.subject}
+                                    </p>
+                                    <p className="mt-1 text-dark-6 dark:text-dark-5">
+                                      To: {email.recipient_email || "—"}
+                                    </p>
+                                    <p className="text-dark-6 dark:text-dark-5">
+                                      From: {email.sender_email || "—"}
+                                    </p>
+                                    <p className="text-dark-6 dark:text-dark-5">
+                                      Sent: {new Date(email.sent_at).toLocaleString()}
+                                    </p>
+                                    {email.body_html ? (
+                                      <div
+                                        className="mt-2 max-h-40 overflow-auto rounded border border-stroke bg-gray-50 p-2 text-dark dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                                        dangerouslySetInnerHTML={{ __html: email.body_html }}
+                                      />
+                                    ) : null}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-dark-6 dark:text-dark-5">No emails</span>
+                        )
+                      ) : (
+                        <span className="text-xs text-dark-6 dark:text-dark-5">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2">
@@ -386,6 +477,16 @@ export function InterventionHistorySection({
         <div className="px-6 py-4">
           <InterventionFormWithAction
             studentSapId={studentSapId}
+            studentName={studentName}
+            attendancePercent={attendancePercent}
+            gpaPrevious={gpaPrevious}
+            gpaCurrent={gpaCurrent}
+            gpaDrop={gpaDrop}
+            senderName={senderName}
+            senderDesignation={senderDesignation}
+            senderDepartment={senderDepartment}
+            senderFaculty={senderFaculty}
+            senderEmail={senderEmail}
             onClose={() => setOpen(false)}
           />
         </div>

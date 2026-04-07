@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { InterventionHistorySection } from "./_components/InterventionHistorySection";
-import { getInterventionsByStudentSapId } from "@/data/intervention-store";
+import {
+  getInterventionEmailsByStudentSapId,
+  getInterventionsByStudentSapId,
+} from "@/data/intervention-store";
 import { readFile } from "fs/promises";
 import path from "path";
 import type { EnrollmentRecord } from "@/lib/enrollment";
@@ -200,6 +203,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const session = await getServerSession(authOptions);
   const currentUserRole = session?.user?.role ?? null;
   const currentUserPernr = session?.user?.pernr ?? null;
+  const currentUserName = session?.user?.name ?? null;
+  const currentUserEmail = session?.user?.email ?? null;
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
   const returnToUrl =
@@ -215,6 +220,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       : null;
   const sapIdFromUrl = id;
   const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
+  const interventionEmails = await getInterventionEmailsByStudentSapId(sapIdFromUrl);
   const gpaProfile = await getStudentGpaProfileBySapId(sapIdFromUrl);
 
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
@@ -276,6 +282,35 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       mapFacultyHeadingName(mappedFacultyId) ??
       `Faculty ${mappedFacultyId}`;
   }
+
+  const attendanceForEmail =
+    dbMetricRows.find((r) => r.attendancePercentage != null)?.attendancePercentage ?? null;
+  const gpaPreviousForEmail = gpaProfile?.previous ?? null;
+  const gpaCurrentForEmail = gpaProfile?.current ?? null;
+  const gpaDropForEmail =
+    typeof gpaProfile?.change === "number" && Number.isFinite(gpaProfile.change)
+      ? gpaProfile.change
+      : typeof gpaProfile?.previous === "number" &&
+          Number.isFinite(gpaProfile.previous) &&
+          typeof gpaProfile?.current === "number" &&
+          Number.isFinite(gpaProfile.current)
+        ? gpaProfile.previous - gpaProfile.current
+        : null;
+  const senderDesignation =
+    currentUserRole === "superadmin"
+      ? "Superadmin"
+      : currentUserRole === "dean"
+        ? "Dean"
+        : currentUserRole === "hod"
+          ? "Head of Department"
+          : currentUserRole === "instructor"
+            ? "Instructor"
+            : null;
+  const senderDepartmentName =
+    primaryEnrollment?.DeptName?.replace("Department of", "").trim() ?? null;
+  const senderFacultyName = facultyName?.replace("Faculty of", "").trim() ?? null;
+  const senderEmailForTemplate =
+    process.env.SMTP_FROM ?? "alert@student-alert.uol.edu.pk";
 
   return (
     <div id="student-profile-pdf-content" className="w-full space-y-6 mt-4">
@@ -373,7 +408,18 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       {/* Intervention History (table + Add Intervention dialog) */}
       <InterventionHistorySection
         interventions={interventionHistory}
+        sentEmails={interventionEmails}
         studentSapId={sapIdFromUrl}
+        studentName={primaryEnrollment?.Name ?? sapIdFromUrl}
+        attendancePercent={attendanceForEmail}
+        gpaPrevious={gpaPreviousForEmail}
+        gpaCurrent={gpaCurrentForEmail}
+        gpaDrop={gpaDropForEmail}
+        senderName={currentUserName}
+        senderDesignation={senderDesignation}
+        senderDepartment={senderDepartmentName}
+        senderFaculty={senderFacultyName}
+        senderEmail={senderEmailForTemplate}
         currentUserRole={currentUserRole}
         currentUserPernr={currentUserPernr}
       />

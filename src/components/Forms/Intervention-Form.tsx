@@ -3,6 +3,14 @@
 import React, { useId, useState } from "react";
 import { ChevronUpIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
+import {
+  SOS_CHECK_IN_EMAIL_SUBJECT,
+  SOS_CHECK_IN_EMAIL_TEMPLATE,
+} from "@/helpers/sos-check-in-email-template";
+import {
+  STUDENT_REFERRAL_EMAIL_SUBJECT,
+  STUDENT_REFERRAL_EMAIL_TEMPLATE,
+} from "@/helpers/student-referral-email-template";
 
 const OUTREACH_MODES = [
   { value: "email", label: "Email" },
@@ -34,10 +42,31 @@ export type InterventionFormData = {
   status: string;
 };
 
+export type InterventionEmailTemplateKey = "sos_check_in" | "student_referral";
+
+export type InterventionEmailData = {
+  templateKey: InterventionEmailTemplateKey;
+  recipientEmail: string;
+  subject: string;
+  bodyHtml: string;
+};
+
 type InterventionFormProps = {
   onSubmit?: (data: InterventionFormData) => Promise<void> | void;
+  onSendEmail?: (data: InterventionEmailData) => Promise<void> | void;
   onCancel?: () => void;
   className?: string;
+  studentSapId?: string;
+  studentName?: string | null;
+  attendancePercent?: number | null;
+  gpaPrevious?: number | null;
+  gpaCurrent?: number | null;
+  gpaDrop?: number | null;
+  senderName?: string | null;
+  senderDesignation?: string | null;
+  senderDepartment?: string | null;
+  senderFaculty?: string | null;
+  senderEmail?: string | null;
 };
 
 function SelectField({
@@ -94,8 +123,20 @@ function SelectField({
 
 const InterventionForm = ({
   onSubmit,
+  onSendEmail,
   onCancel,
   className,
+  studentSapId,
+  studentName,
+  attendancePercent,
+  gpaPrevious,
+  gpaCurrent,
+  gpaDrop,
+  senderName,
+  senderDesignation,
+  senderDepartment,
+  senderFaculty,
+  senderEmail,
 }: InterventionFormProps) => {
   const dateId = useId();
   const outreachId = useId();
@@ -108,10 +149,88 @@ const InterventionForm = ({
   const [remarks, setRemarks] = useState("");
   const [status, setStatus] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailTemplateKey, setEmailTemplateKey] =
+    useState<InterventionEmailTemplateKey | "">("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBodyHtml, setEmailBodyHtml] = useState("");
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const shouldShowEmailSection = status === "initiated" || status === "referred";
+
+  const fillTemplateWithData = (
+    subject: string,
+    body: string
+  ): { subject: string; body: string } => {
+    const studentDisplay = studentName?.trim() || "Student";
+    const sap = studentSapId ?? "N/A";
+    const attendanceText =
+      attendancePercent == null || !Number.isFinite(attendancePercent)
+        ? "N/A"
+        : `${attendancePercent.toFixed(1)}%`;
+    const gpaPrevText =
+      gpaPrevious == null || !Number.isFinite(gpaPrevious)
+        ? "N/A"
+        : gpaPrevious.toFixed(2);
+    const gpaCurrentText =
+      gpaCurrent == null || !Number.isFinite(gpaCurrent)
+        ? "N/A"
+        : gpaCurrent.toFixed(2);
+    const gpaDropText =
+      gpaDrop == null || !Number.isFinite(gpaDrop)
+        ? "N/A"
+        : Math.abs(gpaDrop).toFixed(2);
+    const senderNameText = senderName?.trim() || "N/A";
+    const senderDesignationText = senderDesignation?.trim() || "N/A";
+    const senderDepartmentText = senderDepartment?.trim() || "N/A";
+    const senderFacultyText = senderFaculty?.trim() || "N/A";
+    const senderEmailText = senderEmail?.trim() || "N/A";
+    const deptFaculty = `${senderDepartmentText} ${senderFacultyText}`.trim();
+    const nextSubject = subject.replace(
+      "(SAP ID -----------)",
+      `(SAP ID ${sap})`
+    );
+    const nextBody = body
+      .replace("[Student Name]", studentDisplay)
+      .replace("SAP ID ------", `SAP ID ${sap}`)
+      .replace("Attendance: ___%", `Attendance: ${attendanceText}`)
+      .replace(
+        "Previous GPA: ___; Current GPA: ___; Drop ____",
+        `Previous GPA: ${gpaPrevText}; Current GPA: ${gpaCurrentText}; Drop ${gpaDropText}`
+      )
+      .replace("[Sender Name]", senderNameText)
+      .replace("[Designation]", senderDesignationText)
+      .replace("[Department] [Faculty]", deptFaculty || "N/A")
+      .replace("[Department/Faculty Name]", deptFaculty || "N/A")
+      .replace("[Email]", senderEmailText)
+      .replace("[Counsellor's Name]", "Counsellor")
+      .replace(/___%/g, attendanceText)
+      .replace(/____/g, "N/A")
+      .replace(/\[.*?\]/g, "N/A");
+    return { subject: nextSubject, body: nextBody };
+  };
+
+  const handleSelectTemplate = (key: InterventionEmailTemplateKey) => {
+    setEmailTemplateKey(key);
+    if (key === "sos_check_in") {
+      const t = fillTemplateWithData(
+        SOS_CHECK_IN_EMAIL_SUBJECT,
+        SOS_CHECK_IN_EMAIL_TEMPLATE
+      );
+      setEmailSubject(t.subject);
+      setEmailBodyHtml(t.body);
+      return;
+    }
+    const t = fillTemplateWithData(
+      STUDENT_REFERRAL_EMAIL_SUBJECT,
+      STUDENT_REFERRAL_EMAIL_TEMPLATE
+    );
+    setEmailSubject(t.subject);
+    setEmailBodyHtml(t.body);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,6 +238,15 @@ const InterventionForm = ({
     setSubmitMessage(null);
     setIsAdding(true);
     try {
+      if (shouldShowEmailSection) {
+        if (!emailTemplateKey) {
+          throw new Error("Select an email template to continue.");
+        }
+        if (!recipientEmail.trim()) {
+          throw new Error("Recipient email is required to send email.");
+        }
+      }
+
       await onSubmit({
         date,
         interventionType,
@@ -126,15 +254,30 @@ const InterventionForm = ({
         remarks,
         status,
       });
+
+      if (shouldShowEmailSection && onSendEmail && emailTemplateKey) {
+        setIsSendingEmail(true);
+        await onSendEmail({
+          templateKey: emailTemplateKey,
+          recipientEmail: recipientEmail.trim(),
+          subject: emailSubject.trim(),
+          bodyHtml: emailBodyHtml.trim(),
+        });
+      }
+
       setSubmitMessage({ type: "success", text: "Intervention added successfully." });
       if (onCancel) onCancel();
-    } catch {
+    } catch (err) {
       setSubmitMessage({
         type: "error",
-        text: "Failed to add intervention. Please try again.",
+        text:
+          err instanceof Error && err.message
+            ? err.message
+            : "Failed to add intervention. Please try again.",
       });
     } finally {
       setIsAdding(false);
+      setIsSendingEmail(false);
     }
   };
 
@@ -222,13 +365,82 @@ const InterventionForm = ({
         />
       </div>
 
+      {/* 6. Email Section (only for initiated / referred) */}
+      {shouldShowEmailSection ? (
+      <div className="space-y-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
+        <h4 className="text-body-sm font-semibold text-dark dark:text-white">Email Section</h4>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+            <input
+              type="radio"
+              name="emailTemplate"
+              value="sos_check_in"
+              checked={emailTemplateKey === "sos_check_in"}
+              onChange={() => handleSelectTemplate("sos_check_in")}
+              className="h-4 w-4 accent-primary"
+            />
+            SOS Check-In Template
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+            <input
+              type="radio"
+              name="emailTemplate"
+              value="student_referral"
+              checked={emailTemplateKey === "student_referral"}
+              onChange={() => handleSelectTemplate("student_referral")}
+              className="h-4 w-4 accent-primary"
+            />
+            Student Referral Template
+          </label>
+        </div>
+
+        {emailTemplateKey ? (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                Recipient Email
+              </label>
+              <input
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="recipient@example.com"
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                Subject
+              </label>
+              <input
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                HTML Editor (Editable)
+              </label>
+              <textarea
+                value={emailBodyHtml}
+                onChange={(e) => setEmailBodyHtml(e.target.value)}
+                rows={10}
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-sm text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button
           type="submit"
           disabled={isAdding}
           className="inline-flex items-center justify-center gap-2.5 rounded-[5px] bg-primary py-3.5 px-10 text-center font-medium text-white transition hover:bg-opacity-90 focus:outline-none lg:px-8 xl:px-10"
         >
-          {isAdding ? "Adding..." : "Add Intervention"}
+          {isAdding ? (isSendingEmail ? "Adding + Sending..." : "Adding...") : "Add Intervention"}
         </button>
         {onCancel && (
           <button

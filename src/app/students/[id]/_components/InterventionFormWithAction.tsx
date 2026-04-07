@@ -3,12 +3,43 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import InterventionForm from "@/components/Forms/Intervention-Form";
-import type { InterventionFormData } from "@/components/Forms/Intervention-Form";
-import { recordIntervention } from "@/app/(home)/dashboard/intervention-actions";
+import type {
+  InterventionEmailData,
+  InterventionFormData,
+} from "@/components/Forms/Intervention-Form";
+import {
+  recordIntervention,
+  recordInterventionEmail,
+} from "@/app/(home)/dashboard/intervention-actions";
 
-type Props = { studentSapId: string };
+type Props = {
+  studentSapId: string;
+  studentName?: string | null;
+  attendancePercent?: number | null;
+  gpaPrevious?: number | null;
+  gpaCurrent?: number | null;
+  gpaDrop?: number | null;
+  senderName?: string | null;
+  senderDesignation?: string | null;
+  senderDepartment?: string | null;
+  senderFaculty?: string | null;
+  senderEmail?: string | null;
+};
 
-export function InterventionFormWithAction({ studentSapId, onClose }: Props & { onClose?: () => void }) {
+export function InterventionFormWithAction({
+  studentSapId,
+  studentName,
+  attendancePercent,
+  gpaPrevious,
+  gpaCurrent,
+  gpaDrop,
+  senderName,
+  senderDesignation,
+  senderDepartment,
+  senderFaculty,
+  senderEmail,
+  onClose,
+}: Props & { onClose?: () => void }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -26,9 +57,20 @@ export function InterventionFormWithAction({ studentSapId, onClose }: Props & { 
       });
       setSuccess("Intervention added successfully.");
       router.refresh();
-      if (onClose) onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save intervention.");
+    }
+  };
+
+  const handleSendEmail = async (data: InterventionEmailData) => {
+    setError(null);
+    setSuccess(null);
+    try {
+      await recordInterventionEmail(studentSapId, data);
+      setSuccess("Email sent and logged successfully.");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send email.");
     }
   };
 
@@ -44,7 +86,22 @@ export function InterventionFormWithAction({ studentSapId, onClose }: Props & { 
           {error}
         </p>
       )}
-      <InterventionForm onSubmit={handleSubmit} onCancel={onClose} />
+      <InterventionForm
+        onSubmit={handleSubmit}
+        onSendEmail={handleSendEmail}
+        onCancel={onClose}
+        studentSapId={studentSapId}
+        studentName={studentName}
+        attendancePercent={attendancePercent}
+        gpaPrevious={gpaPrevious}
+        gpaCurrent={gpaCurrent}
+        gpaDrop={gpaDrop}
+        senderName={senderName}
+        senderDesignation={senderDesignation}
+        senderDepartment={senderDepartment}
+        senderFaculty={senderFaculty}
+        senderEmail={senderEmail}
+      />
     </div>
   );
 }

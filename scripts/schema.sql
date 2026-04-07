@@ -304,6 +304,27 @@ CREATE INDEX IF NOT EXISTS idx_interventions_department_id ON interventions(depa
 CREATE INDEX IF NOT EXISTS idx_interventions_course_id ON interventions(course_id);
 CREATE INDEX IF NOT EXISTS idx_interventions_faculty_id ON interventions(faculty_id);
 
+CREATE TABLE IF NOT EXISTS intervention_emails (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_sap_id   VARCHAR(32) NOT NULL REFERENCES students(sap_id) ON DELETE CASCADE,
+  intervention_id  VARCHAR(64) REFERENCES interventions(id) ON DELETE SET NULL,
+  template_key     VARCHAR(32) NOT NULL CHECK (template_key IN ('sos_check_in', 'student_referral')),
+  recipient_email  VARCHAR(255) NOT NULL,
+  subject          TEXT NOT NULL,
+  body_html        TEXT NOT NULL,
+  sender_staff_id  UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  sender_name      VARCHAR(255),
+  sender_email     VARCHAR(255),
+  sender_pernr     VARCHAR(32),
+  received_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sent_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_intervention_emails_student_sap_id ON intervention_emails(student_sap_id);
+CREATE INDEX IF NOT EXISTS idx_intervention_emails_sent_at ON intervention_emails(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_intervention_emails_sender_staff_id ON intervention_emails(sender_staff_id);
+
 CREATE TABLE IF NOT EXISTS wellbeing_cases (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_sap_id   VARCHAR(32) NOT NULL REFERENCES students(sap_id),

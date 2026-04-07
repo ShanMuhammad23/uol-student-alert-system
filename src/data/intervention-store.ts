@@ -37,6 +37,22 @@ export type InterventionRecord = {
   uploader_pernr?: string | null;
 };
 
+export type InterventionEmailRecord = {
+  id: string;
+  student_sap_id: string;
+  template_key: "sos_check_in" | "student_referral";
+  recipient_email: string;
+  subject: string;
+  body_html: string;
+  sender_staff_id: string;
+  sender_name: string | null;
+  sender_email: string | null;
+  sender_pernr: string | null;
+  received_at: string;
+  sent_at: string;
+  created_at: string;
+};
+
 const STORE_DIR = ".data";
 const STORE_FILENAME = "intervention-store.json";
 
@@ -612,4 +628,110 @@ export async function updateInterventionById(
   revalidatePath("/");
   revalidatePath(`/students/${existing.student_sap_id}`);
   return { studentSapId: existing.student_sap_id };
+}
+
+export async function saveInterventionEmail(
+  studentSapId: string,
+  data: {
+    template_key: "sos_check_in" | "student_referral";
+    recipient_email: string;
+    subject: string;
+    body_html: string;
+  }
+): Promise<void> {
+  if (!pool) return;
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in to send email.");
+  }
+
+  const recipient = String(data.recipient_email ?? "").trim();
+  if (!recipient) {
+    throw new Error("Recipient email is required.");
+  }
+
+  const host = process.env.SMTP_HOST;
+  const portRaw = process.env.SMTP_PORT;
+  const secureRaw = process.env.SMTP_SECURE;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  const fromAddress = process.env.SMTP_FROM ?? "alert@student-alert.uol.edu.pk";
+  if (!host || !portRaw || !user || !pass) {
+    throw new Error("SMTP configuration is incomplete.");
+  }
+  if (recipient.toLowerCase() === fromAddress.toLowerCase()) {
+    throw new Error("Recipient email must be different from sender email.");
+  }
+
+  const { default: nodemailer } = await import("nodemailer");
+  const transport = nodemailer.createTransport({
+    host,
+    port: Number(portRaw),
+    secure: String(secureRaw).toLowerCase() === "true",
+    auth: { user, pass },
+  });
+
+  await transport.sendMail({
+    from: fromAddress,
+    to: recipient,
+    subject: data.subject,
+    html: data.body_html,
+    replyTo: session.user.email ?? undefined,
+  });
+
+  await pool.query(
+    `INSERT INTO intervention_emails (
+      student_sap_id,
+      template_key,
+      recipient_email,
+      subject,
+      body_html,
+      sender_staff_id,
+      sender_name,
+      sender_email,
+      sender_pernr,
+      received_at,
+      sent_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
+    [
+      studentSapId,
+      data.template_key,
+      recipient,
+      data.subject,
+      data.body_html,
+      session.user.id,
+      session.user.name ?? null,
+      fromAddress,
+      (session.user as { pernr?: string | null }).pernr ?? null,
+    ]
+  );
+
+  revalidatePath(`/students/${studentSapId}`);
+}
+
+export async function getInterventionEmailsByStudentSapId(
+  studentSapId: string
+): Promise<InterventionEmailRecord[]> {
+  if (!pool) return [];
+  const res = await pool.query<InterventionEmailRecord>(
+    `SELECT
+      id,
+      student_sap_id,
+      template_key,
+      recipient_email,
+      subject,
+      body_html,
+      sender_staff_id,
+      sender_name,
+      sender_email,
+      sender_pernr,
+      received_at::text,
+      sent_at::text,
+      created_at::text
+    FROM intervention_emails
+    WHERE student_sap_id = $1
+    ORDER BY sent_at DESC`,
+    [studentSapId]
+  );
+  return res.rows;
 }
