@@ -14,8 +14,8 @@ type PropsType = {
     /** Yellow | Red counts in one card (e.g. GPA or Attendance) */
     yellow?: number;
     red?: number;
-    grossYellow?: number;
-    grossRed?: number;
+    interventionClosedYellow?: number;
+    interventionClosedRed?: number;
     growthRate?: number;
   };
   /** Total cohort size for GPA donut percentages (same basis as attendance overview). */
@@ -57,13 +57,13 @@ export function OverviewCard({
       : 0;
   const visibleRed =
     hasYellowRed && (!allowed.size || allowed.has("red")) ? data.red! : 0;
-  const visibleGrossYellow =
+  const visibleInterventionClosedYellow =
     hasYellowRed && (!allowed.size || allowed.has("yellow"))
-      ? (data.grossYellow ?? 0)
+      ? (data.interventionClosedYellow ?? 0)
       : 0;
-  const visibleGrossRed =
+  const visibleInterventionClosedRed =
     hasYellowRed && (!allowed.size || allowed.has("red"))
-      ? (data.grossRed ?? 0)
+      ? (data.interventionClosedRed ?? 0)
       : 0;
   const totalAlerts = visibleYellow + visibleRed;
   const yellowPercentage =
@@ -112,10 +112,13 @@ export function OverviewCard({
                   disabled={visibleYellow === 0}
                 >
                   {visibleYellow}
-                  {data.grossYellow !== undefined && (
-                    <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
-                      {visibleGrossYellow}
-                    </span>
+                  {data.interventionClosedYellow !== undefined && (
+                    <>
+                      
+                      <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
+                        {visibleInterventionClosedYellow}
+                      </span>
+                    </>
                   )}
                 </button>
                 <span className="text-dark-4 dark:text-dark-5" aria-hidden>
@@ -137,10 +140,13 @@ export function OverviewCard({
                   disabled={visibleRed === 0}
                 >
                   {visibleRed}
-                  {data.grossRed !== undefined && (
-                    <span className="block text-base font-medium text-red-600 dark:text-red-600">
-                      {visibleGrossRed}
-                    </span>
+                  {data.interventionClosedRed !== undefined && (
+                    <>
+                    
+                      <span className="block text-base font-medium text-red-600 dark:text-red-600">
+                        {visibleInterventionClosedRed}
+                      </span>
+                    </>
                   )}
                 </button>
               </dt>

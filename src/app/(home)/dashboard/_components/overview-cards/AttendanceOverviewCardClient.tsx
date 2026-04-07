@@ -17,8 +17,9 @@ type PropsType = {
   isActive?: boolean;
   yellowCount: number;
   redCount: number;
-  grossYellowCount: number;
-  grossRedCount: number;
+  /** Resolved + no-action-required (latest intervention per student in cohort). */
+  interventionClosedYellowCount: number;
+  interventionClosedRedCount: number;
   totalStudents: number;
   updatedAttendanceCount: number;
   totalHeldCount: number;
@@ -35,8 +36,8 @@ export function AttendanceOverviewCardClient({
   isActive,
   yellowCount,
   redCount,
-  grossYellowCount,
-  grossRedCount,
+  interventionClosedYellowCount,
+  interventionClosedRedCount,
   totalStudents,
   updatedAttendanceCount,
   totalHeldCount,
@@ -55,9 +56,10 @@ export function AttendanceOverviewCardClient({
   const visibleYellow =
     !allowed.size || allowed.has("yellow") ? yellowCount : 0;
   const visibleRed = !allowed.size || allowed.has("red") ? redCount : 0;
-  const visibleGrossYellow =
-    !allowed.size || allowed.has("yellow") ? grossYellowCount : 0;
-  const visibleGrossRed = !allowed.size || allowed.has("red") ? grossRedCount : 0;
+  const visibleInterventionClosedYellow =
+    !allowed.size || allowed.has("yellow") ? interventionClosedYellowCount : 0;
+  const visibleInterventionClosedRed =
+    !allowed.size || allowed.has("red") ? interventionClosedRedCount : 0;
   const totalAlerts = visibleYellow + visibleRed;
   const yellowPercentage =
     totalStudents > 0 ? (visibleYellow / totalStudents) * 100 : 0;
@@ -103,8 +105,9 @@ export function AttendanceOverviewCardClient({
                 disabled={visibleYellow === 0}
               >
                 {visibleYellow}
+               
                 <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
-                  {visibleGrossYellow}
+                  {visibleInterventionClosedYellow}
                 </span>
               </button>
               <span className="text-dark-4 dark:text-dark-5" aria-hidden>
@@ -125,8 +128,9 @@ export function AttendanceOverviewCardClient({
                 disabled={visibleRed === 0}
               >
                 {visibleRed}
+                
                 <span className="block text-base font-medium text-red-600 dark:text-red-600">
-                   {visibleGrossRed}
+                  {visibleInterventionClosedRed}
                 </span>
               </button>
             </dt>

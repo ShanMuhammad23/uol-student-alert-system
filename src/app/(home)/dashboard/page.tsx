@@ -24,6 +24,7 @@ import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
+import { InterventionCohortStatsProvider } from "./_components/InterventionCohortStatsContext";
 import { ScrollToTopButton } from "./_components/ScrollToTopButton";
 
 function parseMultiParam(
@@ -221,6 +222,7 @@ export default async function Home({ searchParams }: PropsType) {
           resolutionFilters: [],
         }}
       >
+        <InterventionCohortStatsProvider user={effectiveUser}>
         <InterventionSliceProvider>
         <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6">
           <div className="col-span-12 md:col-span-3 ">
@@ -260,6 +262,7 @@ export default async function Home({ searchParams }: PropsType) {
           </div>
         </div>
         </InterventionSliceProvider>
+        </InterventionCohortStatsProvider>
 
         <EnrollmentDashboard
           user={effectiveUser}

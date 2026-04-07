@@ -10,6 +10,7 @@ import type {
   AlertDimensionFilter,
 } from "../fetch";
 import { useDashboardFilter } from "./DashboardFilterContext";
+import { useInterventionCohortStats } from "./InterventionCohortStatsContext";
 import type { InterventionChartSlice } from "./InterventionSliceContext";
 
 type Props = {
@@ -64,6 +65,7 @@ export function InterventionStatusChartClient({
     process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "true" ||
     process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "1";
   const dashboardFilter = useDashboardFilter();
+  const { stats: cohortStatsBySlice } = useInterventionCohortStats();
 
   const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
   const setGpaFilters = dashboardFilter?.setGpaFilters;
@@ -227,9 +229,13 @@ export function InterventionStatusChartClient({
   const facultyIdForRequest =
     user?.role === "dean" ? user.faculty_id ?? null : null;
   const staffIdForRequest =
-    user?.role === "teacher" ? user.id ?? null : null;
+    user?.role === "teacher" || user?.role === "instructor"
+      ? user.id ?? null
+      : null;
   const courseIdsForRequest =
-    user?.role === "teacher" ? user.course_ids ?? null : null;
+    user?.role === "teacher" || user?.role === "instructor"
+      ? user.course_ids ?? null
+      : null;
   const departmentIdsForRequest =
     user?.role === "hod" ? user.department_ids ?? null : null;
 
@@ -238,17 +244,21 @@ export function InterventionStatusChartClient({
     return (user?.department_ids ?? []).join(",");
   }, [user?.role, user?.department_ids]);
   const courseIdsKey = useMemo(() => {
-    if (user?.role !== "teacher") return "";
+    if (user?.role !== "teacher" && user?.role !== "instructor") return "";
     return (user?.course_ids ?? []).join(",");
   }, [user?.role, user?.course_ids]);
 
   useEffect(() => {
+    if (effectiveSlice != null) return;
+
     if (!user?.role) return;
 
     const controller = new AbortController();
     const t = window.setTimeout(() => {
       const roleScope =
-        user.role === "teacher" ? "teacher" : (user.role as "dean" | "hod");
+        user.role === "teacher" || user.role === "instructor"
+          ? "teacher"
+          : (user.role as "dean" | "hod");
 
       const fetchCountsForType = async (interventionType: "attendance" | "gpa") =>
         fetch("/api/interventions/status", {
@@ -313,6 +323,7 @@ export function InterventionStatusChartClient({
       window.clearTimeout(t);
     };
   }, [
+    effectiveSlice,
     user?.role,
     facultyIdForRequest,
     departmentIdsKey,
@@ -321,6 +332,18 @@ export function InterventionStatusChartClient({
     interventionTypesKey,
     alertLevelForRequest,
   ]);
+
+  useEffect(() => {
+    if (effectiveSlice == null) return;
+    const c = cohortStatsBySlice[effectiveSlice];
+    setInterventionCounts({
+      initiated: c.initiated,
+      inProgress: c.inProgress,
+      referred: c.referred,
+      resolved: c.resolved,
+      noActionRequired: c.noActionRequired,
+    });
+  }, [effectiveSlice, cohortStatsBySlice]);
 
   const { initiated, inProgress, referred, resolved, noActionRequired, notStarted } =
     useMemo(() => {

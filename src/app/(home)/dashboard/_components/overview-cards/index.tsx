@@ -5,6 +5,10 @@ import type { AppUser, AlertFilter } from "../../fetch";
 import { AttendanceOverviewCardClient } from "./AttendanceOverviewCardClient";
 import { OverviewCard } from "./card";
 import { useDashboardFilter } from "../DashboardFilterContext";
+import {
+  interventionClosedCount,
+  useInterventionCohortStats,
+} from "../InterventionCohortStatsContext";
 import { useMergeDashboardHref } from "../useDashboardHref";
 
 type PropsType = {
@@ -49,12 +53,21 @@ export function OverviewCardsGroup({
   const attendanceHref = mergeHref({ selected_alert: "attendance" });
   const gpaHref = mergeHref({ selected_alert: "gpa" });
 
-  const [resolved, setResolved] = useState({
-    attendanceYellow: 0,
-    attendanceRed: 0,
-    gpaYellow: 0,
-    gpaRed: 0,
-  });
+  const { stats: cohortInterventionStats } = useInterventionCohortStats();
+  const interventionClosed = useMemo(
+    () => ({
+      attendanceYellow: interventionClosedCount(
+        cohortInterventionStats.attendance_yellow
+      ),
+      attendanceRed: interventionClosedCount(
+        cohortInterventionStats.attendance_red
+      ),
+      gpaYellow: interventionClosedCount(cohortInterventionStats.gpa_yellow),
+      gpaRed: interventionClosedCount(cohortInterventionStats.gpa_red),
+    }),
+    [cohortInterventionStats]
+  );
+
   const [liveCounts, setLiveCounts] = useState({
     totalStudents,
     grossAttendanceYellow: yellowAttendance,
@@ -128,16 +141,12 @@ export function OverviewCardsGroup({
           attendance: {
             grossYellow: number;
             grossRed: number;
-            resolvedYellow: number;
-            resolvedRed: number;
             updatedAttendance: number;
             totalClassesHeld: number;
           };
           gpa: {
             grossYellow: number;
             grossRed: number;
-            resolvedYellow: number;
-            resolvedRed: number;
           };
         };
       })
@@ -150,12 +159,6 @@ export function OverviewCardsGroup({
           attendanceHeldCount: body.attendance.totalClassesHeld ?? 0,
           grossGpaYellow: body.gpa.grossYellow,
           grossGpaRed: body.gpa.grossRed,
-        });
-        setResolved({
-          attendanceYellow: body.attendance.resolvedYellow,
-          attendanceRed: body.attendance.resolvedRed,
-          gpaYellow: body.gpa.resolvedYellow,
-          gpaRed: body.gpa.resolvedRed,
         });
       })
       .catch((err) => {
@@ -173,8 +176,11 @@ export function OverviewCardsGroup({
 
   const netAttendanceYellow = liveCounts.grossAttendanceYellow;
   const netAttendanceRed = liveCounts.grossAttendanceRed;
-  const netGpaYellow = Math.max(0, liveCounts.grossGpaYellow - resolved.gpaYellow);
-  const netGpaRed = Math.max(0, liveCounts.grossGpaRed - resolved.gpaRed);
+  const netGpaYellow = Math.max(
+    0,
+    liveCounts.grossGpaYellow - interventionClosed.gpaYellow
+  );
+  const netGpaRed = Math.max(0, liveCounts.grossGpaRed - interventionClosed.gpaRed);
 
   const toggleAttendanceYellow = () => {
     if (!setAttendanceFilters) return;
@@ -228,8 +234,8 @@ export function OverviewCardsGroup({
           isActive={active === "attendance"}
           yellowCount={netAttendanceYellow}
           redCount={netAttendanceRed}
-          grossYellowCount={liveCounts.grossAttendanceYellow}
-          grossRedCount={liveCounts.grossAttendanceRed}
+          interventionClosedYellowCount={interventionClosed.attendanceYellow}
+          interventionClosedRedCount={interventionClosed.attendanceRed}
           totalStudents={liveCounts.totalStudents}
           updatedAttendanceCount={liveCounts.attendanceUpdatedCount}
           totalHeldCount={liveCounts.attendanceHeldCount}
@@ -251,8 +257,8 @@ export function OverviewCardsGroup({
           data={{
             yellow: netGpaYellow,
             red: netGpaRed,
-            grossYellow: liveCounts.grossGpaYellow,
-            grossRed: liveCounts.grossGpaRed,
+            interventionClosedYellow: interventionClosed.gpaYellow,
+            interventionClosedRed: interventionClosed.gpaRed,
           }}
           isActive={active === "gpa"}
           user={user}
