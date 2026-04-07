@@ -53,19 +53,35 @@ export function OverviewCardsGroup({
   const attendanceHref = mergeHref({ selected_alert: "attendance" });
   const gpaHref = mergeHref({ selected_alert: "gpa" });
 
-  const { stats: cohortInterventionStats } = useInterventionCohortStats();
+  const { stats: cohortInterventionStats, totalsByType } =
+    useInterventionCohortStats();
   const interventionClosed = useMemo(
-    () => ({
-      attendanceYellow: interventionClosedCount(
+    () => {
+      const attendanceYellow = interventionClosedCount(
         cohortInterventionStats.attendance_yellow
-      ),
-      attendanceRed: interventionClosedCount(
+      );
+      const attendanceRed = interventionClosedCount(
         cohortInterventionStats.attendance_red
-      ),
-      gpaYellow: interventionClosedCount(cohortInterventionStats.gpa_yellow),
-      gpaRed: interventionClosedCount(cohortInterventionStats.gpa_red),
-    }),
-    [cohortInterventionStats]
+      );
+      const gpaYellow = interventionClosedCount(cohortInterventionStats.gpa_yellow);
+      const gpaRed = interventionClosedCount(cohortInterventionStats.gpa_red);
+
+      const attendanceTotalClosed = interventionClosedCount(totalsByType.attendance);
+      const gpaTotalClosed = interventionClosedCount(totalsByType.gpa);
+
+      // Fallback for datasets where interventions are not tagged by alert-level.
+      const attendanceFallback =
+        attendanceYellow + attendanceRed === 0 ? attendanceTotalClosed : 0;
+      const gpaFallback = gpaYellow + gpaRed === 0 ? gpaTotalClosed : 0;
+
+      return {
+        attendanceYellow: attendanceYellow || attendanceFallback,
+        attendanceRed: attendanceRed || attendanceFallback,
+        gpaYellow: gpaYellow || gpaFallback,
+        gpaRed: gpaRed || gpaFallback,
+      };
+    },
+    [cohortInterventionStats, totalsByType]
   );
 
   const [liveCounts, setLiveCounts] = useState({
@@ -80,6 +96,7 @@ export function OverviewCardsGroup({
 
   const roleScope = useMemo(() => {
     if (!user?.role) return null;
+    if (user.role === "superadmin") return null;
     if (user.role === "dean") {
       return {
         role: "dean" as const,
@@ -120,14 +137,14 @@ export function OverviewCardsGroup({
   }, [totalStudents, yellowAttendance, redAttendance, yellowGpa, redGpa]);
 
   useEffect(() => {
-    if (!roleScope || !filter) return;
+    if (!filter) return;
     const controller = new AbortController();
 
     fetch("/api/dashboard/overview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        roleScope,
+        roleScope: roleScope ?? undefined,
         masterFilter: filter.masterFilter,
         gpaFilters: filter.gpaFilters,
         attendanceFilters: filter.attendanceFilters,

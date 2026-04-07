@@ -8,7 +8,8 @@ const OUTREACH_MODES = [
   { value: "email", label: "Email" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "phone-call", label: "Phone Call" },
-  { value: "meeting", label: "Meeting" }
+  { value: "meeting", label: "Meeting" },
+  { value: "not-applicable", label: "Not Applicable" }
 ] as const;
 
 const STATUS_OPTIONS = [
@@ -22,11 +23,12 @@ const STATUS_OPTIONS = [
 const TYPE_OPTIONS = [
   { value: "attendance", label: "Attendance" },
   { value: "gpa", label: "GPA" },
+  { value: "both", label: "Both" }
 ] as const;
 
 export type InterventionFormData = {
   date: string;
-  interventionType: "attendance" | "gpa";
+  interventionType: "attendance" | "gpa" | "both";
   outreachMode: string;
   remarks: string;
   status: string;
@@ -102,7 +104,7 @@ const InterventionForm = ({
 
   const [date, setDate] = useState("");
   const [outreachMode, setOutreachMode] = useState("");
-  const [interventionType, setInterventionType] = useState<"attendance" | "gpa">("attendance");
+  const [interventionType, setInterventionType] = useState<"attendance" | "gpa" | "both">("attendance");
   const [remarks, setRemarks] = useState("");
   const [status, setStatus] = useState("");
   const [isAdding, setIsAdding] = useState(false);

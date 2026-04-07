@@ -5,7 +5,7 @@ import { recordIntervention as saveIntervention } from "@/data/intervention-stor
 /** Form payload from Intervention-Form (date, outreachMode, remarks, status). */
 export type RecordInterventionInput = {
   date: string;
-  interventionType: "attendance" | "gpa";
+  interventionType: "attendance" | "gpa" | "both";
   outreachMode: string;
   remarks: string;
   status: string;

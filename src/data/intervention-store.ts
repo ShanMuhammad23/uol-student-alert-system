@@ -25,7 +25,7 @@ export type InterventionRecord = {
   id: string;
   student_sap_id: string;
   date: string; // YYYY-MM-DD
-  intervention_type: "attendance" | "gpa";
+  intervention_type: "attendance" | "gpa" | "both";
   alert_level?: "warning" | "critical" | null;
   outreach_mode: string; // email | phone-call | meeting
   remarks: string;
@@ -185,7 +185,12 @@ function readStore(): InterventionRecord[] {
       id: String(r.id ?? ""),
       student_sap_id: String(r.student_sap_id ?? ""),
       date: String(r.date ?? ""),
-      intervention_type: r.intervention_type === "gpa" ? "gpa" : "attendance",
+      intervention_type:
+        r.intervention_type === "gpa"
+          ? "gpa"
+          : r.intervention_type === "both"
+            ? "both"
+            : "attendance",
       alert_level:
         r.alert_level === "critical"
           ? "critical"
@@ -421,7 +426,7 @@ export async function recordIntervention(
   studentSapId: string,
   data: {
     date: string;
-    intervention_type: "attendance" | "gpa";
+    intervention_type: "attendance" | "gpa" | "both";
     outreach_mode: string;
     remarks: string;
     status: string;
@@ -436,7 +441,15 @@ export async function recordIntervention(
     const alertLevel =
       data.intervention_type === "attendance"
         ? dbContext?.attendanceAlertLevel ?? null
-        : dbContext?.gpaAlertLevel ?? null;
+        : data.intervention_type === "gpa"
+          ? dbContext?.gpaAlertLevel ?? null
+          : dbContext?.attendanceAlertLevel === "critical" ||
+              dbContext?.gpaAlertLevel === "critical"
+            ? "critical"
+            : dbContext?.attendanceAlertLevel === "warning" ||
+                dbContext?.gpaAlertLevel === "warning"
+              ? "warning"
+              : null;
 
     let departmentId: string | null = null;
     let facultyId: string | null = null;
@@ -487,7 +500,15 @@ export async function recordIntervention(
   const alertLevel =
     data.intervention_type === "attendance"
       ? student?.attendance?.alert_level ?? null
-      : student?.gpa?.alert_level ?? null;
+      : data.intervention_type === "gpa"
+        ? student?.gpa?.alert_level ?? null
+        : student?.attendance?.alert_level === "critical" ||
+            student?.gpa?.alert_level === "critical"
+          ? "critical"
+          : student?.attendance?.alert_level === "warning" ||
+              student?.gpa?.alert_level === "warning"
+            ? "warning"
+            : null;
   const stored = readStore();
   const record: InterventionRecord = {
     id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -551,7 +572,7 @@ export async function updateInterventionById(
   id: string,
   data: {
     date: string;
-    intervention_type: "attendance" | "gpa";
+    intervention_type: "attendance" | "gpa" | "both";
     outreach_mode: string;
     remarks: string;
     status: string;

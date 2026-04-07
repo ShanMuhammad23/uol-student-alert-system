@@ -24,8 +24,8 @@ export async function POST(req: Request) {
 
     // Role-scope count mode (no SAPIDs sent).
     const roleScope = body as {
-      role?: "dean" | "hod" | "teacher";
-      interventionType?: "attendance" | "gpa";
+      role?: "dean" | "hod" | "teacher" | "superadmin";
+      interventionType?: "attendance" | "gpa" | "all";
       alertLevel?: "warning" | "critical" | null;
       facultyId?: string | null;
       departmentIds?: string[] | null;
@@ -38,7 +38,8 @@ export async function POST(req: Request) {
       roleScope.interventionType &&
       (roleScope.role === "dean" ||
         roleScope.role === "hod" ||
-        roleScope.role === "teacher")
+        roleScope.role === "teacher" ||
+        roleScope.role === "superadmin")
     ) {
       const stats = await getInterventionStatsForRoleScope({
         role: roleScope.role,

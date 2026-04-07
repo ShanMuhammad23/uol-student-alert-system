@@ -67,6 +67,9 @@ export function AttendanceOverviewCardClient({
   const alertsPercentage =
     totalStudents > 0 ? (totalAlerts / totalStudents) * 100 : 0;
   const noAlertPercentage = Math.max(0, 100 - yellowPercentage - redPercentage);
+  const attendanceMissingCount = Math.max(0, totalHeldCount - updatedAttendanceCount);
+  const attendanceMissingPercentage =
+    totalHeldCount > 0 ? (attendanceMissingCount / totalHeldCount) * 100 : 0;
 
   return (
     <div
@@ -157,9 +160,9 @@ export function AttendanceOverviewCardClient({
       <p className="mt-3 text-base  text-dark-6 dark:text-dark-5">
           
           <span className=" text-dark dark:text-white">
-            Attendance Missing: {totalHeldCount - updatedAttendanceCount} / {totalHeldCount.toLocaleString()} Classes (
+            Attendance Missing: {attendanceMissingCount} / {totalHeldCount.toLocaleString()} Classes (
             {totalHeldCount > 0
-              ? `${(((totalHeldCount - updatedAttendanceCount) / totalHeldCount) * 100).toFixed(1)}%`
+              ? `${attendanceMissingPercentage.toFixed(1)}%`
               : "0%"}
             )
           </span>

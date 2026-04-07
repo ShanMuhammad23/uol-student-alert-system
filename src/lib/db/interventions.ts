@@ -51,7 +51,7 @@ export type InterventionRow = {
   id: string;
   student_sap_id: string;
   date: string;
-  intervention_type: "attendance" | "gpa";
+  intervention_type: "attendance" | "gpa" | "both";
   outreach_mode: string;
   remarks: string;
   status: string;
@@ -86,7 +86,7 @@ export async function insertIntervention(row: {
   id: string;
   student_sap_id: string;
   date: string;
-  intervention_type: "attendance" | "gpa";
+  intervention_type: "attendance" | "gpa" | "both";
   alert_level?: "warning" | "critical" | null;
   outreach_mode: string;
   remarks: string;
@@ -206,7 +206,7 @@ export async function getInterventionsByStudentSapIdFromDb(
     id: string;
     student_sap_id: string;
     date: string;
-    intervention_type?: "attendance" | "gpa" | null;
+    intervention_type?: "attendance" | "gpa" | "both" | null;
     outreach_mode: string;
     remarks: string;
     status: string;
@@ -229,7 +229,12 @@ export async function getInterventionsByStudentSapIdFromDb(
   );
   return res.rows.map((r) => ({
     ...r,
-    intervention_type: r.intervention_type === "gpa" ? "gpa" : "attendance",
+    intervention_type:
+      r.intervention_type === "gpa"
+        ? "gpa"
+        : r.intervention_type === "both"
+          ? "both"
+          : "attendance",
     date: typeof r.date === "string" ? r.date : (r.date as unknown as Date).toISOString().slice(0, 10),
     performed_at:
       typeof r.performed_at === "string"
@@ -258,7 +263,7 @@ export async function getInterventionByIdFromDb(
     id: string;
     student_sap_id: string;
     date: string;
-    intervention_type?: "attendance" | "gpa" | null;
+    intervention_type?: "attendance" | "gpa" | "both" | null;
     outreach_mode: string;
     remarks: string;
     status: string;
@@ -283,7 +288,12 @@ export async function getInterventionByIdFromDb(
   if (!row) return null;
   return {
     ...row,
-    intervention_type: row.intervention_type === "gpa" ? "gpa" : "attendance",
+    intervention_type:
+      row.intervention_type === "gpa"
+        ? "gpa"
+        : row.intervention_type === "both"
+          ? "both"
+          : "attendance",
     date: typeof row.date === "string" ? row.date : (row.date as unknown as Date).toISOString().slice(0, 10),
     performed_at:
       typeof row.performed_at === "string"
@@ -298,7 +308,7 @@ export async function updateInterventionByIdFromDb(
   id: string,
   data: {
     date: string;
-    intervention_type: "attendance" | "gpa";
+    intervention_type: "attendance" | "gpa" | "both";
     outreach_mode: string;
     remarks: string;
     status: string;
@@ -440,8 +450,8 @@ export async function getInterventionStatsForStudentsFromDb(
 }
 
 export type InterventionRoleScope = {
-  role: "dean" | "hod" | "teacher";
-  interventionType: "attendance" | "gpa";
+  role: "dean" | "hod" | "teacher" | "superadmin";
+  interventionType: "attendance" | "gpa" | "all";
   alertLevel?: "warning" | "critical" | null;
   facultyId?: string | null;
   departmentIds?: string[] | null;
@@ -468,6 +478,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
   const wantsGpa = params.interventionType === "gpa";
+  const usesTypeParam = hasType && params.interventionType !== "all";
 
   // Old DBs may not have intervention_type; treat missing column as 'attendance'.
   if (!hasType && wantsGpa) {
@@ -492,8 +503,70 @@ export async function getInterventionStatsForRoleScopeFromDb(
     };
   }
 
+  const wantsAlertFilterGlobal =
+    hasAlertLevel && params.alertLevel != null ? true : false;
+
+  /** Count latest status per student across all rows (no faculty/dept/course scope). */
+  if (params.role === "superadmin") {
+    const typeWhereSql = usesTypeParam
+      ? params.interventionType === "gpa"
+        ? "(intervention_type = $1 OR intervention_type = 'both')"
+        : "(COALESCE(intervention_type, 'attendance') = $1 OR intervention_type = 'both')"
+      : "TRUE";
+    const argsSuper: any[] = usesTypeParam ? [params.interventionType] : [];
+    const outerIdx = argsSuper.length + 1;
+
+    const resSuper = await pool.query<{
+      status: string;
+      cnt: string;
+    }>(
+      `
+      WITH latest AS (
+        SELECT DISTINCT ON (student_sap_id)
+          student_sap_id,
+          status${wantsAlertFilterGlobal ? ", alert_level" : ""}
+        FROM interventions
+        WHERE ${typeWhereSql}
+        ORDER BY student_sap_id, performed_at DESC
+      )
+      SELECT status, COUNT(*)::int AS cnt
+      FROM latest
+      ${wantsAlertFilterGlobal ? `WHERE alert_level = $${outerIdx}` : ""}
+      GROUP BY status
+      `,
+      wantsAlertFilterGlobal
+        ? [...argsSuper, params.alertLevel as any]
+        : argsSuper,
+    );
+
+    const countsSuper = {
+      initiated: 0,
+      inProgress: 0,
+      referred: 0,
+      resolved: 0,
+      noActionRequired: 0,
+    };
+    for (const row of resSuper.rows) {
+      const n = Number(row.cnt) || 0;
+      if (row.status === "initiated") countsSuper.initiated = n;
+      else if (row.status === "in-progress") countsSuper.inProgress = n;
+      else if (row.status === "referred") countsSuper.referred = n;
+      else if (row.status === "resolved") countsSuper.resolved = n;
+      else if (row.status === "no-action-required")
+        countsSuper.noActionRequired = n;
+    }
+    const totalSuper =
+      countsSuper.initiated +
+      countsSuper.inProgress +
+      countsSuper.referred +
+      countsSuper.resolved +
+      countsSuper.noActionRequired;
+    return { ...countsSuper, totalInterventionStudents: totalSuper };
+  }
+
   let whereSql = "";
-  let args: any[] = [];
+  let args: any[] = usesTypeParam ? [params.interventionType] : [];
+  const scopePlaceholder = usesTypeParam ? "$2" : "$1";
   const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
     FAC_ENG: "50000172",
     FAC_MGT: "50000172",
@@ -512,8 +585,8 @@ export async function getInterventionStatsForRoleScopeFromDb(
     }
     const mappedFacultyId =
       FACULTY_ID_TO_ENROLLMENT_FAC_ID[params.facultyId] ?? params.facultyId;
-    whereSql = hasType ? "faculty_id = $2" : "faculty_id = $1";
-    args = hasType ? [params.interventionType, mappedFacultyId] : [mappedFacultyId];
+    whereSql = `faculty_id = ${scopePlaceholder}`;
+    args = [...args, mappedFacultyId];
   } else if (params.role === "hod") {
     const deptIds = params.departmentIds ?? [];
     if (!deptIds.length) {
@@ -526,14 +599,14 @@ export async function getInterventionStatsForRoleScopeFromDb(
         totalInterventionStudents: 0,
       };
     }
-    whereSql = hasType ? "department_id = ANY($2)" : "department_id = ANY($1)";
-    args = hasType ? [params.interventionType, deptIds] : [deptIds];
+    whereSql = `department_id = ANY(${scopePlaceholder})`;
+    args = [...args, deptIds];
   } else {
     // teacher
     const courseIds = (params.courseIds ?? []).filter(Boolean);
     if (courseIds.length) {
-      whereSql = hasType ? "course_id = ANY($2)" : "course_id = ANY($1)";
-      args = hasType ? [params.interventionType, courseIds] : [courseIds];
+      whereSql = `course_id = ANY(${scopePlaceholder})`;
+      args = [...args, courseIds];
     } else if (!params.staffId) {
       return {
         initiated: 0,
@@ -545,14 +618,16 @@ export async function getInterventionStatsForRoleScopeFromDb(
       };
     } else {
       // Backward-compatible fallback if course IDs are unavailable.
-      whereSql = hasType ? "staff_id = $2" : "staff_id = $1";
-      args = hasType ? [params.interventionType, params.staffId] : [params.staffId];
+      whereSql = `staff_id = ${scopePlaceholder}`;
+      args = [...args, params.staffId];
     }
   }
 
-  // If intervention_type is present but NULL (older rows), treat NULL as 'attendance'.
-  const interventionTypeFilterSql = hasType
-    ? "COALESCE(intervention_type, 'attendance') = $1 AND "
+  // Include `intervention_type = 'both'` (from Intervention-Form) in attendance and GPA buckets.
+  const interventionTypeFilterSql = usesTypeParam
+    ? params.interventionType === "gpa"
+      ? "(intervention_type = $1 OR intervention_type = 'both') AND "
+      : "(COALESCE(intervention_type, 'attendance') = $1 OR intervention_type = 'both') AND "
     : "";
 
   const wantsAlertFilter =

@@ -171,7 +171,7 @@ export function InterventionStatusChartClient({
     };
   }, [effectiveSlice, masterFilterKey, gpaFiltersKey, attendanceFiltersKey]);
 
-  const interventionTypesForDb = useMemo<("attendance" | "gpa")[]>(() => {
+  const interventionTypesForDb = useMemo<("attendance" | "gpa" | "all")[]>(() => {
     if (
       effectiveSlice === "attendance_yellow" ||
       effectiveSlice === "attendance_red"
@@ -183,7 +183,7 @@ export function InterventionStatusChartClient({
     }
     if (chartMode === "gpa") return ["gpa"];
     if (chartMode === "attendance") return ["attendance"];
-    return ["attendance", "gpa"];
+    return ["all"];
   }, [effectiveSlice, chartMode]);
 
   const interventionTypesKey = useMemo(
@@ -258,9 +258,13 @@ export function InterventionStatusChartClient({
       const roleScope =
         user.role === "teacher" || user.role === "instructor"
           ? "teacher"
-          : (user.role as "dean" | "hod");
+          : user.role === "superadmin"
+            ? "superadmin"
+            : (user.role as "dean" | "hod");
 
-      const fetchCountsForType = async (interventionType: "attendance" | "gpa") =>
+      const fetchCountsForType = async (
+        interventionType: "attendance" | "gpa" | "all"
+      ) =>
         fetch("/api/interventions/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

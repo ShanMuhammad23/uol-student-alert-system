@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 type InterventionRecord = {
   id: string;
   date: string;
-  intervention_type: "attendance" | "gpa";
+  intervention_type: "attendance" | "gpa" | "both";
   outreach_mode: string;
   remarks: string;
   status: string;
@@ -33,6 +33,12 @@ const STATUS_STYLES: Record<string, { label: string; bg: string }> = {
 
 function formatOutreachMode(mode: string): string {
   return mode.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(" ");
+}
+
+function formatInterventionType(type: InterventionRecord["intervention_type"]): string {
+  if (type === "gpa") return "GPA";
+  if (type === "both") return "Both";
+  return "Attendance";
 }
 
 type Props = {
@@ -75,7 +81,7 @@ export function InterventionHistorySection({
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     date: "",
-    intervention_type: "attendance" as "attendance" | "gpa",
+    intervention_type: "attendance" as "attendance" | "gpa" | "both",
     outreach_mode: "email",
     remarks: "",
     status: "initiated",
@@ -228,7 +234,7 @@ export function InterventionHistorySection({
                       </time>
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
-                      {int.intervention_type === "gpa" ? "GPA" : "Attendance"}
+                      {formatInterventionType(int.intervention_type)}
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
                       {formatOutreachMode(int.outreach_mode)}
@@ -353,13 +359,19 @@ export function InterventionHistorySection({
                 onChange={(e) =>
                   setEditForm((prev) => ({
                     ...prev,
-                    intervention_type: e.target.value === "gpa" ? "gpa" : "attendance",
+                    intervention_type:
+                      e.target.value === "gpa"
+                        ? "gpa"
+                        : e.target.value === "both"
+                          ? "both"
+                          : "attendance",
                   }))
                 }
                 className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
               >
                 <option value="attendance">Attendance</option>
                 <option value="gpa">GPA</option>
+                <option value="both">Both</option>
               </select>
             </div>
             <div>

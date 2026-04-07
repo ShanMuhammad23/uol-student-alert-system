@@ -48,10 +48,11 @@ function defaultMap(): InterventionCohortStatsMap {
   };
 }
 
-function roleForInterventionsApi(user: AppUser): "dean" | "hod" | "teacher" | null {
+function roleForInterventionsApi(user: AppUser): "dean" | "hod" | "teacher" | "superadmin" | null {
   if (user.role === "dean") return "dean";
   if (user.role === "hod") return "hod";
   if (user.role === "teacher" || user.role === "instructor") return "teacher";
+  if (user.role === "superadmin") return "superadmin";
   return null;
 }
 
@@ -59,7 +60,7 @@ async function fetchCohortStats(
   signal: AbortSignal,
   user: AppUser,
   interventionType: "attendance" | "gpa",
-  alertLevel: "warning" | "critical"
+  alertLevel: "warning" | "critical" | null
 ): Promise<CohortInterventionCounts> {
   const role = roleForInterventionsApi(user);
   if (!role) return emptyCohort();
@@ -99,6 +100,10 @@ async function fetchCohortStats(
 
 type InterventionCohortStatsContextValue = {
   stats: InterventionCohortStatsMap;
+  totalsByType: {
+    attendance: CohortInterventionCounts;
+    gpa: CohortInterventionCounts;
+  };
   loading: boolean;
 };
 
@@ -113,6 +118,10 @@ export function InterventionCohortStatsProvider({
   children: ReactNode;
 }): ReactElement {
   const [stats, setStats] = useState<InterventionCohortStatsMap>(() => defaultMap());
+  const [totalsByType, setTotalsByType] = useState(() => ({
+    attendance: emptyCohort(),
+    gpa: emptyCohort(),
+  }));
   const [loading, setLoading] = useState(false);
 
   const departmentIdsKey = useMemo(() => {
@@ -128,6 +137,7 @@ export function InterventionCohortStatsProvider({
   useEffect(() => {
     if (!user?.role || !roleForInterventionsApi(user)) {
       setStats(defaultMap());
+      setTotalsByType({ attendance: emptyCohort(), gpa: emptyCohort() });
       setLoading(false);
       return;
     }
@@ -140,8 +150,10 @@ export function InterventionCohortStatsProvider({
         fetchCohortStats(controller.signal, user, "attendance", "critical"),
         fetchCohortStats(controller.signal, user, "gpa", "warning"),
         fetchCohortStats(controller.signal, user, "gpa", "critical"),
+        fetchCohortStats(controller.signal, user, "attendance", null),
+        fetchCohortStats(controller.signal, user, "gpa", null),
       ])
-        .then(([aY, aR, gY, gR]) => {
+        .then(([aY, aR, gY, gR, aTotal, gTotal]) => {
           if (controller.signal.aborted) return;
           setStats({
             attendance_yellow: aY,
@@ -149,10 +161,15 @@ export function InterventionCohortStatsProvider({
             gpa_yellow: gY,
             gpa_red: gR,
           });
+          setTotalsByType({
+            attendance: aTotal,
+            gpa: gTotal,
+          });
         })
         .catch(() => {
           if (controller.signal.aborted) return;
           setStats(defaultMap());
+          setTotalsByType({ attendance: emptyCohort(), gpa: emptyCohort() });
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
@@ -173,7 +190,10 @@ export function InterventionCohortStatsProvider({
     courseIdsKey,
   ]);
 
-  const value = useMemo(() => ({ stats, loading }), [stats, loading]);
+  const value = useMemo(
+    () => ({ stats, totalsByType, loading }),
+    [stats, totalsByType, loading]
+  );
 
   return (
     <InterventionCohortStatsContext.Provider value={value}>
