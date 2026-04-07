@@ -7,10 +7,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { TOP_CHANNELS_TABLE_SCROLL_ID } from "./table-scroll-anchor";
 
-export function TopChannelsSkeleton() {
+type SkeletonProps = { className?: string };
+
+export function TopChannelsSkeleton({ className }: SkeletonProps = {}) {
   return (
-    <div className="rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card">
+    <div
+      id={TOP_CHANNELS_TABLE_SCROLL_ID}
+      className={cn(
+        "scroll-mt-24 mb-12 rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card",
+        className,
+      )}
+    >
   
 
       <Table>

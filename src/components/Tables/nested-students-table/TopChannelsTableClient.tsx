@@ -18,6 +18,7 @@ import type {
   AlertDimensionFilter,
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
+import { TOP_CHANNELS_TABLE_SCROLL_ID } from "./table-scroll-anchor";
 
 type Props = {
   className?: string;
@@ -234,14 +235,15 @@ export function TopChannelsTableClient({
       : Math.min(currentPage * (rowsPerPage as number), totalResults);
 
   if (isLoading) {
-    return <TopChannelsSkeleton />;
+    return <TopChannelsSkeleton className={className} />;
   }
 
   if (error) {
     return (
       <div
+        id={TOP_CHANNELS_TABLE_SCROLL_ID}
         className={cn(
-          "rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card mb-12",
+          "scroll-mt-24 rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card mb-12",
           className
         )}
       >
@@ -255,8 +257,9 @@ export function TopChannelsTableClient({
 
   return (
     <div
+      id={TOP_CHANNELS_TABLE_SCROLL_ID}
       className={cn(
-        "grid rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card mb-12 overflow-x-auto",
+        "scroll-mt-24 grid rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card mb-12 overflow-x-auto",
         className
       )}
     >

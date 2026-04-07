@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { TOP_CHANNELS_TABLE_SCROLL_ID } from "@/components/Tables/nested-students-table/table-scroll-anchor";
+
 const SHOW_AFTER_PX = 240;
 
 export function ScrollToTopButton() {
@@ -17,13 +19,18 @@ export function ScrollToTopButton() {
   }, []);
 
   const handleClick = () => {
+    const el = document.getElementById(TOP_CHANNELS_TABLE_SCROLL_ID);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <button
       type="button"
-      aria-label="Scroll to top"
+      aria-label="Scroll to student table"
       onClick={handleClick}
       className={[
         "fixed bottom-6 right-6 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full",
