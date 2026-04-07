@@ -57,6 +57,8 @@ export type InterventionRow = {
   status: string;
   performed_at: string;
   staff_id?: string | null;
+  uploader_name?: string | null;
+  uploader_email?: string | null;
   uploader_pernr?: string | null;
 };
 
@@ -212,15 +214,17 @@ export async function getInterventionsByStudentSapIdFromDb(
     status: string;
     performed_at: Date;
     staff_id: string | null;
+    uploader_name: string | null;
+    uploader_email: string | null;
     uploader_pernr: string | null;
   }>(
     hasType
-      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.name AS uploader_name, s.email AS uploader_email, s.pernr AS uploader_pernr
          FROM interventions i
          LEFT JOIN staff s ON s.id = i.staff_id
          WHERE i.student_sap_id = $1
          ORDER BY i.performed_at DESC`
-      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.name AS uploader_name, s.email AS uploader_email, s.pernr AS uploader_pernr
          FROM interventions i
          LEFT JOIN staff s ON s.id = i.staff_id
          WHERE i.student_sap_id = $1
@@ -241,6 +245,8 @@ export async function getInterventionsByStudentSapIdFromDb(
         ? r.performed_at
         : (r.performed_at as Date).toISOString(),
     staff_id: r.staff_id ?? null,
+    uploader_name: r.uploader_name ?? null,
+    uploader_email: r.uploader_email ?? null,
     uploader_pernr: r.uploader_pernr ?? null,
   }));
 }
@@ -269,15 +275,17 @@ export async function getInterventionByIdFromDb(
     status: string;
     performed_at: Date;
     staff_id: string | null;
+    uploader_name: string | null;
+    uploader_email: string | null;
     uploader_pernr: string | null;
   }>(
     hasType
-      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.name AS uploader_name, s.email AS uploader_email, s.pernr AS uploader_pernr
          FROM interventions i
          LEFT JOIN staff s ON s.id = i.staff_id
          WHERE i.id = $1
          LIMIT 1`
-      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.pernr AS uploader_pernr
+      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.name AS uploader_name, s.email AS uploader_email, s.pernr AS uploader_pernr
          FROM interventions i
          LEFT JOIN staff s ON s.id = i.staff_id
          WHERE i.id = $1
@@ -300,6 +308,8 @@ export async function getInterventionByIdFromDb(
         ? row.performed_at
         : (row.performed_at as Date).toISOString(),
     staff_id: row.staff_id ?? null,
+    uploader_name: row.uploader_name ?? null,
+    uploader_email: row.uploader_email ?? null,
     uploader_pernr: row.uploader_pernr ?? null,
   };
 }

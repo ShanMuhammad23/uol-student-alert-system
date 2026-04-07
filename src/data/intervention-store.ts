@@ -32,6 +32,8 @@ export type InterventionRecord = {
   status: string; // initiated | in-progress | referred | resolved | no-action-required
   performed_at: string; // ISO date
   staff_id?: string;
+  uploader_name?: string | null;
+  uploader_email?: string | null;
   uploader_pernr?: string | null;
 };
 
@@ -202,6 +204,8 @@ function readStore(): InterventionRecord[] {
       status: String(r.status ?? ""),
       performed_at: String(r.performed_at ?? new Date().toISOString()),
       staff_id: String(r.staff_id ?? ""),
+      uploader_name: null,
+      uploader_email: null,
       uploader_pernr: null,
     }));
   } catch {

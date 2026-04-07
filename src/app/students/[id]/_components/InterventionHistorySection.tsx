@@ -20,6 +20,8 @@ type InterventionRecord = {
   remarks: string;
   status: string;
   performed_at?: string;
+  uploader_name?: string | null;
+  uploader_email?: string | null;
   uploader_pernr?: string | null;
 };
 
@@ -220,6 +222,7 @@ export function InterventionHistorySection({
                 <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">Added By</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -239,6 +242,7 @@ export function InterventionHistorySection({
                     <TableCell className="text-dark dark:text-white">
                       {formatOutreachMode(int.outreach_mode)}
                     </TableCell>
+                   
                     <TableCell className="max-w-[280px] text-dark-6 dark:text-dark-5">
                       {int.remarks || "—"}
                     </TableCell>
@@ -249,6 +253,14 @@ export function InterventionHistorySection({
                       >
                         {statusStyle.label}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-dark dark:text-white">
+                      <div className="flex flex-col">
+                        <span>{int.uploader_name} - {int.uploader_pernr || "—"}</span>
+                        <span className="text-xs text-dark-6 dark:text-dark-5">
+                          {int.uploader_email || "—"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2">
