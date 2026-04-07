@@ -278,7 +278,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   }
 
   return (
-    <div className="w-full space-y-6 mt-4">
+    <div id="student-profile-pdf-content" className="w-full space-y-6 mt-4">
       {/* Back to list / Dashboard */}
       <div className="flex items-center gap-2">
         <Link

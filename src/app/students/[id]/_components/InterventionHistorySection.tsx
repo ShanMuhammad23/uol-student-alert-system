@@ -81,6 +81,7 @@ export function InterventionHistorySection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [editForm, setEditForm] = useState({
     date: "",
     intervention_type: "attendance" as "attendance" | "gpa" | "both",
@@ -182,6 +183,62 @@ export function InterventionHistorySection({
     }
   };
 
+  const downloadInterventionHistoryPdf = async () => {
+    setEditError(null);
+    setIsExportingPdf(true);
+    try {
+      const target = document.getElementById("student-profile-pdf-content");
+      if (!target) {
+        throw new Error("Student profile container not found.");
+      }
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        windowWidth: target.scrollWidth,
+        windowHeight: target.scrollHeight,
+      });
+
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      const imgWidth = pageWidth;
+      const imgHeight = (canvasHeight * imgWidth) / canvasWidth;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      const imgData = canvas.toDataURL("image/png");
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, "", "FAST");
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, "", "FAST");
+        heightLeft -= pageHeight;
+      }
+
+      const safeSap = String(studentSapId || "student").replace(/[^\w-]/g, "_");
+      pdf.save(`student-profile-${safeSap}.pdf`);
+    } catch (e) {
+      setEditError(
+        e instanceof Error ? e.message : "Failed to download student profile PDF."
+      );
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
@@ -193,6 +250,14 @@ export function InterventionHistorySection({
             Interventions and follow-ups for this student
           </p>
         </div>
+        <button
+          type="button"
+          onClick={downloadInterventionHistoryPdf}
+          disabled={isExportingPdf}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-dark"
+        >
+          {isExportingPdf ? "Preparing PDF..." : "Download PDF"}
+        </button>
         <button
           type="button"
           onClick={() => setOpen(true)}
