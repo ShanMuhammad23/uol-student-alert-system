@@ -639,7 +639,7 @@ export function NestedEnrollmentTableClient({
                                             classAverageByCourseSection.get(
                                               monitorKey ?? "",
                                             ) ?? null;
-                                          const alertLevel =
+                                          const computedAlertLevel =
                                             summary && classAvg != null
                                               ? getAttendanceAlertLevel(
                                                   summary.percentage,
@@ -647,22 +647,25 @@ export function NestedEnrollmentTableClient({
                                                   summary.totalHeld,
                                                 )
                                               : null;
+                                          const displayAttendanceAlertLevel =
+                                            row.attendanceAlertLevel ??
+                                            computedAlertLevel;
                                           const attendanceColorClass =
-                                            alertLevel === "critical"
+                                            displayAttendanceAlertLevel === "critical"
                                               ? "text-red-600"
-                                              : alertLevel === "warning"
-                                              ? "text-yellow-600"
-                                              : "";
+                                              : displayAttendanceAlertLevel === "warning"
+                                                ? "text-yellow-600"
+                                                : "";
                                           const hasAttendanceAlert =
-                                            alertLevel === "critical" ||
-                                            alertLevel === "warning";
+                                            displayAttendanceAlertLevel === "critical" ||
+                                            displayAttendanceAlertLevel === "warning";
                                           const gpaLevel = row.gpaAlertLevel ?? null;
                                           const cgpa = row.gpaCurrent;
-                                          const gpaColorClass =
+                                          const gpaValueColorClass =
                                             gpaLevel === "critical"
-                                              ? "text-red-600"
+                                              ? "text-red-600 dark:text-red-500"
                                               : gpaLevel === "warning"
-                                                ? "text-yellow-600"
+                                                ? "text-yellow-600 dark:text-yellow-500"
                                                 : "";
                                           const gpaPrev = row.gpaPrevious;
                                           const gpaChange = row.gpaChange;
@@ -670,11 +673,14 @@ export function NestedEnrollmentTableClient({
                                             typeof gpaChange === "number" &&
                                             Number.isFinite(gpaChange);
                                           const gpaDropped = hasGpaTrend && gpaChange < 0;
-                                          const gpaTrendClass = gpaDropped
-                                            ? "text-red-600"
-                                            : hasGpaTrend
-                                              ? "text-emerald-600"
-                                              : "text-dark-6 dark:text-dark-5";
+                                          const gpaDeviationClass =
+                                            gpaLevel === "critical"
+                                              ? "text-red-600 dark:text-red-500"
+                                              : gpaLevel === "warning"
+                                                ? "text-yellow-600 dark:text-yellow-500"
+                                                : hasGpaTrend
+                                                  ? "text-dark dark:text-white"
+                                                  : "text-dark-6 dark:text-dark-5";
                                           const hasGpaAlert =
                                             gpaLevel === "critical" ||
                                             gpaLevel === "warning";
@@ -686,15 +692,14 @@ export function NestedEnrollmentTableClient({
                                           const classesHeld = summary?.totalHeld ?? 0;
                                           const classesAttended =
                                             summary?.attended ?? 0;
-                                          const classesScheduled =
-                                            monitoredCount != null
-                                              ? monitoredCount
-                                              : summary?.totalHeld ?? 0;
-                                          const hasClassLoadSpike =
-                                            hasAttendanceAlert &&
-                                            classesHeld > 0 &&
-                                            classesScheduled > 0 &&
-                                            classesHeld / classesScheduled > 0.25;
+                                          const attendanceMissing = Math.max(
+                                            0,
+                                            classesHeld - classesAttended,
+                                          );
+                                          const attendancePct =
+                                            row.attendancePercentage ??
+                                            summary?.percentage ??
+                                            null;
                                           return (
                                             <TableRow
                                               key={rowKey}
@@ -733,46 +738,61 @@ export function NestedEnrollmentTableClient({
                                               </TableCell>
                                             
                                               <TableCell className="!text-left">
-                                                {classesHeld === 0 &&
-                                                classesScheduled === 0
-                                                  ? "—"
-                                                  : `${classesHeld}/${classesScheduled}`}
+                                                {classesHeld === 0 ? (
+                                                  "—"
+                                                ) : (
+                                                  <div className="flex flex-col gap-0.5">
+                                                    <span>{classesHeld}</span>
+                                                    {attendanceMissing < 1 ? (
+                                                      <span className="text-xs text-green-500">
+                                                        Attendance Posted
+                                                      </span>
+                                                    ) : (
+                                                      <span className="text-xs text-red-600 dark:text-red-400">
+                                                        Attendance Missing (
+                                                        {attendanceMissing})
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                )}
                                               </TableCell>
                                               <TableCell className="!text-left">
-                                                {summary ? (
+                                                {summary && attendancePct != null ? (
                                                   <div className="flex flex-col">
                                                     <span className="inline-flex items-center gap-2">
                                                       <span
                                                         className={attendanceColorClass}
                                                       >
-                                                        {summary.percentage.toFixed(
-                                                          1,
-                                                        )}
-                                                        % ({classesAttended}/{classesHeld})
+                                                        {attendancePct.toFixed(1)}%
+                                                      </span>{" "}
+                                                      <span className="text-xs text-dark-6 dark:text-white">
+                                                        ({classesAttended}/{classesHeld})
                                                       </span>
-                                                      {hasClassLoadSpike && (
-                                                        <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                                                          (C)
-                                                        </span>
-                                                      )}
                                                     </span>
                                                     {classAvg != null && (
                                                       <span className="text-xs text-dark-6 dark:text-white">
-                                                        {classAvg.toFixed(1)}%
+                                                       Class Avg: {classAvg.toFixed(1)}%
                                                       </span>
                                                     )}
                                                   </div>
                                                 ) : isAttendanceLoading ? (
                                                   "Calculating..."
                                                 ) : monitoredCount != null ? (
-                                                  `0.0% (0/${monitoredCount})`
+                                                  <div className="flex flex-col">
+                                                    <span className="inline-flex items-center gap-2">
+                                                      <span>0.0%</span>{" "}
+                                                      <span className="text-xs text-dark-6 dark:text-white">
+                                                        (0/{monitoredCount})
+                                                      </span>
+                                                    </span>
+                                                  </div>
                                                 ) : (
                                                   "—"
                                                 )}
                                               </TableCell>
                                               <TableCell className="!text-left">
                                                 <div className="flex flex-col">
-                                                  <span className={gpaColorClass}>
+                                                  <span className={gpaValueColorClass}>
                                                     {typeof cgpa === "number"
                                                       ? cgpa.toFixed(2)
                                                       : "-"}
@@ -780,17 +800,20 @@ export function NestedEnrollmentTableClient({
                                                   <span
                                                     className={cn(
                                                       "text-xs",
-                                                      gpaTrendClass
+                                                      gpaDeviationClass
                                                     )}
                                                   >
                                                     {hasGpaTrend
-                                                      ? `${gpaDropped ? "▼" : "▲"} ${Math.abs(
-                                                          gpaChange
-                                                        ).toFixed(2)}${
-                                                          typeof gpaPrev === "number"
-                                                            ? ` vs ${gpaPrev.toFixed(2)}`
-                                                            : ""
-                                                        }`
+                                                      ? <>
+                                                      {gpaDropped ? (
+                                                        <span className="text-red-600 dark:text-red-400">▼</span>
+                                                      ) : (
+                                                        <span className="text-green-500 dark:text-green-400">▲</span>
+                                                      )}{" "}
+                                                      {Math.abs(gpaChange).toFixed(2)}${typeof gpaPrev === "number"
+                                                        ? ` vs ${gpaPrev.toFixed(2)}`
+                                                        : ""}
+                                                      </>
                                                       : "—"}
                                                   </span>
                                                 </div>

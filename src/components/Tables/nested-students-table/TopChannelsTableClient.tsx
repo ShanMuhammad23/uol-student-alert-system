@@ -503,16 +503,19 @@ export function TopChannelsTableClient({
                       ) : (
                         <div className="flex flex-col gap-0.5">
                           <span>{classesHeld}</span>
-                          <span
-                            className={cn(
-                              "text-xs",
-                              attendanceMissing > 0
-                                ? "text-red-600 dark:text-red-400"
-                                : "text-dark-6 dark:text-dark-5"
-                            )}
+                          {attendanceMissing < 1 ? ( 
+                            <span className="text-green-500 text-xs">
+                              Attendance Posted
+                            </span>
+                          ) : (
+                            <span
+                            className="text-xs text-red-600 dark:text-red-400"
+                            
                           >
                             Attendance Missing ({attendanceMissing})
                           </span>
+                          )}
+                         
                         </div>
                       )}
                     </TableCell>
@@ -529,7 +532,7 @@ export function TopChannelsTableClient({
                           </span>
                           {classAvg != null && (
                             <span className="text-xs text-dark-6 dark:text-white">
-                              {classAvg.toFixed(1)}%
+                              Class Avg: {classAvg.toFixed(1)}%
                             </span>
                           )}
                         </div>
@@ -543,11 +546,19 @@ export function TopChannelsTableClient({
                           {typeof gpa === "number" ? gpa.toFixed(2) : "-"}
                         </span>
                         <span className={cn("text-xs", gpaDeviationClass)}>
-                          {hasTrend
-                            ? `${isDrop ? "▼" : "▲"} ${Math.abs(gpaChange).toFixed(
-                                2
-                              )}${typeof gpaPrev === "number" ? ` vs ${gpaPrev.toFixed(2)}` : ""}`
-                            : "—"}
+                          {hasTrend ? (
+                            <>
+                              {isDrop ? (
+                                <span className="text-red-600 dark:text-red-400">▼</span>
+                              ) : (
+                                <span className="text-green-500 dark:text-green-400">▲</span>
+                              )}{" "}
+                              {Math.abs(gpaChange).toFixed(2)}
+                              {typeof gpaPrev === "number" ? ` vs ${gpaPrev.toFixed(2)}` : ""}
+                            </>
+                          ) : (
+                            "—"
+                          )}
                         </span>
                       </div>
                     </TableCell>
