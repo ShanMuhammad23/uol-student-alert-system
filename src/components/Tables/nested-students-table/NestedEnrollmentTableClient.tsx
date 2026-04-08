@@ -122,6 +122,19 @@ export function NestedEnrollmentTableClient({
   const { expandedIds, setExpandedIds } = useDashboardUiState();
   const [dbRows, setDbRows] = useState<TopTableRow[]>([]);
   const [isLoadingDb, setIsLoadingDb] = useState(true);
+  const roleScope = (() => {
+    try {
+      const parsed = new URL(returnToUrl, "http://localhost");
+      const asRole = parsed.searchParams.get("as")?.trim().toLowerCase();
+      const facultyId = parsed.searchParams.get("faculty")?.trim();
+      if (asRole === "dean" && facultyId) {
+        return { role: "dean" as const, facultyId };
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  })();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -141,6 +154,7 @@ export function NestedEnrollmentTableClient({
         pageSize: 100000,
         sortKey: "name",
         sortDirection: "asc",
+        roleScope,
         filters: {
           ...(masterFilter ?? {}),
           attendanceFilters: normalizedAttendanceFilters,
@@ -165,7 +179,14 @@ export function NestedEnrollmentTableClient({
       })
       .finally(() => setIsLoadingDb(false));
     return () => controller.abort();
-  }, [masterFilter, attendanceFilters, gpaFilters, interventionFilters, resolutionFilters]);
+  }, [
+    masterFilter,
+    attendanceFilters,
+    gpaFilters,
+    interventionFilters,
+    resolutionFilters,
+    roleScope,
+  ]);
 
   const list = useMemo<NestedEnrollmentRow[]>(
     () =>

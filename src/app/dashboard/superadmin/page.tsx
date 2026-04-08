@@ -6,7 +6,10 @@ import {
 } from "@/app/(home)/dashboard/fetch";
 import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
 import Link from "next/link";
-
+const FACULTY_NAME_FALLBACK: Record<string, string> = {
+  "50000178": "Faculty of Pharmacy",
+  "50000172": "Faculty of Social Sciences",
+};
 function MetricCard({
   label,
   value,
@@ -93,7 +96,7 @@ export default async function SuperadminDashboardPage() {
               className="block rounded-[10px] bg-white p-5 shadow-1 transition-shadow hover:shadow-2xl dark:bg-gray-dark dark:shadow-card"
             >
               <p className="text-sm font-semibold text-dark dark:text-white">
-                {f.facultyName} ( {f.total.toLocaleString()})
+                {FACULTY_NAME_FALLBACK[f.facultyId] ?? f.facultyName} ( {f.total.toLocaleString()})
               </p>
             
               

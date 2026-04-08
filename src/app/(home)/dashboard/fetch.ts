@@ -814,6 +814,81 @@ export async function getMasterFilterOptions(
         a.label.localeCompare(b.label)
       );
 
+      if (user?.role === "dean" && user.faculty_id) {
+        const enrollmentFacultyId =
+          FACULTY_ID_TO_ENROLLMENT_FAC_ID[user.faculty_id] ?? user.faculty_id;
+        const scopedRowsRes = await pool.query<{
+          department_id: string | null;
+          course_id: string;
+          program_id: string | null;
+          instructor_pernr: string | null;
+        }>(
+          `SELECT DISTINCT department_id, course_id, program_id, instructor_pernr
+           FROM student_enrollment_current
+           WHERE is_active = TRUE
+             AND faculty_id = $1`,
+          [enrollmentFacultyId]
+        );
+
+        const scopedCourseIds = new Set(
+          scopedRowsRes.rows.map((r) => r.course_id).filter(Boolean)
+        );
+        const scopedDepartmentIds = new Set(
+          scopedRowsRes.rows.map((r) => r.department_id).filter(Boolean) as string[]
+        );
+        const scopedProgramIds = new Set(
+          scopedRowsRes.rows
+            .map((r) =>
+              r.program_id && r.program_id.trim()
+                ? r.program_id
+                : getProgramFromCourse(r.course_id)
+            )
+            .filter(Boolean) as string[]
+        );
+
+        const selectedPrograms = current?.programs?.length
+          ? new Set(current.programs)
+          : null;
+        const selectedCourses = current?.course_ids?.length
+          ? new Set(current.course_ids)
+          : null;
+
+        const departmentsScoped = departments.filter((d) =>
+          scopedDepartmentIds.has(d.value)
+        );
+        const programsScoped = programs.filter((p) =>
+          scopedProgramIds.has(p.value)
+        );
+        const coursesScoped = courses.filter((c) => {
+          if (!scopedCourseIds.has(c.value)) return false;
+          if (selectedPrograms && !selectedPrograms.has(getProgramFromCourse(c.value))) {
+            return false;
+          }
+          return true;
+        });
+
+        const courseIdsForInstructorFilter = selectedCourses
+          ? selectedCourses
+          : new Set(coursesScoped.map((c) => c.value));
+        const instructorIdsInScope = new Set(
+          scopedRowsRes.rows
+            .filter(
+              (r) => r.instructor_pernr && courseIdsForInstructorFilter.has(r.course_id)
+            )
+            .map((r) => String(r.instructor_pernr))
+        );
+        const instructorsScoped = instructors.filter((i) =>
+          instructorIdsInScope.has(i.value)
+        );
+
+        return {
+          departments: departmentsScoped,
+          programs: programsScoped,
+          courses: coursesScoped,
+          instructors: instructorsScoped,
+        };
+      }
+
       if (user?.role === "hod" && user.department_ids?.length) {
         const deptSet = new Set(user.department_ids);
         const scopedCoursesRes = await pool.query<{ course_id: string; instructor_pernr: string | null }>(

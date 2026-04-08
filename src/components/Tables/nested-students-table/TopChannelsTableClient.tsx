@@ -89,6 +89,19 @@ export function TopChannelsTableClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const roleScope = (() => {
+    try {
+      const parsed = new URL(returnToUrl, "http://localhost");
+      const asRole = parsed.searchParams.get("as")?.trim().toLowerCase();
+      const facultyId = parsed.searchParams.get("faculty")?.trim();
+      if (asRole === "dean" && facultyId) {
+        return { role: "dean" as const, facultyId };
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  })();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
@@ -150,6 +163,7 @@ export function TopChannelsTableClient({
       pageSize,
       sortKey: sortConfig?.key ?? "name",
       sortDirection: sortConfig?.direction ?? "asc",
+      roleScope,
       filters: {
         ...(masterFilter ?? {}),
         attendanceFilters: normalizedAttendanceFilters,

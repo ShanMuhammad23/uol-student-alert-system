@@ -7,6 +7,15 @@ import {
   type SessionScope,
 } from "@/lib/db/student-listing";
 
+type Body = ListingRequest & {
+  roleScope?: {
+    role: "dean" | "hod" | "teacher";
+    facultyId?: string | null;
+    departmentIds?: string[] | null;
+    pernr?: string | null;
+  };
+};
+
 function toSessionScope(session: any): SessionScope | null {
   const role = session?.user?.role;
   if (
@@ -38,15 +47,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: ListingRequest;
+  let body: Body;
   try {
-    body = (await req.json()) as ListingRequest;
+    body = (await req.json()) as Body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   try {
-    const result = await getStudentListing(scope, body ?? {});
+    let effectiveScope: SessionScope = scope;
+    if (scope.role === "superadmin" && body?.roleScope) {
+      effectiveScope = {
+        role: body.roleScope.role === "teacher" ? "instructor" : body.roleScope.role,
+        faculty_id: body.roleScope.facultyId ?? null,
+        department_ids: body.roleScope.departmentIds?.length
+          ? body.roleScope.departmentIds
+          : null,
+        pernr: body.roleScope.pernr ?? scope.pernr ?? null,
+      };
+    }
+    const result = await getStudentListing(effectiveScope, body ?? {});
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Top table API error:", error);

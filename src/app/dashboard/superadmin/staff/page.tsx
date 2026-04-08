@@ -39,6 +39,7 @@ type DepartmentRow = {
 
 const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000172": "Faculty of Social Sciences",
+  "50000178": "Faculty of Pharmacy",
 };
 
 function resolveFacultyName(row: StaffListRow): string {

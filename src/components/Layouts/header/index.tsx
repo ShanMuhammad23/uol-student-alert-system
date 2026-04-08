@@ -20,6 +20,7 @@ const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000172": "Faculty of Social Sciences",
   FAC_ENG: "Faculty of Social Sciences",
   FAC_MGT: "Faculty of Social Sciences",
+  "50000178": "Faculty of Pharmacy",
 };
 
 function mapFacultyHeadingName(value?: string | null): string | null {
