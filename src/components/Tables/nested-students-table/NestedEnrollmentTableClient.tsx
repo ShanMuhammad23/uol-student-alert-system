@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { EnrollmentRecord } from "@/lib/enrollment";
+import type { DepartmentStats, ProgramStats, InstructorStats } from "@/lib/enrollment";
 import { StudentProfileLink } from "./StudentProfileLink";
 import { useDashboardUiState } from "@/app/(home)/dashboard/_components/DashboardUiStateContext";
 import {
@@ -22,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   AlertDimensionFilter,
   MasterFilterParams,
+  CourseStats,
 } from "@/app/(home)/dashboard/fetch";
 
 type NestedEnrollmentRow = EnrollmentRecord & {
@@ -86,6 +88,11 @@ type Props = {
   gpaFilters?: AlertDimensionFilter[];
   interventionFilters?: string[];
   resolutionFilters?: string[];
+  /** Optional server stats; when provided, badges use this single source of truth. */
+  departmentStats?: DepartmentStats[];
+  programStats?: ProgramStats[];
+  courseStats?: CourseStats[];
+  instructorStats?: InstructorStats[];
 };
 
 type TopTableRow = {
@@ -118,6 +125,10 @@ export function NestedEnrollmentTableClient({
   gpaFilters,
   interventionFilters,
   resolutionFilters,
+  departmentStats,
+  programStats,
+  courseStats,
+  instructorStats,
 }: Props) {
   const { expandedIds, setExpandedIds } = useDashboardUiState();
   const [dbRows, setDbRows] = useState<TopTableRow[]>([]);
@@ -322,12 +333,58 @@ export function NestedEnrollmentTableClient({
     a.localeCompare(b)
   );
 
+  const normalizedDepartmentStats = useMemo(() => {
+    const normalize = (value: string) =>
+      value.replace(/^Department of\s+/i, "").trim().toLowerCase();
+    const map = new Map<string, DepartmentStats>();
+    for (const stat of departmentStats ?? []) {
+      const key = normalize(stat.departmentName ?? "");
+      if (!key) continue;
+      map.set(key, stat);
+    }
+    return { map, normalize };
+  }, [departmentStats]);
+
+  const normalizedProgramStats = useMemo(() => {
+    const normalize = (value: string) =>
+      value.replace(/^Department of\s+/i, "").trim().toLowerCase();
+    const map = new Map<string, ProgramStats>();
+    for (const stat of programStats ?? []) {
+      const key = normalize(stat.programTitle ?? stat.programId ?? "");
+      if (!key) continue;
+      map.set(key, stat);
+    }
+    return { map, normalize };
+  }, [programStats]);
+
+  const normalizedCourseStats = useMemo(() => {
+    const normalize = (value: string) =>
+      value.split("|")[0]?.trim().toLowerCase() ?? value.trim().toLowerCase();
+    const map = new Map<string, CourseStats>();
+    for (const stat of courseStats ?? []) {
+      const key = normalize(stat.courseId ?? "");
+      if (!key) continue;
+      map.set(key, stat);
+    }
+    return { map, normalize };
+  }, [courseStats]);
+
+  const normalizedInstructorStats = useMemo(() => {
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const map = new Map<string, InstructorStats>();
+    for (const stat of instructorStats ?? []) {
+      const key = normalize(stat.instructorName ?? stat.instructorId ?? "");
+      if (!key) continue;
+      map.set(key, stat);
+    }
+    return { map, normalize };
+  }, [instructorStats]);
+
   const getAttendanceAlertCounts = (
     rows: EnrollmentRecord[]
   ): { red: number; yellow: number } => {
     if (!rows.length || !attendanceSummaries) return { red: 0, yellow: 0 };
-    let red = 0;
-    let yellow = 0;
+    const bySap = new Map<string, "critical" | "warning" | null>();
     for (const row of rows) {
       const monitorKey = `${normalizeCourseCode(
         typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
@@ -339,8 +396,22 @@ export function NestedEnrollmentTableClient({
         summary && classAvg != null
           ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
           : null;
+      const sapId = String(row.SapNo ?? "").trim();
+      if (!sapId) continue;
+      const prev = bySap.get(sapId) ?? null;
+      if (level === "critical") {
+        bySap.set(sapId, "critical");
+      } else if (level === "warning" && prev !== "critical") {
+        bySap.set(sapId, "warning");
+      } else if (!bySap.has(sapId)) {
+        bySap.set(sapId, null);
+      }
+    }
+    let red = 0;
+    let yellow = 0;
+    for (const level of bySap.values()) {
       if (level === "critical") red += 1;
-      if (level === "warning") yellow += 1;
+      else if (level === "warning") yellow += 1;
     }
     return { red, yellow };
   };
@@ -349,12 +420,25 @@ export function NestedEnrollmentTableClient({
     rows: EnrollmentRecord[]
   ): { red: number; yellow: number } => {
     if (!rows.length) return { red: 0, yellow: 0 };
-    let red = 0;
-    let yellow = 0;
+    const bySap = new Map<string, "critical" | "warning" | null>();
     for (const row of rows) {
       const level = (row as NestedEnrollmentRow).gpaAlertLevel ?? null;
+      const sapId = String(row.SapNo ?? "").trim();
+      if (!sapId) continue;
+      const prev = bySap.get(sapId) ?? null;
+      if (level === "critical") {
+        bySap.set(sapId, "critical");
+      } else if (level === "warning" && prev !== "critical") {
+        bySap.set(sapId, "warning");
+      } else if (!bySap.has(sapId)) {
+        bySap.set(sapId, null);
+      }
+    }
+    let red = 0;
+    let yellow = 0;
+    for (const level of bySap.values()) {
       if (level === "critical") red += 1;
-      if (level === "warning") yellow += 1;
+      else if (level === "warning") yellow += 1;
     }
     return { red, yellow };
   };
@@ -414,6 +498,18 @@ export function NestedEnrollmentTableClient({
           }
           const deptAttendanceAlerts = getAttendanceAlertCounts(deptRows);
           const deptGpaAlerts = getGpaAlertCounts(deptRows);
+          const deptStatsFromSource = normalizedDepartmentStats.map.get(
+            normalizedDepartmentStats.normalize(deptName)
+          );
+          const displayDeptAttendanceAlerts = deptStatsFromSource
+            ? {
+                yellow: deptStatsFromSource.yellowAttendance,
+                red: deptStatsFromSource.redAttendance,
+              }
+            : deptAttendanceAlerts;
+          const displayDeptGpaAlerts = deptStatsFromSource
+            ? { yellow: deptStatsFromSource.yellowGpa, red: deptStatsFromSource.redGpa }
+            : deptGpaAlerts;
 
           return (
             <details
@@ -436,22 +532,22 @@ export function NestedEnrollmentTableClient({
                   <span className={cn("text-sm ", deptIsOpen ? "text-white" : "text-dark-6")}>
                     Attendance:{" "}
                     <span className="font-semibold text-yellow-600">
-                     {deptAttendanceAlerts.yellow}
+                     {displayDeptAttendanceAlerts.yellow}
                     </span>
                     {" | "}
                     <span className="font-semibold text-red-600">
-                      {deptAttendanceAlerts.red}
+                      {displayDeptAttendanceAlerts.red}
                     </span>
                   </span>
 
                   <span className={cn("text-sm ", deptIsOpen ? "text-white" : "text-dark-6")}>
                     GPA:{" "}
                     <span className="font-semibold text-yellow-600">
-                      {deptGpaAlerts.yellow}
+                      {displayDeptGpaAlerts.yellow}
                     </span>
                     {" | "}
                     <span className="font-semibold text-red-600">
-                      {deptGpaAlerts.red}
+                      {displayDeptGpaAlerts.red}
                     </span>
                   </span>
                   </div>
@@ -484,6 +580,21 @@ export function NestedEnrollmentTableClient({
                     const programAttendanceAlerts =
                       getAttendanceAlertCounts(programRows);
                     const programGpaAlerts = getGpaAlertCounts(programRows);
+                    const programStatsFromSource = normalizedProgramStats.map.get(
+                      normalizedProgramStats.normalize(programName)
+                    );
+                    const displayProgramAttendanceAlerts = programStatsFromSource
+                      ? {
+                          yellow: programStatsFromSource.yellowAttendance,
+                          red: programStatsFromSource.redAttendance,
+                        }
+                      : programAttendanceAlerts;
+                    const displayProgramGpaAlerts = programStatsFromSource
+                      ? {
+                          yellow: programStatsFromSource.yellowGpa,
+                          red: programStatsFromSource.redGpa,
+                        }
+                      : programGpaAlerts;
 
                     return (
                       <details
@@ -508,22 +619,22 @@ export function NestedEnrollmentTableClient({
                             <span className={cn("text-sm", progIsOpen ? "text-white" : "text-dark-6")}>
                               Attendance:{" "}
                               <span className="font-semibold text-yellow-600">
-                                {programAttendanceAlerts.yellow}
+                                {displayProgramAttendanceAlerts.yellow}
                               </span>
                               {" | "}
                               <span className="font-semibold text-red-600">
-                                {programAttendanceAlerts.red}
+                                {displayProgramAttendanceAlerts.red}
                               </span>
                             </span>
 
                             <span className={cn("text-sm", progIsOpen ? "text-white" : "text-dark-6")}>
                               GPA:{" "}
                               <span className="font-semibold text-yellow-600">
-                                {programGpaAlerts.yellow}
+                                {displayProgramGpaAlerts.yellow}
                               </span>
                               {" | "}
                               <span className="font-semibold text-red-600">
-                                {programGpaAlerts.red}
+                                {displayProgramGpaAlerts.red}
                               </span>
                             </span>
                             </div>
@@ -550,6 +661,31 @@ export function NestedEnrollmentTableClient({
                               const courseAttendanceAlerts =
                                 getAttendanceAlertCounts(rows);
                               const courseGpaAlerts = getGpaAlertCounts(rows);
+                              const courseStatsFromSource = normalizedCourseStats.map.get(
+                                normalizedCourseStats.normalize(
+                                  (rows[0]?.CrCode ?? courseKey) as string
+                                )
+                              );
+                              const displayCourseAttendanceAlerts = courseStatsFromSource
+                                ? {
+                                    yellow: courseStatsFromSource.yellowAttendance,
+                                    red: courseStatsFromSource.redAttendance,
+                                  }
+                                : courseAttendanceAlerts;
+                              const displayCourseGpaAlerts = courseStatsFromSource
+                                ? {
+                                    yellow: courseStatsFromSource.yellowGpa,
+                                    red: courseStatsFromSource.redGpa,
+                                  }
+                                : courseGpaAlerts;
+                              const primaryInstructorName = String(
+                                rows[0]?.Teacher ?? ""
+                              ).trim();
+                              const instructorStatsFromSource = primaryInstructorName
+                                ? normalizedInstructorStats.map.get(
+                                    normalizedInstructorStats.normalize(primaryInstructorName)
+                                  )
+                                : undefined;
 
                               return (
                                 <details
@@ -580,6 +716,18 @@ export function NestedEnrollmentTableClient({
                                         <span className="font-semibold text-dark dark:text-white">
                                           {rows[0]?.Teacher ?? "—"}
                                         </span>
+                                        {instructorStatsFromSource && (
+                                          <>
+                                            {" · "}
+                                            <span className="text-amber-500 font-semibold">
+                                              {instructorStatsFromSource.yellowAttendance}
+                                            </span>
+                                            {" | "}
+                                            <span className="text-red-600 font-semibold">
+                                              {instructorStatsFromSource.redAttendance}
+                                            </span>
+                                          </>
+                                        )}
                                         {" · "}
                                         {rows.length} student
                                         {rows.length !== 1 ? "s" : ""}
@@ -588,22 +736,22 @@ export function NestedEnrollmentTableClient({
                                       <span className={cn("text-sm", courseIsOpen ? "text-white" : "text-dark-6")}>
                                         Attendance:{" "}
                                         <span className="font-semibold text-yellow-600">
-                                          {courseAttendanceAlerts.yellow}
+                                          {displayCourseAttendanceAlerts.yellow}
                                         </span>
                                         {" | "}
                                         <span className="font-semibold text-red-600">
-                                          {courseAttendanceAlerts.red}
+                                          {displayCourseAttendanceAlerts.red}
                                         </span>
                                       </span>
 
                                       <span className={cn("text-sm", courseIsOpen ? "text-white" : "text-dark-6")}>
                                         GPA:{" "}
                                         <span className="font-semibold text-yellow-600">
-                                          {courseGpaAlerts.yellow}
+                                          {displayCourseGpaAlerts.yellow}
                                         </span>
                                         {" | "}
                                         <span className="font-semibold text-red-600">
-                                          {courseGpaAlerts.red}
+                                          {displayCourseGpaAlerts.red}
                                         </span>
                                       </span>
                                       </div>

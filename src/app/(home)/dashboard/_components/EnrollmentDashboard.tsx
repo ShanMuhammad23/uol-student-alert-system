@@ -632,6 +632,10 @@ function EnrollmentDashboardInner({
             <NestedEnrollmentTableClient
               returnToUrl={liveReturnToUrl}
               enrollmentData={filteredData ?? null}
+              departmentStats={departmentStats}
+              programStats={programStats}
+              courseStats={deanCourseStats}
+              instructorStats={instructorStats}
               masterFilter={localMasterFilter}
               attendanceFilters={localAttendanceFilters}
               gpaFilters={localGpaFilters}
