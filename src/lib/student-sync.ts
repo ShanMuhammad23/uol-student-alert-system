@@ -42,6 +42,11 @@ type AttendanceApiEntry = {
   AcadPerid?: string;
 };
 
+type StudentSyncOptions = {
+  enrollmentFacultyCodes?: string[];
+  facultyIds?: string[];
+};
+
 type StudentSyncResult = {
   snapshotDate: string;
   sourceEnrollmentRows: number;
@@ -134,6 +139,78 @@ async function fetchAttendanceEntriesFromSap(
   return entries;
 }
 
+function parseFacultyCodeList(raw: string | undefined): string[] {
+  return String(raw ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+async function fetchEnrollmentEntriesFromSap(
+  campus: string,
+  acadYear: string,
+  acadPerid: string,
+  facultyCode: string,
+  top = 250000
+): Promise<EnrollmentRow[]> {
+  const baseUrl =
+    process.env.SAP_ENROLLMENT_BASE_URL ??
+    "https://hub.uol.edu.pk/sap/opu/odata/sap/ZSLCM_ENROLLMENT_SRV/zenrollmentSet";
+  const safeTop = Number.isFinite(top) && top > 0 ? Math.trunc(top) : 250000;
+  let skip = 0;
+  const out: EnrollmentRow[] = [];
+  const filter = `(CampCode eq '${campus}' and Peryr eq '${acadYear}' and Perid eq '${acadPerid}' and FacCode eq '${facultyCode}')`;
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    removeNSPrefix: true,
+    trimValues: true,
+    maxNestedTags: 800000,
+  });
+
+  while (true) {
+    const url = new URL(baseUrl);
+    url.searchParams.set("$filter", filter);
+    url.searchParams.set("$top", String(safeTop));
+    url.searchParams.set("$skip", String(skip));
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/xml",
+        Authorization: getSapCredentials(),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error(
+        `Enrollment API error (faculty=${facultyCode}, skip=${skip}): ${res.status} ${res.statusText}`
+      );
+    }
+
+    const xml = await res.text();
+    const json = parser.parse(xml);
+    const feed = json.feed ?? json;
+    const rawEntries = Array.isArray(feed?.entry)
+      ? feed.entry
+      : feed?.entry
+        ? [feed.entry]
+        : [];
+    if (!rawEntries.length) break;
+
+    for (const entry of rawEntries) {
+      const props: EnrollmentRow | undefined =
+        entry?.content?.properties ?? entry?.content?.["m:properties"];
+      if (!props) continue;
+      out.push(props);
+    }
+
+    if (rawEntries.length < safeTop) break;
+    skip += safeTop;
+  }
+
+  return out;
+}
+
 function buildMultiInsertPlaceholders(
   rowCount: number,
   colCount: number,
@@ -150,15 +227,51 @@ function buildMultiInsertPlaceholders(
   return rows.join(",");
 }
 
-export async function runStudentSync(snapshotDate?: string): Promise<StudentSyncResult> {
+export async function runStudentSync(
+  snapshotDate?: string,
+  options?: StudentSyncOptions
+): Promise<StudentSyncResult> {
   if (!pool) throw new Error("DATABASE_URL is not configured");
 
   const date = snapshotDate ?? new Date().toISOString().slice(0, 10);
   const campus = (process.env.SAP_CAMPUS ?? "11").trim();
   const pYear = (process.env.SAP_PYEAR ?? "2026").trim();
   const pSess = (process.env.SAP_PSESS ?? "001").trim();
+  const requestedFacultyCodes = (options?.enrollmentFacultyCodes ?? [])
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+  const envFacultyCodes = parseFacultyCodeList(
+    process.env.SAP_ENROLLMENT_FAC_CODES ?? "1117,1113"
+  );
+  const facultyCodes = Array.from(
+    new Set(requestedFacultyCodes.length ? requestedFacultyCodes : envFacultyCodes)
+  );
+  if (!facultyCodes.length) {
+    throw new Error(
+      "No enrollment faculty code provided. Set SAP_ENROLLMENT_FAC_CODES or pass enrollmentFacultyCodes."
+    );
+  }
+  console.info(
+    `[student-sync] Enrollment fetch start campus=${campus} year=${pYear} session=${pSess} faculties=${facultyCodes.join(",")}`
+  );
 
-  const enrollmentRows = await readJsonArray<EnrollmentRow>("enrollment_data.json");
+  const enrollmentFetchTop = Number(process.env.SAP_ENROLLMENT_TOP ?? "250000");
+  const enrollmentRowsByFaculty = await Promise.all(
+    facultyCodes.map(async (facultyCode) => {
+      const rows = await fetchEnrollmentEntriesFromSap(
+        campus,
+        pYear,
+        pSess,
+        facultyCode,
+        enrollmentFetchTop
+      );
+      console.info(
+        `[student-sync] Enrollment fetched facultyCode=${facultyCode} rows=${rows.length}`
+      );
+      return rows;
+    })
+  );
+  const enrollmentRows = enrollmentRowsByFaculty.flat();
   let attendanceRows: AttendanceRow[] = [];
   try {
     const attendanceFromApi = await fetchAttendanceEntriesFromSap(pYear, pSess);
@@ -175,9 +288,9 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
   });
 
   const filteredEnrollments = enrollmentRows.filter((row) => {
-    const rowCampus = (row.CampCode ?? "").trim();
-    const rowYear = (row.Peryr ?? "").trim();
-    const rowSess = (row.Perid ?? "").trim();
+    const rowCampus = String(row.CampCode ?? "").trim();
+    const rowYear = String(row.Peryr ?? "").trim();
+    const rowSess = String(row.Perid ?? "").trim();
     if (rowCampus && normalizeCode(rowCampus) !== normalizeCode(campus)) return false;
     if (rowYear && normalizeCode(rowYear) !== normalizeCode(pYear)) return false;
     if (rowSess && normalizeCode(rowSess) !== normalizeCode(pSess)) return false;
@@ -451,7 +564,25 @@ export async function runStudentSync(snapshotDate?: string): Promise<StudentSync
       );
     }
 
-    await pool.query(`UPDATE student_enrollment_current SET is_active = FALSE`);
+    const requestedFacultyIds = (options?.facultyIds ?? [])
+      .map((v) => String(v).trim())
+      .filter(Boolean);
+    const preparedFacultyIds = Array.from(
+      new Set(prepared.map((row) => row.facultyId).filter(Boolean))
+    );
+    const scopedFacultyIds = Array.from(
+      new Set(
+        requestedFacultyIds.length ? requestedFacultyIds : preparedFacultyIds
+      )
+    );
+    if (scopedFacultyIds.length) {
+      await pool.query(
+        `UPDATE student_enrollment_current
+         SET is_active = FALSE
+         WHERE faculty_id = ANY($1::text[])`,
+        [scopedFacultyIds]
+      );
+    }
 
     for (const row of prepared) {
       await pool.query(

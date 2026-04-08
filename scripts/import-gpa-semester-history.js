@@ -252,10 +252,10 @@ async function main() {
 
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set.");
   const campus = normalize(process.env.SAP_CAMPUS || "11");
-  const facCode = normalize(process.env.SAP_FAC_CODE || "1117");
+  const facCode = normalize(process.env.SAP_FAC_CODE || "1120");
   const startYear = normalize(process.env.GPA_IMPORT_START_YEAR || "2025");
   const startPerid = normalizePerid(process.env.GPA_IMPORT_START_PERID || "003");
-  const semesterCount = Number(process.env.GPA_IMPORT_SEMESTER_COUNT || 8);
+  const semesterCount = Number(process.env.GPA_IMPORT_SEMESTER_COUNT || 4);
   const top = Number(process.env.GPA_IMPORT_TOP || 250000);
   const baseUrl = normalize(process.env.SAP_ENROLLMENT_BASE_URL || DEFAULT_BASE_URL);
   const auth = getAuthHeader();

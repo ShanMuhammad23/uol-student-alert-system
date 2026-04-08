@@ -327,9 +327,6 @@ export function MasterFilter({
       return { value: o.value, label: labelWithOptionalCount(o.label, n) };
     });
   }, [dropdownCounts]);
-
-  // When parent filter changes, clear child selections so options stay in sync.
-  // These handlers update local state in the parent via callbacks instead of navigating.
   const handleDepartment = (values: string[]) => {
     onChangeMasterFilter?.({
       department_ids: values.length ? values : undefined,
