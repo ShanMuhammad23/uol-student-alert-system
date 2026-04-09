@@ -682,32 +682,12 @@ export async function getStudentListing(
       })(),
       attendanceMarkedClasses: parseNumber(row.attendance_marked_classes),
       classesAttended: (() => {
-        const posted = parseNumber(row.attendance_marked_classes);
-        const attendedRaw = parseNumber(row.classes_attended);
-        if (posted > 0 && attendedRaw > posted) return posted;
-        return attendedRaw;
+        return parseNumber(row.classes_attended);
       })(),
       attendancePercentage: (() => {
-        const posted = parseNumber(row.attendance_marked_classes);
-        const attendedRaw = parseNumber(row.classes_attended);
-        const attended =
-          posted > 0 && attendedRaw > posted ? posted : attendedRaw;
-
-        const raw = row.attendance_percentage;
-        if (raw == null) {
-          return posted > 0 ? (attended / posted) * 100 : null;
-        }
-
-        const base = Number(raw);
-        if (!Number.isFinite(base)) {
-          return posted > 0 ? (attended / posted) * 100 : null;
-        }
-
-        if (posted > 0 && attendedRaw > posted) {
-          return (attended / posted) * 100;
-        }
-
-        return base;
+        return row.attendance_percentage == null
+          ? null
+          : Number(row.attendance_percentage);
       })(),
       classAverageAttendance:
         row.class_average_attendance == null ? null : Number(row.class_average_attendance),
