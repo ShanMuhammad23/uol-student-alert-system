@@ -18,6 +18,8 @@ type DashboardUiState = {
   isExpanded: (id: string) => boolean;
   toggleExpanded: (id: string) => void;
   setExpandedIds: (ids: string[]) => void;
+  attendanceMissingTotal: number | null;
+  setAttendanceMissingTotal: (value: number | null) => void;
 };
 
 const DashboardUiStateContext = createContext<DashboardUiState | undefined>(
@@ -37,6 +39,9 @@ export function DashboardUiStateProvider({
 }: ProviderProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [expandedIds, setExpandedIds] = useState<string[]>(initialExpandedIds);
+  const [attendanceMissingTotal, setAttendanceMissingTotal] = useState<number | null>(
+    null,
+  );
 
   const isExpanded = useCallback(
     (id: string) => expandedIds.includes(id),
@@ -57,8 +62,16 @@ export function DashboardUiStateProvider({
       isExpanded,
       toggleExpanded,
       setExpandedIds,
+      attendanceMissingTotal,
+      setAttendanceMissingTotal,
     }),
-    [expandedIds, isExpanded, toggleExpanded, viewMode],
+    [
+      attendanceMissingTotal,
+      expandedIds,
+      isExpanded,
+      toggleExpanded,
+      viewMode,
+    ],
   );
 
   return (

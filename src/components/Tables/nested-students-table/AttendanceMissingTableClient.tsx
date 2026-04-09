@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type {
   AlertDimensionFilter,
@@ -74,29 +74,34 @@ export function AttendanceMissingTableClient({
   interventionFilters,
   resolutionFilters,
 }: Props) {
-  const { expandedIds, setExpandedIds } = useDashboardUiState();
+  const { expandedIds, setExpandedIds, setAttendanceMissingTotal } = useDashboardUiState();
   const [rows, setRows] = useState<TopTableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
 
-  const roleScope = useMemo(() => {
+  const roleScopeParams = useMemo(() => {
     try {
       const parsed = new URL(returnToUrl, "http://localhost");
       const asRole = parsed.searchParams.get("as")?.trim().toLowerCase();
       const facultyId = parsed.searchParams.get("faculty")?.trim();
-      if (asRole === "dean" && facultyId) {
-        return { role: "dean" as const, facultyId };
-      }
-      return undefined;
+      return { asRole, facultyId };
     } catch {
-      return undefined;
+      return { asRole: undefined, facultyId: undefined };
     }
   }, [returnToUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setIsLoading(true);
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
+    const roleScope =
+      roleScopeParams.asRole === "dean" && roleScopeParams.facultyId
+        ? { role: "dean" as const, facultyId: roleScopeParams.facultyId }
+        : undefined;
 
     const normalizedAttendanceFilters =
       attendanceFilters?.includes("all" as AlertDimensionFilter)
@@ -139,6 +144,7 @@ export function AttendanceMissingTableClient({
       .then((body: { rows?: TopTableRow[] }) => {
         const incomingRows = Array.isArray(body.rows) ? body.rows : [];
         setRows(incomingRows.filter((row) => row.isActive !== false));
+        hasLoadedOnceRef.current = true;
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -155,7 +161,8 @@ export function AttendanceMissingTableClient({
     classStatusFilters,
     interventionFilters,
     resolutionFilters,
-    roleScope,
+    roleScopeParams.asRole,
+    roleScopeParams.facultyId,
   ]);
 
   const summaryByDepartment = useMemo(() => {
@@ -210,6 +217,97 @@ export function AttendanceMissingTableClient({
     () => Array.from(summaryByDepartment.keys()).sort((a, b) => a.localeCompare(b)),
     [summaryByDepartment]
   );
+
+  const totalMissingAttendance = useMemo(() => {
+    let total = 0;
+    for (const dept of summaryByDepartment.values()) {
+      for (const program of dept.programs.values()) {
+        for (const course of program.courses.values()) {
+          total += course.missing;
+        }
+      }
+    }
+    return total;
+  }, [summaryByDepartment]);
+
+  useEffect(() => {
+    setAttendanceMissingTotal(totalMissingAttendance);
+  }, [setAttendanceMissingTotal, totalMissingAttendance]);
+
+  useEffect(() => {
+    return () => setAttendanceMissingTotal(null);
+  }, [setAttendanceMissingTotal]);
+
+  const csvEscape = (value: string): string => {
+    if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  const exportFilteredAttendanceMissingCsv = () => {
+    setIsExportingCsv(true);
+    try {
+      const headers = [
+        "Instructor",
+        "Course",
+        "Program",
+        "Department",
+        "Classes Held",
+        "Attendance Posted",
+        "Not Updated",
+        "Difference",
+      ];
+
+      const lines = [headers.join(",")];
+
+      for (const deptName of sortedDepartments) {
+        const dept = summaryByDepartment.get(deptName);
+        if (!dept) continue;
+        const programs = Array.from(dept.programs.keys()).sort((a, b) =>
+          a.localeCompare(b)
+        );
+        for (const programName of programs) {
+          const program = dept.programs.get(programName);
+          if (!program) continue;
+          const courses = Array.from(program.courses.values()).sort((a, b) =>
+            a.courseId.localeCompare(b.courseId)
+          );
+          for (const course of courses) {
+            const values = [
+              Array.from(course.instructors).join(", "),
+              `${course.courseId}${
+                course.courseTitle && course.courseTitle !== course.courseId
+                  ? ` (${course.courseTitle})`
+                  : ""
+              }`,
+              programName,
+              deptName.replace(/^Department of\s+/i, ""),
+              String(course.held),
+              String(course.posted),
+              String(course.missing),
+              String(course.held - course.posted),
+            ].map((v) => csvEscape(String(v)));
+            lines.push(values.join(","));
+          }
+        }
+      }
+
+      const csv = lines.join("\n");
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `attendance-missing-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -268,7 +366,19 @@ export function AttendanceMissingTableClient({
       )}
     >
       {expandedIds.length > 0 && (
-        <div className="mb-2 flex justify-end">
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={exportFilteredAttendanceMissingCsv}
+            disabled={isExportingCsv}
+            className={cn(
+              "rounded-md border px-3 py-2 text-sm font-medium outline-none transition",
+              "focus-visible:ring-2 focus-visible:ring-primary",
+              "border-primary text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            {isExportingCsv ? "Exporting..." : "Export CSV"}
+          </button>
           <button
             type="button"
             onClick={() => setExpandedIds([])}
@@ -279,6 +389,23 @@ export function AttendanceMissingTableClient({
             )}
           >
             Collapse all
+          </button>
+        </div>
+      )}
+
+      {expandedIds.length === 0 && (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={exportFilteredAttendanceMissingCsv}
+            disabled={isExportingCsv}
+            className={cn(
+              "rounded-md border px-3 py-2 text-sm font-medium outline-none transition",
+              "focus-visible:ring-2 focus-visible:ring-primary",
+              "border-primary text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            {isExportingCsv ? "Exporting..." : "Export CSV"}
           </button>
         </div>
       )}

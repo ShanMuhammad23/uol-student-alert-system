@@ -18,7 +18,7 @@ export function SuperadminDashboardShell({
 
   return (
     <div className="-mx-8">
-      <div className="relative flex min-h-[calc(100vh-5rem)]">
+      <div className="relative flex min-h-[calc(100vh-5rem)] ">
         <Sidebar user={user} />
 
         {!isOpen && (
@@ -32,7 +32,7 @@ export function SuperadminDashboardShell({
           </button>
         )}
 
-        <div className="min-w-0 flex-1 px-8 py-4">{children}</div>
+        <div className="min-w-0 flex-1 px-8 py-4 h-screen overflow-y-auto scrollbar-hide">{children}</div>
       </div>
     </div>
   );

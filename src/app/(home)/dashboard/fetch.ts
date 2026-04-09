@@ -1741,11 +1741,19 @@ export async function getSuperadminFacultyStats(): Promise<FacultyStats[]> {
 
 /** Daily alert snapshot trend for Superadmin charts. */
 export async function getSuperadminAlertSnapshotTrend(
-  limit = 30
+  limit = 30,
+  facultyId?: string | null
 ): Promise<AlertSnapshotTrendPoint[]> {
   if (!pool) return [];
   try {
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(365, limit)) : 30;
+    const params: unknown[] = [];
+    let whereSql = "WHERE dimension_type = 'faculty'";
+    if (facultyId) {
+      params.push(facultyId);
+      whereSql += ` AND dimension_id = $${params.length}`;
+    }
+    params.push(safeLimit);
     const res = await pool.query<{
       snapshot_date: string;
       total_students: number | string | null;
@@ -1762,11 +1770,11 @@ export async function getSuperadminAlertSnapshotTrend(
          COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
          COALESCE(SUM(red_attendance), 0) AS red_attendance
        FROM alert_counts_by_dimension
-       WHERE dimension_type = 'faculty'
+       ${whereSql}
        GROUP BY snapshot_date
        ORDER BY snapshot_date DESC
-       LIMIT $1`,
-      [safeLimit]
+       LIMIT $${params.length}`,
+      params
     );
 
     return res.rows

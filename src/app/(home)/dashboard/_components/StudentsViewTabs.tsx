@@ -8,7 +8,7 @@ type Props = {
 };
 
 export function StudentsViewTabs({ className }: Props) {
-  const { viewMode, setViewMode } = useDashboardUiState();
+  const { viewMode, setViewMode, attendanceMissingTotal } = useDashboardUiState();
 
   return (
     <div
@@ -59,7 +59,22 @@ export function StudentsViewTabs({ className }: Props) {
             : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
         )}
       >
-        Attendance Missing
+        <span className="inline-flex items-center gap-2">
+          <span>Attendance Missing</span>
+          {typeof attendanceMissingTotal === "number" && (
+            <span
+              className={cn(
+                "inline-flex min-w-[22px] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none",
+                viewMode === "attendance-missing"
+                  ? "bg-primary/10 text-primary dark:bg-primary/20"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+              )}
+              aria-label={`Total missing attendance ${attendanceMissingTotal}`}
+            >
+              {attendanceMissingTotal.toLocaleString()}
+            </span>
+          )}
+        </span>
       </button>
     </div>
   );

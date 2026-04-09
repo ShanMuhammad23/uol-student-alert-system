@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ApexOptions } from "apexcharts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AlertSnapshotTrendPoint } from "@/app/(home)/dashboard/fetch";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,6 @@ const Chart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
 });
 
-const DEFAULT_VISIBLE_DAYS = 10;
 const SERIES_COLORS = ["#EAB308", "#DC2626", "#EAB308", "#DC2626"] as const;
 
 function parseSnapshotDate(dateStr: string): Date {
@@ -63,12 +62,7 @@ export function AlertSnapshotsLineChart({ points }: Props) {
       return { from: "", to: "" };
     }
     const to = sortedAsc[sortedAsc.length - 1].snapshotDate;
-    if (sortedAsc.length <= DEFAULT_VISIBLE_DAYS) {
-      return { from: sortedAsc[0].snapshotDate, to };
-    }
-    const from =
-      sortedAsc[sortedAsc.length - DEFAULT_VISIBLE_DAYS].snapshotDate;
-    return { from, to };
+    return { from: sortedAsc[0].snapshotDate, to };
   }, [sortedAsc]);
 
   const [rangeFrom, setRangeFrom] = useState<string>("");
@@ -104,24 +98,6 @@ export function AlertSnapshotsLineChart({ points }: Props) {
       ),
     [chartPoints, showYearInLabels]
   );
-
-  const applyLast10Days = useCallback(() => {
-    if (!sortedAsc.length) return;
-    const to = sortedAsc[sortedAsc.length - 1].snapshotDate;
-    if (sortedAsc.length <= DEFAULT_VISIBLE_DAYS) {
-      setRangeFrom(sortedAsc[0].snapshotDate);
-      setRangeTo(to);
-      return;
-    }
-    setRangeFrom(sortedAsc[sortedAsc.length - DEFAULT_VISIBLE_DAYS].snapshotDate);
-    setRangeTo(to);
-  }, [sortedAsc]);
-
-  const applyFullRange = useCallback(() => {
-    if (!bounds.min || !bounds.max) return;
-    setRangeFrom(bounds.min);
-    setRangeTo(bounds.max);
-  }, [bounds.min, bounds.max]);
 
   const latestStudentCount =
     chartPoints[chartPoints.length - 1]?.totalStudents ?? 0;
@@ -261,22 +237,6 @@ export function AlertSnapshotsLineChart({ points }: Props) {
                 onChange={(e) => setRangeTo(e.target.value)}
               />
             </label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={applyLast10Days}
-                className="rounded-md border border-stroke px-2.5 py-1.5 text-xs font-medium text-dark transition-colors hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-2"
-              >
-                Last {DEFAULT_VISIBLE_DAYS} days
-              </button>
-              <button
-                type="button"
-                onClick={applyFullRange}
-                className="rounded-md border border-stroke px-2.5 py-1.5 text-xs font-medium text-dark transition-colors hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-2"
-              >
-                All data
-              </button>
-            </div>
           </div>
         ) : null}
       </div>

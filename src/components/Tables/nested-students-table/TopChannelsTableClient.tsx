@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -93,6 +93,7 @@ export function TopChannelsTableClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
   const roleScope = (() => {
     try {
       const parsed = new URL(returnToUrl, "http://localhost");
@@ -281,7 +282,9 @@ export function TopChannelsTableClient({
 
   useEffect(() => {
     const controller = new AbortController();
-    setIsLoading(true);
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
     const effectivePageSize = rowsPerPage === "all" ? 100000 : rowsPerPage;
     fetch("/api/students/top-table", {
@@ -309,6 +312,7 @@ export function TopChannelsTableClient({
             ? null
             : Number(body.totalUniqueStudents ?? (body as any).total_unique_students)
         );
+        hasLoadedOnceRef.current = true;
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -438,30 +442,32 @@ export function TopChannelsTableClient({
                 </span>
               </div>
             </div>
-            <div className="relative w-full md:w-80">
-              <label className="sr-only" htmlFor="student-search">
-                Search by name or SAP ID
-              </label>
-              <input
-                id="student-search"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search student by name or SAP ID"
-                className="w-full rounded-lg border border-stroke bg-white px-3 py-2.5 text-sm text-dark outline-none transition focus:border-primary focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white"
-              />
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center md:ml-auto">
+              <div className="relative w-full md:w-80">
+                <label className="sr-only" htmlFor="student-search">
+                  Search by name or SAP ID
+                </label>
+                <input
+                  id="student-search"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search student by name or SAP ID"
+                  className="w-full rounded-lg border border-stroke bg-white px-3 py-2.5 text-sm text-dark outline-none transition focus:border-primary focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={exportAllFilteredStudentsCsv}
+                disabled={isExportingCsv}
+                className={cn(
+                  "inline-flex h-[42px] shrink-0 items-center justify-center rounded-lg border border-primary px-4 text-sm font-medium text-primary transition hover:bg-primary/10",
+                  "focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+                )}
+              >
+                {isExportingCsv ? "Exporting..." : "Export CSV"}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={exportAllFilteredStudentsCsv}
-              disabled={isExportingCsv}
-              className={cn(
-                "inline-flex h-[42px] shrink-0 items-center justify-center rounded-lg border border-primary px-4 text-sm font-medium text-primary transition hover:bg-primary/10",
-                "focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-              )}
-            >
-              {isExportingCsv ? "Exporting..." : "Export CSV"}
-            </button>
           </div>
 
           <Table>
@@ -662,7 +668,7 @@ export function TopChannelsTableClient({
                           </span>
                           {notUpdatedVsHeld === 0 ? (
                             <span className="text-green-500 text-xs">
-                              All held sessions posted
+                             Posted
                             </span>
                           ) : (
                             <span
@@ -673,7 +679,7 @@ export function TopChannelsTableClient({
                                   : "text-amber-600 dark:text-amber-400"
                               )}
                             >
-                              Not updated vs held ({notUpdatedVsHeld})
+                              {notUpdatedVsHeld < 0 ? "Duplicate Posting" : "Not Posted"} ({notUpdatedVsHeld})
                             </span>
                           )}
                         </div>
