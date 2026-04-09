@@ -11,6 +11,7 @@ type Props = {
     masterFilter: MasterFilterParams;
     gpaFilters: AlertDimensionFilter[];
     attendanceFilters: AlertDimensionFilter[];
+    classStatusFilters: string[];
     interventionFilters: string[];
     resolutionFilters: string[];
   };
@@ -33,6 +34,9 @@ export function DashboardFiltersStateProvider({
   );
   const [attendanceFilters, setAttendanceFilters] =
     useState<AlertDimensionFilter[]>(initial.attendanceFilters);
+  const [classStatusFilters, setClassStatusFilters] = useState<string[]>(
+    initial.classStatusFilters
+  );
   const [interventionFilters, setInterventionFilters] = useState<string[]>(
     initial.interventionFilters,
   );
@@ -45,11 +49,13 @@ export function DashboardFiltersStateProvider({
       masterFilter,
       gpaFilters,
       attendanceFilters,
+      classStatusFilters,
       interventionFilters,
       resolutionFilters,
       setMasterFilter,
       setGpaFilters,
       setAttendanceFilters,
+      setClassStatusFilters,
       setInterventionFilters,
       setResolutionFilters,
     }),
@@ -57,6 +63,7 @@ export function DashboardFiltersStateProvider({
       masterFilter,
       gpaFilters,
       attendanceFilters,
+      classStatusFilters,
       interventionFilters,
       resolutionFilters,
     ],

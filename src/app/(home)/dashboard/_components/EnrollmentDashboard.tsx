@@ -57,6 +57,7 @@ type Props = {
   selectedAlert: string;
   gpaFilters: AlertDimensionFilter[];
   attendanceFilters: AlertDimensionFilter[];
+  classStatusFilters: string[];
   interventionFilters: string[];
   returnToUrl: string;
   departmentIds: string[];
@@ -86,6 +87,7 @@ export function EnrollmentDashboard({
   selectedAlert,
   gpaFilters,
   attendanceFilters,
+  classStatusFilters,
   interventionFilters,
   returnToUrl,
   departmentIds,
@@ -105,6 +107,8 @@ export function EnrollmentDashboard({
     dashboardFilter?.attendanceFilters ?? attendanceFilters;
   const localInterventionFilters: string[] =
     dashboardFilter?.interventionFilters ?? interventionFilters;
+  const localClassStatusFilters: string[] =
+    dashboardFilter?.classStatusFilters ?? classStatusFilters;
   const localResolutionFilters: string[] =
     dashboardFilter?.resolutionFilters ?? [];
 
@@ -124,6 +128,9 @@ export function EnrollmentDashboard({
     ((_: SetStateAction<AlertDimensionFilter[]>) => {});
   const setLocalInterventionFilters: Dispatch<SetStateAction<string[]>> =
     dashboardFilter?.setInterventionFilters ??
+    ((_: SetStateAction<string[]>) => {});
+  const setLocalClassStatusFilters: Dispatch<SetStateAction<string[]>> =
+    dashboardFilter?.setClassStatusFilters ??
     ((_: SetStateAction<string[]>) => {});
   const setLocalResolutionFilters: Dispatch<SetStateAction<string[]>> =
     dashboardFilter?.setResolutionFilters ??
@@ -166,12 +173,14 @@ export function EnrollmentDashboard({
         localMasterFilter={localMasterFilter}
         localGpaFilters={localGpaFilters}
         localAttendanceFilters={localAttendanceFilters}
+        localClassStatusFilters={localClassStatusFilters}
         localInterventionFilters={localInterventionFilters}
         localResolutionFilters={localResolutionFilters}
         localInterventionStatusFilters={localInterventionStatusFilters}
         setLocalMasterFilter={setLocalMasterFilter}
         setLocalGpaFilters={setLocalGpaFilters}
         setLocalAttendanceFilters={setLocalAttendanceFilters}
+        setLocalClassStatusFilters={setLocalClassStatusFilters}
         setLocalInterventionFilters={setLocalInterventionFilters}
         setLocalResolutionFilters={setLocalResolutionFilters}
         departmentStats={departmentStats}
@@ -203,12 +212,14 @@ type InnerProps = {
   localMasterFilter: MasterFilterParams;
   localGpaFilters: AlertDimensionFilter[];
   localAttendanceFilters: AlertDimensionFilter[];
+  localClassStatusFilters: string[];
   localInterventionFilters: string[];
   localResolutionFilters: string[];
   localInterventionStatusFilters: string[];
   setLocalMasterFilter: Dispatch<SetStateAction<MasterFilterParams>>;
   setLocalGpaFilters: Dispatch<SetStateAction<AlertDimensionFilter[]>>;
   setLocalAttendanceFilters: Dispatch<SetStateAction<AlertDimensionFilter[]>>;
+  setLocalClassStatusFilters: Dispatch<SetStateAction<string[]>>;
   setLocalInterventionFilters: Dispatch<SetStateAction<string[]>>;
   setLocalResolutionFilters: Dispatch<SetStateAction<string[]>>;
   departmentStats: DepartmentStats[] | undefined;
@@ -237,12 +248,14 @@ function EnrollmentDashboardInner({
   localMasterFilter,
   localGpaFilters,
   localAttendanceFilters,
+  localClassStatusFilters,
   localInterventionFilters,
   localResolutionFilters,
   localInterventionStatusFilters,
   setLocalMasterFilter,
   setLocalGpaFilters,
   setLocalAttendanceFilters,
+  setLocalClassStatusFilters,
   setLocalInterventionFilters,
   setLocalResolutionFilters,
   departmentStats,
@@ -308,6 +321,7 @@ function EnrollmentDashboardInner({
     setMulti("course", localMasterFilter.course_ids);
     setMulti("gpa_filter", localGpaFilters);
     setMulti("attendance_filter", localAttendanceFilters);
+    setMulti("class_status_filter", localClassStatusFilters);
     setMulti("intervention_filter", localInterventionFilters);
     setMulti("resolution_filter", localResolutionFilters);
 
@@ -335,6 +349,7 @@ function EnrollmentDashboardInner({
     localMasterFilter.course_ids,
     localGpaFilters,
     localAttendanceFilters,
+    localClassStatusFilters,
     localInterventionFilters,
     localResolutionFilters,
     selectedAlert,
@@ -595,6 +610,7 @@ function EnrollmentDashboardInner({
           selectedAlert={selectedAlert}
           gpaFilters={localGpaFilters}
           attendanceFilters={localAttendanceFilters}
+          classStatusFilters={localClassStatusFilters}
           interventionFilters={localInterventionFilters}
           resolutionFilters={localResolutionFilters}
           interventionStatusFilters={localInterventionStatusFilters}
@@ -607,6 +623,9 @@ function EnrollmentDashboardInner({
           onChangeGpaFilters={(values) => setLocalGpaFilters(values)}
           onChangeAttendanceFilters={(values) =>
             setLocalAttendanceFilters(values)
+          }
+          onChangeClassStatusFilters={(values) =>
+            setLocalClassStatusFilters(values)
           }
           onChangeInterventionFilters={(values) =>
             setLocalInterventionFilters(values)
@@ -626,6 +645,7 @@ function EnrollmentDashboardInner({
             returnToUrl={liveReturnToUrl}
             masterFilter={localMasterFilter}
             attendanceFilters={localAttendanceFilters}
+            classStatusFilters={localClassStatusFilters}
             gpaFilters={localGpaFilters}
             interventionFilters={localInterventionFilters}
             resolutionFilters={localResolutionFilters}
@@ -641,6 +661,7 @@ function EnrollmentDashboardInner({
               instructorStats={instructorStats}
               masterFilter={localMasterFilter}
               attendanceFilters={localAttendanceFilters}
+              classStatusFilters={localClassStatusFilters}
               gpaFilters={localGpaFilters}
               interventionFilters={localInterventionFilters}
               resolutionFilters={localResolutionFilters}
@@ -652,6 +673,7 @@ function EnrollmentDashboardInner({
               returnToUrl={liveReturnToUrl}
               masterFilter={localMasterFilter}
               attendanceFilters={localAttendanceFilters}
+              classStatusFilters={localClassStatusFilters}
               gpaFilters={localGpaFilters}
               interventionFilters={localInterventionFilters}
               resolutionFilters={localResolutionFilters}

@@ -14,6 +14,7 @@ type Props = {
   masterFilter?: MasterFilterParams;
   attendanceFilters?: AlertDimensionFilter[];
   gpaFilters?: AlertDimensionFilter[];
+  classStatusFilters?: string[];
   interventionFilters?: string[];
   resolutionFilters?: string[];
 };
@@ -69,6 +70,7 @@ export function AttendanceMissingTableClient({
   masterFilter,
   attendanceFilters,
   gpaFilters,
+  classStatusFilters,
   interventionFilters,
   resolutionFilters,
 }: Props) {
@@ -117,6 +119,10 @@ export function AttendanceMissingTableClient({
           ...(masterFilter ?? {}),
           attendanceFilters: normalizedAttendanceFilters,
           gpaFilters: normalizedGpaFilters,
+          classStatusFilters:
+            classStatusFilters?.length && !classStatusFilters.includes("all")
+              ? classStatusFilters.filter((v) => v !== "all")
+              : undefined,
           interventionFilters,
           resolutionFilters:
             resolutionFilters?.length && !resolutionFilters.includes("all")
@@ -146,6 +152,7 @@ export function AttendanceMissingTableClient({
     masterFilter,
     attendanceFilters,
     gpaFilters,
+    classStatusFilters,
     interventionFilters,
     resolutionFilters,
     roleScope,

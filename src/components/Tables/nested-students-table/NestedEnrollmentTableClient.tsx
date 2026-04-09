@@ -87,6 +87,7 @@ type Props = {
   attendanceFilters?: AlertDimensionFilter[];
   /** GPA alert filters (red / yellow / good) from MasterFilter. */
   gpaFilters?: AlertDimensionFilter[];
+  classStatusFilters?: string[];
   interventionFilters?: string[];
   resolutionFilters?: string[];
   /** Optional server stats; when provided, badges use this single source of truth. */
@@ -125,6 +126,7 @@ export function NestedEnrollmentTableClient({
   masterFilter,
   attendanceFilters,
   gpaFilters,
+  classStatusFilters,
   interventionFilters,
   resolutionFilters,
   departmentStats,
@@ -172,6 +174,10 @@ export function NestedEnrollmentTableClient({
           ...(masterFilter ?? {}),
           attendanceFilters: normalizedAttendanceFilters,
           gpaFilters: normalizedGpaFilters,
+          classStatusFilters:
+            classStatusFilters?.length && !classStatusFilters.includes("all")
+              ? classStatusFilters.filter((v) => v !== "all")
+              : undefined,
           interventionFilters,
           resolutionFilters:
             resolutionFilters?.length && !resolutionFilters.includes("all")
@@ -196,6 +202,7 @@ export function NestedEnrollmentTableClient({
     masterFilter,
     attendanceFilters,
     gpaFilters,
+    classStatusFilters,
     interventionFilters,
     resolutionFilters,
     roleScope,

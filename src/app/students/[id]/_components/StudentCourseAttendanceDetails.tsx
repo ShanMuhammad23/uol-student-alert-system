@@ -336,7 +336,7 @@ export function StudentCourseAttendanceDetails({
                         )}
                       >
                         {summary
-                          ? `${summary.percentage.toFixed(1)}% (${summary.attended}/${summary.totalHeld})`
+                          ? `${summary.percentage.toFixed(1)}% (${summary.attended}/${summary.attendanceMarked})`
                           : classesHeld
                             ? `0.0% (0/${classesHeld})`
                             : "—"}
@@ -384,7 +384,7 @@ export function StudentCourseAttendanceDetails({
                           level == null && "text-black dark:text-emerald-300",
                         )}
                       >
-                        {`${(r.attendancePercentage ?? 0).toFixed(1)}% (${r.classesAttended}/${r.totalClassesHeld})`}
+                        {`${(r.attendancePercentage ?? 0).toFixed(1)}% (${r.classesAttended}/${r.attendanceMarkedClasses})`}
                       </td>
                     </tr>
                   );

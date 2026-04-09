@@ -13,6 +13,7 @@ export type ListingFilters = {
   instructor_ids?: string[];
   course_ids?: string[];
   attendanceFilters?: AlertDimensionFilter[];
+  classStatusFilters?: string[];
   gpaFilters?: AlertDimensionFilter[];
   interventionFilters?: string[];
   /** Wellbeing resolution keys (see `WELLBEING_RESOLUTION_OPTIONS`). */
@@ -267,6 +268,16 @@ function buildWhere(
       params
     );
     if (attendanceClause) where.push(attendanceClause);
+  }
+
+  const classStatusFilters = toArray(filters.classStatusFilters);
+  if (classStatusFilters?.length && !classStatusFilters.includes("all")) {
+    const wantsAttendanceMissing = classStatusFilters.includes("attendance_missing");
+    if (wantsAttendanceMissing) {
+      where.push(
+        `COALESCE(a.total_classes_held, 0) > COALESCE(a.attendance_marked_classes, 0)`
+      );
+    }
   }
 
   if (!skip?.has("gpa")) {

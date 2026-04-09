@@ -36,6 +36,11 @@ const WELLBEING_FILTER_OPTIONS: { value: string; label: string }[] = [
   ...WELLBEING_RESOLUTION_OPTIONS.map(({ value, label }) => ({ value, label })),
 ];
 
+const CLASS_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "attendance_missing", label: "Attendance Missing" },
+];
+
 function normalizeDimFiltersForApi(
   filters: AlertDimensionFilter[] | undefined
 ): AlertDimensionFilter[] | undefined {
@@ -56,6 +61,7 @@ type PropsType = {
   gpaFilters: AlertDimensionFilter[];
   attendanceFilters: AlertDimensionFilter[];
   interventionFilters: string[];
+  classStatusFilters: string[];
   resolutionFilters: string[];
   interventionStatusFilters: string[];
   className?: string;
@@ -63,6 +69,7 @@ type PropsType = {
   onChangeGpaFilters?: (values: AlertDimensionFilter[]) => void;
   onChangeAttendanceFilters?: (values: AlertDimensionFilter[]) => void;
   onChangeInterventionFilters?: (values: string[]) => void;
+  onChangeClassStatusFilters?: (values: string[]) => void;
   onChangeResolutionFilters?: (values: string[]) => void;
 };
 
@@ -74,6 +81,7 @@ type FilterKey =
   | "attendance"
   | "gpa"
   | "intervention"
+  | "classStatus"
   | "wellbeing";
 
 function FilterMultiSelect({
@@ -192,12 +200,14 @@ export function MasterFilter({
   gpaFilters,
   attendanceFilters,
   interventionFilters,
+  classStatusFilters,
   resolutionFilters,
   className,
   onChangeMasterFilter,
   onChangeGpaFilters,
   onChangeAttendanceFilters,
   onChangeInterventionFilters,
+  onChangeClassStatusFilters,
   onChangeResolutionFilters,
 }: PropsType) {
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
@@ -218,6 +228,10 @@ export function MasterFilter({
       interventionFilters:
         interventionFilters?.length && !interventionFilters.includes("all")
           ? interventionFilters.filter((v) => v !== "all")
+          : undefined,
+      classStatusFilters:
+        classStatusFilters?.length && !classStatusFilters.includes("all")
+          ? classStatusFilters.filter((v) => v !== "all")
           : undefined,
       resolutionFilters:
         resolutionFilters?.length && !resolutionFilters.includes("all")
@@ -246,6 +260,7 @@ export function MasterFilter({
     attendanceFilters?.join(","),
     gpaFilters?.join(","),
     interventionFilters?.join(","),
+    classStatusFilters?.join(","),
     resolutionFilters?.join(","),
   ]);
 
@@ -373,6 +388,10 @@ export function MasterFilter({
     onChangeResolutionFilters?.(values);
   };
 
+  const handleClassStatusFilters = (values: string[]) => {
+    onChangeClassStatusFilters?.(values);
+  };
+
   if (!role) return null;
 
   const showDepartment = role === "dean" || role === "hod";
@@ -387,6 +406,7 @@ export function MasterFilter({
     (current.course_ids?.length ?? 0) > 0 ||
     (gpaFilters?.length ?? 0) > 0 ||
     (attendanceFilters?.length ?? 0) > 0 ||
+    (classStatusFilters?.length ?? 0) > 0 ||
     (interventionFilters?.length ?? 0) > 0 ||
     (resolutionFilters?.length ?? 0) > 0;
 
@@ -399,6 +419,7 @@ export function MasterFilter({
     });
     onChangeGpaFilters?.([]);
     onChangeAttendanceFilters?.([]);
+    onChangeClassStatusFilters?.([]);
     onChangeInterventionFilters?.([]);
     onChangeResolutionFilters?.([]);
 
@@ -412,6 +433,7 @@ export function MasterFilter({
       course: null,
       gpa_filter: null,
       attendance_filter: null,
+      class_status_filter: null,
       intervention_filter: null,
       resolution_filter: null,
     });
@@ -493,6 +515,15 @@ export function MasterFilter({
         isOpen={openFilter === "gpa"}
         onOpenChange={toggleFilter("gpa")}
         data-testid="filter-gpa"
+      />
+      <FilterMultiSelect
+        label="Class Status"
+        selected={classStatusFilters ?? []}
+        items={CLASS_STATUS_OPTIONS}
+        onChange={handleClassStatusFilters}
+        isOpen={openFilter === "classStatus"}
+        onOpenChange={toggleFilter("classStatus")}
+        data-testid="filter-class-status"
       />
       <FilterMultiSelect
         label="Intervention"

@@ -97,6 +97,7 @@ async function getEnrollmentForStudentSapId(
          LEFT JOIN programs p ON p.id = e.program_id
          LEFT JOIN courses c ON c.id = e.course_id
          WHERE e.sap_id = $1
+           AND e.is_active = TRUE
          ORDER BY e.course_id ASC, e.section_code ASC`,
         [sapId]
       );
@@ -169,6 +170,7 @@ async function getStudentProfileMetricRows(
         AND a.event_package_id = e.event_package_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
+         AND e.is_active = TRUE
        ORDER BY e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
@@ -344,7 +346,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
             
             <div className="flex-1 text-white">
               <h1 className="text-2xl font-bold sm:text-3xl">
-                {primaryEnrollment?.Name ?? sapIdFromUrl}
+                {primaryEnrollment?.Name ?? sapIdFromUrl} ({primaryEnrollment.Section})
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-white">
                 <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">

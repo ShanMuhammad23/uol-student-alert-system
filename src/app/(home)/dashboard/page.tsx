@@ -46,6 +46,7 @@ type PropsType = {
     course?: string | string[];
     gpa_filter?: string;
     attendance_filter?: string;
+    class_status_filter?: string | string[];
     intervention_filter?: string | string[];
     expanded?: string;
     view?: string;
@@ -111,6 +112,7 @@ export default async function Home({ searchParams }: PropsType) {
   const gpaFilters = gpaFiltersRaw.filter(validAlertDim) as AlertDimensionFilter[];
   const attendanceFilters = attendanceFiltersRaw.filter(validAlertDim) as AlertDimensionFilter[];
   const interventionFilters = parseMultiParam(params.intervention_filter);
+  const classStatusFilters = parseMultiParam(params.class_status_filter);
 
   let hodProgramCount = 0;
   let hodCourseCount = 0;
@@ -199,6 +201,8 @@ export default async function Home({ searchParams }: PropsType) {
   if (courseIds.length) returnToParams.set("course", courseIds.join(","));
   if (gpaFilters.length) returnToParams.set("gpa_filter", gpaFilters.join(","));
   if (attendanceFilters.length) returnToParams.set("attendance_filter", attendanceFilters.join(","));
+  if (classStatusFilters.length)
+    returnToParams.set("class_status_filter", classStatusFilters.join(","));
   if (interventionFilters.length) returnToParams.set("intervention_filter", interventionFilters.join(","));
   if (effectiveUser.role === "dean" && user.role === "superadmin") {
     // Preserve dean emulation when returning from a student profile.
@@ -225,6 +229,7 @@ export default async function Home({ searchParams }: PropsType) {
           masterFilter,
           gpaFilters,
           attendanceFilters,
+          classStatusFilters,
           interventionFilters,
           resolutionFilters: [],
         }}
@@ -290,6 +295,7 @@ export default async function Home({ searchParams }: PropsType) {
           selectedAlert={selectedAlert}
           gpaFilters={gpaFilters}
           attendanceFilters={attendanceFilters}
+          classStatusFilters={classStatusFilters}
           interventionFilters={interventionFilters}
           returnToUrl={returnToUrl}
           departmentIds={departmentIds}

@@ -16,6 +16,7 @@ type DashboardFilterContextValue = {
   masterFilter: MasterFilterParams;
   gpaFilters: AlertDimensionFilter[];
   attendanceFilters: AlertDimensionFilter[];
+  classStatusFilters: string[];
   interventionFilters: string[];
   resolutionFilters: string[];
   // Setters are optional so existing providers (that only pass values)
@@ -23,6 +24,7 @@ type DashboardFilterContextValue = {
   setMasterFilter?: Dispatch<SetStateAction<MasterFilterParams>>;
   setGpaFilters?: Dispatch<SetStateAction<AlertDimensionFilter[]>>;
   setAttendanceFilters?: Dispatch<SetStateAction<AlertDimensionFilter[]>>;
+  setClassStatusFilters?: Dispatch<SetStateAction<string[]>>;
   setInterventionFilters?: Dispatch<SetStateAction<string[]>>;
   setResolutionFilters?: Dispatch<SetStateAction<string[]>>;
 };
