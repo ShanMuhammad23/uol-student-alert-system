@@ -24,6 +24,7 @@ type Props = {
     sectionCode: string | null;
     instructorName: string | null;
     totalClassesHeld: number;
+    attendanceMarkedClasses: number;
     classesAttended: number;
     attendancePercentage: number | null;
     classAverageAttendance: number | null;
@@ -119,7 +120,7 @@ export function StudentMetricsClient({
         getAttendanceAlertLevel(
           Number(r.attendancePercentage ?? NaN),
           selectedClassAverage ?? r.classAverageAttendance ?? null,
-          r.totalClassesHeld
+          r.attendanceMarkedClasses ?? r.totalClassesHeld
         )
       )
       .filter((level): level is "critical" | "warning" => level != null);

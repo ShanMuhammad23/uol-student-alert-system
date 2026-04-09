@@ -35,6 +35,7 @@ type NestedEnrollmentRow = EnrollmentRecord & {
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
   totalClassesHeld: number;
+  attendanceMarkedClasses: number;
   classesAttended: number;
   latestInterventionStatus: string | null;
 };
@@ -105,6 +106,7 @@ type TopTableRow = {
   instructorName: string;
   sectionCode: string | null;
   totalClassesHeld: number;
+  attendanceMarkedClasses: number;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -221,6 +223,7 @@ export function NestedEnrollmentTableClient({
         attendancePercentage: r.attendancePercentage ?? null,
         classAverageAttendance: r.classAverageAttendance ?? null,
         totalClassesHeld: r.totalClassesHeld ?? 0,
+        attendanceMarkedClasses: r.attendanceMarkedClasses ?? 0,
         classesAttended: r.classesAttended ?? 0,
         latestInterventionStatus: r.latestInterventionStatus ?? null,
       })),
@@ -233,16 +236,24 @@ export function NestedEnrollmentTableClient({
   const attendanceSummaries = useMemo(() => {
     const map = new Map<
       string,
-      { absences: number; totalHeld: number; attended: number; percentage: number }
+      {
+        absences: number;
+        totalHeld: number;
+        attendanceMarked: number;
+        attended: number;
+        percentage: number;
+      }
     >();
     for (let i = 0; i < list.length; i++) {
       const row = list[i];
       const db = dbRows[i];
       if (!db) continue;
       const key = getEnrollmentAttendanceKey(row);
+      const posted = db.attendanceMarkedClasses ?? 0;
       map.set(key, {
-        absences: Math.max(0, db.totalClassesHeld - db.classesAttended),
+        absences: posted - db.classesAttended,
         totalHeld: db.totalClassesHeld,
+        attendanceMarked: posted,
         attended: db.classesAttended,
         percentage: db.attendancePercentage ?? 0,
       });
@@ -264,6 +275,15 @@ export function NestedEnrollmentTableClient({
     for (const r of dbRows) {
       const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
       map.set(key, r.totalClassesHeld ?? 0);
+    }
+    return map;
+  }, [dbRows]);
+
+  const attendancePostedByCourseSection = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of dbRows) {
+      const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
+      map.set(key, r.attendanceMarkedClasses ?? 0);
     }
     return map;
   }, [dbRows]);
@@ -290,7 +310,11 @@ export function NestedEnrollmentTableClient({
         const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
         const level =
           summary && classAvg != null
-            ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
+            ? getAttendanceAlertLevel(
+                summary.percentage,
+                classAvg,
+                summary.attendanceMarked,
+              )
             : null;
         return allowed.size ? allowed.has(level) : true;
       });
@@ -394,7 +418,11 @@ export function NestedEnrollmentTableClient({
       const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
       const level =
         summary && classAvg != null
-          ? getAttendanceAlertLevel(summary.percentage, classAvg, summary.totalHeld)
+            ? getAttendanceAlertLevel(
+                summary.percentage,
+                classAvg,
+                summary.attendanceMarked,
+              )
           : null;
       const sapId = String(row.SapNo ?? "").trim();
       if (!sapId) continue;
@@ -800,6 +828,10 @@ export function NestedEnrollmentTableClient({
                                           )}__${row.Section ?? ""}`;
                                           const monitoredCount =
                                             monitoredByCourseSection.get(monitorKey);
+                                          const postedCount =
+                                            attendancePostedByCourseSection.get(
+                                              monitorKey,
+                                            );
                                           const attendanceKey =
                                             getEnrollmentAttendanceKey(row);
                                           const summary =
@@ -813,7 +845,7 @@ export function NestedEnrollmentTableClient({
                                               ? getAttendanceAlertLevel(
                                                   summary.percentage,
                                                   classAvg,
-                                                  summary.totalHeld,
+                                                  summary.attendanceMarked,
                                                 )
                                               : null;
                                           const displayAttendanceAlertLevel =
@@ -858,13 +890,20 @@ export function NestedEnrollmentTableClient({
                                             interventionStatuses.get(row.SapNo) ??
                                             null;
 
-                                          const classesHeld = summary?.totalHeld ?? 0;
+                                          const classesHeld =
+                                            row.totalClassesHeld ??
+                                            summary?.totalHeld ??
+                                            0;
+                                          const attendancePosted =
+                                            row.attendanceMarkedClasses ??
+                                            summary?.attendanceMarked ??
+                                            0;
                                           const classesAttended =
-                                            summary?.attended ?? 0;
-                                          const attendanceMissing = Math.max(
-                                            0,
-                                            classesHeld - classesAttended,
-                                          );
+                                            row.classesAttended ??
+                                            summary?.attended ??
+                                            0;
+                                          const notUpdatedVsHeld =
+                                            classesHeld - attendancePosted;
                                           const attendancePct =
                                             row.attendancePercentage ??
                                             summary?.percentage ??
@@ -912,14 +951,24 @@ export function NestedEnrollmentTableClient({
                                                 ) : (
                                                   <div className="flex flex-col gap-0.5">
                                                     <span>{classesHeld}</span>
-                                                    {attendanceMissing < 1 ? (
+                                                    <span className="text-xs text-dark-6 dark:text-dark-5">
+                                                      Posted: {attendancePosted}
+                                                    </span>
+                                                    {notUpdatedVsHeld === 0 ? (
                                                       <span className="text-xs text-green-500">
-                                                        Attendance Posted
+                                                        All held sessions posted
                                                       </span>
                                                     ) : (
-                                                      <span className="text-xs text-red-600 dark:text-red-400">
-                                                        Attendance Missing (
-                                                        {attendanceMissing})
+                                                      <span
+                                                        className={cn(
+                                                          "text-xs",
+                                                          notUpdatedVsHeld > 0
+                                                            ? "text-red-600 dark:text-red-400"
+                                                            : "text-amber-600 dark:text-amber-400",
+                                                        )}
+                                                      >
+                                                        Not updated vs held (
+                                                        {notUpdatedVsHeld})
                                                       </span>
                                                     )}
                                                   </div>
@@ -935,7 +984,8 @@ export function NestedEnrollmentTableClient({
                                                         {attendancePct.toFixed(1)}%
                                                       </span>{" "}
                                                       <span className="text-xs text-dark-6 dark:text-white">
-                                                        ({classesAttended}/{classesHeld})
+                                                        ({classesAttended}/
+                                                        {attendancePosted})
                                                       </span>
                                                     </span>
                                                     {classAvg != null && (
@@ -951,7 +1001,10 @@ export function NestedEnrollmentTableClient({
                                                     <span className="inline-flex items-center gap-2">
                                                       <span>0.0%</span>{" "}
                                                       <span className="text-xs text-dark-6 dark:text-white">
-                                                        (0/{monitoredCount})
+                                                        (0/
+                                                        {postedCount ??
+                                                          monitoredCount}
+                                                        )
                                                       </span>
                                                     </span>
                                                   </div>

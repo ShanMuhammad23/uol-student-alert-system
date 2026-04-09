@@ -53,6 +53,7 @@ type TopTableRow = {
   instructorName: string;
   sectionCode: string | null;
   totalClassesHeld: number;
+  attendanceMarkedClasses: number;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -228,10 +229,11 @@ export function TopChannelsTableClient({
       const lines = [headers.join(",")];
       for (const row of exportRows) {
         const classesHeld = row.totalClassesHeld ?? 0;
+        const posted = row.attendanceMarkedClasses ?? 0;
         const classesAttended = row.classesAttended ?? 0;
         const attendanceValue =
           row.attendancePercentage != null
-            ? `${row.attendancePercentage.toFixed(1)}% (${classesAttended}/${classesHeld})`
+            ? `${row.attendancePercentage.toFixed(1)}% (${classesAttended}/${posted})`
             : "—";
         const gpaValue =
           typeof row.gpaCurrent === "number" ? row.gpaCurrent.toFixed(2) : "—";
@@ -505,16 +507,26 @@ export function TopChannelsTableClient({
                   onClick={() => handleSort("classesHeld")}
                 >
                   <div className="flex items-center gap-1">
-                    <span>Classes Held</span>
+                    <span className="whitespace-normal leading-tight">
+                      Classes Held{" "}
+                      <span className="block text-[10px] font-normal normal-case text-dark-6 dark:text-dark-5">
+                        vs posted below
+                      </span>
+                    </span>
                     {renderSortIcon("classesHeld")}
                   </div>
                 </TableHead>
                 <TableHead
-                  className="min-w-[140px] !text-left cursor-pointer select-none"
+                  className="min-w-[160px] !text-left cursor-pointer select-none"
                   onClick={() => handleSort("attendance")}
                 >
                   <div className="flex items-center gap-1">
-                    <span>Attendance %</span>
+                    <span className="whitespace-normal leading-tight">
+                      Attendance %{" "}
+                      <span className="block text-[10px] font-normal normal-case text-dark-6 dark:text-dark-5">
+                        attended / posted
+                      </span>
+                    </span>
                     {renderSortIcon("attendance")}
                   </div>
                 </TableHead>
@@ -556,8 +568,9 @@ export function TopChannelsTableClient({
                 const latestStatus = row.latestInterventionStatus;
 
                 const classesHeld = row.totalClassesHeld ?? 0;
+                const attendancePosted = row.attendanceMarkedClasses ?? 0;
                 const classesAttended = row.classesAttended ?? 0;
-                const attendanceMissing = Math.max(0, classesHeld - classesAttended);
+                const notUpdatedVsHeld = classesHeld - attendancePosted;
                 const attendance = row.attendancePercentage;
                 const classAvg = row.classAverageAttendance;
                 const gpa = row.gpaCurrent;
@@ -633,19 +646,25 @@ export function TopChannelsTableClient({
                       ) : (
                         <div className="flex flex-col gap-0.5">
                           <span>{classesHeld}</span>
-                          {attendanceMissing < 1 ? ( 
+                          <span className="text-xs text-dark-6 dark:text-dark-5">
+                            Posted: {attendancePosted}
+                          </span>
+                          {notUpdatedVsHeld === 0 ? (
                             <span className="text-green-500 text-xs">
-                              Attendance Posted
+                              All held sessions posted
                             </span>
                           ) : (
                             <span
-                            className="text-xs text-red-600 dark:text-red-400"
-                            
-                          >
-                            Attendance Missing ({attendanceMissing})
-                          </span>
+                              className={cn(
+                                "text-xs",
+                                notUpdatedVsHeld > 0
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-amber-600 dark:text-amber-400"
+                              )}
+                            >
+                              Not updated vs held ({notUpdatedVsHeld})
+                            </span>
                           )}
-                         
                         </div>
                       )}
                     </TableCell>
@@ -657,7 +676,7 @@ export function TopChannelsTableClient({
                               {attendance.toFixed(1)}%
                             </span>{" "}
                             <span className="text-xs text-dark-6 dark:text-white">
-                              ({classesAttended}/{classesHeld})
+                              ({classesAttended}/{attendancePosted})
                             </span>
                           </span>
                           {classAvg != null && (

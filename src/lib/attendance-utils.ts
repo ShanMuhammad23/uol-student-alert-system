@@ -17,7 +17,10 @@ type RawAttendanceRecord = {
 
 export type AttendanceSummary = {
   absences: number;
+  /** All sessions held (SAP Held); includes classes not yet marked. */
   totalHeld: number;
+  /** Sessions with attendance posted (SAP Att); denominator for attendance %. */
+  attendanceMarked: number;
   attended: number;
   percentage: number;
 };
@@ -90,16 +93,19 @@ function buildAbsenceIndex(records: RawAttendanceRecord[]): Map<string, number> 
 }
 
 /**
- * Given enrollment rows and classes-held data (from SAP monitoring),
- * returns per-enrollment attendance summaries:
- * - absences: total absent records in attendance_data.json
- * - totalHeld: total classes held for that course/section
- * - attended: totalHeld - absences (never below 0)
- * - percentage: attended / totalHeld * 100
+ * Given enrollment rows and monitoring maps (Held vs Att),
+ * returns per-enrollment attendance summaries aligned with student sync:
+ * - totalHeld: Held (all sessions run)
+ * - attendanceMarked: Att (posted); used as denominator for %
+ * - attended: attendanceMarked - absences (absence rows from attendance_data.json)
+ * - percentage: attended / attendanceMarked * 100 when posted > 0
  */
 export async function getAttendanceSummariesForEnrollments(
   enrollments: EnrollmentRecord[],
-  classesHeldByCourseSection: Map<string, number>
+  classesHeldByCourseSection: Map<string, number>,
+  attendanceMarkedByCourseSection: Map<string, number>,
+  classesHeldByCourse?: Map<string, number>,
+  attendanceMarkedByCourse?: Map<string, number>
 ): Promise<Map<string, AttendanceSummary>> {
   const summaries = new Map<string, AttendanceSummary>();
   if (!enrollments.length) return summaries;
@@ -117,25 +123,36 @@ export async function getAttendanceSummariesForEnrollments(
     const key = getEnrollmentAttendanceKey(e);
     if (!key) continue;
 
-    // For "classes held" we match monitoring SecCode, which aligns with enrollment.Section
     const section = e.Section ?? "";
-    const courseSectionKey = `${normalizeCourseCode(
+    const courseNorm = normalizeCourseCode(
       typeof e.CrCode === "string" ? e.CrCode : String(e.CrCode ?? "")
-    )}__${section}`;
-    const totalHeldRaw = classesHeldByCourseSection.get(courseSectionKey) ?? 0;
+    );
+    const courseSectionKey = `${courseNorm}__${section}`;
+    const totalHeldRaw =
+      classesHeldByCourseSection.get(courseSectionKey) ??
+      classesHeldByCourse?.get(courseNorm) ??
+      0;
     const totalHeld =
       typeof totalHeldRaw === "number"
         ? totalHeldRaw
         : Number(totalHeldRaw) || 0;
 
+    const markedRaw =
+      attendanceMarkedByCourseSection.get(courseSectionKey) ??
+      attendanceMarkedByCourse?.get(courseNorm) ??
+      0;
+    const attendanceMarked =
+      typeof markedRaw === "number" ? markedRaw : Number(markedRaw) || 0;
+
     const absences = absenceIndex.get(key) ?? 0;
-    const attended = Math.max(0, totalHeld - absences);
+    const attended = attendanceMarked - absences;
     const percentage =
-      totalHeld > 0 ? (attended / totalHeld) * 100 : 0;
+      attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : 0;
 
     summaries.set(key, {
       absences,
       totalHeld,
+      attendanceMarked,
       attended,
       percentage,
     });

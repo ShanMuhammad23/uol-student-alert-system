@@ -62,6 +62,8 @@ export type StudentListingRow = {
   instructorName: string;
   sectionCode: string | null;
   totalClassesHeld: number;
+  /** Sessions with attendance posted (SAP Att); denominator for attendance %. */
+  attendanceMarkedClasses: number;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -331,6 +333,7 @@ function buildListingBaseCte(whereSql: string): string {
         e.section_code,
         COALESCE(NULLIF(TRIM(e.instructor_name), ''), e.instructor_pernr, '—') AS instructor_name,
         a.total_classes_held,
+        a.attendance_marked_classes,
         a.classes_attended,
         a.attendance_percentage,
         a.class_average_attendance,
@@ -618,6 +621,7 @@ export async function getStudentListing(
       instructor_name,
       NULLIF(section_code, '') AS section_code,
       COALESCE(total_classes_held, 0) AS total_classes_held,
+      COALESCE(attendance_marked_classes, 0) AS attendance_marked_classes,
       COALESCE(classes_attended, 0) AS classes_attended,
       attendance_percentage,
       class_average_attendance,
@@ -645,6 +649,7 @@ export async function getStudentListing(
     instructor_name: string;
     section_code: string | null;
     total_classes_held: number;
+    attendance_marked_classes: number;
     classes_attended: number;
     attendance_percentage: number | null;
     class_average_attendance: number | null;
@@ -671,31 +676,31 @@ export async function getStudentListing(
         const total = parseNumber(row.total_classes_held);
         return total;
       })(),
+      attendanceMarkedClasses: parseNumber(row.attendance_marked_classes),
       classesAttended: (() => {
-        const total = parseNumber(row.total_classes_held);
+        const posted = parseNumber(row.attendance_marked_classes);
         const attendedRaw = parseNumber(row.classes_attended);
-        // Guard against impossible data: attended should never exceed held.
-        return total > 0 && attendedRaw > total ? total : attendedRaw;
+        if (posted > 0 && attendedRaw > posted) return posted;
+        return attendedRaw;
       })(),
       attendancePercentage: (() => {
-        const total = parseNumber(row.total_classes_held);
+        const posted = parseNumber(row.attendance_marked_classes);
         const attendedRaw = parseNumber(row.classes_attended);
         const attended =
-          total > 0 && attendedRaw > total ? total : attendedRaw;
+          posted > 0 && attendedRaw > posted ? posted : attendedRaw;
 
         const raw = row.attendance_percentage;
         if (raw == null) {
-          return total > 0 ? (attended / total) * 100 : null;
+          return posted > 0 ? (attended / posted) * 100 : null;
         }
 
         const base = Number(raw);
         if (!Number.isFinite(base)) {
-          return total > 0 ? (attended / total) * 100 : null;
+          return posted > 0 ? (attended / posted) * 100 : null;
         }
 
-        // If DB percentage is based on inconsistent held/attended values, recompute.
-        if (total > 0 && attendedRaw > total) {
-          return (attended / total) * 100;
+        if (posted > 0 && attendedRaw > posted) {
+          return (attended / posted) * 100;
         }
 
         return base;

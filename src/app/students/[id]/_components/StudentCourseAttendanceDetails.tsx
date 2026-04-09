@@ -24,6 +24,7 @@ type Props = {
     sectionCode: string | null;
     instructorName: string | null;
     totalClassesHeld: number;
+    attendanceMarkedClasses: number;
     classesAttended: number;
     attendancePercentage: number | null;
     classAverageAttendance: number | null;
@@ -73,12 +74,11 @@ export function StudentCourseAttendanceDetails({
         selectedSummary: selected
           ? {
               totalHeld: selected.totalClassesHeld,
+              attendanceMarked: selected.attendanceMarkedClasses,
               attended: selected.classesAttended,
               percentage: selected.attendancePercentage ?? 0,
-              absences: Math.max(
-                0,
-                selected.totalClassesHeld - selected.classesAttended
-              ),
+              absences:
+                selected.attendanceMarkedClasses - selected.classesAttended,
             }
           : null,
         selectedLabel: selected
@@ -162,7 +162,10 @@ export function StudentCourseAttendanceDetails({
     selectedSummary?.totalHeld ?? overallAttendance.total_classes_held;
   const displayAttended =
     selectedSummary?.attended ?? overallAttendance.classes_attended;
-  const displayMissed = Math.max(0, displayTotalHeld - displayAttended);
+  const displayPosted =
+    (selectedSummary as { attendanceMarked?: number } | null)
+      ?.attendanceMarked ?? displayTotalHeld;
+  const displayMissed = displayPosted - displayAttended;
   const displayPercentage =
     selectedSummary?.percentage ?? overallAttendance.attendance_percentage;
   // Use monitoring-derived class average for the selected student/course.

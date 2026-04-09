@@ -49,6 +49,7 @@ type StudentProfileMetricRow = {
   sectionCode: string | null;
   instructorName: string | null;
   totalClassesHeld: number;
+  attendanceMarkedClasses: number;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -139,6 +140,7 @@ async function getStudentProfileMetricRows(
       section_code: string | null;
       instructor_name: string | null;
       total_classes_held: number | null;
+      attendance_marked_classes: number | null;
       classes_attended: number | null;
       attendance_percentage: number | null;
       class_average_attendance: number | null;
@@ -152,6 +154,7 @@ async function getStudentProfileMetricRows(
          NULLIF(e.section_code, '') AS section_code,
          e.instructor_name,
          COALESCE(a.total_classes_held, 0) AS total_classes_held,
+         COALESCE(a.attendance_marked_classes, 0) AS attendance_marked_classes,
          COALESCE(a.classes_attended, 0) AS classes_attended,
          a.attendance_percentage,
          a.class_average_attendance,
@@ -175,6 +178,7 @@ async function getStudentProfileMetricRows(
       sectionCode: r.section_code,
       instructorName: r.instructor_name,
       totalClassesHeld: Number(r.total_classes_held ?? 0),
+      attendanceMarkedClasses: Number(r.attendance_marked_classes ?? 0),
       classesAttended: Number(r.classes_attended ?? 0),
       attendancePercentage:
         r.attendance_percentage == null ? null : Number(r.attendance_percentage),

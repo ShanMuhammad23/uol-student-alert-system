@@ -16,6 +16,8 @@ export type MonitoringClassSummary = {
   SecCode: string;
   Att: number;
   ToDate: number;
+  /** When present, same semantics as SAP Held (sessions run). */
+  Held?: number;
 };
 
 export type MonitoringResponse = {

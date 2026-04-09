@@ -64,21 +64,44 @@ export function useAttendanceAlerts(
     return map;
   }, [monitoringData]);
 
-  const monitoredByCourseSection = useMemo(() => {
-    const map = new Map<string, number>();
+  const monitoringAttendanceMaps = useMemo(() => {
+    const heldBySection = new Map<string, number>();
+    const markedBySection = new Map<string, number>();
+    const heldByCourse = new Map<string, number>();
+    const markedByCourse = new Map<string, number>();
     const classes = monitoringData?.classes ?? [];
     for (const c of classes) {
-      const key = `${normalizeCourseCode(
+      const course = normalizeCourseCode(
         typeof c.CrCode === "string" ? c.CrCode : String(c.CrCode ?? ""),
-      )}__${c.SecCode ?? ""}`;
-      const scheduled =
-        typeof c.ToDate === "number"
-          ? c.ToDate
-          : Number(c.ToDate ?? 0) || 0;
-      map.set(key, scheduled);
+      );
+      const sec = String(c.SecCode ?? "").trim();
+      const key = `${course}__${sec}`;
+      const heldRaw = c.Held ?? c.ToDate;
+      const held =
+        typeof heldRaw === "number" ? heldRaw : Number(heldRaw ?? 0) || 0;
+      const markedRaw = c.Att;
+      const marked =
+        typeof markedRaw === "number" ? markedRaw : Number(markedRaw ?? 0) || 0;
+      if (sec) heldBySection.set(key, held);
+      if (sec) {
+        const cur = markedBySection.get(key) ?? 0;
+        if (marked > cur) markedBySection.set(key, marked);
+      }
+      const curH = heldByCourse.get(course) ?? 0;
+      if (held > curH) heldByCourse.set(course, held);
+      const curM = markedByCourse.get(course) ?? 0;
+      if (marked > curM) markedByCourse.set(course, marked);
     }
-    return map;
+    return {
+      heldByCourseSection: heldBySection,
+      markedByCourseSection: markedBySection,
+      heldByCourse,
+      markedByCourse,
+    };
   }, [monitoringData]);
+
+  /** Classes held (Held) per course+section — same keys as before for consumers. */
+  const monitoredByCourseSection = monitoringAttendanceMaps.heldByCourseSection;
 
   useEffect(() => {
     if (!enrollments.length) {
@@ -87,7 +110,13 @@ export function useAttendanceAlerts(
     }
 
     setIsAttendanceLoading(true);
-    getAttendanceSummariesForEnrollments(enrollments, monitoredByCourseSection)
+    getAttendanceSummariesForEnrollments(
+      enrollments,
+      monitoringAttendanceMaps.heldByCourseSection,
+      monitoringAttendanceMaps.markedByCourseSection,
+      monitoringAttendanceMaps.heldByCourse,
+      monitoringAttendanceMaps.markedByCourse
+    )
       .then((map) => {
         setAttendanceSummaries(map);
       })
@@ -97,7 +126,7 @@ export function useAttendanceAlerts(
       .finally(() => {
         setIsAttendanceLoading(false);
       });
-  }, [enrollments, monitoredByCourseSection]);
+  }, [enrollments, monitoringAttendanceMaps]);
 
   const classAverageByCourseSection = useMemo(() => {
     const map = new Map<string, number>();

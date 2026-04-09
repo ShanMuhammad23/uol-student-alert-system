@@ -67,9 +67,11 @@ export function AttendanceOverviewCardClient({
   const alertsPercentage =
     totalStudents > 0 ? (totalAlerts / totalStudents) * 100 : 0;
   const noAlertPercentage = Math.max(0, 100 - yellowPercentage - redPercentage);
-  const attendanceMissingCount = Math.max(0, totalHeldCount - updatedAttendanceCount);
+  const attendanceMissingCount = totalHeldCount - updatedAttendanceCount;
   const attendanceMissingPercentage =
-    totalHeldCount > 0 ? (attendanceMissingCount / totalHeldCount) * 100 : 0;
+    totalHeldCount !== 0
+      ? (attendanceMissingCount / totalHeldCount) * 100
+      : 0;
 
   return (
     <div

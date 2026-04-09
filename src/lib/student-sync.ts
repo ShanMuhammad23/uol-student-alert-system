@@ -416,12 +416,14 @@ export async function runStudentSync(
       0;
     const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
     // Attendance calculation rule:
-    // - Monitoring gives `totalHeld` (classes held for course/section)
-    // - Attendance data gives `absences` for a student in that course/section
-    // - Attended = totalHeld - absences
-    // - Attendance % = attended / totalHeld
-    const attended = Math.max(0, totalHeld - absences);
-    const pct = totalHeld > 0 ? (attended / totalHeld) * 100 : null;
+    // - `totalHeld` (Held): all sessions run; stored on alerts as total_classes_held
+    // - `attendanceMarked` (Att): sessions with attendance posted; used as denominator for %
+    // - Attendance API counts absences (against posted sessions only)
+    // - Attended = attendanceMarked - absences
+    // - Attendance % = attended / attendanceMarked (not vs Held, which includes unposted)
+    const attended = Math.max(0, attendanceMarked - absences);
+    const pct =
+      attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
 
     attendancePctByEnrollmentKey.set(enrollKey, pct);
     if (pct != null && Number.isFinite(pct)) {
@@ -663,16 +665,15 @@ export async function runStudentSync(
         0;
       const attendanceNotUpdated = Math.max(0, totalHeld - attendanceMarked);
       const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
-      // Attendance calculation rule (aligned with `attendance-utils`):
-      // Attended = totalHeld - absences
-      // Attendance % = attended / totalHeld
-      const attended = Math.max(0, totalHeld - absences);
-      const attendancePct = totalHeld > 0 ? (attended / totalHeld) * 100 : null;
+      // Same rule as the enrollment loop: % uses posted classes (Att), not Held.
+      const attended = Math.max(0, attendanceMarked - absences);
+      const attendancePct =
+        attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
       const classAvg = classAvgByCourseSection.get(classKey) ?? null;
       const attendanceLevel =
         attendancePct == null
           ? null
-          : getAttendanceAlertLevel(attendancePct, classAvg, totalHeld);
+          : getAttendanceAlertLevel(attendancePct, classAvg, attendanceMarked);
       const gpaTrend = gpaTrendMap[row.sapId];
       const gpaCurrent = gpaTrend?.current ?? null;
       const gpaPrevious = gpaTrend?.previous ?? null;
