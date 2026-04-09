@@ -74,6 +74,7 @@ export type StudentListingRow = {
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
   courseStudentCount: number;
+  isActive: boolean;
 };
 
 export type StudentListingResult = {
@@ -225,7 +226,7 @@ function buildWhere(
   skip?: Set<ListingWhereSkip>
 ): BaseQueryParts {
   const params: unknown[] = [];
-  const where: string[] = [];
+  const where: string[] = ["e.is_active = TRUE"];
 
   if (scope.role === "dean" && scope.faculty_id) {
     params.push(scope.faculty_id);
@@ -344,7 +345,8 @@ function buildListingBaseCte(whereSql: string): string {
         a.gpa_alert_level,
         latest.latest_intervention_status,
         CONCAT(e.course_id, ' ', COALESCE(c.title, '')) AS course_sort_text,
-        COUNT(*) OVER (PARTITION BY e.course_id) AS course_student_count
+        COUNT(*) OVER (PARTITION BY e.course_id) AS course_student_count,
+        e.is_active
       FROM student_enrollment_current e
       LEFT JOIN student_alert_current a
         ON a.sap_id = e.sap_id
@@ -631,7 +633,8 @@ export async function getStudentListing(
       gpa_change,
       gpa_alert_level,
       latest_intervention_status,
-      course_student_count
+      course_student_count,
+      is_active
     FROM ${uniqueStudents ? "ranked" : "base"}
     ${uniqueStudents ? "WHERE rn = 1" : ""}
     ORDER BY ${orderBy}
@@ -660,6 +663,7 @@ export async function getStudentListing(
     gpa_alert_level: "warning" | "critical" | null;
     latest_intervention_status: string | null;
     course_student_count: number;
+    is_active: boolean | null;
   }>(listSql, listParams);
 
   return {
@@ -714,6 +718,7 @@ export async function getStudentListing(
       gpaAlertLevel: row.gpa_alert_level,
       latestInterventionStatus: row.latest_intervention_status,
       courseStudentCount: parseNumber(row.course_student_count),
+      isActive: row.is_active === true,
     })),
     total,
     totalUniqueStudents,

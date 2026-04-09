@@ -64,6 +64,7 @@ type TopTableRow = {
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
   courseStudentCount: number;
+  isActive?: boolean;
 };
 
 export function TopChannelsTableClient({
@@ -293,7 +294,9 @@ export function TopChannelsTableClient({
         total?: number;
         totalUniqueStudents?: number;
       }) => {
-        setRows(Array.isArray(body.rows) ? body.rows : []);
+        const incomingRows = Array.isArray(body.rows) ? body.rows : [];
+        // Defensive client-side guard: render only active enrollments.
+        setRows(incomingRows.filter((row) => row.isActive !== false));
         setTotalResults(Number(body.total ?? 0));
         setTotalUniqueStudents(
           (body.totalUniqueStudents ?? (body as any).total_unique_students) == null

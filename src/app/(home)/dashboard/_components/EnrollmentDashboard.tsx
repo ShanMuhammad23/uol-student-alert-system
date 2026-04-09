@@ -30,6 +30,7 @@ import { InstructorStatsCollapsible } from "./instructor-stats-collapsible";
 import { InstructorCourseStats } from "./instructor-course-stats";
 import { TopChannelsTableClient } from "@/components/Tables/nested-students-table/TopChannelsTableClient";
 import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students-table/NestedEnrollmentTableClient";
+import { AttendanceMissingTableClient } from "@/components/Tables/nested-students-table/AttendanceMissingTableClient";
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
 import { StudentsViewTabs } from "./StudentsViewTabs";
 import { DashboardUiStateProvider, useDashboardUiState } from "./DashboardUiStateContext";
@@ -61,7 +62,7 @@ type Props = {
   departmentIds: string[];
   programIds: string[];
   instructorIds: string[];
-  viewMode: "table" | "nested";
+  viewMode: "table" | "nested" | "attendance-missing";
   /** Section IDs to expand in nested view (e.g. from URL ?expanded=). */
   expandedIds?: string[];
 };
@@ -317,6 +318,8 @@ function EnrollmentDashboardInner({
     }
 
     if (viewMode === "nested") params.set("view", "nested");
+    else if (viewMode === "attendance-missing")
+      params.set("view", "attendance-missing");
     else params.delete("view");
 
     if (expandedIds.length) params.set("expanded", expandedIds.join(","));
@@ -627,7 +630,7 @@ function EnrollmentDashboardInner({
             interventionFilters={localInterventionFilters}
             resolutionFilters={localResolutionFilters}
           />
-        ) : (
+        ) : viewMode === "nested" ? (
           <ExpandableListUrlSync>
             <NestedEnrollmentTableClient
               returnToUrl={liveReturnToUrl}
@@ -636,6 +639,17 @@ function EnrollmentDashboardInner({
               programStats={programStats}
               courseStats={deanCourseStats}
               instructorStats={instructorStats}
+              masterFilter={localMasterFilter}
+              attendanceFilters={localAttendanceFilters}
+              gpaFilters={localGpaFilters}
+              interventionFilters={localInterventionFilters}
+              resolutionFilters={localResolutionFilters}
+            />
+          </ExpandableListUrlSync>
+        ) : (
+          <ExpandableListUrlSync>
+            <AttendanceMissingTableClient
+              returnToUrl={liveReturnToUrl}
               masterFilter={localMasterFilter}
               attendanceFilters={localAttendanceFilters}
               gpaFilters={localGpaFilters}

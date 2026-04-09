@@ -179,7 +179,12 @@ export default async function Home({ searchParams }: PropsType) {
       getAlertSnapshotTrend(effectiveUser, masterFilter, 365),
     ]);
 
-  const viewMode = params.view === "nested" ? "nested" : "table";
+  const viewMode =
+    params.view === "nested"
+      ? "nested"
+      : params.view === "attendance-missing"
+      ? "attendance-missing"
+      : "table";
   const expandedParam = params.expanded;
   const expandedIds = expandedParam ? expandedParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const sortBy = params.sort === "attendance" || params.sort === "gpa" ? params.sort : null;
@@ -204,6 +209,8 @@ export default async function Home({ searchParams }: PropsType) {
   }
   if (expandedParam) returnToParams.set("expanded", expandedParam);
   if (viewMode === "nested") returnToParams.set("view", "nested");
+  if (viewMode === "attendance-missing")
+    returnToParams.set("view", "attendance-missing");
   if (sortBy) returnToParams.set("sort", sortBy);
   if (sortOrder && sortBy) returnToParams.set("order", sortOrder);
   const returnToUrl = returnToParams.toString() ? `/dashboard/?${returnToParams.toString()}` : "/dashboard/";

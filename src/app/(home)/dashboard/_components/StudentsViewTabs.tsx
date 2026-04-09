@@ -47,6 +47,20 @@ export function StudentsViewTabs({ className }: Props) {
       >
         Nested view
       </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={viewMode === "attendance-missing"}
+        onClick={() => setViewMode("attendance-missing")}
+        className={cn(
+          "rounded-md px-4 py-2 text-sm font-medium transition-colors",
+          viewMode === "attendance-missing"
+            ? "bg-white text-primary shadow-sm dark:bg-gray-dark dark:text-primary"
+            : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
+        )}
+      >
+        Attendance Missing
+      </button>
     </div>
   );
 }

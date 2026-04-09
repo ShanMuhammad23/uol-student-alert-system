@@ -471,6 +471,21 @@ export function NestedEnrollmentTableClient({
     return { red, yellow };
   };
 
+  if (isLoadingDb) {
+    return (
+      <div
+        className={cn(
+          "grid rounded-[10px] bg-white px-7.5 pb-4 pt-7.5 shadow-1 dark:bg-gray-dark dark:shadow-card mb-12",
+          className
+        )}
+      >
+        <div className="mt-6 rounded-md border border-dashed border-stroke py-8 text-center text-dark-6 dark:border-dark-3">
+          Loading nested enrollment view...
+        </div>
+      </div>
+    );
+  }
+
   if (filteredList.length === 0) {
     return (
       <div

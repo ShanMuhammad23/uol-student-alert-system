@@ -17,8 +17,9 @@ export function ExpandableListUrlSync({ children }: Props) {
   const handleClick = useCallback(
     (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName !== "SUMMARY") return;
-      const details = target.closest("details");
+      const summary = target.closest("summary");
+      if (!summary) return;
+      const details = summary.closest("details");
       const id = details?.getAttribute("data-section-id");
       if (!id) return;
       e.preventDefault();
