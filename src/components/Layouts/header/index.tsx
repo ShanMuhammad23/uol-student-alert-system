@@ -14,6 +14,7 @@ type HeaderProps = {
   user?: AppUser | null;
   screenHeading?: string | null;
   totalStudents?: number;
+  lastUpdated?: string | null;
 };
 
 const FACULTY_NAME_FALLBACK: Record<string, string> = {
@@ -34,7 +35,19 @@ function mapFacultyHeadingName(value?: string | null): string | null {
   return raw;
 }
 
-export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
+function formatLastUpdatedLabel(value?: string | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function Header({ user, screenHeading, totalStudents, lastUpdated }: HeaderProps) {
   const { toggleSidebar, isMobile } = useSidebarContext();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -43,6 +56,7 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
   const [emulatedTotalStudents, setEmulatedTotalStudents] = useState<
     number | undefined
   >(undefined);
+  const [emulatedLastUpdated, setEmulatedLastUpdated] = useState<string | null>(null);
 
   const asParam = searchParams.get("as");
   const emulatedFacultyId = searchParams.get("faculty");
@@ -57,6 +71,7 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
     if (!isSuperadminDeanMode || !emulatedFacultyId) {
       setEmulatedHeading(null);
       setEmulatedTotalStudents(undefined);
+      setEmulatedLastUpdated(null);
       return;
     }
 
@@ -72,6 +87,7 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         return (await res.json()) as {
           screenHeading?: string;
           totalStudents?: number;
+          lastUpdated?: string | null;
         };
       })
       .then((data) => {
@@ -85,6 +101,7 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
             ? data.totalStudents
             : undefined
         );
+        setEmulatedLastUpdated(data.lastUpdated ?? null);
       })
       .catch((err: unknown) => {
         if (
@@ -97,6 +114,7 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         }
         setEmulatedHeading(mapFacultyHeadingName(emulatedFacultyId) ?? emulatedFacultyId);
         setEmulatedTotalStudents(undefined);
+        setEmulatedLastUpdated(null);
       });
 
     return () => controller.abort();
@@ -115,6 +133,10 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
   const resolvedTotalStudents = isSuperadminDeanMode
     ? emulatedTotalStudents
     : totalStudents;
+  const resolvedLastUpdated = isSuperadminDeanMode
+    ? emulatedLastUpdated ?? lastUpdated
+    : lastUpdated;
+  const formattedLastUpdated = formatLastUpdatedLabel(resolvedLastUpdated);
   const shouldShowTotalStudents =
     typeof resolvedTotalStudents === "number" &&
     (isSuperadminDeanMode ||
@@ -149,16 +171,21 @@ export function Header({ user, screenHeading, totalStudents }: HeaderProps) {
         <h1 className="mb-0.5 text-heading-5 font-bold text-dark dark:text-white">
           Student Early Alert System
         </h1>
-        {resolvedHeading && (
+        {(resolvedHeading || formattedLastUpdated) && (
           <div className="space-y-0.5">
             <p className="text-lg font-medium text-green-600 dark:text-dark-5">
-              {resolvedHeading} {shouldShowTotalStudents && (
+              {resolvedHeading} {resolvedHeading && shouldShowTotalStudents && (
                 <span className="font-semibold  dark:text-white">
                   {resolvedTotalStudents.toLocaleString()}
                 </span>
             
             )}
             </p>
+            {formattedLastUpdated && (
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Last updated: {formattedLastUpdated}
+              </p>
+            )}
             
           </div>
         )}

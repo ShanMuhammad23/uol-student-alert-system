@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { pool } from "@/lib/db";
-import { getOverviewData } from "@/app/(home)/dashboard/fetch";
+import {
+  getLatestAlertCountsSnapshot,
+  getOverviewData,
+} from "@/app/(home)/dashboard/fetch";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -51,9 +54,11 @@ export async function GET(req: Request) {
   };
 
   const overview = await getOverviewData(emulatedDeanUser);
+  const latestSnapshot = await getLatestAlertCountsSnapshot();
 
   return NextResponse.json({
     screenHeading: heading,
     totalStudents: overview.totalStudents ?? 0,
+    lastUpdated: latestSnapshot.snapshotDate ?? null,
   });
 }

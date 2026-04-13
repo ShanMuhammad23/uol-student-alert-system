@@ -335,6 +335,39 @@ function toInt(value: number | string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const LATEST_ALERT_COUNTS_SNAPSHOT_SQL = `
+  SELECT snapshot_date
+  FROM alert_counts_by_dimension
+  ORDER BY created_at DESC NULLS LAST, snapshot_date DESC
+  LIMIT 1
+`;
+
+export type LatestAlertCountsSnapshot = {
+  snapshotDate: string | null;
+  createdAt: string | null;
+};
+
+export async function getLatestAlertCountsSnapshot(): Promise<LatestAlertCountsSnapshot> {
+  if (!pool) return { snapshotDate: null, createdAt: null };
+  try {
+    const res = await pool.query<{ snapshot_date: string | null; created_at: string | null }>(
+      `
+        SELECT snapshot_date::text AS snapshot_date, created_at::text AS created_at
+        FROM alert_counts_by_dimension
+        ORDER BY created_at DESC NULLS LAST, snapshot_date DESC
+        LIMIT 1
+      `
+    );
+    const row = res.rows[0];
+    return {
+      snapshotDate: row?.snapshot_date ?? null,
+      createdAt: row?.created_at ?? null,
+    };
+  } catch {
+    return { snapshotDate: null, createdAt: null };
+  }
+}
+
 async function getDimensionCountsFromDb(
   dimensionType: "program" | "instructor",
   ids: string[]
@@ -351,11 +384,7 @@ async function getDimensionCountsFromDb(
        yellow_attendance,
        red_attendance
      FROM alert_counts_by_dimension
-     WHERE snapshot_date = (
-       SELECT MAX(snapshot_date)
-       FROM alert_counts_by_dimension
-       WHERE snapshot_date <= CURRENT_DATE
-     )
+     WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
        AND dimension_type = $1
        AND dimension_id = ANY($2)`,
     [dimensionType, ids]
@@ -421,11 +450,7 @@ async function getOverviewDataFromDb(
   if (!pool) return null;
   const scope = getDbScope(user, masterFilter);
   const params: unknown[] = [scope.dimensionType];
-  let where = `snapshot_date = (
-    SELECT MAX(snapshot_date)
-    FROM alert_counts_by_dimension
-    WHERE snapshot_date <= CURRENT_DATE
-  ) AND dimension_type = $1`;
+  let where = `snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL}) AND dimension_type = $1`;
   if (scope.ids?.length) {
     params.push(scope.ids);
     where += ` AND dimension_id = ANY($2)`;
@@ -792,11 +817,7 @@ export async function getMasterFilterOptions(
       }>(
         `SELECT dimension_type, dimension_id, dimension_name, total_students
          FROM alert_counts_by_dimension
-         WHERE snapshot_date = (
-           SELECT MAX(snapshot_date)
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date <= CURRENT_DATE
-         )
+         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
            AND dimension_type = ANY($1::varchar[])`,
         [["department", "program", "course", "instructor"]]
       );
@@ -1169,11 +1190,7 @@ export async function getDeanDepartmentStats(
     try {
       const params: unknown[] = [];
       const where: string[] = [
-        `ac.snapshot_date = (
-          SELECT MAX(snapshot_date)
-          FROM alert_counts_by_dimension
-          WHERE snapshot_date <= CURRENT_DATE
-        )`,
+        `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
         "ac.dimension_type = 'department'",
       ];
       if (facultyId) {
@@ -1377,11 +1394,7 @@ export async function getDeanInstructorStats(
         FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
       const params: unknown[] = [enrollmentFacId];
       const where: string[] = [
-        `ac.snapshot_date = (
-          SELECT MAX(snapshot_date)
-          FROM alert_counts_by_dimension
-          WHERE snapshot_date <= CURRENT_DATE
-        )`,
+        `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
         "ac.dimension_type = 'instructor'",
         `EXISTS (
           SELECT 1
@@ -1548,11 +1561,7 @@ export async function getDeanProgramStats(
         FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
       const params: unknown[] = [enrollmentFacId];
       const where: string[] = [
-        `ac.snapshot_date = (
-          SELECT MAX(snapshot_date)
-          FROM alert_counts_by_dimension
-          WHERE snapshot_date <= CURRENT_DATE
-        )`,
+        `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
         "ac.dimension_type = 'program'",
         `EXISTS (
           SELECT 1
@@ -1710,11 +1719,7 @@ export async function getSuperadminFacultyStats(): Promise<FacultyStats[]> {
            yellow_attendance,
            red_attendance
          FROM alert_counts_by_dimension
-         WHERE snapshot_date = (
-           SELECT MAX(snapshot_date)
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date <= CURRENT_DATE
-         )
+         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
            AND dimension_type = 'faculty'
          ORDER BY dimension_name ASC`
       );
@@ -1903,11 +1908,7 @@ export async function getDeanCourseStats(
       FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
     const params: unknown[] = [enrollmentFacId];
     const where: string[] = [
-      `ac.snapshot_date = (
-        SELECT MAX(snapshot_date)
-        FROM alert_counts_by_dimension
-        WHERE snapshot_date <= CURRENT_DATE
-      )`,
+      `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
       "ac.dimension_type = 'course'",
       `EXISTS (
         SELECT 1
@@ -2217,11 +2218,7 @@ export async function getHodCourseStats(
            COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
            COALESCE(SUM(red_attendance), 0) AS red_attendance
          FROM alert_counts_by_dimension
-         WHERE snapshot_date = (
-           SELECT MAX(snapshot_date)
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date <= CURRENT_DATE
-         )
+         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
            AND dimension_type = 'course'
            AND split_part(dimension_id, '|', 1) = ANY($1)
          GROUP BY split_part(dimension_id, '|', 1)`,
@@ -2284,11 +2281,7 @@ export async function getHodCourseStats(
            COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
            COALESCE(SUM(red_attendance), 0) AS red_attendance
          FROM alert_counts_by_dimension
-         WHERE snapshot_date = (
-           SELECT MAX(snapshot_date)
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date <= CURRENT_DATE
-         )
+         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
            AND dimension_type = 'course'
            AND split_part(dimension_id, '|', 1) = ANY($1)
          GROUP BY split_part(dimension_id, '|', 1)`,
@@ -2399,11 +2392,7 @@ export async function getInstructorCourseStats(
            COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
            COALESCE(SUM(red_attendance), 0) AS red_attendance
          FROM alert_counts_by_dimension
-         WHERE snapshot_date = (
-           SELECT MAX(snapshot_date)
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date <= CURRENT_DATE
-         )
+         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
            AND dimension_type = 'course'
            AND split_part(dimension_id, '|', 1) = ANY($1)
          GROUP BY split_part(dimension_id, '|', 1)`,
@@ -2469,11 +2458,7 @@ export async function getInstructorCourseStats(
            COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
            COALESCE(SUM(red_attendance), 0) AS red_attendance
          FROM alert_counts_by_dimension
-         WHERE snapshot_date = (
-           SELECT MAX(snapshot_date)
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date <= CURRENT_DATE
-         )
+         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
            AND dimension_type = 'course'
            AND split_part(dimension_id, '|', 1) = ANY($1)
          GROUP BY split_part(dimension_id, '|', 1)`,
