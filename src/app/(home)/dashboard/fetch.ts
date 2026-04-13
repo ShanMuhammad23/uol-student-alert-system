@@ -336,9 +336,30 @@ function toInt(value: number | string | null | undefined): number {
 }
 
 const LATEST_ALERT_COUNTS_SNAPSHOT_SQL = `
-  SELECT snapshot_date
-  FROM alert_counts_by_dimension
-  ORDER BY created_at DESC NULLS LAST, snapshot_date DESC
+  WITH per_snapshot AS (
+    SELECT
+      snapshot_date,
+      MAX(created_at) AS latest_created_at,
+      COUNT(DISTINCT dimension_type) AS type_count
+    FROM alert_counts_by_dimension
+    GROUP BY snapshot_date
+  ),
+  best_complete AS (
+    SELECT snapshot_date, latest_created_at
+    FROM per_snapshot
+    WHERE type_count >= 5
+    ORDER BY latest_created_at DESC NULLS LAST, snapshot_date DESC
+    LIMIT 1
+  ),
+  best_any AS (
+    SELECT snapshot_date, latest_created_at
+    FROM per_snapshot
+    ORDER BY latest_created_at DESC NULLS LAST, snapshot_date DESC
+    LIMIT 1
+  )
+  SELECT COALESCE(c.snapshot_date, a.snapshot_date)
+  FROM best_any a
+  FULL OUTER JOIN best_complete c ON TRUE
   LIMIT 1
 `;
 
