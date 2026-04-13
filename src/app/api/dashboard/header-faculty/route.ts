@@ -59,6 +59,6 @@ export async function GET(req: Request) {
   return NextResponse.json({
     screenHeading: heading,
     totalStudents: overview.totalStudents ?? 0,
-    lastUpdated: latestSnapshot.snapshotDate ?? null,
+    lastUpdated: latestSnapshot.createdAt ?? latestSnapshot.snapshotDate ?? null,
   });
 }

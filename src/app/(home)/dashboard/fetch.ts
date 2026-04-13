@@ -352,9 +352,36 @@ export async function getLatestAlertCountsSnapshot(): Promise<LatestAlertCountsS
   try {
     const res = await pool.query<{ snapshot_date: string | null; created_at: string | null }>(
       `
-        SELECT snapshot_date::text AS snapshot_date, created_at::text AS created_at
-        FROM alert_counts_by_dimension
-        ORDER BY created_at DESC NULLS LAST, snapshot_date DESC
+        WITH per_snapshot AS (
+          SELECT
+            snapshot_date,
+            MAX(created_at) AS latest_created_at,
+            COUNT(DISTINCT dimension_type) AS type_count
+          FROM alert_counts_by_dimension
+          GROUP BY snapshot_date
+        ),
+        best_complete AS (
+          SELECT
+            snapshot_date,
+            latest_created_at
+          FROM per_snapshot
+          WHERE type_count >= 5
+          ORDER BY latest_created_at DESC NULLS LAST, snapshot_date DESC
+          LIMIT 1
+        ),
+        best_any AS (
+          SELECT
+            snapshot_date,
+            latest_created_at
+          FROM per_snapshot
+          ORDER BY latest_created_at DESC NULLS LAST, snapshot_date DESC
+          LIMIT 1
+        )
+        SELECT
+          COALESCE(c.snapshot_date, a.snapshot_date)::text AS snapshot_date,
+          COALESCE(c.latest_created_at, a.latest_created_at)::text AS created_at
+        FROM best_any a
+        FULL OUTER JOIN best_complete c ON TRUE
         LIMIT 1
       `
     );

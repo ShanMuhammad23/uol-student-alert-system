@@ -36,7 +36,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 
   const latestSnapshot = await getLatestAlertCountsSnapshot();
   const latestSnapshotDate = latestSnapshot.snapshotDate;
-  lastUpdated = latestSnapshotDate;
+  lastUpdated = latestSnapshot.createdAt ?? latestSnapshotDate;
 
   if (user && pool) {
     try {
