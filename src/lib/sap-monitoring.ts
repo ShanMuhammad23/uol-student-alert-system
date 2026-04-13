@@ -177,6 +177,8 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
       e.CrCode ?? "",
       e.SecCode ?? "",
       e.TeacherName ?? "",
+      e.ClassType ?? "",
+      e.CrHr ?? "",
     ].join("|");
 
   for (const e of entries) {

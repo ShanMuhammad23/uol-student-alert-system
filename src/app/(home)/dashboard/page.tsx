@@ -191,8 +191,6 @@ export default async function Home({ searchParams }: PropsType) {
   const expandedIds = expandedParam ? expandedParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const sortBy = params.sort === "attendance" || params.sort === "gpa" ? params.sort : null;
   const sortOrder = params.order === "asc" || params.order === "desc" ? params.order : "asc";
-
-  // Build URL to restore filters (and later expanded state) when returning from student profile
   const returnToParams = new URLSearchParams();
   if (selectedAlert && selectedAlert !== "all") returnToParams.set("selected_alert", selectedAlert);
   if (effectiveDeptIds.length) returnToParams.set("department", effectiveDeptIds.join(","));
@@ -205,7 +203,6 @@ export default async function Home({ searchParams }: PropsType) {
     returnToParams.set("class_status_filter", classStatusFilters.join(","));
   if (interventionFilters.length) returnToParams.set("intervention_filter", interventionFilters.join(","));
   if (effectiveUser.role === "dean" && user.role === "superadmin") {
-    // Preserve dean emulation when returning from a student profile.
     returnToParams.set("as", "dean");
     if (effectiveUser.faculty_id) {
       returnToParams.set("faculty", effectiveUser.faculty_id);
@@ -255,7 +252,7 @@ export default async function Home({ searchParams }: PropsType) {
           </div>
         </div>
         <div className="mt-4 grid grid-cols-12 gap-4">
-          <div className=" col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
+          <div className="col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
             <InterventionStatusChartClient
               title="Outreach & Intervention"
               user={effectiveUser}
@@ -275,7 +272,6 @@ export default async function Home({ searchParams }: PropsType) {
         </div>
         </InterventionSliceProvider>
         </InterventionCohortStatsProvider>
-
         <EnrollmentDashboard
           user={effectiveUser}
           masterFilter={masterFilter}

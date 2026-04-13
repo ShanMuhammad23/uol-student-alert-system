@@ -50,7 +50,10 @@ export function OverviewCard({
 
   const effectiveGpaFilters =
     dashboardFilter?.gpaFilters ?? gpaFilters;
-  const allowed = new Set(effectiveGpaFilters ?? []);
+  const normalizedGpaFilters = (effectiveGpaFilters ?? []).filter(
+    (f) => f !== "all"
+  );
+  const allowed = new Set(normalizedGpaFilters);
   const visibleYellow =
     hasYellowRed && (!allowed.size || allowed.has("yellow"))
       ? data.yellow!

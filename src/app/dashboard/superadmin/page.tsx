@@ -10,6 +10,7 @@ import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
 import Link from "next/link";
+import { AutomationPanel } from "./_components/AutomationPanel";
 const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000178": "Faculty of Pharmacy",
   "50000172": "Faculty of Social Sciences",
@@ -68,7 +69,15 @@ export default async function SuperadminDashboardPage({
 
   return (
     <div className="space-y-5">
-     
+      <AutomationPanel />
+      <div className="flex justify-end">
+        <Link
+          href="/dashboard/superadmin/automation"
+          className="rounded-md border border-primary px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10"
+        >
+          Open Automation Page
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard

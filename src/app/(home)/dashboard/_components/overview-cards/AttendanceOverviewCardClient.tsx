@@ -52,7 +52,10 @@ export function AttendanceOverviewCardClient({
   const effectiveAttendanceFilters =
     dashboardFilter?.attendanceFilters ?? attendanceFilters;
   const hasGrowth = false;
-  const allowed = new Set(effectiveAttendanceFilters ?? []);
+  const normalizedAttendanceFilters = (effectiveAttendanceFilters ?? []).filter(
+    (f) => f !== "all"
+  );
+  const allowed = new Set(normalizedAttendanceFilters);
   const visibleYellow =
     !allowed.size || allowed.has("yellow") ? yellowCount : 0;
   const visibleRed = !allowed.size || allowed.has("red") ? redCount : 0;

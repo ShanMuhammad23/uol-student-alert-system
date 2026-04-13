@@ -62,6 +62,7 @@ export type StudentListingRow = {
   courseTitle: string;
   instructorName: string;
   sectionCode: string | null;
+  eventPackageId: string | null;
   totalClassesHeld: number;
   /** Sessions with attendance posted (SAP Att); denominator for attendance %. */
   attendanceMarkedClasses: number;
@@ -165,7 +166,7 @@ function buildOrderBy(sortKey?: ListingSortKey, sortDirection?: ListingSortDirec
     intervention: "latest_intervention_status",
   };
   const col = map[key] ?? map.name;
-  return `${col} ${direction}, sap_id ASC, course_id ASC`;
+  return `${col} ${direction}, sap_id ASC, course_id ASC, event_package_id ASC`;
 }
 
 function parseNumber(value: unknown): number {
@@ -343,6 +344,7 @@ function buildListingBaseCte(whereSql: string): string {
         e.course_id,
         COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS course_title,
         e.section_code,
+        e.event_package_id,
         COALESCE(NULLIF(TRIM(e.instructor_name), ''), e.instructor_pernr, '—') AS instructor_name,
         a.total_classes_held,
         a.attendance_marked_classes,
@@ -356,7 +358,13 @@ function buildListingBaseCte(whereSql: string): string {
         a.gpa_alert_level,
         latest.latest_intervention_status,
         CONCAT(e.course_id, ' ', COALESCE(c.title, '')) AS course_sort_text,
-        COUNT(*) OVER (PARTITION BY e.course_id) AS course_student_count,
+        COUNT(*) OVER (
+          PARTITION BY
+            e.course_id,
+            COALESCE(e.section_code, ''),
+            COALESCE(e.program_id, ''),
+            COALESCE(e.event_package_id, '')
+        ) AS course_student_count,
         e.is_active
       FROM student_enrollment_current e
       LEFT JOIN student_alert_current a
@@ -633,6 +641,7 @@ export async function getStudentListing(
       course_title,
       instructor_name,
       NULLIF(section_code, '') AS section_code,
+      NULLIF(event_package_id, '') AS event_package_id,
       COALESCE(total_classes_held, 0) AS total_classes_held,
       COALESCE(attendance_marked_classes, 0) AS attendance_marked_classes,
       COALESCE(classes_attended, 0) AS classes_attended,
@@ -662,6 +671,7 @@ export async function getStudentListing(
     course_title: string;
     instructor_name: string;
     section_code: string | null;
+    event_package_id: string | null;
     total_classes_held: number;
     attendance_marked_classes: number;
     classes_attended: number;
@@ -687,6 +697,7 @@ export async function getStudentListing(
       courseTitle: row.course_title,
       instructorName: row.instructor_name,
       sectionCode: row.section_code,
+      eventPackageId: row.event_package_id,
       totalClassesHeld: (() => {
         const total = parseNumber(row.total_classes_held);
         return total;

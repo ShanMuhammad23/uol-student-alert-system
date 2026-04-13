@@ -24,6 +24,8 @@ type EnrollmentRow = {
   Peryr?: string;
   Perid?: string;
   Packnumber?: string;
+  CrCreditHrs?: string | number;
+  ClassType?: string;
 };
 
 type AttendanceRow = {
@@ -68,6 +70,49 @@ function normalizeCode(value: string): string {
 function normalizeCourseCode(raw: string): string {
   const [code] = raw.split("|");
   return code.trim();
+}
+
+function normalizeCreditHours(value: string | number | null | undefined): string {
+  if (value == null) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) return String(asNumber);
+  return raw;
+}
+
+function buildClassContextKey(
+  departmentCode: string,
+  degreeKey: string,
+  courseCode: string,
+  sectionCode: string,
+  classTypeOrCreditKey: string
+): string {
+  return [departmentCode, degreeKey, courseCode, sectionCode, classTypeOrCreditKey].join("__");
+}
+
+function normalizeLooseText(value: string | null | undefined): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function buildClassScopedMonitoringKey(
+  courseCode: string,
+  sectionCode: string,
+  teacherKey: string,
+  classTypeOrCreditKey: string
+): string {
+  return [courseCode, sectionCode, teacherKey, classTypeOrCreditKey].join("__");
+}
+
+function buildSectionClassTypeKey(
+  courseCode: string,
+  sectionCode: string,
+  classTypeOrCreditKey: string
+): string {
+  return [courseCode, sectionCode, classTypeOrCreditKey].join("__");
 }
 
 function chunkArray<T>(list: T[], size: number): T[][] {
@@ -308,11 +353,24 @@ export async function runStudentSync(
 
   const classesHeldByCourseSection = new Map<string, number>();
   const classesHeldByCourse = new Map<string, number>();
+  const classesHeldByContext = new Map<string, number>();
+  const classesHeldByScopedClass = new Map<string, number>();
+  const classesHeldBySectionClassType = new Map<string, number>();
   const attendanceMarkedByCourseSection = new Map<string, number>();
   const attendanceMarkedByCourse = new Map<string, number>();
+  const attendanceMarkedByContext = new Map<string, number>();
+  const attendanceMarkedByScopedClass = new Map<string, number>();
+  const attendanceMarkedBySectionClassType = new Map<string, number>();
+  const classTypesByCourseSectionTeacher = new Map<string, Set<string>>();
   for (const entry of monitoringEntries) {
     const course = normalizeCourseCode(String(entry.CrCode ?? ""));
     const section = String(entry.SecCode ?? "").trim();
+    const departmentCode = String(entry.Department ?? "").trim();
+    const degree = normalizeCode(String(entry.Degree ?? "").trim());
+    const classTypeOrCreditKey =
+      normalizeLooseText(String(entry.ClassType ?? "")) ||
+      normalizeCreditHours(entry.CrHr);
+    const teacherKey = normalizeLooseText(String(entry.TeacherName ?? ""));
     if (!course) continue;
     const heldRaw = entry.Held ?? entry.ToDate;
     const held =
@@ -320,6 +378,12 @@ export async function runStudentSync(
     const markedRaw = entry.Att;
     const marked =
       typeof markedRaw === "number" ? markedRaw : Number(markedRaw ?? 0) || 0;
+    if (course && section && teacherKey && classTypeOrCreditKey) {
+      const signature = `${course}__${section}__${teacherKey}`;
+      const set = classTypesByCourseSectionTeacher.get(signature) ?? new Set<string>();
+      set.add(classTypeOrCreditKey);
+      classTypesByCourseSectionTeacher.set(signature, set);
+    }
     if (section) classesHeldByCourseSection.set(`${course}__${section}`, held);
     if (section) {
       const key = `${course}__${section}`;
@@ -330,6 +394,46 @@ export async function runStudentSync(
     if (held > current) classesHeldByCourse.set(course, held);
     const currentMarkedCourse = attendanceMarkedByCourse.get(course) ?? 0;
     if (marked > currentMarkedCourse) attendanceMarkedByCourse.set(course, marked);
+    if (section || departmentCode || degree || classTypeOrCreditKey) {
+      const contextKey = buildClassContextKey(
+        departmentCode,
+        degree,
+        course,
+        section,
+        classTypeOrCreditKey
+      );
+      classesHeldByContext.set(contextKey, held);
+      const currentMarked = attendanceMarkedByContext.get(contextKey) ?? 0;
+      if (marked > currentMarked) attendanceMarkedByContext.set(contextKey, marked);
+
+      if (course && section && teacherKey && classTypeOrCreditKey) {
+        const scopedKey = buildClassScopedMonitoringKey(
+          course,
+          section,
+          teacherKey,
+          classTypeOrCreditKey
+        );
+        classesHeldByScopedClass.set(scopedKey, held);
+        const currentScopedMarked =
+          attendanceMarkedByScopedClass.get(scopedKey) ?? 0;
+        if (marked > currentScopedMarked) {
+          attendanceMarkedByScopedClass.set(scopedKey, marked);
+        }
+      }
+      if (course && section && classTypeOrCreditKey) {
+        const sectionClassTypeKey = buildSectionClassTypeKey(
+          course,
+          section,
+          classTypeOrCreditKey
+        );
+        classesHeldBySectionClassType.set(sectionClassTypeKey, held);
+        const currentSectionClassTypeMarked =
+          attendanceMarkedBySectionClassType.get(sectionClassTypeKey) ?? 0;
+        if (marked > currentSectionClassTypeMarked) {
+          attendanceMarkedBySectionClassType.set(sectionClassTypeKey, marked);
+        }
+      }
+    }
   }
 
   const absencesByEnrollmentKey = new Map<string, number>();
@@ -343,8 +447,8 @@ export async function runStudentSync(
   }
 
   const attendancePctByEnrollmentKey = new Map<string, number | null>();
-  const classSumByCourseSection = new Map<string, number>();
-  const classCountByCourseSection = new Map<string, number>();
+  const classSumByScopedClass = new Map<string, number>();
+  const classCountByScopedClass = new Map<string, number>();
 
   type EnrollmentPrepared = {
     sapId: string;
@@ -364,6 +468,10 @@ export async function runStudentSync(
     termYear: string;
     termSession: string;
     campusCode: string;
+    classTypeKey: string;
+    creditHoursKey: string;
+    degreeKey: string;
+    originalEventPackageId: string;
   };
 
   const prepared: EnrollmentPrepared[] = [];
@@ -373,69 +481,124 @@ export async function runStudentSync(
     const courseRaw = String(row.CrCode ?? "").trim();
     const courseNorm = normalizeCourseCode(courseRaw);
     const sectionCode = String(row.Section ?? "").trim();
-    const eventPackageId = String(row.Packnumber ?? row.Section ?? "").trim();
+    const originalEventPackageId = String(row.Packnumber ?? row.Section ?? "").trim();
     const facultyId = String(row.FacId ?? "").trim();
     const departmentId = String(row.DeptId ?? row.DeptCode ?? "").trim();
     const departmentCode = String(row.DeptCode ?? row.DeptId ?? "").trim();
-    if (!sapId || !courseRaw || !courseNorm || !sectionCode || !eventPackageId || !facultyId || !departmentId) {
+    const classTypeKey = String(row.ClassType ?? "").trim().toLowerCase();
+    const teacherKey = normalizeLooseText(String(row.Teacher ?? ""));
+    const degreeKey = normalizeCode(String(row.DegreeCode ?? "").trim());
+    if (!sapId || !courseRaw || !courseNorm || !sectionCode || !originalEventPackageId || !facultyId || !departmentId) {
       continue;
     }
-    const dedupeKey = `${sapId}__${courseRaw}__${sectionCode}__${eventPackageId}`;
-    if (seenEnrollmentKeys.has(dedupeKey)) continue;
-    seenEnrollmentKeys.add(dedupeKey);
+    const classTypeSignature = `${courseNorm}__${sectionCode}__${teacherKey}`;
+    const mappedClassTypes = Array.from(
+      classTypesByCourseSectionTeacher.get(classTypeSignature) ?? []
+    );
+    const fallbackClassType =
+      normalizeCreditHours(row.CrCreditHrs) || classTypeKey || "NA";
+    const classTypeCandidates = mappedClassTypes.length
+      ? mappedClassTypes
+      : [fallbackClassType];
 
-    prepared.push({
-      sapId,
-      studentName: String(row.Name ?? "").trim() || sapId,
-      facultyId,
-      departmentId,
-      departmentCode,
-      departmentName: String(row.DeptName ?? "").trim() || departmentId,
-      programId: String(row.DegreeCode ?? "").trim() || null,
-      programTitle: String(row.DegreeTitle ?? "").trim() || null,
-      courseId: courseRaw,
-      courseTitle: String(row.CrTitle ?? "").trim() || courseRaw,
-      sectionCode,
-      eventPackageId,
-      instructorPernr: String(row.Pernr ?? "").trim() || null,
-      instructorName: String(row.Teacher ?? "").trim() || null,
-      termYear: String(row.Peryr ?? pYear).trim(),
-      termSession: String(row.Perid ?? pSess).trim(),
-      campusCode: String(row.CampCode ?? campus).trim(),
-    });
+    for (const classTypeOrCreditKey of classTypeCandidates) {
+      // Persist class discriminator so same course+section+teacher with different class type
+      // (e.g. lecture vs lab) are stored as separate class instances.
+      const eventPackageId = `${originalEventPackageId}__${classTypeOrCreditKey || "NA"}`;
+      const dedupeKey = `${sapId}__${courseRaw}__${sectionCode}__${eventPackageId}`;
+      if (seenEnrollmentKeys.has(dedupeKey)) continue;
+      seenEnrollmentKeys.add(dedupeKey);
 
-    const enrollKey = `${sapId}__${courseNorm}__${eventPackageId}`;
-    const classKey = `${courseNorm}__${sectionCode}`;
-    const totalHeld =
-      classesHeldByCourseSection.get(classKey) ??
-      classesHeldByCourse.get(courseNorm) ??
-      0;
-    const attendanceMarked =
-      attendanceMarkedByCourseSection.get(classKey) ??
-      attendanceMarkedByCourse.get(courseNorm) ??
-      0;
-    const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
-    // Attendance calculation rule:
-    // - `totalHeld` (Held): all sessions run; stored on alerts as total_classes_held
-    // - `attendanceMarked` (Att): sessions with attendance posted; used as denominator for %
-    // - Attendance API counts absences (against posted sessions only)
-    // - Attended = attendanceMarked - absences
-    // - Attendance % = attended / attendanceMarked (not vs Held, which includes unposted)
-    const attended = Math.max(0, attendanceMarked - absences);
-    const pct =
-      attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
+      prepared.push({
+        sapId,
+        studentName: String(row.Name ?? "").trim() || sapId,
+        facultyId,
+        departmentId,
+        departmentCode,
+        departmentName: String(row.DeptName ?? "").trim() || departmentId,
+        programId: String(row.DegreeCode ?? "").trim() || null,
+        programTitle: String(row.DegreeTitle ?? "").trim() || null,
+        courseId: courseRaw,
+        courseTitle: String(row.CrTitle ?? "").trim() || courseRaw,
+        sectionCode,
+        eventPackageId,
+        originalEventPackageId,
+        instructorPernr: String(row.Pernr ?? "").trim() || null,
+        instructorName: String(row.Teacher ?? "").trim() || null,
+        termYear: String(row.Peryr ?? pYear).trim(),
+        termSession: String(row.Perid ?? pSess).trim(),
+        campusCode: String(row.CampCode ?? campus).trim(),
+        classTypeKey,
+        creditHoursKey: classTypeOrCreditKey,
+        degreeKey,
+      });
 
-    attendancePctByEnrollmentKey.set(enrollKey, pct);
-    if (pct != null && Number.isFinite(pct)) {
-      classSumByCourseSection.set(classKey, (classSumByCourseSection.get(classKey) ?? 0) + pct);
-      classCountByCourseSection.set(classKey, (classCountByCourseSection.get(classKey) ?? 0) + 1);
+      const enrollKey = `${sapId}__${courseNorm}__${originalEventPackageId}`;
+      const classKey = `${courseNorm}__${sectionCode}`;
+      const classScopedKey = buildClassScopedMonitoringKey(
+        courseNorm,
+        sectionCode,
+        teacherKey,
+        classTypeOrCreditKey
+      );
+      const sectionClassTypeKey = buildSectionClassTypeKey(
+        courseNorm,
+        sectionCode,
+        classTypeOrCreditKey
+      );
+      const classContextKey = buildClassContextKey(
+        departmentCode,
+        degreeKey,
+        courseNorm,
+        sectionCode,
+        classTypeOrCreditKey
+      );
+      const totalHeld =
+        classesHeldByScopedClass.get(classScopedKey) ??
+        classesHeldByContext.get(classContextKey) ??
+        classesHeldBySectionClassType.get(sectionClassTypeKey) ??
+        classesHeldByCourseSection.get(classKey) ??
+        classesHeldByCourse.get(courseNorm) ??
+        0;
+      const attendanceMarked =
+        attendanceMarkedByScopedClass.get(classScopedKey) ??
+        attendanceMarkedByContext.get(classContextKey) ??
+        attendanceMarkedBySectionClassType.get(sectionClassTypeKey) ??
+        attendanceMarkedByCourseSection.get(classKey) ??
+        attendanceMarkedByCourse.get(courseNorm) ??
+        0;
+      const absences = absencesByEnrollmentKey.get(enrollKey) ?? 0;
+      // Attendance calculation rule:
+      // - `totalHeld` (Held): all sessions run; stored on alerts as total_classes_held
+      // - `attendanceMarked` (Att): sessions with attendance posted; used as denominator for %
+      // - Attendance API counts absences (against posted sessions only)
+      // - Attended = attendanceMarked - absences
+      // - Attendance % = attended / attendanceMarked (not vs Held, which includes unposted)
+      const attended = Math.max(0, attendanceMarked - absences);
+      const pct =
+        attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
+
+      attendancePctByEnrollmentKey.set(
+        `${sapId}__${courseNorm}__${eventPackageId}`,
+        pct
+      );
+      if (pct != null && Number.isFinite(pct)) {
+        classSumByScopedClass.set(
+          classScopedKey,
+          (classSumByScopedClass.get(classScopedKey) ?? 0) + pct
+        );
+        classCountByScopedClass.set(
+          classScopedKey,
+          (classCountByScopedClass.get(classScopedKey) ?? 0) + 1
+        );
+      }
     }
   }
 
-  const classAvgByCourseSection = new Map<string, number>();
-  for (const [k, sum] of classSumByCourseSection.entries()) {
-    const count = classCountByCourseSection.get(k) ?? 1;
-    classAvgByCourseSection.set(k, sum / count);
+  const classAvgByScopedClass = new Map<string, number>();
+  for (const [k, sum] of classSumByScopedClass.entries()) {
+    const count = classCountByScopedClass.get(k) ?? 1;
+    classAvgByScopedClass.set(k, sum / count);
   }
 
   const sapIds = Array.from(new Set(prepared.map((r) => r.sapId)));
@@ -653,13 +816,38 @@ export async function runStudentSync(
 
     const alerts: AlertPrepared[] = prepared.map((row) => {
       const courseNorm = normalizeCourseCode(row.courseId);
-      const enrollKey = `${row.sapId}__${courseNorm}__${row.eventPackageId}`;
+      const enrollKey = `${row.sapId}__${courseNorm}__${row.originalEventPackageId}`;
       const classKey = `${courseNorm}__${row.sectionCode}`;
+      const teacherKey = normalizeLooseText(row.instructorName ?? "");
+      const classScopedKey = buildClassScopedMonitoringKey(
+        courseNorm,
+        row.sectionCode,
+        teacherKey,
+        row.creditHoursKey
+      );
+      const sectionClassTypeKey = buildSectionClassTypeKey(
+        courseNorm,
+        row.sectionCode,
+        row.creditHoursKey
+      );
+      const classContextKey = buildClassContextKey(
+        row.departmentCode,
+        row.degreeKey,
+        courseNorm,
+        row.sectionCode,
+        row.creditHoursKey
+      );
       const totalHeld =
+        classesHeldByScopedClass.get(classScopedKey) ??
+        classesHeldByContext.get(classContextKey) ??
+        classesHeldBySectionClassType.get(sectionClassTypeKey) ??
         classesHeldByCourseSection.get(classKey) ??
         classesHeldByCourse.get(courseNorm) ??
         0;
       const attendanceMarked =
+        attendanceMarkedByScopedClass.get(classScopedKey) ??
+        attendanceMarkedByContext.get(classContextKey) ??
+        attendanceMarkedBySectionClassType.get(sectionClassTypeKey) ??
         attendanceMarkedByCourseSection.get(classKey) ??
         attendanceMarkedByCourse.get(courseNorm) ??
         0;
@@ -669,7 +857,7 @@ export async function runStudentSync(
       const attended = Math.max(0, attendanceMarked - absences);
       const attendancePct =
         attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
-      const classAvg = classAvgByCourseSection.get(classKey) ?? null;
+      const classAvg = classAvgByScopedClass.get(classScopedKey) ?? null;
       const attendanceLevel =
         attendancePct == null
           ? null

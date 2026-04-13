@@ -53,6 +53,7 @@ type TopTableRow = {
   courseTitle: string;
   instructorName: string;
   sectionCode: string | null;
+  eventPackageId?: string | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
   classesAttended: number;
@@ -569,7 +570,7 @@ export function TopChannelsTableClient({
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
-                const rowKey = `${row.sapId}-${row.courseId}-${row.sectionCode ?? ""}`;
+                const rowKey = `${row.sapId}-${row.courseId}-${row.sectionCode ?? ""}-${row.eventPackageId ?? ""}-${row.programTitle ?? ""}-${row.instructorName ?? ""}`;
                 const alertLevel = row.attendanceAlertLevel;
                 const attendanceColorClass =
                   alertLevel === "critical"
@@ -649,6 +650,11 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left text-sm">
                       <div className="flex flex-col gap-1">
                         <span>{row.courseId}-{row.courseTitle ?? row.courseId ?? "—"}</span>
+                        {row.eventPackageId ? (
+                          <span className="text-xs text-dark-6 dark:text-white">
+                            Class Instance: {row.eventPackageId}
+                          </span>
+                        ) : null}
                         <span className="text-sm text-[#1f4a3d] dark:text-white">
                           {row.courseStudentCount ?? 0} students
                         </span>

@@ -47,6 +47,22 @@ type GroupedEnrollment = {
   >;
 };
 
+function toClassContextKey(params: {
+  courseCode: string;
+  sectionCode?: string | null;
+  eventPackageId?: string | null;
+  programTitle?: string | null;
+  instructorName?: string | null;
+}): string {
+  return [
+    normalizeCourseCode(params.courseCode),
+    (params.sectionCode ?? "").trim(),
+    (params.eventPackageId ?? "").trim(),
+    (params.programTitle ?? "").trim().toLowerCase(),
+    (params.instructorName ?? "").trim().toLowerCase(),
+  ].join("__");
+}
+
 function groupEnrollmentByDeptProgramCourse(
   records: NestedEnrollmentRow[]
 ): GroupedEnrollment {
@@ -58,7 +74,13 @@ function groupEnrollmentByDeptProgramCourse(
   for (const row of records) {
     const deptName = row.DeptName ?? "Unknown Department";
     const program = row.DegreeTitle ?? row.DegreeCode ?? "Unknown Program";
-    const courseKey = row.CrCode ?? row.CrTitle ?? "Unknown Course";
+    const courseCode = String(row.CrCode ?? row.CrTitle ?? "Unknown Course");
+    const sectionCode = String(row.Section ?? "").trim();
+    const instructorName = String(row.Teacher ?? "").trim();
+    const eventPackageId = String(
+      (row as unknown as { Packnumber?: string }).Packnumber ?? ""
+    ).trim();
+    const courseKey = `${courseCode}__${sectionCode}__${eventPackageId}__${instructorName}`;
 
     if (!byDept.has(deptName)) {
       byDept.set(deptName, new Map());
@@ -106,6 +128,7 @@ type TopTableRow = {
   courseTitle: string;
   instructorName: string;
   sectionCode: string | null;
+  eventPackageId?: string | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
   classesAttended: number;
@@ -221,7 +244,8 @@ export function NestedEnrollmentTableClient({
         CrTitle: r.courseTitle,
         Teacher: r.instructorName,
         Section: r.sectionCode ?? "",
-        Id: `${r.sapId}-${r.courseId}-${r.sectionCode ?? ""}`,
+        Packnumber: r.eventPackageId ?? undefined,
+        Id: `${r.sapId}-${r.courseId}-${r.sectionCode ?? ""}-${r.eventPackageId ?? ""}`,
         gpaCurrent: r.gpaCurrent ?? null,
         gpaPrevious: r.gpaPrevious ?? null,
         gpaChange: r.gpaChange ?? null,
@@ -271,7 +295,13 @@ export function NestedEnrollmentTableClient({
   const classAverageByCourseSection = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of dbRows) {
-      const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
+      const key = toClassContextKey({
+        courseCode: r.courseId,
+        sectionCode: r.sectionCode,
+        eventPackageId: r.eventPackageId,
+        programTitle: r.programTitle,
+        instructorName: r.instructorName,
+      });
       if (r.classAverageAttendance != null) map.set(key, r.classAverageAttendance);
     }
     return map;
@@ -280,7 +310,13 @@ export function NestedEnrollmentTableClient({
   const monitoredByCourseSection = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of dbRows) {
-      const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
+      const key = toClassContextKey({
+        courseCode: r.courseId,
+        sectionCode: r.sectionCode,
+        eventPackageId: r.eventPackageId,
+        programTitle: r.programTitle,
+        instructorName: r.instructorName,
+      });
       map.set(key, r.totalClassesHeld ?? 0);
     }
     return map;
@@ -289,7 +325,13 @@ export function NestedEnrollmentTableClient({
   const attendancePostedByCourseSection = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of dbRows) {
-      const key = `${normalizeCourseCode(r.courseId)}__${r.sectionCode ?? ""}`;
+      const key = toClassContextKey({
+        courseCode: r.courseId,
+        sectionCode: r.sectionCode,
+        eventPackageId: r.eventPackageId,
+        programTitle: r.programTitle,
+        instructorName: r.instructorName,
+      });
       map.set(key, r.attendanceMarkedClasses ?? 0);
     }
     return map;
@@ -309,9 +351,16 @@ export function NestedEnrollmentTableClient({
       }
 
       base = base.filter((row) => {
-        const monitorKey = `${normalizeCourseCode(
-          typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
-        )}__${row.Section ?? ""}`;
+        const monitorKey = toClassContextKey({
+          courseCode:
+            typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
+          sectionCode: row.Section ?? "",
+          eventPackageId: String(
+            (row as unknown as { Packnumber?: string }).Packnumber ?? ""
+          ),
+          programTitle: row.DegreeTitle ?? row.DegreeCode ?? "",
+          instructorName: row.Teacher ?? "",
+        });
         const attendanceKey = getEnrollmentAttendanceKey(row);
         const summary = attendanceSummaries.get(attendanceKey);
         const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
@@ -417,9 +466,16 @@ export function NestedEnrollmentTableClient({
     if (!rows.length || !attendanceSummaries) return { red: 0, yellow: 0 };
     const bySap = new Map<string, "critical" | "warning" | null>();
     for (const row of rows) {
-      const monitorKey = `${normalizeCourseCode(
-        typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
-      )}__${row.Section ?? ""}`;
+      const monitorKey = toClassContextKey({
+        courseCode:
+          typeof row.CrCode === "string" ? row.CrCode : String(row.CrCode ?? ""),
+        sectionCode: row.Section ?? "",
+        eventPackageId: String(
+          (row as unknown as { Packnumber?: string }).Packnumber ?? ""
+        ),
+        programTitle: row.DegreeTitle ?? row.DegreeCode ?? "",
+        instructorName: row.Teacher ?? "",
+      });
       const attendanceKey = getEnrollmentAttendanceKey(row);
       const summary = attendanceSummaries.get(attendanceKey);
       const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
@@ -704,8 +760,15 @@ export function NestedEnrollmentTableClient({
                             {sortedCourses.map((courseKey) => {
                               const rows = byCourse.get(courseKey)!;
                               const courseSectionId = `${progSectionId}-course-${courseKey.replace(/\s+/g, "-")}`;
+                              const firstRow = rows[0];
+                              const courseCode = String(firstRow?.CrCode ?? "").trim();
+                              const sectionCode = String(firstRow?.Section ?? "").trim();
+                              const eventPackageId = String(
+                                (firstRow as unknown as { Packnumber?: string })?.Packnumber ?? ""
+                              ).trim();
+                              const instructorName = String(firstRow?.Teacher ?? "").trim();
                               const courseTitle =
-                                rows[0]?.CrTitle ?? rows[0]?.CrCode ?? courseKey;
+                                firstRow?.CrTitle ?? firstRow?.CrCode ?? courseKey;
                               const courseIsOpen = expandedIds.includes(courseSectionId);
 
                               const courseAttendanceAlerts =
@@ -713,7 +776,7 @@ export function NestedEnrollmentTableClient({
                               const courseGpaAlerts = getGpaAlertCounts(rows);
                               const courseStatsFromSource = normalizedCourseStats.map.get(
                                 normalizedCourseStats.normalize(
-                                  (rows[0]?.CrCode ?? courseKey) as string
+                                  (firstRow?.CrCode ?? courseKey) as string
                                 )
                               );
                               const displayCourseAttendanceAlerts = courseStatsFromSource
@@ -729,7 +792,7 @@ export function NestedEnrollmentTableClient({
                                   }
                                 : courseGpaAlerts;
                               const primaryInstructorName = String(
-                                rows[0]?.Teacher ?? ""
+                                firstRow?.Teacher ?? ""
                               ).trim();
                               const instructorStatsFromSource = primaryInstructorName
                                 ? normalizedInstructorStats.map.get(
@@ -753,18 +816,28 @@ export function NestedEnrollmentTableClient({
                                       <span className={cn("text-sm font-semibold dark:text-white", courseIsOpen ? "text-white" : "text-dark")}>
                                         Course:{" "}
                                         <span className={cn("font-bold text-primary dark:text-green", courseIsOpen ? "text-white" : "text-dark")}>
-                                          {courseKey}
+                                          {courseCode || courseKey}
                                         </span>
                                         {courseTitle && courseTitle !== courseKey && (
                                           <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                             ({courseTitle})
                                           </span>
                                         )}
+                                        {sectionCode && (
+                                          <span className="ml-2 text-xs text-dark-6 dark:text-white">
+                                            [Section {sectionCode}]
+                                          </span>
+                                        )}
+                                        {eventPackageId && (
+                                          <span className="ml-2 text-xs text-dark-6 dark:text-white">
+                                            [Class {eventPackageId}]
+                                          </span>
+                                        )}
                                       </span>
                                       <span className={cn("text-sm", courseIsOpen ? "text-white" : "text-dark-6")}>
                                         Instructor(s):{" "}
                                         <span className="font-semibold text-dark dark:text-white">
-                                          {rows[0]?.Teacher ?? "—"}
+                                          {firstRow?.Teacher ?? "—"}
                                         </span>
                                         {instructorStatsFromSource && (
                                           <>
@@ -842,12 +915,20 @@ export function NestedEnrollmentTableClient({
                                         {rows.map((row, idx) => {
                                           const rowKey =
                                             row.Id ??
-                                            `${row.SapNo}-${courseKey}-${idx}`;
-                                          const monitorKey = `${normalizeCourseCode(
-                                            typeof row.CrCode === "string"
-                                              ? row.CrCode
-                                              : String(row.CrCode ?? ""),
-                                          )}__${row.Section ?? ""}`;
+                                            `${row.SapNo}-${courseKey}-${row.Section ?? ""}-${(row as unknown as { Packnumber?: string }).Packnumber ?? ""}-${row.Teacher ?? ""}-${idx}`;
+                                          const monitorKey = toClassContextKey({
+                                            courseCode:
+                                              typeof row.CrCode === "string"
+                                                ? row.CrCode
+                                                : String(row.CrCode ?? ""),
+                                            sectionCode: row.Section ?? "",
+                                            eventPackageId: String(
+                                              (row as unknown as { Packnumber?: string }).Packnumber ?? ""
+                                            ),
+                                            programTitle:
+                                              row.DegreeTitle ?? row.DegreeCode ?? "",
+                                            instructorName: row.Teacher ?? "",
+                                          });
                                           const monitoredCount =
                                             monitoredByCourseSection.get(monitorKey);
                                           const postedCount =
