@@ -90,6 +90,7 @@ export function OverviewCardsGroup({
     grossAttendanceRed: redAttendance,
     attendanceUpdatedCount: 0,
     attendanceHeldCount: 0,
+    attendanceMissingCount: 0,
     grossGpaYellow: yellowGpa,
     grossGpaRed: redGpa,
   });
@@ -131,6 +132,7 @@ export function OverviewCardsGroup({
       grossAttendanceRed: redAttendance,
       attendanceUpdatedCount: 0,
       attendanceHeldCount: 0,
+      attendanceMissingCount: 0,
       grossGpaYellow: yellowGpa,
       grossGpaRed: redGpa,
     });
@@ -148,6 +150,9 @@ export function OverviewCardsGroup({
         masterFilter: filter.masterFilter,
         gpaFilters: filter.gpaFilters,
         attendanceFilters: filter.attendanceFilters,
+        classStatusFilters: filter.classStatusFilters,
+        interventionFilters: filter.interventionFilters,
+        resolutionFilters: filter.resolutionFilters,
       }),
       signal: controller.signal,
     })
@@ -160,6 +165,7 @@ export function OverviewCardsGroup({
             grossRed: number;
             updatedAttendance: number;
             totalClassesHeld: number;
+            missingCount?: number;
           };
           gpa: {
             grossYellow: number;
@@ -174,6 +180,7 @@ export function OverviewCardsGroup({
           grossAttendanceRed: body.attendance.grossRed,
           attendanceUpdatedCount: body.attendance.updatedAttendance ?? 0,
           attendanceHeldCount: body.attendance.totalClassesHeld ?? 0,
+          attendanceMissingCount: body.attendance.missingCount ?? 0,
           grossGpaYellow: body.gpa.grossYellow,
           grossGpaRed: body.gpa.grossRed,
         });
@@ -189,6 +196,9 @@ export function OverviewCardsGroup({
     filter?.masterFilter,
     filter?.gpaFilters,
     filter?.attendanceFilters,
+    filter?.classStatusFilters,
+    filter?.interventionFilters,
+    filter?.resolutionFilters,
   ]);
 
   const netAttendanceYellow = liveCounts.grossAttendanceYellow;
@@ -256,6 +266,7 @@ export function OverviewCardsGroup({
           totalStudents={liveCounts.totalStudents}
           updatedAttendanceCount={liveCounts.attendanceUpdatedCount}
           totalHeldCount={liveCounts.attendanceHeldCount}
+          attendanceMissingCount={liveCounts.attendanceMissingCount}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
           redActive={attendanceRedActive}

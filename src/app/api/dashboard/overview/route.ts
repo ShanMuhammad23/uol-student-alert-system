@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
+import { calculateMissingAttendance } from "@/lib/attendance-missing";
 import {
   getOverviewData,
-  getAttendanceCoverageData,
   mapSessionToAppUser,
 } from "@/app/(home)/dashboard/fetch";
 import type {
   AlertDimensionFilter,
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
+import { getStudentListing, type SessionScope } from "@/lib/db/student-listing";
 
 type Body = {
   roleScope?: {
@@ -22,6 +23,9 @@ type Body = {
   masterFilter?: MasterFilterParams;
   gpaFilters?: AlertDimensionFilter[];
   attendanceFilters?: AlertDimensionFilter[];
+  classStatusFilters?: string[];
+  interventionFilters?: string[];
+  resolutionFilters?: string[];
 };
 
 export async function POST(req: Request) {
@@ -55,6 +59,89 @@ export async function POST(req: Request) {
     };
   }
 
+  const toSessionScope = (
+    sourceUser: typeof user,
+    roleScope: Body["roleScope"] | undefined
+  ): SessionScope => {
+    if (sourceUser.role === "superadmin" && roleScope) {
+      return {
+        role: roleScope.role === "teacher" ? "instructor" : roleScope.role,
+        faculty_id: roleScope.facultyId ?? null,
+        department_ids: roleScope.departmentIds?.length
+          ? roleScope.departmentIds
+          : null,
+        pernr: roleScope.pernr ?? sourceUser.sap_id ?? null,
+      };
+    }
+    return {
+      role: sourceUser.role === "teacher" ? "instructor" : sourceUser.role,
+      faculty_id: sourceUser.faculty_id ?? null,
+      department_ids: sourceUser.department_ids?.length
+        ? sourceUser.department_ids
+        : null,
+      pernr: sourceUser.sap_id ?? null,
+    };
+  };
+
+  const normalizedAttendanceFilters =
+    body.attendanceFilters?.includes("all")
+      ? undefined
+      : body.attendanceFilters;
+  const normalizedGpaFilters = body.gpaFilters?.includes("all")
+    ? undefined
+    : body.gpaFilters;
+  const normalizedClassStatusFilters =
+    body.classStatusFilters?.length && !body.classStatusFilters.includes("all")
+      ? body.classStatusFilters.filter((v) => v !== "all")
+      : undefined;
+  const normalizedResolutionFilters =
+    body.resolutionFilters?.length && !body.resolutionFilters.includes("all")
+      ? body.resolutionFilters.filter((v) => v !== "all")
+      : undefined;
+
+  const attendanceCoveragePromise = getStudentListing(
+    toSessionScope(user, body.roleScope),
+    {
+      page: 1,
+      pageSize: 100000,
+      sortKey: "department",
+      sortDirection: "asc",
+      filters: {
+        ...(body.masterFilter ?? {}),
+        attendanceFilters: normalizedAttendanceFilters,
+        gpaFilters: normalizedGpaFilters,
+        classStatusFilters: normalizedClassStatusFilters,
+        interventionFilters: body.interventionFilters,
+        resolutionFilters: normalizedResolutionFilters,
+      },
+    }
+  ).then((listing) => {
+    const byClass = new Map<string, { held: number; marked: number }>();
+    for (const row of listing.rows) {
+      if (row.isActive === false) continue;
+      const classKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
+      const held = Number(row.totalClassesHeld ?? 0);
+      const marked = Number(row.attendanceMarkedClasses ?? 0);
+      const existing = byClass.get(classKey);
+      if (!existing) {
+        byClass.set(classKey, { held, marked });
+        continue;
+      }
+      if (held > existing.held) existing.held = held;
+      if (marked > existing.marked) existing.marked = marked;
+    }
+
+    let totalClassesHeld = 0;
+    let updatedAttendance = 0;
+    let missingCount = 0;
+    for (const value of byClass.values()) {
+      totalClassesHeld += value.held;
+      updatedAttendance += value.marked;
+      missingCount += calculateMissingAttendance(value.held, value.marked);
+    }
+    return { updatedAttendance, totalClassesHeld, missingCount };
+  });
+
   const [overview, attendanceCoverage] = await Promise.all([
     getOverviewData(
       user,
@@ -62,7 +149,7 @@ export async function POST(req: Request) {
       body.gpaFilters,
       body.attendanceFilters,
     ),
-    getAttendanceCoverageData(user, body.masterFilter),
+    attendanceCoveragePromise,
   ]);
 
   const grossAttendanceYellow = overview.yellowAttendance?.value ?? 0;
@@ -77,6 +164,7 @@ export async function POST(req: Request) {
       grossRed: grossAttendanceRed,
       updatedAttendance: attendanceCoverage.updatedAttendance,
       totalClassesHeld: attendanceCoverage.totalClassesHeld,
+      missingCount: attendanceCoverage.missingCount,
     },
     gpa: {
       grossYellow: grossGpaYellow,

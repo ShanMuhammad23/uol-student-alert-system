@@ -7,6 +7,7 @@ import type {
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
 import { useDashboardUiState } from "@/app/(home)/dashboard/_components/DashboardUiStateContext";
+import { calculateMissingAttendance } from "@/lib/attendance-missing";
 
 type Props = {
   className?: string;
@@ -28,6 +29,7 @@ type TopTableRow = {
   courseTitle: string;
   instructorName: string;
   sectionCode: string | null;
+  eventPackageId?: string | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
   classesAttended: number;
@@ -47,6 +49,8 @@ type CourseSummary = {
   key: string;
   courseId: string;
   courseTitle: string;
+  sectionCode: string | null;
+  eventPackageId: string | null;
   instructors: Set<string>;
   held: number;
   posted: number;
@@ -170,12 +174,12 @@ export function AttendanceMissingTableClient({
     for (const row of rows) {
       const held = Number(row.totalClassesHeld ?? 0);
       const posted = Number(row.attendanceMarkedClasses ?? 0);
-      const missing = Math.max(held - posted, 0);
+      const missing = calculateMissingAttendance(held, posted);
       if (missing <= 0) continue;
 
       const deptName = row.departmentName || "Unknown Department";
       const programName = row.programTitle || "Unknown Program";
-      const courseKey = `${row.courseId}__${row.courseTitle ?? row.courseId}`;
+      const courseKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
 
       if (!depts.has(deptName)) {
         depts.set(deptName, { name: deptName, programs: new Map() });
@@ -195,6 +199,8 @@ export function AttendanceMissingTableClient({
           key: courseKey,
           courseId: row.courseId,
           courseTitle: row.courseTitle ?? row.courseId,
+          sectionCode: row.sectionCode ?? null,
+          eventPackageId: row.eventPackageId ?? null,
           instructors: new Set<string>(),
           held: 0,
           posted: 0,
@@ -208,7 +214,7 @@ export function AttendanceMissingTableClient({
       course.students.add(row.sapId);
       if (held > course.held) course.held = held;
       if (posted > course.posted) course.posted = posted;
-      course.missing = Math.max(course.held - course.posted, 0);
+      course.missing = calculateMissingAttendance(course.held, course.posted);
     }
     return depts;
   }, [rows]);
@@ -280,13 +286,13 @@ export function AttendanceMissingTableClient({
                 course.courseTitle && course.courseTitle !== course.courseId
                   ? ` (${course.courseTitle})`
                   : ""
-              }`,
+              }${course.sectionCode ? ` [Section: ${course.sectionCode}]` : ""}`,
               programName,
               deptName.replace(/^Department of\s+/i, ""),
               String(course.held),
               String(course.posted),
               String(course.missing),
-              String(course.held - course.posted),
+              String(calculateMissingAttendance(course.held, course.posted)),
             ].map((v) => csvEscape(String(v)));
             lines.push(values.join(","));
           }
@@ -548,6 +554,11 @@ export function AttendanceMissingTableClient({
                                     <span className="font-bold text-primary dark:text-green">
                                       {course.courseId}
                                     </span>
+                                    {course.sectionCode && (
+                                      <span className="ml-2 text-xs font-normal text-dark-6 dark:text-dark-5">
+                                        [Section: {course.sectionCode}]
+                                      </span>
+                                    )}
                                     {course.courseTitle &&
                                       course.courseTitle !== course.courseId && (
                                         <span className="ml-2 text-xs font-normal text-dark-6 dark:text-dark-5">

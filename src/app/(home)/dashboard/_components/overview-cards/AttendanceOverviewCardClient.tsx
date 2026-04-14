@@ -8,6 +8,7 @@ import type {
 import { useDashboardFilter } from "../DashboardFilterContext";
 import { DonutChart } from "@/components/Charts/used-devices/chart";
 import Link from "next/link";
+import { calculateMissingAttendance } from "@/lib/attendance-missing";
 
 type PropsType = {
   /** Label is fixed to "Attendance" in the parent, but kept flexible here. */
@@ -23,6 +24,7 @@ type PropsType = {
   totalStudents: number;
   updatedAttendanceCount: number;
   totalHeldCount: number;
+  attendanceMissingCount?: number;
   attendanceFilters?: AlertDimensionFilter[];
   yellowActive?: boolean;
   redActive?: boolean;
@@ -41,6 +43,7 @@ export function AttendanceOverviewCardClient({
   totalStudents,
   updatedAttendanceCount,
   totalHeldCount,
+  attendanceMissingCount,
   attendanceFilters,
   yellowActive,
   redActive,
@@ -70,10 +73,17 @@ export function AttendanceOverviewCardClient({
   const alertsPercentage =
     totalStudents > 0 ? (totalAlerts / totalStudents) * 100 : 0;
   const noAlertPercentage = Math.max(0, 100 - yellowPercentage - redPercentage);
-  const attendanceMissingCount = totalHeldCount - updatedAttendanceCount;
+  const computedAttendanceMissingCount = calculateMissingAttendance(
+    totalHeldCount,
+    updatedAttendanceCount
+  );
+  const resolvedAttendanceMissingCount =
+    typeof attendanceMissingCount === "number"
+      ? Math.max(0, attendanceMissingCount)
+      : computedAttendanceMissingCount;
   const attendanceMissingPercentage =
     totalHeldCount !== 0
-      ? (attendanceMissingCount / totalHeldCount) * 100
+      ? (resolvedAttendanceMissingCount / totalHeldCount) * 100
       : 0;
 
   return (
@@ -165,7 +175,7 @@ export function AttendanceOverviewCardClient({
       <p className="mt-3 text-base  text-dark-6 dark:text-dark-5">
           
           <span className=" text-dark dark:text-white">
-            Attendance Missing: {attendanceMissingCount} / {totalHeldCount.toLocaleString()} Classes (
+            Attendance Missing: {resolvedAttendanceMissingCount} / {totalHeldCount.toLocaleString()} Classes (
             {totalHeldCount > 0
               ? `${attendanceMissingPercentage.toFixed(1)}%`
               : "0%"}
