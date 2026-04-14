@@ -650,14 +650,27 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left text-sm">
                       <div className="flex flex-col gap-1">
                         <span>{row.courseId}-{row.courseTitle ?? row.courseId ?? "—"}</span>
-                        {row.eventPackageId ? (
-                          <span className="text-xs text-dark-6 dark:text-white">
-                            Class Instance: {row.eventPackageId}
-                          </span>
-                        ) : null}
-                        <span className="text-sm text-[#1f4a3d] dark:text-white">
+                       <div className="flex items-center gap-1">
+                       <span className="text-sm text-[#1f4a3d] dark:text-white">
                           {row.courseStudentCount ?? 0} students
                         </span>
+                       {row.eventPackageId ? (
+                          row.eventPackageId.toLowerCase().includes("lect") ? (
+                            <span className="text-xs text-white bg-[#1f4a3d] dark:text-white p-1 rounded-md">
+                              LECT
+                            </span>
+                          ) : row.eventPackageId.toLowerCase().includes("lab") ? (
+                            <span className="text-xs text-white bg-[#1f4a3d] dark:text-white p-1 rounded-md">
+                              LAB
+                            </span>
+                          ) : row.eventPackageId.toLowerCase().includes("tutorial") ? (
+                            <span className="text-xs text-white bg-[#1f4a3d] dark:text-white p-1 rounded-md">
+                              TUT
+                            </span>
+                          ) : null
+                        ) : null}
+                       </div>
+                       
                       </div>
                     </TableCell>
                     <TableCell className="!text-left text-sm">

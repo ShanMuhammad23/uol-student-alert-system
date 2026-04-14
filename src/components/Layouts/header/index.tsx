@@ -172,17 +172,18 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
           Student Early Alert System
         </h1>
         {(resolvedHeading || formattedLastUpdated) && (
-          <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
             <p className="text-lg font-medium text-green-600 dark:text-dark-5">
               {resolvedHeading} {resolvedHeading && shouldShowTotalStudents && (
                 <span className="font-semibold  dark:text-white">
                   {resolvedTotalStudents.toLocaleString()}
+                 
                 </span>
             
             )}
             </p>
             {formattedLastUpdated && (
-              <p className="text-sm text-gray-600 dark:text-gray-300">
+              <p className="text-lg text-gray-600 dark:text-gray-300 border-l border-gray-300 pl-2">
                 Last updated: {formattedLastUpdated}
               </p>
             )}

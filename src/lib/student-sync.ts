@@ -388,7 +388,9 @@ export async function runStudentSync(
     if (section) {
       const key = `${course}__${section}`;
       const currentMarked = attendanceMarkedByCourseSection.get(key) ?? 0;
-      if (marked > currentMarked) attendanceMarkedByCourseSection.set(key, marked);
+      // Always set (including Att=0). If we only set when marked>0, key stays missing,
+      // lookup returns undefined, and enrollment falls back to course-level max(Att) from other sections.
+      attendanceMarkedByCourseSection.set(key, Math.max(currentMarked, marked));
     }
     const current = classesHeldByCourse.get(course) ?? 0;
     if (held > current) classesHeldByCourse.set(course, held);
@@ -403,8 +405,8 @@ export async function runStudentSync(
         classTypeOrCreditKey
       );
       classesHeldByContext.set(contextKey, held);
-      const currentMarked = attendanceMarkedByContext.get(contextKey) ?? 0;
-      if (marked > currentMarked) attendanceMarkedByContext.set(contextKey, marked);
+      const currentCtxMarked = attendanceMarkedByContext.get(contextKey) ?? 0;
+      attendanceMarkedByContext.set(contextKey, Math.max(currentCtxMarked, marked));
 
       if (course && section && teacherKey && classTypeOrCreditKey) {
         const scopedKey = buildClassScopedMonitoringKey(
@@ -416,9 +418,10 @@ export async function runStudentSync(
         classesHeldByScopedClass.set(scopedKey, held);
         const currentScopedMarked =
           attendanceMarkedByScopedClass.get(scopedKey) ?? 0;
-        if (marked > currentScopedMarked) {
-          attendanceMarkedByScopedClass.set(scopedKey, marked);
-        }
+        attendanceMarkedByScopedClass.set(
+          scopedKey,
+          Math.max(currentScopedMarked, marked)
+        );
       }
       if (course && section && classTypeOrCreditKey) {
         const sectionClassTypeKey = buildSectionClassTypeKey(
@@ -429,9 +432,10 @@ export async function runStudentSync(
         classesHeldBySectionClassType.set(sectionClassTypeKey, held);
         const currentSectionClassTypeMarked =
           attendanceMarkedBySectionClassType.get(sectionClassTypeKey) ?? 0;
-        if (marked > currentSectionClassTypeMarked) {
-          attendanceMarkedBySectionClassType.set(sectionClassTypeKey, marked);
-        }
+        attendanceMarkedBySectionClassType.set(
+          sectionClassTypeKey,
+          Math.max(currentSectionClassTypeMarked, marked)
+        );
       }
     }
   }
