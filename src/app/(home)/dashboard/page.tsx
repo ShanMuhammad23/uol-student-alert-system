@@ -63,6 +63,9 @@ export default async function Home({ searchParams }: PropsType) {
   if (!user) {
     redirect("/auth/sign-in");
   }
+  if (user.role === "wellbeing") {
+    redirect("/dashboard.wellbeing");
+  }
 
   const asParam = Array.isArray(params.as) ? params.as[0] : params.as;
   const facultyParam = Array.isArray(params.faculty)

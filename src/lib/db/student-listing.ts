@@ -47,7 +47,7 @@ export type ListingRequest = {
 };
 
 export type SessionScope = {
-  role: "superadmin" | "dean" | "hod" | "instructor";
+  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
   faculty_id?: string | null;
   department_ids?: string[] | null;
   pernr?: string | null;
@@ -75,6 +75,8 @@ export type StudentListingRow = {
   gpaChange: number | null;
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
+  latestWellbeingStatus: "open" | "closed" | null;
+  latestWellbeingCategory: string | null;
   courseStudentCount: number;
   isActive: boolean;
 };
@@ -239,6 +241,9 @@ function buildWhere(
   } else if (scope.role === "instructor" && scope.pernr) {
     params.push(scope.pernr);
     where.push(`e.instructor_pernr = $${params.length}`);
+  } else if (scope.role === "wellbeing") {
+    // Wellbeing role is restricted to referred students only.
+    where.push(`latest.latest_intervention_status = 'referred'`);
   }
 
   const departmentIds = toArray(filters.department_ids);
@@ -333,6 +338,14 @@ function buildListingBaseCte(whereSql: string): string {
       FROM interventions
       ORDER BY student_sap_id, COALESCE(course_id, ''), performed_at DESC
     ),
+    latest_wellbeing AS (
+      SELECT DISTINCT ON (student_sap_id)
+        student_sap_id,
+        wellbeing_status AS latest_wellbeing_status,
+        category AS latest_wellbeing_category
+      FROM wellbeing_cases
+      ORDER BY student_sap_id, updated_at DESC
+    ),
     base AS (
       SELECT
         e.sap_id,
@@ -357,6 +370,8 @@ function buildListingBaseCte(whereSql: string): string {
         a.gpa_change,
         a.gpa_alert_level,
         latest.latest_intervention_status,
+        latest_wellbeing.latest_wellbeing_status,
+        latest_wellbeing.latest_wellbeing_category,
         CONCAT(e.course_id, ' ', COALESCE(c.title, '')) AS course_sort_text,
         COUNT(*) OVER (
           PARTITION BY
@@ -375,6 +390,8 @@ function buildListingBaseCte(whereSql: string): string {
       LEFT JOIN latest
         ON latest.student_sap_id = e.sap_id
        AND (latest.course_id = e.course_id OR latest.course_id = '')
+      LEFT JOIN latest_wellbeing
+        ON latest_wellbeing.student_sap_id = e.sap_id
       LEFT JOIN departments d ON d.id = e.department_id
       LEFT JOIN programs p ON p.id = e.program_id
       LEFT JOIN courses c ON c.id = e.course_id
@@ -653,6 +670,8 @@ export async function getStudentListing(
       gpa_change,
       gpa_alert_level,
       latest_intervention_status,
+      latest_wellbeing_status,
+      latest_wellbeing_category,
       course_student_count,
       is_active
     FROM ${uniqueStudents ? "ranked" : "base"}
@@ -683,6 +702,8 @@ export async function getStudentListing(
     gpa_change: number | null;
     gpa_alert_level: "warning" | "critical" | null;
     latest_intervention_status: string | null;
+    latest_wellbeing_status: "open" | "closed" | null;
+    latest_wellbeing_category: string | null;
     course_student_count: number;
     is_active: boolean | null;
   }>(listSql, listParams);
@@ -719,6 +740,8 @@ export async function getStudentListing(
       gpaChange: row.gpa_change == null ? null : Number(row.gpa_change),
       gpaAlertLevel: row.gpa_alert_level,
       latestInterventionStatus: row.latest_intervention_status,
+      latestWellbeingStatus: row.latest_wellbeing_status,
+      latestWellbeingCategory: row.latest_wellbeing_category,
       courseStudentCount: parseNumber(row.course_student_count),
       isActive: row.is_active === true,
     })),

@@ -19,7 +19,7 @@ type StaffListRow = {
   name: string;
   img: string | null;
   email: string;
-  role: "superadmin" | "dean" | "hod" | "instructor";
+  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
   faculty_id: string | null;
   faculty_name: string | null;
   department_names: string[] | null;
@@ -115,14 +115,15 @@ async function createStaffAction(formData: FormData) {
     | "superadmin"
     | "dean"
     | "hod"
-    | "instructor";
+    | "instructor"
+    | "wellbeing";
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
 
   if (!name || !email || !pernr || !password || !role) {
     redirect("/dashboard/superadmin/staff?error=missing_required");
   }
-  if (!["superadmin", "dean", "hod", "instructor"].includes(role)) {
+  if (!["superadmin", "dean", "hod", "instructor", "wellbeing"].includes(role)) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
   if ((role === "dean" || role === "instructor") && !facultyId) {
@@ -216,7 +217,7 @@ export default async function SuperadminStaffPage(props: {
           Add Staff
         </h2>
         <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
-          Add superadmin, dean, hod, or instructor accounts.
+          Add superadmin, dean, hod, instructor, or wellbeing accounts.
         </p>
 
         {successMessage && (

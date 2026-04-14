@@ -27,7 +27,7 @@ export type StaffRow = {
   name: string;
   email: string;
   password_hash: string | null;
-  role: "superadmin" | "dean" | "hod" | "instructor";
+  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
   faculty_id: string | null;
   created_at: Date;
   updated_at: Date;
@@ -63,7 +63,6 @@ export async function getStaffByEmailWithDepartments(
 ): Promise<{ staff: StaffRow; departmentIds: string[] } | null> {
   const staff = await getStaffByEmail(email);
   if (!staff) return null;
-  const departmentIds =
-    staff.role === "hod" ? await getStaffDepartmentIds(staff.id) : [];
+  const departmentIds = staff.role === "hod" ? await getStaffDepartmentIds(staff.id) : [];
   return { staff, departmentIds };
 }

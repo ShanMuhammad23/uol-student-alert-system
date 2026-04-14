@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InterventionFormWithAction } from "./InterventionFormWithAction";
+import { WellbeingResolutionFormWithAction } from "./WellbeingResolutionFormWithAction";
 import { cn } from "@/lib/utils";
 
 type InterventionRecord = {
@@ -37,6 +38,19 @@ type SentEmailRecord = {
   sent_at: string;
 };
 
+type WellbeingCaseRecord = {
+  id: string;
+  studentSapId: string;
+  category: string;
+  wellbeingStatus: "open" | "closed";
+  remarks: string;
+  openedAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  staffName: string | null;
+  staffPernr: string | null;
+};
+
 const STATUS_STYLES: Record<string, { label: string; bg: string }> = {
   initiated: { label: "Initiated", bg: "#B5B126" },
   "in-progress": { label: "In-Progress", bg: "#DBBE0F" },
@@ -57,6 +71,7 @@ function formatInterventionType(type: InterventionRecord["intervention_type"]): 
 
 type Props = {
   interventions: InterventionRecord[];
+  wellbeingCases: WellbeingCaseRecord[];
   sentEmails: SentEmailRecord[];
   studentSapId: string;
   studentName?: string | null;
@@ -69,7 +84,13 @@ type Props = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
-  currentUserRole: "superadmin" | "dean" | "hod" | "instructor" | null;
+  currentUserRole:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | null;
   currentUserPernr: string | null;
 };
 
@@ -92,6 +113,7 @@ function canEditIntervention(
 
 export function InterventionHistorySection({
   interventions,
+  wellbeingCases,
   sentEmails,
   studentSapId,
   studentName,
@@ -108,13 +130,25 @@ export function InterventionHistorySection({
   currentUserPernr,
 }: Props) {
   const canDelete = currentUserRole === "superadmin";
+  const canAddIntervention = true;
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState(interventions);
+  const [wellbeingRows, setWellbeingRows] = useState(wellbeingCases);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingWellbeingId, setEditingWellbeingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [wellbeingEditForm, setWellbeingEditForm] = useState<{
+    category: "Counselling" | "Monitoring" | "Flex (Academic)" | "Flex (Financial)";
+    wellbeingStatus: "open" | "closed";
+    remarks: string;
+  }>({
+    category: "Counselling",
+    wellbeingStatus: "open",
+    remarks: "",
+  });
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [editForm, setEditForm] = useState({
     date: "",
@@ -136,6 +170,10 @@ export function InterventionHistorySection({
   useEffect(() => {
     setRows(interventions);
   }, [interventions]);
+
+  useEffect(() => {
+    setWellbeingRows(wellbeingCases);
+  }, [wellbeingCases]);
 
   const handleDelete = async (id: string) => {
     if (!canDelete) return;
@@ -217,6 +255,57 @@ export function InterventionHistorySection({
     }
   };
 
+  const beginWellbeingEdit = (row: WellbeingCaseRecord) => {
+    setEditError(null);
+    setEditingWellbeingId(row.id);
+    setWellbeingEditForm({
+      category: row.category as
+        | "Counselling"
+        | "Monitoring"
+        | "Flex (Academic)"
+        | "Flex (Financial)",
+      wellbeingStatus: row.wellbeingStatus,
+      remarks: row.remarks ?? "",
+    });
+  };
+
+  const saveWellbeingEdit = async () => {
+    if (!editingWellbeingId) return;
+    setEditError(null);
+    setEditSaving(true);
+    try {
+      const res = await fetch(
+        `/api/wellbeing-cases/${encodeURIComponent(editingWellbeingId)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(wellbeingEditForm),
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? "Failed to update wellbeing case");
+      }
+      setWellbeingRows((prev) =>
+        prev.map((r) =>
+          r.id === editingWellbeingId
+            ? {
+                ...r,
+                category: wellbeingEditForm.category,
+                wellbeingStatus: wellbeingEditForm.wellbeingStatus,
+                remarks: wellbeingEditForm.remarks,
+              }
+            : r
+        )
+      );
+      setEditingWellbeingId(null);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Failed to update wellbeing case");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const downloadInterventionHistoryPdf = async () => {
     setEditError(null);
     setIsExportingPdf(true);
@@ -273,15 +362,19 @@ export function InterventionHistorySection({
     }
   };
 
+  const isWellbeingView = currentUserRole === "wellbeing";
+
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            Intervention History
+            {isWellbeingView ? "Wellbeing Resolution History" : "Intervention History"}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Interventions and follow-ups for this student
+            {isWellbeingView
+              ? "Wellbeing case tracking for this referred student"
+              : "Interventions and follow-ups for this student"}
           </p>
         </div>
         <button
@@ -292,15 +385,17 @@ export function InterventionHistorySection({
         >
           {isExportingPdf ? "Preparing PDF..." : "Download PDF"}
         </button>
-        <div className="flex items-center gap-2">
+        {canAddIntervention && (
+          <div className="flex items-center gap-2">
           <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-gray-dark"
-          >
-            Add Intervention
-          </button>
-        </div>
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-gray-dark"
+            >
+            {isWellbeingView ? "Add Resolution" : "Add Intervention"}
+            </button>
+          </div>
+        )}
       </div>
 
       {deleteError && (
@@ -309,27 +404,93 @@ export function InterventionHistorySection({
         </p>
       )}
 
-      {rows.length === 0 ? (
+      {(isWellbeingView ? wellbeingRows.length === 0 : rows.length === 0) ? (
         <p className="rounded-lg border border-dashed border-stroke py-8 text-center text-sm text-gray-500 dark:border-dark-3 dark:text-gray-400">
-          No interventions recorded yet. Click &quot;Add Intervention&quot; to add one.
+          {isWellbeingView
+            ? "No wellbeing cases recorded yet. Click Add Intervention to add a wellbeing resolution case."
+            : "No interventions recorded yet. Click Add Intervention to add one."}
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-stroke dark:border-dark-3">
           <Table>
             <TableHeader>
               <TableRow className="border-stroke dark:border-dark-3">
-                <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
-                <TableHead className="font-semibold text-dark dark:text-white">Type</TableHead>
-                <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  {isWellbeingView ? "Opened" : "Date"}
+                </TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  {isWellbeingView ? "Category" : "Type"}
+                </TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  {isWellbeingView ? "Resolved At" : "Mode"}
+                </TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white">Added By</TableHead>
-                <TableHead className="font-semibold text-dark dark:text-white">Emails</TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  {isWellbeingView ? "Updated At" : "Emails"}
+                </TableHead>
                 <TableHead className="font-semibold text-dark dark:text-white text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((int, idx) => {
+              {(isWellbeingView ? wellbeingRows : rows).map((rowItem, idx) => {
+                if (isWellbeingView) {
+                  const wb = rowItem as WellbeingCaseRecord;
+                  return (
+                    <TableRow key={wb.id} className="border-stroke dark:border-dark-3">
+                      <TableCell className="text-dark dark:text-white">
+                        {new Date(wb.openedAt).toLocaleDateString(undefined, {
+                          dateStyle: "medium",
+                        })}
+                      </TableCell>
+                      <TableCell className="text-dark dark:text-white">
+                        {wb.category}
+                      </TableCell>
+                      <TableCell className="text-dark dark:text-white">
+                        {wb.resolvedAt
+                          ? new Date(wb.resolvedAt).toLocaleDateString(undefined, {
+                              dateStyle: "medium",
+                            })
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-dark-6 dark:text-dark-5">
+                        {wb.remarks || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
+                            wb.wellbeingStatus === "closed" ? "bg-green-600" : "bg-amber-600"
+                          )}
+                        >
+                          {wb.wellbeingStatus === "closed" ? "Closed" : "Open"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-dark dark:text-white">
+                        {wb.staffName ?? "—"}
+                        {wb.staffPernr ? (
+                          <span className="ml-1 text-xs text-dark-6 dark:text-dark-5">
+                            ({wb.staffPernr})
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-dark dark:text-white">
+                        {new Date(wb.updatedAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => beginWellbeingEdit(wb)}
+                          className="inline-flex items-center rounded-md border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900/60 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                        >
+                          Edit
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+                const int = rowItem as InterventionRecord;
                 const statusStyle = STATUS_STYLES[int.status] ?? { label: int.status, bg: "#94A3B8" };
                 const latestEmail = sentEmails[0];
                 return (
@@ -461,7 +622,7 @@ export function InterventionHistorySection({
       >
         <div className="flex items-center justify-between border-b border-stroke px-6 py-4 dark:border-dark-3">
           <h4 className="text-lg font-semibold text-dark dark:text-white">
-            Add Intervention
+            {isWellbeingView ? "Add Wellbeing Resolution" : "Add Intervention"}
           </h4>
           <button
             type="button"
@@ -475,20 +636,28 @@ export function InterventionHistorySection({
           </button>
         </div>
         <div className="px-6 py-4">
-          <InterventionFormWithAction
-            studentSapId={studentSapId}
-            studentName={studentName}
-            attendancePercent={attendancePercent}
-            gpaPrevious={gpaPrevious}
-            gpaCurrent={gpaCurrent}
-            gpaDrop={gpaDrop}
-            senderName={senderName}
-            senderDesignation={senderDesignation}
-            senderDepartment={senderDepartment}
-            senderFaculty={senderFaculty}
-            senderEmail={senderEmail}
-            onClose={() => setOpen(false)}
-          />
+          {isWellbeingView ? (
+            <WellbeingResolutionFormWithAction
+              studentSapId={studentSapId}
+              onClose={() => setOpen(false)}
+            />
+          ) : (
+            <InterventionFormWithAction
+              mode="intervention"
+              studentSapId={studentSapId}
+              studentName={studentName}
+              attendancePercent={attendancePercent}
+              gpaPrevious={gpaPrevious}
+              gpaCurrent={gpaCurrent}
+              gpaDrop={gpaDrop}
+              senderName={senderName}
+              senderDesignation={senderDesignation}
+              senderDepartment={senderDepartment}
+              senderFaculty={senderFaculty}
+              senderEmail={senderEmail}
+              onClose={() => setOpen(false)}
+            />
+          )}
         </div>
       </dialog>
 
@@ -613,6 +782,163 @@ export function InterventionHistorySection({
             </div>
           </div>
         </dialog>
+      )}
+      {editingWellbeingId && (
+        <dialog
+          open
+          onCancel={() => setEditingWellbeingId(null)}
+          className={cn(
+            "fixed left-1/2 top-1/2 z-[70] m-0 w-[min(92vw,42rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
+            "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
+            "[&::backdrop]:bg-black/50"
+          )}
+        >
+          <div className="flex items-center justify-between border-b border-stroke px-6 py-4 dark:border-dark-3">
+            <h4 className="text-lg font-semibold text-dark dark:text-white">
+              Edit Wellbeing Case
+            </h4>
+            <button
+              type="button"
+              onClick={() => setEditingWellbeingId(null)}
+              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <div className="space-y-4 px-6 py-4">
+            {editError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                {editError}
+              </p>
+            )}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
+                Category
+              </label>
+              <select
+                value={wellbeingEditForm.category}
+                onChange={(e) =>
+                  setWellbeingEditForm((prev) => ({
+                    ...prev,
+                    category: e.target.value as
+                      | "Counselling"
+                      | "Monitoring"
+                      | "Flex (Academic)"
+                      | "Flex (Financial)",
+                  }))
+                }
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
+              >
+                <option value="Counselling">Counselling</option>
+                <option value="Monitoring">Monitoring</option>
+                <option value="Flex (Academic)">Flex (Academic)</option>
+                <option value="Flex (Financial)">Flex (Financial)</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
+                Wellbeing Status
+              </label>
+              <select
+                value={wellbeingEditForm.wellbeingStatus}
+                onChange={(e) =>
+                  setWellbeingEditForm((prev) => ({
+                    ...prev,
+                    wellbeingStatus: e.target.value as "open" | "closed",
+                  }))
+                }
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
+              >
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
+                Remarks
+              </label>
+              <textarea
+                rows={4}
+                value={wellbeingEditForm.remarks}
+                onChange={(e) =>
+                  setWellbeingEditForm((prev) => ({ ...prev, remarks: e.target.value }))
+                }
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingWellbeingId(null)}
+                className="rounded-md border border-stroke px-3 py-2 text-sm text-dark dark:border-dark-3 dark:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveWellbeingEdit}
+                disabled={editSaving}
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {editSaving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {!isWellbeingView && wellbeingRows.length > 0 && (
+        <div className="mt-6 rounded-lg border border-stroke dark:border-dark-3">
+          <div className="border-b border-stroke px-4 py-3 dark:border-dark-3">
+            <h4 className="text-base font-semibold text-dark dark:text-white">
+              Wellbeing Resolution Records
+            </h4>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="border-stroke dark:border-dark-3">
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  Category
+                </TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  Status
+                </TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  Remarks
+                </TableHead>
+                <TableHead className="font-semibold text-dark dark:text-white">
+                  Updated At
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {wellbeingRows.map((wb) => (
+                <TableRow key={wb.id} className="border-stroke dark:border-dark-3">
+                  <TableCell className="text-dark dark:text-white">
+                    {wb.category}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
+                        wb.wellbeingStatus === "closed" ? "bg-green-600" : "bg-amber-600"
+                      )}
+                    >
+                      {wb.wellbeingStatus === "closed" ? "Closed" : "Open"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-dark-6 dark:text-dark-5">
+                    {wb.remarks || "—"}
+                  </TableCell>
+                  <TableCell className="text-dark dark:text-white">
+                    {new Date(wb.updatedAt).toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

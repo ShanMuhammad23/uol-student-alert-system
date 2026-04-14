@@ -14,6 +14,7 @@ import { pool } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getStudentGpaProfileBySapId } from "@/lib/db/gpa";
+import { getWellbeingCasesByStudentSapId } from "@/lib/db/wellbeing";
 
 type PropsType = {
   params: Promise<{ id: string }>;
@@ -226,7 +227,21 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       ? classAverageParam
       : null;
   const sapIdFromUrl = id;
+  if (currentUserRole === "wellbeing" && pool) {
+    const latest = await pool.query<{ status: string | null }>(
+      `SELECT status
+       FROM interventions
+       WHERE student_sap_id = $1
+       ORDER BY performed_at DESC
+       LIMIT 1`,
+      [sapIdFromUrl]
+    );
+    if (latest.rows[0]?.status !== "referred") {
+      notFound();
+    }
+  }
   const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
+  const wellbeingCases = await getWellbeingCasesByStudentSapId(sapIdFromUrl);
   const interventionEmails = await getInterventionEmailsByStudentSapId(sapIdFromUrl);
   const gpaProfile = await getStudentGpaProfileBySapId(sapIdFromUrl);
 
@@ -312,6 +327,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
           ? "Head of Department"
           : currentUserRole === "instructor"
             ? "Instructor"
+              : currentUserRole === "wellbeing"
+                ? "Wellbeing Officer"
             : null;
   const senderDepartmentName =
     primaryEnrollment?.DeptName?.replace("Department of", "").trim() ?? null;
@@ -415,6 +432,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       {/* Intervention History (table + Add Intervention dialog) */}
       <InterventionHistorySection
         interventions={interventionHistory}
+        wellbeingCases={wellbeingCases}
         sentEmails={interventionEmails}
         studentSapId={sapIdFromUrl}
         studentName={primaryEnrollment?.Name ?? sapIdFromUrl}

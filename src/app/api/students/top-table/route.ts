@@ -22,7 +22,8 @@ function toSessionScope(session: any): SessionScope | null {
     role !== "superadmin" &&
     role !== "dean" &&
     role !== "hod" &&
-    role !== "instructor"
+    role !== "instructor" &&
+    role !== "wellbeing"
   ) {
     return null;
   }
@@ -66,7 +67,18 @@ export async function POST(req: Request) {
         pernr: body.roleScope.pernr ?? scope.pernr ?? null,
       };
     }
-    const result = await getStudentListing(effectiveScope, body ?? {});
+    const scopedRequest: Body =
+      effectiveScope.role === "wellbeing"
+        ? {
+            ...(body ?? {}),
+            roleScope: undefined,
+            filters: {
+              ...(body?.filters ?? {}),
+              interventionFilters: ["referred", "resolved"],
+            },
+          }
+        : (body ?? {});
+    const result = await getStudentListing(effectiveScope, scopedRequest);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Top table API error:", error);

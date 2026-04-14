@@ -84,6 +84,21 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           [latestSnapshotDate, user.sap_id]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
+      } else if (user.role === "wellbeing") {
+        screenHeading = "Wellbeing Referred Cases";
+        const total = await pool.query<{ total_students: number | string | null }>(
+          `WITH latest AS (
+             SELECT DISTINCT ON (student_sap_id)
+               student_sap_id,
+               status
+             FROM interventions
+             ORDER BY student_sap_id, performed_at DESC
+           )
+           SELECT COUNT(*)::int AS total_students
+           FROM latest
+           WHERE status = 'referred'`
+        );
+        totalStudents = Number(total.rows[0]?.total_students ?? 0);
       }
     } catch {
       screenHeading = null;

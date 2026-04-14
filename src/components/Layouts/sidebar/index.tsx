@@ -45,6 +45,20 @@ export function Sidebar({ user }: SidebarProps) {
         },
       ];
     }
+    if (user?.role === "wellbeing") {
+      return [
+        {
+          label: "MAIN MENU",
+          items: [
+            {
+              title: "Wellbeing Dashboard",
+              icon: HomeIcon,
+              url: "/dashboard.wellbeing",
+            },
+          ],
+        },
+      ];
+    }
     return NAV_DATA;
   }, [user?.role]);
 

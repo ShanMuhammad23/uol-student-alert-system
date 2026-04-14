@@ -10,6 +10,7 @@ import type {
 import {
   recordIntervention,
   recordInterventionEmail,
+  recordWellbeingCase,
 } from "@/app/(home)/dashboard/intervention-actions";
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  mode?: "intervention" | "wellbeing";
 };
 
 export function InterventionFormWithAction({
@@ -38,6 +40,7 @@ export function InterventionFormWithAction({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  mode = "intervention",
   onClose,
 }: Props & { onClose?: () => void }) {
   const router = useRouter();
@@ -48,14 +51,32 @@ export function InterventionFormWithAction({
     setError(null);
     setSuccess(null);
     try {
-      await recordIntervention(studentSapId, {
-        date: data.date,
-        interventionType: data.interventionType,
-        outreachMode: data.outreachMode,
-        remarks: data.remarks,
-        status: data.status,
-      });
-      setSuccess("Intervention added successfully.");
+      if (mode === "wellbeing") {
+        const wellbeingStatus =
+          data.status === "resolved" || data.status === "no-action-required"
+            ? "closed"
+            : "open";
+        await recordWellbeingCase(studentSapId, {
+          category:
+            data.interventionType === "gpa"
+              ? "Flex (Academic)"
+              : data.interventionType === "both"
+                ? "Monitoring"
+                : "Counselling",
+          wellbeingStatus,
+          remarks: data.remarks,
+        });
+        setSuccess("Wellbeing case added successfully.");
+      } else {
+        await recordIntervention(studentSapId, {
+          date: data.date,
+          interventionType: data.interventionType,
+          outreachMode: data.outreachMode,
+          remarks: data.remarks,
+          status: data.status,
+        });
+        setSuccess("Intervention added successfully.");
+      }
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save intervention.");
@@ -101,6 +122,7 @@ export function InterventionFormWithAction({
         senderDepartment={senderDepartment}
         senderFaculty={senderFaculty}
         senderEmail={senderEmail}
+        mode={mode}
       />
     </div>
   );

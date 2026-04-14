@@ -12,7 +12,7 @@ type DepartmentOption = {
   name: string;
 };
 
-type StaffRole = "superadmin" | "dean" | "hod" | "instructor";
+type StaffRole = "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
 
 type AddStaffFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -81,6 +81,7 @@ export function AddStaffForm({
           <option value="dean">dean</option>
           <option value="hod">hod</option>
           <option value="instructor">instructor</option>
+          <option value="wellbeing">wellbeing</option>
         </select>
       </div>
       <div className="flex flex-col gap-1">

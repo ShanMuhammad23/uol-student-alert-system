@@ -62,7 +62,7 @@ export const authOptions: NextAuthOptions = {
       const mutableUser = user as typeof user & {
         id: string;
         pernr: string;
-        role: "superadmin" | "dean" | "hod" | "instructor";
+        role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
         img: string | null;
         faculty_id: string | null;
         department_ids: string[];

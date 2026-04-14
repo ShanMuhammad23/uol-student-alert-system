@@ -65,6 +65,8 @@ type TopTableRow = {
   gpaChange: number | null;
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
+  latestWellbeingStatus?: "open" | "closed" | null;
+  latestWellbeingCategory?: string | null;
   courseStudentCount: number;
   isActive?: boolean;
 };
@@ -108,6 +110,7 @@ export function TopChannelsTableClient({
       return undefined;
     }
   })();
+  const isWellbeingScreen = returnToUrl.includes("/dashboard.wellbeing");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
@@ -233,6 +236,7 @@ export function TopChannelsTableClient({
         "Attendance %",
         "GPA",
         "Intervention Status",
+        "Wellbeing Status",
       ];
 
       const lines = [headers.join(",")];
@@ -259,6 +263,9 @@ export function TopChannelsTableClient({
           attendanceValue,
           gpaValue,
           interventionStatusLabel(row.latestInterventionStatus),
+          row.latestWellbeingStatus
+            ? `${row.latestWellbeingStatus}${row.latestWellbeingCategory ? ` (${row.latestWellbeingCategory})` : ""}`
+            : "—",
         ].map((v) => csvEscape(String(v)));
         lines.push(values.join(","));
       }
@@ -403,6 +410,11 @@ export function TopChannelsTableClient({
         </div>
       ) : (
         <div className="mt-4">
+          {isWellbeingScreen && (
+            <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5">
+              Showing students with latest intervention status: Referred or Resolved.
+            </div>
+          )}
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-dark-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <span className="font-medium">
@@ -566,6 +578,13 @@ export function TopChannelsTableClient({
                     {renderSortIcon("intervention")}
                   </div>
                 </TableHead>
+                {isWellbeingScreen && (
+                  <TableHead className="min-w-[170px] !text-left">
+                    <div className="flex items-center gap-1">
+                      <span>Wellbeing Status</span>
+                    </div>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -753,6 +772,27 @@ export function TopChannelsTableClient({
                         goodStanding={!hasAnyAlert}
                       />
                     </TableCell>
+                    {isWellbeingScreen && (
+                      <TableCell className="!text-left">
+                        {row.latestWellbeingStatus ? (
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
+                              row.latestWellbeingStatus === "closed"
+                                ? "bg-green-600"
+                                : "bg-amber-600"
+                            )}
+                          >
+                            {row.latestWellbeingStatus === "closed" ? "Closed" : "Open"}
+                            {row.latestWellbeingCategory
+                              ? ` - ${row.latestWellbeingCategory}`
+                              : ""}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

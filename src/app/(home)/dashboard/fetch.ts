@@ -275,7 +275,7 @@ export type AppUser = {
   name: string;
   email: string;
   password?: string;
-  role: "superadmin" | "dean" | "hod" | "teacher" | "instructor";
+  role: "superadmin" | "dean" | "hod" | "teacher" | "instructor" | "wellbeing";
   faculty_id: string | null;
   department_id: string | null;
   department_ids: string[] | null;
@@ -2570,7 +2570,7 @@ export function mapSessionToAppUser(session: {
     pernr: string;
     name: string;
     email: string;
-    role: "superadmin" | "dean" | "hod" | "instructor";
+    role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
     faculty_id: string | null;
     department_ids: string[];
     img: string | null;

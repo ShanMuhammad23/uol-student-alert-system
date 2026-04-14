@@ -67,6 +67,7 @@ type InterventionFormProps = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  mode?: "intervention" | "wellbeing";
 };
 
 function SelectField({
@@ -137,6 +138,7 @@ const InterventionForm = ({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  mode = "intervention",
 }: InterventionFormProps) => {
   const dateId = useId();
   const outreachId = useId();
@@ -159,7 +161,8 @@ const InterventionForm = ({
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const shouldShowEmailSection = status === "initiated" || status === "referred";
+  const shouldShowEmailSection =
+    mode === "intervention" && (status === "initiated" || status === "referred");
 
   const fillTemplateWithData = (
     subject: string,
@@ -327,6 +330,11 @@ const InterventionForm = ({
             </label>
           ))}
         </div>
+        {mode === "wellbeing" && (
+          <p className="text-xs text-dark-6 dark:text-dark-5">
+            In wellbeing mode, selected type maps to wellbeing category.
+          </p>
+        )}
       </div>
 
       {/* 3. Status */}
@@ -341,15 +349,21 @@ const InterventionForm = ({
       />
 
       {/* 4. Mode */}
-      <SelectField
-        id={outreachId}
-        label="Mode"
-        placeholder="Select mode"
-        value={outreachMode}
-        onChange={setOutreachMode}
-        items={OUTREACH_MODES.map((o) => ({ value: o.value, label: o.label }))}
-        required
-      />
+      {mode === "intervention" ? (
+        <SelectField
+          id={outreachId}
+          label="Mode"
+          placeholder="Select mode"
+          value={outreachMode}
+          onChange={setOutreachMode}
+          items={OUTREACH_MODES.map((o) => ({ value: o.value, label: o.label }))}
+          required
+        />
+      ) : (
+        <div className="rounded-lg border border-stroke p-3 text-sm text-dark-6 dark:border-dark-3 dark:text-dark-5">
+          Wellbeing case will be stored in wellbeing resolution records.
+        </div>
+      )}
 
       {/* 5. Remarks */}
       <div>

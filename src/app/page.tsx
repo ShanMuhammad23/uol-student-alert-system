@@ -6,6 +6,9 @@ const HomePage = async () => {
   if (user?.role === "superadmin") {
     redirect("/dashboard/superadmin");
   }
+  if (user?.role === "wellbeing") {
+    redirect("/dashboard.wellbeing");
+  }
   redirect("/dashboard");
 };
 
