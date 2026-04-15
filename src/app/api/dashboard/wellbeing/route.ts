@@ -7,6 +7,7 @@ import {
   mapSessionToAppUser,
 } from "@/app/(home)/dashboard/fetch";
 import type {
+  AppUser,
   AlertDimensionFilter,
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
@@ -39,11 +40,19 @@ export async function POST(req: Request) {
   const sessionUser = mapSessionToAppUser(
     session as Parameters<typeof mapSessionToAppUser>[0]
   );
+  const scopedRole: AppUser["role"] =
+    body.roleScope?.role === "teacher"
+      ? "instructor"
+      : body.roleScope?.role === "dean" ||
+          body.roleScope?.role === "hod" ||
+          body.roleScope?.role === "wellbeing"
+        ? body.roleScope.role
+        : sessionUser.role;
   const user =
     sessionUser.role === "superadmin" && body.roleScope
       ? {
           ...sessionUser,
-          role: body.roleScope.role === "teacher" ? "instructor" : body.roleScope.role,
+          role: scopedRole,
           faculty_id: body.roleScope.facultyId ?? null,
           department_ids: body.roleScope.departmentIds?.length
             ? body.roleScope.departmentIds
