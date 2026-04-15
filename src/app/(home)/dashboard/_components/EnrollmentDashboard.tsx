@@ -605,6 +605,8 @@ function EnrollmentDashboardInner({
               ? "dean"
               : user.role === "instructor"
                 ? "teacher"
+                : user.role === "wellbeing"
+                  ? "dean"
                 : user.role
           }
           selectedAlert={selectedAlert}
