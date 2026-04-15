@@ -279,7 +279,7 @@ export default async function Home({ searchParams }: PropsType) {
             />
           </div>
           <div className="col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
-            <WellbeingChartClient title="Wellbeing Resolution" />
+            <WellbeingChartClient title="Wellbeing Intervention & Resolution" />
           </div>
         </div>
         </InterventionSliceProvider>
