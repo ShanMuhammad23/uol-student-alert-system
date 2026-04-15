@@ -140,6 +140,8 @@ type TopTableRow = {
   gpaChange: number | null;
   gpaAlertLevel: "warning" | "critical" | null;
   latestInterventionStatus: string | null;
+  latestWellbeingStatus?: "open" | "closed" | null;
+  latestWellbeingCategory?: string | null;
 };
 
 export function NestedEnrollmentTableClient({
@@ -257,6 +259,8 @@ export function NestedEnrollmentTableClient({
         attendanceMarkedClasses: r.attendanceMarkedClasses ?? 0,
         classesAttended: r.classesAttended ?? 0,
         latestInterventionStatus: r.latestInterventionStatus ?? null,
+        latestWellbeingStatus: r.latestWellbeingStatus ?? null,
+        latestWellbeingCategory: r.latestWellbeingCategory ?? null,
       })),
     [dbRows]
   );
@@ -405,6 +409,16 @@ export function NestedEnrollmentTableClient({
     const map = new Map<string, string | null>();
     for (const r of dbRows) {
       map.set(String(r.sapId ?? "").trim(), r.latestInterventionStatus ?? null);
+    }
+    return map;
+  }, [dbRows]);
+  const wellbeingBySap = useMemo(() => {
+    const map = new Map<string, { status: "open" | "closed" | null; category: string | null }>();
+    for (const r of dbRows) {
+      map.set(String(r.sapId ?? "").trim(), {
+        status: r.latestWellbeingStatus ?? null,
+        category: r.latestWellbeingCategory ?? null,
+      });
     }
     return map;
   }, [dbRows]);
@@ -909,6 +923,9 @@ export function NestedEnrollmentTableClient({
                                           <TableHead className="!text-left">
                                             Intervention Status
                                           </TableHead>
+                                          <TableHead className="!text-left">
+                                            Wellbeing Status
+                                          </TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -992,6 +1009,9 @@ export function NestedEnrollmentTableClient({
                                             row.latestInterventionStatus ??
                                             interventionStatuses.get(row.SapNo) ??
                                             null;
+                                          const wellbeing = wellbeingBySap.get(
+                                            String(row.SapNo ?? "").trim()
+                                          );
 
                                           const classesHeld =
                                             row.totalClassesHeld ??
@@ -1150,6 +1170,25 @@ export function NestedEnrollmentTableClient({
                                                     !hasAttendanceAlert && !hasGpaAlert
                                                   }
                                                 />
+                                              </TableCell>
+                                              <TableCell className="!text-left">
+                                                {wellbeing?.status ? (
+                                                  <span
+                                                    className={cn(
+                                                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
+                                                      wellbeing.status === "closed"
+                                                        ? "bg-green-600"
+                                                        : "bg-amber-600"
+                                                    )}
+                                                  >
+                                                    {wellbeing.status === "closed" ? "Closed" : "Open"}
+                                                    {wellbeing.category
+                                                      ? ` - ${wellbeing.category}`
+                                                      : ""}
+                                                  </span>
+                                                ) : (
+                                                  "—"
+                                                )}
                                               </TableCell>
                                             </TableRow>
                                           );

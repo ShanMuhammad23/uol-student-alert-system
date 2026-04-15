@@ -597,13 +597,11 @@ export function TopChannelsTableClient({
                     {renderSortIcon("intervention")}
                   </div>
                 </TableHead>
-                {isWellbeingScreen && (
-                  <TableHead className="min-w-[170px] !text-left">
-                    <div className="flex items-center gap-1">
-                      <span>Wellbeing Status</span>
-                    </div>
-                  </TableHead>
-                )}
+                <TableHead className="min-w-[170px] !text-left">
+                  <div className="flex items-center gap-1">
+                    <span>Wellbeing Status</span>
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -791,27 +789,25 @@ export function TopChannelsTableClient({
                         goodStanding={!hasAnyAlert}
                       />
                     </TableCell>
-                    {isWellbeingScreen && (
-                      <TableCell className="!text-left">
-                        {row.latestWellbeingStatus ? (
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
-                              row.latestWellbeingStatus === "closed"
-                                ? "bg-green-600"
-                                : "bg-amber-600"
-                            )}
-                          >
-                            {row.latestWellbeingStatus === "closed" ? "Closed" : "Open"}
-                            {row.latestWellbeingCategory
-                              ? ` - ${row.latestWellbeingCategory}`
-                              : ""}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                    )}
+                    <TableCell className="!text-left">
+                      {row.latestWellbeingStatus ? (
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
+                            row.latestWellbeingStatus === "closed"
+                              ? "bg-green-600"
+                              : "bg-amber-600"
+                          )}
+                        >
+                          {row.latestWellbeingStatus === "closed" ? "Closed" : "Open"}
+                          {row.latestWellbeingCategory
+                            ? ` - ${row.latestWellbeingCategory}`
+                            : ""}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
