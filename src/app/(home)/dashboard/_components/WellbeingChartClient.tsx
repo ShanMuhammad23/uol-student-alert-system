@@ -73,6 +73,11 @@ export function WellbeingChartClient({ title = "Wellbeing Resolution" }: Props) 
     );
   }
 
-  return <StatusStackedChart title={title} data={data} />;
+  return (
+    <StatusStackedChart
+      title={title}
+      data={data ?? { open: [], closed: [] }}
+    />
+  );
 }
 

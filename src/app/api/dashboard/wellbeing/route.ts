@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import {
   getWellbeingChartData,
+  getWellbeingChartDataForWellbeingRole,
   mapSessionToAppUser,
 } from "@/app/(home)/dashboard/fetch";
 import type {
@@ -34,12 +35,15 @@ export async function POST(req: Request) {
   );
 
   try {
-    const data = await getWellbeingChartData(
-      user,
-      body.masterFilter,
-      body.gpaFilters,
-      body.attendanceFilters
-    );
+    const data =
+      user.role === "wellbeing"
+        ? await getWellbeingChartDataForWellbeingRole(user)
+        : await getWellbeingChartData(
+            user,
+            body.masterFilter,
+            body.gpaFilters,
+            body.attendanceFilters
+          );
     return NextResponse.json(data, { status: 200 });
   } catch {
     return NextResponse.json({ error: "Failed to load wellbeing chart" }, { status: 500 });

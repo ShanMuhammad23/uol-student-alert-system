@@ -69,14 +69,7 @@ export async function POST(req: Request) {
     }
     const scopedRequest: Body =
       effectiveScope.role === "wellbeing"
-        ? {
-            ...(body ?? {}),
-            roleScope: undefined,
-            filters: {
-              ...(body?.filters ?? {}),
-              interventionFilters: ["referred", "resolved"],
-            },
-          }
+        ? { ...(body ?? {}), roleScope: undefined }
         : (body ?? {});
     const result = await getStudentListing(effectiveScope, scopedRequest);
     return NextResponse.json(result, { status: 200 });

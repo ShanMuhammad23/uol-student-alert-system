@@ -5,6 +5,10 @@ import type { User } from "@/lib/role";
 import { getLatestInterventionStatusMap } from "@/data/intervention-store";
 import { getWellbeingChartDataForStudents } from "@/lib/db/wellbeing";
 import type { StatusStackedChartData } from "@/components/Charts/status-stacked-chart/chart";
+import {
+  getDistinctSapIdsForScope,
+  type SessionScope as ListingSessionScope,
+} from "@/lib/db/student-listing";
 import { pool } from "@/lib/db";
 import { fetchMonitoringEntries, mapMonitoringToStudents, getMonitoringStudentsBySapId } from "@/lib/sap-monitoring";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
@@ -2797,6 +2801,20 @@ export async function getWellbeingChartData(
     attendanceFilters
   );
   const sapIds = result.students.map((s) => s.sap_id);
+  return getWellbeingChartDataForStudents(sapIds);
+}
+
+/** Same stacked chart using `wellbeing_cases` for students on the wellbeing dashboard (listing scope). */
+export async function getWellbeingChartDataForWellbeingRole(
+  user: AppUser
+): Promise<StatusStackedChartData> {
+  const scope: ListingSessionScope = {
+    role: "wellbeing",
+    faculty_id: user.faculty_id,
+    department_ids: user.department_ids,
+    pernr: user.sap_id?.trim() || null,
+  };
+  const sapIds = await getDistinctSapIdsForScope(scope, {});
   return getWellbeingChartDataForStudents(sapIds);
 }
 

@@ -209,14 +209,14 @@ function buildResolutionWhereClause(
         SELECT 1 FROM wellbeing_cases wb
         WHERE wb.student_sap_id = e.sap_id
           AND wb.category = $${p}::text
-          AND (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+          AND wb.wellbeing_status = 'closed'
       )`);
     } else {
       parts.push(`EXISTS (
         SELECT 1 FROM wellbeing_cases wb
         WHERE wb.student_sap_id = e.sap_id
           AND wb.category = $${p}::text
-          AND NOT (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+          AND wb.wellbeing_status <> 'closed'
       )`);
     }
   }
@@ -242,8 +242,15 @@ function buildWhere(
     params.push(scope.pernr);
     where.push(`e.instructor_pernr = $${params.length}`);
   } else if (scope.role === "wellbeing") {
-    // Wellbeing role is restricted to referred students only.
-    where.push(`latest.latest_intervention_status = 'referred'`);
+    // Referred (intervention) OR closed case in wellbeing_cases — not intervention-only "resolved".
+    where.push(`(
+      latest.latest_intervention_status = 'referred'
+      OR EXISTS (
+        SELECT 1 FROM wellbeing_cases wb_list
+        WHERE wb_list.student_sap_id = e.sap_id
+          AND wb_list.wellbeing_status = 'closed'
+      )
+    )`);
   }
 
   const departmentIds = toArray(filters.department_ids);
@@ -298,7 +305,7 @@ function buildWhere(
     where.push(`(e.student_name ILIKE $${i} OR e.sap_id ILIKE $${i})`);
   }
 
-  if (!skip?.has("intervention")) {
+  if (!skip?.has("intervention") && scope.role !== "wellbeing") {
     const interventionFilters = normalizeInterventionFilters(filters.interventionFilters);
     if (interventionFilters?.length) {
       const wantsNotStarted = interventionFilters.includes("not_started");
@@ -513,13 +520,13 @@ export async function getFilterDropdownCounts(
         SELECT 1 FROM wellbeing_cases wb
         WHERE wb.student_sap_id = sap_id
           AND wb.category = $${p}::text
-          AND (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+          AND wb.wellbeing_status = 'closed'
       )`;
         const existsOpen = `EXISTS (
         SELECT 1 FROM wellbeing_cases wb
         WHERE wb.student_sap_id = sap_id
           AND wb.category = $${p}::text
-          AND NOT (wb.wellbeing_status = 'closed' OR wb.resolution_status = 'resolved')
+          AND wb.wellbeing_status <> 'closed'
       )`;
         const pred = spec.closed ? existsClosed : existsOpen;
         wbSelectParts.push(`COUNT(*) FILTER (WHERE ${pred})::int AS wb_${idx}`);
@@ -580,6 +587,21 @@ export async function getFilterDropdownCounts(
       wellbeing: zeroWellbeing,
     };
   }
+}
+
+/** Distinct student SAP IDs matching the same scope/filters as the listing (for aggregates such as the wellbeing chart). */
+export async function getDistinctSapIdsForScope(
+  scope: SessionScope,
+  filters: ListingFilters
+): Promise<string[]> {
+  if (!pool) return [];
+  const { whereSql, params } = buildWhere(scope, filters);
+  const sql = `
+    ${buildListingBaseCte(whereSql)}
+    SELECT DISTINCT sap_id FROM base
+  `;
+  const res = await pool.query<{ sap_id: string }>(sql, params);
+  return res.rows.map((r) => r.sap_id);
 }
 
 export async function getStudentListing(

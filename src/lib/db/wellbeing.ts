@@ -23,10 +23,9 @@ export async function getWellbeingChartDataForStudents(
     student_sap_id: string;
     category: string;
     wellbeing_status: string;
-    resolution_status: string | null;
   }>(
     `
-    SELECT student_sap_id, category, wellbeing_status, resolution_status
+    SELECT student_sap_id, category, wellbeing_status
     FROM wellbeing_cases
     WHERE student_sap_id = ANY($1)
     `,
@@ -41,8 +40,7 @@ export async function getWellbeingChartDataForStudents(
     );
     const slot = idx === -1 ? othersIndex : idx;
 
-    const isClosed =
-      row.wellbeing_status === "closed" || row.resolution_status === "resolved";
+    const isClosed = row.wellbeing_status === "closed";
 
     if (isClosed) closed[slot] += 1;
     else open[slot] += 1;

@@ -29,6 +29,8 @@ type Props = {
   classStatusFilters?: string[];
   interventionFilters?: string[];
   resolutionFilters?: string[];
+  /** One enrollment row per student (e.g. wellbeing dashboard). */
+  uniqueStudents?: boolean;
 };
 
 type SortKey =
@@ -80,6 +82,7 @@ export function TopChannelsTableClient({
   classStatusFilters,
   interventionFilters,
   resolutionFilters,
+  uniqueStudents = false,
 }: Props) {
   const [rows, setRows] = useState<TopTableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,8 +162,10 @@ export function TopChannelsTableClient({
   const buildTopTableRequest = (
     page: number,
     pageSize: number,
-    uniqueStudentsForTotal: boolean
+    opts: { uniqueStudents?: boolean; uniqueStudentsForTotal?: boolean }
   ) => {
+    const us = opts.uniqueStudents === true;
+    const usft = us ? false : opts.uniqueStudentsForTotal !== false;
     const normalizedAttendanceFilters =
       attendanceFilters?.includes("all" as AlertDimensionFilter)
         ? undefined
@@ -188,7 +193,8 @@ export function TopChannelsTableClient({
             : undefined,
         search: debouncedSearch || undefined,
       },
-      uniqueStudentsForTotal,
+      uniqueStudents: us,
+      uniqueStudentsForTotal: usft,
     };
   };
 
@@ -219,7 +225,12 @@ export function TopChannelsTableClient({
       const res = await fetch("/api/students/top-table", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildTopTableRequest(1, 100000, false)),
+        body: JSON.stringify(
+          buildTopTableRequest(1, 100000, {
+            uniqueStudents,
+            uniqueStudentsForTotal: !uniqueStudents,
+          })
+        ),
       });
       if (!res.ok) throw new Error("Failed to export student listing");
       const body = (await res.json()) as { rows?: TopTableRow[] };
@@ -300,7 +311,10 @@ export function TopChannelsTableClient({
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify(
-        buildTopTableRequest(currentPage, effectivePageSize, true)
+        buildTopTableRequest(currentPage, effectivePageSize, {
+          uniqueStudents,
+          uniqueStudentsForTotal: !uniqueStudents,
+        })
       ),
     })
       .then((res) =>
@@ -339,6 +353,7 @@ export function TopChannelsTableClient({
     rowsPerPage,
     sortConfig,
     debouncedSearch,
+    uniqueStudents,
   ]);
 
   useEffect(() => {
@@ -412,7 +427,8 @@ export function TopChannelsTableClient({
         <div className="mt-4">
           {isWellbeingScreen && (
             <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5">
-              Showing students with latest intervention status: Referred or Resolved.
+              Referred interventions, or a case closed by wellbeing (stored in wellbeing_cases).
+              {uniqueStudents ? " One row per student." : ""}
             </div>
           )}
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-dark-5">
@@ -447,8 +463,8 @@ export function TopChannelsTableClient({
                   Showing{" "}
                   <span className="font-semibold text-dark dark:text-white">
                     {startItem.toLocaleString()}-{endItem.toLocaleString()}
-                  </span>{" "} rows out
-                  of{" "}
+                  </span>{" "}
+                  {uniqueStudents ? "students out of" : "rows out of"}{" "}
                   <span className="font-semibold text-dark dark:text-white">
                     {totalResults.toLocaleString()}
                   </span>
