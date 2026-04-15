@@ -85,14 +85,20 @@ export function AttendanceMissingTableClient({
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
-  const roleScopeParams = useMemo(() => {
+  const roleScope = useMemo(() => {
     try {
       const parsed = new URL(returnToUrl, "http://localhost");
       const asRole = parsed.searchParams.get("as")?.trim().toLowerCase();
       const facultyId = parsed.searchParams.get("faculty")?.trim();
-      return { asRole, facultyId };
+      if (asRole === "dean" && facultyId) {
+        return { role: "dean" as const, facultyId };
+      }
+      if (asRole === "wellbeing") {
+        return { role: "wellbeing" as const };
+      }
+      return undefined;
     } catch {
-      return { asRole: undefined, facultyId: undefined };
+      return undefined;
     }
   }, [returnToUrl]);
 
@@ -102,11 +108,6 @@ export function AttendanceMissingTableClient({
       setIsLoading(true);
     }
     setError(null);
-    const roleScope =
-      roleScopeParams.asRole === "dean" && roleScopeParams.facultyId
-        ? { role: "dean" as const, facultyId: roleScopeParams.facultyId }
-        : undefined;
-
     const normalizedAttendanceFilters =
       attendanceFilters?.includes("all" as AlertDimensionFilter)
         ? undefined
@@ -165,8 +166,7 @@ export function AttendanceMissingTableClient({
     classStatusFilters,
     interventionFilters,
     resolutionFilters,
-    roleScopeParams.asRole,
-    roleScopeParams.facultyId,
+    roleScope,
   ]);
 
   const summaryByDepartment = useMemo(() => {

@@ -10,6 +10,30 @@ const KNOWN_CATEGORIES = [
 
 const SLOT_COUNT = KNOWN_CATEGORIES.length + 1; // + Others
 
+function normalizeWellbeingCategory(value: string | null | undefined): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "Others";
+  if (raw === "counselling") return "Counselling";
+  if (raw === "monitoring") return "Monitoring";
+  if (
+    raw === "flex (academic)" ||
+    raw === "flex (acad)" ||
+    raw === "flex-academic" ||
+    raw === "flex academic"
+  ) {
+    return "Flex (Academic)";
+  }
+  if (
+    raw === "flex (financial)" ||
+    raw === "flex (fin)" ||
+    raw === "flex-financial" ||
+    raw === "flex financial"
+  ) {
+    return "Flex (Financial)";
+  }
+  return "Others";
+}
+
 /** Wellbeing open/closed counts per category for a set of students. */
 export async function getWellbeingChartDataForStudents(
   sapIds: string[]
@@ -25,9 +49,13 @@ export async function getWellbeingChartDataForStudents(
     wellbeing_status: string;
   }>(
     `
-    SELECT student_sap_id, category, wellbeing_status
+    SELECT DISTINCT ON (student_sap_id, category)
+      student_sap_id,
+      category,
+      wellbeing_status
     FROM wellbeing_cases
     WHERE student_sap_id = ANY($1)
+    ORDER BY student_sap_id, category, updated_at DESC, opened_at DESC, id DESC
     `,
     [sapIds]
   );
@@ -35,12 +63,13 @@ export async function getWellbeingChartDataForStudents(
   const othersIndex = KNOWN_CATEGORIES.length;
 
   for (const row of res.rows) {
+    const normalizedCategory = normalizeWellbeingCategory(row.category);
     const idx = KNOWN_CATEGORIES.indexOf(
-      row.category as (typeof KNOWN_CATEGORIES)[number]
+      normalizedCategory as (typeof KNOWN_CATEGORIES)[number]
     );
     const slot = idx === -1 ? othersIndex : idx;
 
-    const isClosed = row.wellbeing_status === "closed";
+    const isClosed = String(row.wellbeing_status ?? "").trim().toLowerCase() === "closed";
 
     if (isClosed) closed[slot] += 1;
     else open[slot] += 1;

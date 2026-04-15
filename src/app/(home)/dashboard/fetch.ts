@@ -2792,15 +2792,30 @@ export async function getWellbeingChartData(
   gpaFilters?: AlertDimensionFilter[],
   attendanceFilters?: AlertDimensionFilter[]
 ): Promise<StatusStackedChartData> {
-  const result = await getStudentsByAlert(
-    "early_alert",
-    { page: 1, pageSize: 100000 },
-    user,
-    masterFilter,
+  const role =
+    user?.role === "teacher"
+      ? "instructor"
+      : user?.role === "instructor" ||
+          user?.role === "dean" ||
+          user?.role === "hod" ||
+          user?.role === "wellbeing" ||
+          user?.role === "superadmin"
+        ? user.role
+        : "superadmin";
+  const scope: ListingSessionScope = {
+    role,
+    faculty_id: user?.faculty_id ?? null,
+    department_ids: user?.department_ids ?? null,
+    pernr: user?.sap_id?.trim() || null,
+  };
+  const sapIds = await getDistinctSapIdsForScope(scope, {
+    department_ids: masterFilter?.department_ids,
+    programs: masterFilter?.programs,
+    instructor_ids: masterFilter?.instructor_ids,
+    course_ids: masterFilter?.course_ids,
     gpaFilters,
-    attendanceFilters
-  );
-  const sapIds = result.students.map((s) => s.sap_id);
+    attendanceFilters,
+  });
   return getWellbeingChartDataForStudents(sapIds);
 }
 

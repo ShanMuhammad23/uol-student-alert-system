@@ -8,8 +8,8 @@ import { useTheme } from "next-themes";
 const CATEGORIES = [
   "Counselling",
   "Monitoring",
-  "Flex (Acad)",
-  "Flex (Fin)",
+  "Flex (Academic)",
+  "Flex (Financial)",
   "Others",
 ] as const;
 
