@@ -15,6 +15,12 @@ type Body = {
   masterFilter?: MasterFilterParams;
   gpaFilters?: AlertDimensionFilter[];
   attendanceFilters?: AlertDimensionFilter[];
+  roleScope?: {
+    role: "dean" | "hod" | "teacher" | "wellbeing";
+    facultyId?: string | null;
+    departmentIds?: string[] | null;
+    pernr?: string | null;
+  };
 };
 
 export async function POST(req: Request) {
@@ -30,9 +36,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const user = mapSessionToAppUser(
+  const sessionUser = mapSessionToAppUser(
     session as Parameters<typeof mapSessionToAppUser>[0]
   );
+  const user =
+    sessionUser.role === "superadmin" && body.roleScope
+      ? {
+          ...sessionUser,
+          role: body.roleScope.role === "teacher" ? "instructor" : body.roleScope.role,
+          faculty_id: body.roleScope.facultyId ?? null,
+          department_ids: body.roleScope.departmentIds?.length
+            ? body.roleScope.departmentIds
+            : null,
+          sap_id: body.roleScope.pernr ?? sessionUser.sap_id ?? null,
+        }
+      : sessionUser;
 
   try {
     const data =

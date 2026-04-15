@@ -168,24 +168,20 @@ const InterventionForm = ({
     subject: string,
     body: string
   ): { subject: string; body: string } => {
+    const formatGpa = (value: number | null | undefined): string =>
+      typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "0.00";
     const studentDisplay = studentName?.trim() || "Student";
     const sap = studentSapId ?? "N/A";
     const attendanceText =
       attendancePercent == null || !Number.isFinite(attendancePercent)
         ? "N/A"
         : `${attendancePercent.toFixed(1)}%`;
-    const gpaPrevText =
-      gpaPrevious == null || !Number.isFinite(gpaPrevious)
-        ? "N/A"
-        : gpaPrevious.toFixed(2);
+    const gpaPrevText = formatGpa(gpaPrevious);
     const gpaCurrentText =
-      gpaCurrent == null || !Number.isFinite(gpaCurrent)
-        ? "N/A"
-        : gpaCurrent.toFixed(2);
-    const gpaDropText =
-      gpaDrop == null || !Number.isFinite(gpaDrop)
-        ? "N/A"
-        : Math.abs(gpaDrop).toFixed(2);
+      gpaCurrent == null || !Number.isFinite(gpaCurrent) ? "N/A" : gpaCurrent.toFixed(2);
+    const gpaDropText = formatGpa(
+      typeof gpaDrop === "number" && Number.isFinite(gpaDrop) ? Math.abs(gpaDrop) : gpaDrop
+    );
     const senderNameText = senderName?.trim() || "N/A";
     const senderDesignationText = senderDesignation?.trim() || "N/A";
     const senderDepartmentText = senderDepartment?.trim() || "N/A";
@@ -210,15 +206,20 @@ const InterventionForm = ({
       .replace("[Department/Faculty Name]", deptFaculty || "N/A")
       .replace("[Email]", senderEmailText)
       .replace("[Counsellor's Name]", "Counsellor")
+      .replace(/\[sap_id\]/gi, sap)
+      .replace(/\[student email\]/gi, `${sap}@student.uol.edu.pk`)
       .replace(/___%/g, attendanceText)
-      .replace(/____/g, "N/A")
-      .replace(/\[.*?\]/g, "N/A");
+      .replace(/____/g, gpaDropText);
     return { subject: nextSubject, body: nextBody };
   };
 
   const handleSelectTemplate = (key: InterventionEmailTemplateKey) => {
     setEmailTemplateKey(key);
     if (key === "sos_check_in") {
+      const sap = String(studentSapId ?? "").trim();
+      if (sap) {
+        setRecipientEmail(`${sap}@student.uol.edu.pk`);
+      }
       const t = fillTemplateWithData(
         SOS_CHECK_IN_EMAIL_SUBJECT,
         SOS_CHECK_IN_EMAIL_TEMPLATE

@@ -7,12 +7,17 @@ import type { StatusStackedChartData } from "@/components/Charts/status-stacked-
 
 import { useDashboardFilter } from "./DashboardFilterContext";
 import type { AlertDimensionFilter } from "../fetch";
+import type { FilterApiRoleScope } from "./master-filter";
 
 type Props = {
   title?: string;
+  filterApiRoleScope?: FilterApiRoleScope | null;
 };
 
-export function WellbeingChartClient({ title = "Wellbeing Resolution" }: Props) {
+export function WellbeingChartClient({
+  title = "Wellbeing Resolution",
+  filterApiRoleScope,
+}: Props) {
   const dashboardFilter = useDashboardFilter();
 
   const masterFilter = dashboardFilter?.masterFilter;
@@ -25,8 +30,9 @@ export function WellbeingChartClient({ title = "Wellbeing Resolution" }: Props) 
       masterFilter,
       gpaFilters,
       attendanceFilters,
+      roleScope: filterApiRoleScope ?? null,
     });
-  }, [masterFilter, gpaFilters, attendanceFilters]);
+  }, [masterFilter, gpaFilters, attendanceFilters, filterApiRoleScope]);
 
   const [data, setData] = useState<StatusStackedChartData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +48,7 @@ export function WellbeingChartClient({ title = "Wellbeing Resolution" }: Props) 
           masterFilter,
           gpaFilters,
           attendanceFilters,
+          ...(filterApiRoleScope ? { roleScope: filterApiRoleScope } : {}),
         }),
         signal: controller.signal,
       })
