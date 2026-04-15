@@ -48,6 +48,21 @@ export const WELLBEING_RESOLUTION_OPTIONS = [
     category: "Flex (Financial)",
     closed: true,
   },
+  /** Categories outside the four standard CHECK values (legacy or future rows). */
+  {
+    value: "wb_others_open",
+    label: "Other (Open)",
+    category: "Others",
+    closed: false,
+    othersBucket: true,
+  },
+  {
+    value: "wb_others_closed",
+    label: "Others (Closed)",
+    category: "Others",
+    closed: true,
+    othersBucket: true,
+  },
 ] as const;
 
 export type WellbeingResolutionValue = (typeof WELLBEING_RESOLUTION_OPTIONS)[number]["value"];

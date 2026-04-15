@@ -173,6 +173,14 @@ export default async function Home({ searchParams }: PropsType) {
     instructorCourseCount = instructorCourses.length;
   }
 
+  /** Superadmin ?as=dean&faculty=… — client APIs must scope like this, not as global superadmin. */
+  const filterApiRoleScope =
+    user.role === "superadmin" &&
+    effectiveUser.role === "dean" &&
+    effectiveUser.faculty_id
+      ? { role: "dean" as const, facultyId: effectiveUser.faculty_id }
+      : undefined;
+
   const filterOptions = await getMasterFilterOptions(
     effectiveUser,
     masterFilter
@@ -267,6 +275,7 @@ export default async function Home({ searchParams }: PropsType) {
               redGpa={redGpa.value}
               yellowAttendance={yellowAttendance.value}
               redAttendance={redAttendance.value}
+              filterApiRoleScope={filterApiRoleScope}
             />
           </div>
           <div className="col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
@@ -277,6 +286,7 @@ export default async function Home({ searchParams }: PropsType) {
         </InterventionCohortStatsProvider>
         <EnrollmentDashboard
           user={effectiveUser}
+          filterApiRoleScope={filterApiRoleScope}
           masterFilter={masterFilter}
           filterOptionsFromServer={filterOptions}
           deanDepartmentStats={deanDepartmentStats}

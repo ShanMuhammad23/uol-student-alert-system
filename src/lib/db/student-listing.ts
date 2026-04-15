@@ -192,6 +192,8 @@ function normalizeResolutionFilters(filters?: string[]): string[] | undefined {
   return out.length ? out : undefined;
 }
 
+const WB_STANDARD_CATEGORIES = `('Counselling', 'Monitoring', 'Flex (Academic)', 'Flex (Financial)')`;
+
 function buildResolutionWhereClause(
   resolutionValues: string[] | undefined,
   params: unknown[]
@@ -202,6 +204,24 @@ function buildResolutionWhereClause(
   for (const val of normalized) {
     const spec = WELLBEING_RESOLUTION_BY_VALUE.get(val as WellbeingResolutionValue);
     if (!spec) continue;
+    if ("othersBucket" in spec && spec.othersBucket) {
+      if (spec.closed) {
+        parts.push(`EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = e.sap_id
+          AND wb.category NOT IN ${WB_STANDARD_CATEGORIES}
+          AND wb.wellbeing_status = 'closed'
+      )`);
+      } else {
+        parts.push(`EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = e.sap_id
+          AND wb.category NOT IN ${WB_STANDARD_CATEGORIES}
+          AND wb.wellbeing_status <> 'closed'
+      )`);
+      }
+      continue;
+    }
     params.push(spec.category);
     const p = params.length;
     if (spec.closed) {
@@ -514,20 +534,37 @@ export async function getFilterDropdownCounts(
       const wbParams = [...wbParts.params];
       for (let idx = 0; idx < WELLBEING_RESOLUTION_OPTIONS.length; idx++) {
         const spec = WELLBEING_RESOLUTION_OPTIONS[idx]!;
-        wbParams.push(spec.category);
-        const p = wbParams.length;
-        const existsClosed = `EXISTS (
+        let existsClosed: string;
+        let existsOpen: string;
+        if ("othersBucket" in spec && spec.othersBucket) {
+          existsClosed = `EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = sap_id
+          AND wb.category NOT IN ${WB_STANDARD_CATEGORIES}
+          AND wb.wellbeing_status = 'closed'
+      )`;
+          existsOpen = `EXISTS (
+        SELECT 1 FROM wellbeing_cases wb
+        WHERE wb.student_sap_id = sap_id
+          AND wb.category NOT IN ${WB_STANDARD_CATEGORIES}
+          AND wb.wellbeing_status <> 'closed'
+      )`;
+        } else {
+          wbParams.push(spec.category);
+          const p = wbParams.length;
+          existsClosed = `EXISTS (
         SELECT 1 FROM wellbeing_cases wb
         WHERE wb.student_sap_id = sap_id
           AND wb.category = $${p}::text
           AND wb.wellbeing_status = 'closed'
       )`;
-        const existsOpen = `EXISTS (
+          existsOpen = `EXISTS (
         SELECT 1 FROM wellbeing_cases wb
         WHERE wb.student_sap_id = sap_id
           AND wb.category = $${p}::text
           AND wb.wellbeing_status <> 'closed'
       )`;
+        }
         const pred = spec.closed ? existsClosed : existsOpen;
         wbSelectParts.push(`COUNT(*) FILTER (WHERE ${pred})::int AS wb_${idx}`);
       }

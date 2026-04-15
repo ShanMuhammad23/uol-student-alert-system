@@ -35,6 +35,26 @@ function toSessionScope(session: {
   };
 }
 
+type RoleScopeBody = {
+  role: "dean" | "hod" | "teacher";
+  facultyId?: string | null;
+  departmentIds?: string[] | null;
+  pernr?: string | null;
+};
+
+function scopeWithRoleOverride(
+  scope: SessionScope,
+  roleScope: RoleScopeBody | undefined
+): SessionScope {
+  if (scope.role !== "superadmin" || !roleScope) return scope;
+  return {
+    role: roleScope.role === "teacher" ? "instructor" : roleScope.role,
+    faculty_id: roleScope.facultyId ?? null,
+    department_ids: roleScope.departmentIds?.length ? roleScope.departmentIds : null,
+    pernr: roleScope.pernr ?? scope.pernr ?? null,
+  };
+}
+
 function emptyCounts() {
   return {
     gpa: { all: 0, red: 0, yellow: 0, good: 0 },
@@ -65,15 +85,21 @@ export async function POST(req: Request) {
   }
 
   let filters: ListingFilters = {};
+  let roleScope: RoleScopeBody | undefined;
   try {
-    const body = (await req.json()) as { filters?: ListingFilters };
+    const body = (await req.json()) as {
+      filters?: ListingFilters;
+      roleScope?: RoleScopeBody;
+    };
     filters = body?.filters ?? {};
+    roleScope = body?.roleScope;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   try {
-    const counts = await getFilterDropdownCounts(scope, filters);
+    const effectiveScope = scopeWithRoleOverride(scope, roleScope);
+    const counts = await getFilterDropdownCounts(effectiveScope, filters);
     return NextResponse.json(counts ?? emptyCounts(), { status: 200 });
   } catch (error) {
     console.error("filter-counts API error:", error);

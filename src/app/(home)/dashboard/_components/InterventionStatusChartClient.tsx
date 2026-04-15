@@ -12,6 +12,7 @@ import type {
 import { useDashboardFilter } from "./DashboardFilterContext";
 import { useInterventionCohortStats } from "./InterventionCohortStatsContext";
 import type { InterventionChartSlice } from "./InterventionSliceContext";
+import type { FilterApiRoleScope } from "./master-filter";
 
 type Props = {
   title: string;
@@ -26,6 +27,7 @@ type Props = {
   redGpa?: number;
   yellowAttendance?: number;
   redAttendance?: number;
+  filterApiRoleScope?: FilterApiRoleScope | null;
 };
 
 function sliceDescription(slice: InterventionChartSlice | null): string | null {
@@ -50,6 +52,7 @@ export function InterventionStatusChartClient({
   redGpa = 0,
   yellowAttendance = 0,
   redAttendance = 0,
+  filterApiRoleScope,
 }: Props): JSX.Element {
   type ChartMode = "attendance" | "gpa" | "all";
   type InterventionCounts = {
@@ -146,6 +149,7 @@ export function InterventionStatusChartClient({
           attendanceFilters: attendanceFilters?.length
             ? attendanceFilters
             : undefined,
+          ...(filterApiRoleScope ? { roleScope: filterApiRoleScope } : {}),
         }),
         signal: controller.signal,
       })
@@ -169,7 +173,16 @@ export function InterventionStatusChartClient({
       controller.abort();
       window.clearTimeout(t);
     };
-  }, [effectiveSlice, masterFilterKey, gpaFiltersKey, attendanceFiltersKey]);
+  }, [
+    effectiveSlice,
+    masterFilterKey,
+    gpaFiltersKey,
+    attendanceFiltersKey,
+    filterApiRoleScope?.role,
+    filterApiRoleScope?.facultyId,
+    filterApiRoleScope?.departmentIds?.join(","),
+    filterApiRoleScope?.pernr,
+  ]);
 
   const interventionTypesForDb = useMemo<("attendance" | "gpa" | "all")[]>(() => {
     if (

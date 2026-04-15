@@ -16,7 +16,7 @@ import type {
 } from "@/lib/enrollment";
 import type { CourseStats } from "../fetch";
 import type { AlertDimensionFilter } from "../fetch";
-import { MasterFilter } from "./master-filter";
+import { MasterFilter, type FilterApiRoleScope } from "./master-filter";
 import { DeanStatsCollapsible } from "./dean-stats-collapsible";
 import { DeanDepartmentStats } from "./dean-department-stats";
 import { DeanProgramStats } from "./dean-program-stats";
@@ -66,6 +66,8 @@ type Props = {
   viewMode: "table" | "nested" | "attendance-missing";
   /** Section IDs to expand in nested view (e.g. from URL ?expanded=). */
   expandedIds?: string[];
+  /** Superadmin preview: scope filter-counts APIs to emulated role/faculty. */
+  filterApiRoleScope?: FilterApiRoleScope | null;
 };
 
 export function EnrollmentDashboard({
@@ -95,6 +97,7 @@ export function EnrollmentDashboard({
   instructorIds,
   viewMode,
   expandedIds = [],
+  filterApiRoleScope,
 }: Props) {
   // Shared filter state (owned by DashboardFiltersStateProvider from Chunk 1).
   const dashboardFilter = useDashboardFilter();
@@ -195,6 +198,7 @@ export function EnrollmentDashboard({
         hodCourseCount={hodCourseCount}
         hodInstructorCount={hodInstructorCount}
         instructorCourseCount={instructorCourseCount}
+        filterApiRoleScope={filterApiRoleScope}
       />
     </DashboardUiStateProvider>
   );
@@ -234,6 +238,7 @@ type InnerProps = {
   hodCourseCount?: number;
   hodInstructorCount?: number;
   instructorCourseCount?: number;
+  filterApiRoleScope?: FilterApiRoleScope | null;
 };
 
 function EnrollmentDashboardInner({
@@ -270,6 +275,7 @@ function EnrollmentDashboardInner({
   hodCourseCount,
   hodInstructorCount,
   instructorCourseCount,
+  filterApiRoleScope,
 }: InnerProps) {
   const { viewMode, expandedIds } = useDashboardUiState();
   const router = useRouter();
@@ -609,6 +615,7 @@ function EnrollmentDashboardInner({
                   ? "dean"
                 : user.role
           }
+          filterApiRoleScope={filterApiRoleScope}
           selectedAlert={selectedAlert}
           gpaFilters={localGpaFilters}
           attendanceFilters={localAttendanceFilters}

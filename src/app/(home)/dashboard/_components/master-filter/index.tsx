@@ -15,14 +15,12 @@ import type {
 } from "../../fetch";
 
 const GPA_ATTENDANCE_OPTIONS: { value: AlertDimensionFilter; label: string }[] = [
-  { value: "all", label: "All" },
   { value: "red", label: "Red alert" },
   { value: "yellow", label: "Yellow alert" },
   { value: "good", label: "Good standing" },
 ];
 
 const INTERVENTION_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
   { value: "not_started", label: "Not Started" },
   { value: "initiated", label: "Initiated" },
   { value: "in_progress", label: "In-Progress" },
@@ -31,10 +29,8 @@ const INTERVENTION_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "no_action_required", label: "No Action Required" },
 ];
 
-const WELLBEING_FILTER_OPTIONS: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
-  ...WELLBEING_RESOLUTION_OPTIONS.map(({ value, label }) => ({ value, label })),
-];
+const WELLBEING_FILTER_OPTIONS: { value: string; label: string }[] =
+  WELLBEING_RESOLUTION_OPTIONS.map(({ value, label }) => ({ value, label }));
 
 const CLASS_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All" },
@@ -53,6 +49,14 @@ function labelWithOptionalCount(label: string, count: number | undefined) {
   if (count === undefined) return label;
   return `${label} (${count.toLocaleString()})`;
 }
+/** Passed when session is superadmin but the dashboard emulates another role (e.g. ?as=dean&faculty=). */
+export type FilterApiRoleScope = {
+  role: "dean" | "hod" | "teacher";
+  facultyId?: string | null;
+  departmentIds?: string[] | null;
+  pernr?: string | null;
+};
+
 type PropsType = {
   options: MasterFilterOptions;
   current: MasterFilterParams;
@@ -64,6 +68,8 @@ type PropsType = {
   classStatusFilters: string[];
   resolutionFilters: string[];
   interventionStatusFilters: string[];
+  /** Scope dropdown counts to emulated dean/hod/instructor when superadmin previews a dashboard. */
+  filterApiRoleScope?: FilterApiRoleScope | null;
   className?: string;
   onChangeMasterFilter?: (updates: Partial<MasterFilterParams>) => void;
   onChangeGpaFilters?: (values: AlertDimensionFilter[]) => void;
@@ -119,7 +125,7 @@ function FilterMultiSelect({
 
   const displayLabel =
     selected.length === 0
-      ? "All"
+      ? "Any"
       : selected.length <= 2
         ? selected.map((v) => items.find((i) => i.value === v)?.label ?? v).join(", ")
         : `${selected.length} selected`;
@@ -209,6 +215,7 @@ export function MasterFilter({
   onChangeInterventionFilters,
   onChangeClassStatusFilters,
   onChangeResolutionFilters,
+  filterApiRoleScope,
 }: PropsType) {
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [dropdownCounts, setDropdownCounts] = useState<FilterDropdownCounts | null>(null);
@@ -226,7 +233,7 @@ export function MasterFilter({
       attendanceFilters: normalizeDimFiltersForApi(attendanceFilters),
       gpaFilters: normalizeDimFiltersForApi(gpaFilters),
       interventionFilters:
-        interventionFilters?.length && !interventionFilters.includes("all")
+        interventionFilters?.length
           ? interventionFilters.filter((v) => v !== "all")
           : undefined,
       classStatusFilters:
@@ -234,7 +241,7 @@ export function MasterFilter({
           ? classStatusFilters.filter((v) => v !== "all")
           : undefined,
       resolutionFilters:
-        resolutionFilters?.length && !resolutionFilters.includes("all")
+        resolutionFilters?.length
           ? resolutionFilters.filter((v) => v !== "all")
           : undefined,
     };
@@ -242,7 +249,10 @@ export function MasterFilter({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({ filters }),
+      body: JSON.stringify({
+        filters,
+        ...(filterApiRoleScope ? { roleScope: filterApiRoleScope } : {}),
+      }),
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("counts"))))
       .then((body: FilterDropdownCounts) => {
@@ -262,6 +272,10 @@ export function MasterFilter({
     interventionFilters?.join(","),
     classStatusFilters?.join(","),
     resolutionFilters?.join(","),
+    filterApiRoleScope?.role,
+    filterApiRoleScope?.facultyId,
+    filterApiRoleScope?.departmentIds?.join(","),
+    filterApiRoleScope?.pernr,
   ]);
 
   const gpaItemsWithCounts = useMemo(() => {
@@ -271,15 +285,13 @@ export function MasterFilter({
       value: o.value,
       label: labelWithOptionalCount(
         o.label,
-        o.value === "all"
-          ? c.all
-          : o.value === "red"
-            ? c.red
-            : o.value === "yellow"
-              ? c.yellow
-              : o.value === "good"
-                ? c.good
-                : undefined
+        o.value === "red"
+          ? c.red
+          : o.value === "yellow"
+            ? c.yellow
+            : o.value === "good"
+              ? c.good
+              : undefined
       ),
     }));
   }, [dropdownCounts]);
@@ -291,15 +303,13 @@ export function MasterFilter({
       value: o.value,
       label: labelWithOptionalCount(
         o.label,
-        o.value === "all"
-          ? c.all
-          : o.value === "red"
-            ? c.red
-            : o.value === "yellow"
-              ? c.yellow
-              : o.value === "good"
-                ? c.good
-                : undefined
+        o.value === "red"
+          ? c.red
+          : o.value === "yellow"
+            ? c.yellow
+            : o.value === "good"
+              ? c.good
+              : undefined
       ),
     }));
   }, [dropdownCounts]);
@@ -309,21 +319,19 @@ export function MasterFilter({
     const c = dropdownCounts.intervention;
     return INTERVENTION_STATUS_OPTIONS.map((o) => {
       const n =
-        o.value === "all"
-          ? c.all
-          : o.value === "not_started"
-            ? c.not_started
-            : o.value === "initiated"
-              ? c.initiated
-              : o.value === "in_progress"
-                ? c.in_progress
-                : o.value === "referred"
-                  ? c.referred
-                  : o.value === "resolved"
-                    ? c.resolved
-                    : o.value === "no_action_required"
-                      ? c.no_action_required
-                      : undefined;
+        o.value === "not_started"
+          ? c.not_started
+          : o.value === "initiated"
+            ? c.initiated
+            : o.value === "in_progress"
+              ? c.in_progress
+              : o.value === "referred"
+                ? c.referred
+                : o.value === "resolved"
+                  ? c.resolved
+                  : o.value === "no_action_required"
+                    ? c.no_action_required
+                    : undefined;
       return { value: o.value, label: labelWithOptionalCount(o.label, n) };
     });
   }, [dropdownCounts]);
@@ -331,12 +339,6 @@ export function MasterFilter({
   const wellbeingItemsWithCounts = useMemo(() => {
     if (!dropdownCounts) return WELLBEING_FILTER_OPTIONS;
     return WELLBEING_FILTER_OPTIONS.map((o) => {
-      if (o.value === "all") {
-        return {
-          value: o.value,
-          label: labelWithOptionalCount(o.label, dropdownCounts.wellbeingAll),
-        };
-      }
       const idx = WELLBEING_RESOLUTION_OPTIONS.findIndex((x) => x.value === o.value);
       const n = idx >= 0 ? dropdownCounts.wellbeing[idx] : undefined;
       return { value: o.value, label: labelWithOptionalCount(o.label, n) };
