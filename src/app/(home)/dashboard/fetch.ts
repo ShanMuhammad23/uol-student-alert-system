@@ -2435,20 +2435,38 @@ export async function getInstructorCourseStats(
         yellow_attendance: number | string | null;
         red_attendance: number | string | null;
       }>(
-        `SELECT
-           split_part(dimension_id, '|', 1) AS course_id,
-           MAX(dimension_name) AS course_name,
-           COALESCE(SUM(total_students), 0) AS total_students,
-           COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
-           COALESCE(SUM(red_gpa), 0) AS red_gpa,
-           COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
-           COALESCE(SUM(red_attendance), 0) AS red_attendance
-         FROM alert_counts_by_dimension
-         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
-           AND dimension_type = 'course'
-           AND split_part(dimension_id, '|', 1) = ANY($1)
-         GROUP BY split_part(dimension_id, '|', 1)`,
-        [normalizedCourseIds]
+        `WITH scoped AS (
+           SELECT
+             e.course_id,
+             COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS course_name,
+             e.sap_id,
+             MAX(CASE WHEN a.gpa_alert_level = 'warning' THEN 1 ELSE 0 END) AS gpa_warning,
+             MAX(CASE WHEN a.gpa_alert_level = 'critical' THEN 1 ELSE 0 END) AS gpa_critical,
+             MAX(CASE WHEN a.attendance_alert_level = 'warning' THEN 1 ELSE 0 END) AS attendance_warning,
+             MAX(CASE WHEN a.attendance_alert_level = 'critical' THEN 1 ELSE 0 END) AS attendance_critical
+           FROM student_enrollment_current e
+           LEFT JOIN courses c ON c.id = e.course_id
+           LEFT JOIN student_alert_current a
+             ON a.sap_id = e.sap_id
+            AND a.course_id = e.course_id
+            AND a.section_code = e.section_code
+            AND a.event_package_id = e.event_package_id
+           WHERE e.is_active = TRUE
+             AND e.instructor_pernr = $1
+             AND e.course_id = ANY($2::text[])
+           GROUP BY e.course_id, COALESCE(NULLIF(TRIM(c.title), ''), e.course_id), e.sap_id
+         )
+         SELECT
+           course_id,
+           MAX(course_name) AS course_name,
+           COUNT(*)::int AS total_students,
+           COALESCE(SUM(gpa_warning), 0)::int AS yellow_gpa,
+           COALESCE(SUM(gpa_critical), 0)::int AS red_gpa,
+           COALESCE(SUM(attendance_warning), 0)::int AS yellow_attendance,
+           COALESCE(SUM(attendance_critical), 0)::int AS red_attendance
+         FROM scoped
+         GROUP BY course_id`,
+        [pernr, normalizedCourseIds]
       );
       const byCourse = new Map(counts.rows.map((r) => [r.course_id, r]));
       return courseIds.map((courseId) => {
@@ -2492,6 +2510,8 @@ export async function getInstructorCourseStats(
 
   if (pool) {
     try {
+      const pernr = String(user.sap_id ?? "").trim();
+      if (!pernr) return [];
       const res = await pool.query<{
         course_id: string;
         course_name: string;
@@ -2501,20 +2521,38 @@ export async function getInstructorCourseStats(
         yellow_attendance: number | string | null;
         red_attendance: number | string | null;
       }>(
-        `SELECT
-           split_part(dimension_id, '|', 1) AS course_id,
-           MAX(dimension_name) AS course_name,
-           COALESCE(SUM(total_students), 0) AS total_students,
-           COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
-           COALESCE(SUM(red_gpa), 0) AS red_gpa,
-           COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
-           COALESCE(SUM(red_attendance), 0) AS red_attendance
-         FROM alert_counts_by_dimension
-         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
-           AND dimension_type = 'course'
-           AND split_part(dimension_id, '|', 1) = ANY($1)
-         GROUP BY split_part(dimension_id, '|', 1)`,
-        [courseIds]
+        `WITH scoped AS (
+           SELECT
+             e.course_id,
+             COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS course_name,
+             e.sap_id,
+             MAX(CASE WHEN a.gpa_alert_level = 'warning' THEN 1 ELSE 0 END) AS gpa_warning,
+             MAX(CASE WHEN a.gpa_alert_level = 'critical' THEN 1 ELSE 0 END) AS gpa_critical,
+             MAX(CASE WHEN a.attendance_alert_level = 'warning' THEN 1 ELSE 0 END) AS attendance_warning,
+             MAX(CASE WHEN a.attendance_alert_level = 'critical' THEN 1 ELSE 0 END) AS attendance_critical
+           FROM student_enrollment_current e
+           LEFT JOIN courses c ON c.id = e.course_id
+           LEFT JOIN student_alert_current a
+             ON a.sap_id = e.sap_id
+            AND a.course_id = e.course_id
+            AND a.section_code = e.section_code
+            AND a.event_package_id = e.event_package_id
+           WHERE e.is_active = TRUE
+             AND e.instructor_pernr = $1
+             AND e.course_id = ANY($2::text[])
+           GROUP BY e.course_id, COALESCE(NULLIF(TRIM(c.title), ''), e.course_id), e.sap_id
+         )
+         SELECT
+           course_id,
+           MAX(course_name) AS course_name,
+           COUNT(*)::int AS total_students,
+           COALESCE(SUM(gpa_warning), 0)::int AS yellow_gpa,
+           COALESCE(SUM(gpa_critical), 0)::int AS red_gpa,
+           COALESCE(SUM(attendance_warning), 0)::int AS yellow_attendance,
+           COALESCE(SUM(attendance_critical), 0)::int AS red_attendance
+         FROM scoped
+         GROUP BY course_id`,
+        [pernr, courseIds]
       );
 
       const byCourse = new Map(res.rows.map((r) => [r.course_id, r]));

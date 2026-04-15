@@ -19,7 +19,7 @@ import {
   normalizeCourseCode,
 } from "@/lib/attendance-utils";
 import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AlertDimensionFilter,
   MasterFilterParams,
@@ -162,7 +162,8 @@ export function NestedEnrollmentTableClient({
   const { expandedIds, setExpandedIds } = useDashboardUiState();
   const [dbRows, setDbRows] = useState<TopTableRow[]>([]);
   const [isLoadingDb, setIsLoadingDb] = useState(true);
-  const roleScope = (() => {
+  const hasLoadedOnceRef = useRef(false);
+  const roleScope = useMemo(() => {
     try {
       const parsed = new URL(returnToUrl, "http://localhost");
       const asRole = parsed.searchParams.get("as")?.trim().toLowerCase();
@@ -174,11 +175,13 @@ export function NestedEnrollmentTableClient({
     } catch {
       return undefined;
     }
-  })();
+  }, [returnToUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setIsLoadingDb(true);
+    if (!hasLoadedOnceRef.current) {
+      setIsLoadingDb(true);
+    }
     const normalizedAttendanceFilters =
       attendanceFilters?.includes("all" as AlertDimensionFilter)
         ? undefined
@@ -216,6 +219,7 @@ export function NestedEnrollmentTableClient({
       )
       .then((body: { rows?: TopTableRow[] }) => {
         setDbRows(Array.isArray(body.rows) ? body.rows : []);
+        hasLoadedOnceRef.current = true;
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -548,7 +552,7 @@ export function NestedEnrollmentTableClient({
     return { red, yellow };
   };
 
-  if (isLoadingDb) {
+  if (isLoadingDb && !hasLoadedOnceRef.current) {
     return (
       <div
         className={cn(
