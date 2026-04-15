@@ -69,15 +69,7 @@ export default async function SuperadminDashboardPage({
 
   return (
     <div className="space-y-5">
-      <AutomationPanel />
-      <div className="flex justify-end">
-        <Link
-          href="/dashboard/superadmin/automation"
-          className="rounded-md border border-primary px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10"
-        >
-          Open Automation Page
-        </Link>
-      </div>
+   
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard
