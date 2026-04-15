@@ -11,11 +11,14 @@ type Props = {
 
 type Category = "Counselling" | "Monitoring" | "Flex (Academic)" | "Flex (Financial)";
 type WellbeingStatus = "open" | "closed";
+type InterventionStatusUpdate = "unchanged" | "resolved";
 
 export function WellbeingResolutionFormWithAction({ studentSapId, onClose }: Props) {
   const router = useRouter();
   const [category, setCategory] = useState<Category>("Counselling");
   const [wellbeingStatus, setWellbeingStatus] = useState<WellbeingStatus>("open");
+  const [interventionStatusUpdate, setInterventionStatusUpdate] =
+    useState<InterventionStatusUpdate>("unchanged");
   const [remarks, setRemarks] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -32,6 +35,7 @@ export function WellbeingResolutionFormWithAction({ studentSapId, onClose }: Pro
         category,
         wellbeingStatus,
         remarks,
+        setInterventionResolved: interventionStatusUpdate === "resolved",
       });
       setMessage({ type: "success", text: "Wellbeing resolution added successfully." });
       router.refresh();
@@ -76,6 +80,27 @@ export function WellbeingResolutionFormWithAction({ studentSapId, onClose }: Pro
         >
           <option value="open">Open</option>
           <option value="closed">Closed</option>
+        </select>
+      </div>
+
+      <p className="text-xs text-dark-6 dark:text-dark-5">
+        Counselling/Monitoring entries are mirrored into Intervention History. Flex (Academic/Financial)
+        entries remain in Resolution Recommendations. Each save creates a new row.
+      </p>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
+          Intervention Status
+        </label>
+        <select
+          value={interventionStatusUpdate}
+          onChange={(e) =>
+            setInterventionStatusUpdate(e.target.value as InterventionStatusUpdate)
+          }
+          className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
+        >
+          <option value="unchanged">Do not change</option>
+          <option value="resolved">Set latest intervention to Resolved</option>
         </select>
       </div>
 

@@ -363,6 +363,9 @@ export function InterventionHistorySection({
   };
 
   const isWellbeingView = currentUserRole === "wellbeing";
+  const resolutionRows = wellbeingRows.filter(
+    (wb) => wb.category === "Flex (Academic)" || wb.category === "Flex (Financial)"
+  );
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
@@ -404,10 +407,71 @@ export function InterventionHistorySection({
         </p>
       )}
 
-      {(isWellbeingView ? wellbeingRows.length === 0 : rows.length === 0) ? (
+      {isWellbeingView && (
+        <div className="mb-4">
+          <h4 className="mb-2 text-sm font-semibold text-dark dark:text-white">
+            Intervention History
+          </h4>
+          {rows.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-stroke py-4 text-center text-sm text-gray-500 dark:border-dark-3 dark:text-gray-400">
+              No interventions recorded yet.
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-stroke dark:border-dark-3">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-stroke dark:border-dark-3">
+                    <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Type</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((int) => {
+                    const statusStyle = STATUS_STYLES[int.status] ?? {
+                      label: int.status,
+                      bg: "#94A3B8",
+                    };
+                    return (
+                      <TableRow key={`wb-int-${int.id}`} className="border-stroke dark:border-dark-3">
+                        <TableCell className="text-dark dark:text-white">
+                          <time dateTime={int.date}>
+                            {new Date(int.date).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                          </time>
+                        </TableCell>
+                        <TableCell className="text-dark dark:text-white">
+                          {formatInterventionType(int.intervention_type)}
+                        </TableCell>
+                        <TableCell className="text-dark dark:text-white">
+                          {formatOutreachMode(int.outreach_mode)}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+                            style={{ backgroundColor: statusStyle.bg }}
+                          >
+                            {statusStyle.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-[280px] text-dark-6 dark:text-dark-5">
+                          {int.remarks || "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(isWellbeingView ? resolutionRows.length === 0 : rows.length === 0) ? (
         <p className="rounded-lg border border-dashed border-stroke py-8 text-center text-sm text-gray-500 dark:border-dark-3 dark:text-gray-400">
           {isWellbeingView
-            ? "No wellbeing cases recorded yet. Click Add Intervention to add a wellbeing resolution case."
+            ? "No resolution recommendations recorded yet. Flex (Academic/Financial) cases appear here."
             : "No interventions recorded yet. Click Add Intervention to add one."}
         </p>
       ) : (
@@ -434,7 +498,7 @@ export function InterventionHistorySection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(isWellbeingView ? wellbeingRows : rows).map((rowItem, idx) => {
+              {(isWellbeingView ? resolutionRows : rows).map((rowItem, idx) => {
                 if (isWellbeingView) {
                   const wb = rowItem as WellbeingCaseRecord;
                   return (
@@ -888,56 +952,62 @@ export function InterventionHistorySection({
         </dialog>
       )}
 
-      {!isWellbeingView && wellbeingRows.length > 0 && (
+      {!isWellbeingView && (
         <div className="mt-6 rounded-lg border border-stroke dark:border-dark-3">
           <div className="border-b border-stroke px-4 py-3 dark:border-dark-3">
             <h4 className="text-base font-semibold text-dark dark:text-white">
               Wellbeing Resolution Records
             </h4>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-stroke dark:border-dark-3">
-                <TableHead className="font-semibold text-dark dark:text-white">
-                  Category
-                </TableHead>
-                <TableHead className="font-semibold text-dark dark:text-white">
-                  Status
-                </TableHead>
-                <TableHead className="font-semibold text-dark dark:text-white">
-                  Remarks
-                </TableHead>
-                <TableHead className="font-semibold text-dark dark:text-white">
-                  Updated At
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {wellbeingRows.map((wb) => (
-                <TableRow key={wb.id} className="border-stroke dark:border-dark-3">
-                  <TableCell className="text-dark dark:text-white">
-                    {wb.category}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
-                        wb.wellbeingStatus === "closed" ? "bg-green-600" : "bg-amber-600"
-                      )}
-                    >
-                      {wb.wellbeingStatus === "closed" ? "Closed" : "Open"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-dark-6 dark:text-dark-5">
-                    {wb.remarks || "—"}
-                  </TableCell>
-                  <TableCell className="text-dark dark:text-white">
-                    {new Date(wb.updatedAt).toLocaleString()}
-                  </TableCell>
+          {resolutionRows.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
+              No wellbeing resolution records yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-stroke dark:border-dark-3">
+                  <TableHead className="font-semibold text-dark dark:text-white">
+                    Category
+                  </TableHead>
+                  <TableHead className="font-semibold text-dark dark:text-white">
+                    Status
+                  </TableHead>
+                  <TableHead className="font-semibold text-dark dark:text-white">
+                    Remarks
+                  </TableHead>
+                  <TableHead className="font-semibold text-dark dark:text-white">
+                    Updated At
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {resolutionRows.map((wb) => (
+                  <TableRow key={wb.id} className="border-stroke dark:border-dark-3">
+                    <TableCell className="text-dark dark:text-white">
+                      {wb.category}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white",
+                          wb.wellbeingStatus === "closed" ? "bg-green-600" : "bg-amber-600"
+                        )}
+                      >
+                        {wb.wellbeingStatus === "closed" ? "Closed" : "Open"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-dark-6 dark:text-dark-5">
+                      {wb.remarks || "—"}
+                    </TableCell>
+                    <TableCell className="text-dark dark:text-white">
+                      {new Date(wb.updatedAt).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       )}
     </div>

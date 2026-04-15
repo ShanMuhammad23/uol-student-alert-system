@@ -44,20 +44,6 @@ export async function PUT(
     if (!sapId) {
       return NextResponse.json({ error: "Wellbeing case not found" }, { status: 404 });
     }
-    const latest = await pool.query<{ status: string | null }>(
-      `SELECT status
-       FROM interventions
-       WHERE student_sap_id = $1
-       ORDER BY performed_at DESC
-       LIMIT 1`,
-      [sapId]
-    );
-    if (latest.rows[0]?.status !== "referred") {
-      return NextResponse.json(
-        { error: "Wellbeing can only manage referred students." },
-        { status: 403 }
-      );
-    }
   }
 
   const updated = await updateWellbeingCaseById(id, {

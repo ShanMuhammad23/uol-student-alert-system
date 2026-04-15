@@ -507,13 +507,13 @@ export async function getFilterDropdownCounts(
     const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]));
     const intSql = `${buildListingBaseCte(intParts.whereSql)}
       SELECT
-        COUNT(*) FILTER (WHERE ${eligibleSql})::int AS int_all,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status IS NULL)::int AS not_started,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'initiated')::int AS initiated,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'in-progress')::int AS in_progress,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'referred')::int AS referred,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'resolved')::int AS resolved,
-        COUNT(*) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'no-action-required')::int AS no_action_required
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql})::int AS int_all,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status IS NULL)::int AS not_started,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'initiated')::int AS initiated,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'in-progress')::int AS in_progress,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'referred')::int AS referred,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'resolved')::int AS resolved,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'no-action-required')::int AS no_action_required
       FROM base`;
     const intRes = await pool.query<{
       int_all: number;
@@ -566,10 +566,10 @@ export async function getFilterDropdownCounts(
       )`;
         }
         const pred = spec.closed ? existsClosed : existsOpen;
-        wbSelectParts.push(`COUNT(*) FILTER (WHERE ${pred})::int AS wb_${idx}`);
+        wbSelectParts.push(`COUNT(DISTINCT sap_id) FILTER (WHERE ${pred})::int AS wb_${idx}`);
       }
       const wbSql = `${buildListingBaseCte(wbParts.whereSql)}
-      SELECT COUNT(*)::int AS wb_all, ${wbSelectParts.join(", ")}
+      SELECT COUNT(DISTINCT sap_id)::int AS wb_all, ${wbSelectParts.join(", ")}
       FROM base`;
       const wbRes = await pool.query(wbSql, wbParams);
       const wbRow = wbRes.rows[0] as Record<string, number> | undefined;

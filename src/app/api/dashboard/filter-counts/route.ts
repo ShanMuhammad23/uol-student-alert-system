@@ -21,7 +21,8 @@ function toSessionScope(session: {
     role !== "superadmin" &&
     role !== "dean" &&
     role !== "hod" &&
-    role !== "instructor"
+    role !== "instructor" &&
+    role !== "wellbeing"
   ) {
     return null;
   }

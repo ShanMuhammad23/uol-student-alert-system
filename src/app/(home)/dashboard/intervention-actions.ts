@@ -28,6 +28,8 @@ export type RecordWellbeingCaseInput = {
   category: "Counselling" | "Monitoring" | "Flex (Academic)" | "Flex (Financial)";
   wellbeingStatus: "open" | "closed";
   remarks: string;
+  /** Manual option: append a new intervention row with status "resolved". */
+  setInterventionResolved?: boolean;
 };
 
 export async function recordIntervention(
@@ -67,15 +69,27 @@ export async function recordWellbeingCase(
     throw new Error("Only wellbeing can add wellbeing resolution.");
   }
   if (session.user.role === "wellbeing" && pool) {
-    const latest = await pool.query<{ status: string | null }>(
-      `SELECT status
-       FROM interventions
-       WHERE student_sap_id = $1
-       ORDER BY performed_at DESC
-       LIMIT 1`,
+    const access = await pool.query<{ status: string | null; has_case: boolean }>(
+      `WITH latest AS (
+         SELECT status
+         FROM interventions
+         WHERE student_sap_id = $1
+         ORDER BY performed_at DESC
+         LIMIT 1
+       )
+       SELECT
+         (SELECT status FROM latest) AS status,
+         EXISTS (
+           SELECT 1
+           FROM wellbeing_cases wb
+           WHERE wb.student_sap_id = $1
+         ) AS has_case`,
       [studentSapId]
     );
-    if (latest.rows[0]?.status !== "referred") {
+    const row = access.rows[0];
+    const isReferred = row?.status === "referred";
+    const hasWellbeingCase = row?.has_case === true;
+    if (!isReferred && !hasWellbeingCase) {
       throw new Error("Wellbeing can only manage referred students.");
     }
   }
@@ -91,20 +105,35 @@ export async function recordWellbeingCase(
     throw new Error("Failed to save wellbeing case.");
   }
 
-  if (pool) {
-    await pool.query(
-      `WITH latest AS (
-         SELECT id
-         FROM interventions
-         WHERE student_sap_id = $1
-         ORDER BY performed_at DESC
-         LIMIT 1
-       )
-       UPDATE interventions i
-       SET status = 'resolved'
-       FROM latest
-       WHERE i.id = latest.id`,
-      [studentSapId]
-    );
+  const isInterventionCategory =
+    data.category === "Counselling" || data.category === "Monitoring";
+
+  if (isInterventionCategory) {
+    const today = new Date().toISOString().slice(0, 10);
+    const status =
+      data.setInterventionResolved === true
+        ? "resolved"
+        : data.wellbeingStatus === "closed"
+          ? "resolved"
+          : "referred";
+    await saveIntervention(studentSapId, {
+      date: today,
+      intervention_type: data.category === "Monitoring" ? "both" : "attendance",
+      outreach_mode: "wellbeing-update",
+      remarks: data.remarks || `Wellbeing ${data.category} update.`,
+      status,
+    });
+    return;
+  }
+
+  if (data.setInterventionResolved === true) {
+    const today = new Date().toISOString().slice(0, 10);
+    await saveIntervention(studentSapId, {
+      date: today,
+      intervention_type: "both",
+      outreach_mode: "wellbeing-update",
+      remarks: "Intervention status marked as resolved by wellbeing.",
+      status: "resolved",
+    });
   }
 }

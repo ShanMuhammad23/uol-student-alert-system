@@ -228,15 +228,27 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       : null;
   const sapIdFromUrl = id;
   if (currentUserRole === "wellbeing" && pool) {
-    const latest = await pool.query<{ status: string | null }>(
-      `SELECT status
-       FROM interventions
-       WHERE student_sap_id = $1
-       ORDER BY performed_at DESC
-       LIMIT 1`,
+    const access = await pool.query<{ status: string | null; has_case: boolean }>(
+      `WITH latest AS (
+         SELECT status
+         FROM interventions
+         WHERE student_sap_id = $1
+         ORDER BY performed_at DESC
+         LIMIT 1
+       )
+       SELECT
+         (SELECT status FROM latest) AS status,
+         EXISTS (
+           SELECT 1
+           FROM wellbeing_cases wb
+           WHERE wb.student_sap_id = $1
+         ) AS has_case`,
       [sapIdFromUrl]
     );
-    if (latest.rows[0]?.status !== "referred") {
+    const row = access.rows[0];
+    const isReferred = row?.status === "referred";
+    const hasWellbeingCase = row?.has_case === true;
+    if (!isReferred && !hasWellbeingCase) {
       notFound();
     }
   }

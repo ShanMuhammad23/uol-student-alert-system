@@ -2,16 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { MasterFilter } from "@/app/(home)/dashboard/_components/master-filter";
 import { WellbeingChartClient } from "@/app/(home)/dashboard/_components/WellbeingChartClient";
 import type {
-  AlertDimensionFilter,
   MasterFilterOptions,
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
 import { TopChannelsTableClient } from "@/components/Tables/nested-students-table/TopChannelsTableClient";
 import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options";
 import type { FilterDropdownCounts } from "@/lib/db/student-listing";
+import { WellbeingMasterFilter } from "./WellbeingMasterFilter";
 
 type Props = {
   initialMasterFilter: MasterFilterParams;
@@ -49,10 +48,6 @@ export function WellbeingDashboardClient({
 }: Props) {
   const [masterFilter, setMasterFilter] =
     useState<MasterFilterParams>(initialMasterFilter);
-  const [gpaFilters, setGpaFilters] = useState<AlertDimensionFilter[]>([]);
-  const [attendanceFilters, setAttendanceFilters] = useState<AlertDimensionFilter[]>([]);
-  const [interventionFilters, setInterventionFilters] = useState<string[]>([]);
-  const [classStatusFilters, setClassStatusFilters] = useState<string[]>([]);
   const [resolutionFilters, setResolutionFilters] = useState<string[]>([]);
   const [counts, setCounts] = useState<FilterDropdownCounts | null>(null);
 
@@ -65,10 +60,6 @@ export function WellbeingDashboardClient({
       body: JSON.stringify({
         filters: {
           ...(masterFilter ?? {}),
-          attendanceFilters: attendanceFilters.length ? attendanceFilters : undefined,
-          gpaFilters: gpaFilters.length ? gpaFilters : undefined,
-          interventionFilters: interventionFilters.length ? interventionFilters : undefined,
-          classStatusFilters: classStatusFilters.length ? classStatusFilters : undefined,
           resolutionFilters: resolutionFilters.length ? resolutionFilters : undefined,
         },
       }),
@@ -86,10 +77,6 @@ export function WellbeingDashboardClient({
     masterFilter.programs?.join(","),
     masterFilter.instructor_ids?.join(","),
     masterFilter.course_ids?.join(","),
-    attendanceFilters.join(","),
-    gpaFilters.join(","),
-    interventionFilters.join(","),
-    classStatusFilters.join(","),
     resolutionFilters.join(","),
   ]);
 
@@ -117,58 +104,38 @@ export function WellbeingDashboardClient({
         </p>
       </div>
 
-      <MasterFilter
-        options={filterOptions}
-        current={masterFilter}
-        role="dean"
-        selectedAlert="all"
-        gpaFilters={gpaFilters}
-        attendanceFilters={attendanceFilters}
-        interventionFilters={interventionFilters}
-        classStatusFilters={classStatusFilters}
-        resolutionFilters={resolutionFilters}
-        interventionStatusFilters={[]}
-        onChangeMasterFilter={(updates) =>
-          setMasterFilter((prev) => ({ ...prev, ...updates }))
-        }
-        onChangeGpaFilters={setGpaFilters}
-        onChangeAttendanceFilters={setAttendanceFilters}
-        onChangeInterventionFilters={setInterventionFilters}
-        onChangeClassStatusFilters={setClassStatusFilters}
-        onChangeResolutionFilters={setResolutionFilters}
-      />
+  
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card
-          label="Total Students"
-          value={Number(counts?.wellbeingAll ?? 0)}
-        />
-        <Card
-          label="Referred"
+          label="Referred Cases"
           value={Number(counts?.intervention.referred ?? 0)}
           tone="purple"
         />
         <Card
-          label="Resolved"
-          value={Number(counts?.intervention.resolved ?? 0)}
+          label="Resolved Cases"
+          value={closedCases}
           tone="purple"
         />
         <Card label="Open Cases" value={openCases} tone="green" />
-        <Card label="Closed Cases" value={closedCases} tone="green" />
       </div>
 
       <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
         <WellbeingChartClient title="Wellbeing Intervention & Resolution" />
       </div>
-
+      <WellbeingMasterFilter
+        options={filterOptions}
+        current={masterFilter}
+        resolutionFilters={resolutionFilters}
+        onChangeMasterFilter={(updates) =>
+          setMasterFilter((prev) => ({ ...prev, ...updates }))
+        }
+        onChangeResolutionFilters={setResolutionFilters}
+      />
       <TopChannelsTableClient
         returnToUrl="/dashboard.wellbeing"
         uniqueStudents
         masterFilter={masterFilter}
-        gpaFilters={gpaFilters}
-        attendanceFilters={attendanceFilters}
-        classStatusFilters={classStatusFilters}
-        interventionFilters={interventionFilters}
         resolutionFilters={resolutionFilters}
       />
     </div>
