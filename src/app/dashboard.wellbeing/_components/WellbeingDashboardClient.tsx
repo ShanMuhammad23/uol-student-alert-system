@@ -158,7 +158,7 @@ export function WellbeingDashboardClient({
       </div>
 
       <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
-        <WellbeingChartClient title="Wellbeing cases by category (open vs closed)" />
+        <WellbeingChartClient title="Wellbeing Intervention & Resolution" />
       </div>
 
       <TopChannelsTableClient

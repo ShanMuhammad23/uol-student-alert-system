@@ -369,7 +369,7 @@ export function InterventionHistorySection({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {isWellbeingView ? "Wellbeing Resolution History" : "Intervention History"}
+            {isWellbeingView ? "Resolution Recommendations" : "Intervention History"}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {isWellbeingView
