@@ -9,7 +9,7 @@ import {
 
 type Body = ListingRequest & {
   roleScope?: {
-    role: "dean" | "hod" | "teacher";
+    role: "dean" | "hod" | "teacher" | "wellbeing";
     facultyId?: string | null;
     departmentIds?: string[] | null;
     pernr?: string | null;
@@ -59,7 +59,12 @@ export async function POST(req: Request) {
     let effectiveScope: SessionScope = scope;
     if (scope.role === "superadmin" && body?.roleScope) {
       effectiveScope = {
-        role: body.roleScope.role === "teacher" ? "instructor" : body.roleScope.role,
+        role:
+          body.roleScope.role === "teacher"
+            ? "instructor"
+            : body.roleScope.role === "wellbeing"
+              ? "wellbeing"
+              : body.roleScope.role,
         faculty_id: body.roleScope.facultyId ?? null,
         department_ids: body.roleScope.departmentIds?.length
           ? body.roleScope.departmentIds

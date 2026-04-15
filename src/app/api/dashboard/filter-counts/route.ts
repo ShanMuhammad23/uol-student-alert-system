@@ -37,7 +37,7 @@ function toSessionScope(session: {
 }
 
 type RoleScopeBody = {
-  role: "dean" | "hod" | "teacher";
+  role: "dean" | "hod" | "teacher" | "wellbeing";
   facultyId?: string | null;
   departmentIds?: string[] | null;
   pernr?: string | null;
@@ -49,7 +49,12 @@ function scopeWithRoleOverride(
 ): SessionScope {
   if (scope.role !== "superadmin" || !roleScope) return scope;
   return {
-    role: roleScope.role === "teacher" ? "instructor" : roleScope.role,
+    role:
+      roleScope.role === "teacher"
+        ? "instructor"
+        : roleScope.role === "wellbeing"
+          ? "wellbeing"
+          : roleScope.role,
     faculty_id: roleScope.facultyId ?? null,
     department_ids: roleScope.departmentIds?.length ? roleScope.departmentIds : null,
     pernr: roleScope.pernr ?? scope.pernr ?? null,

@@ -15,6 +15,7 @@ import { WellbeingMasterFilter } from "./WellbeingMasterFilter";
 type Props = {
   initialMasterFilter: MasterFilterParams;
   filterOptions: MasterFilterOptions;
+  asWellbeingScope?: boolean;
 };
 
 function Card({
@@ -45,6 +46,7 @@ function Card({
 export function WellbeingDashboardClient({
   initialMasterFilter,
   filterOptions,
+  asWellbeingScope = false,
 }: Props) {
   const [masterFilter, setMasterFilter] =
     useState<MasterFilterParams>(initialMasterFilter);
@@ -62,6 +64,7 @@ export function WellbeingDashboardClient({
           ...(masterFilter ?? {}),
           resolutionFilters: resolutionFilters.length ? resolutionFilters : undefined,
         },
+        ...(asWellbeingScope ? { roleScope: { role: "wellbeing" as const } } : {}),
       }),
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("counts"))))
@@ -127,13 +130,14 @@ export function WellbeingDashboardClient({
         options={filterOptions}
         current={masterFilter}
         resolutionFilters={resolutionFilters}
+        asWellbeingScope={asWellbeingScope}
         onChangeMasterFilter={(updates) =>
           setMasterFilter((prev) => ({ ...prev, ...updates }))
         }
         onChangeResolutionFilters={setResolutionFilters}
       />
       <TopChannelsTableClient
-        returnToUrl="/dashboard.wellbeing"
+        returnToUrl={asWellbeingScope ? "/dashboard.wellbeing?as=wellbeing" : "/dashboard.wellbeing"}
         uniqueStudents
         masterFilter={masterFilter}
         resolutionFilters={resolutionFilters}

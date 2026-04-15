@@ -108,6 +108,9 @@ export function TopChannelsTableClient({
       if (asRole === "dean" && facultyId) {
         return { role: "dean" as const, facultyId };
       }
+      if (asRole === "wellbeing") {
+        return { role: "wellbeing" as const };
+      }
       return undefined;
     } catch {
       return undefined;

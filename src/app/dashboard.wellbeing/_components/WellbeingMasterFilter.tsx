@@ -10,6 +10,7 @@ type Props = {
   options: MasterFilterOptions;
   current: MasterFilterParams;
   resolutionFilters: string[];
+  asWellbeingScope?: boolean;
   onChangeMasterFilter: (updates: Partial<MasterFilterParams>) => void;
   onChangeResolutionFilters: (values: string[]) => void;
 };
@@ -100,6 +101,7 @@ export function WellbeingMasterFilter({
   options,
   current,
   resolutionFilters,
+  asWellbeingScope = false,
   onChangeMasterFilter,
   onChangeResolutionFilters,
 }: Props) {
@@ -120,6 +122,7 @@ export function WellbeingMasterFilter({
           course_ids: current.course_ids,
           resolutionFilters: resolutionFilters.length ? resolutionFilters : undefined,
         },
+        ...(asWellbeingScope ? { roleScope: { role: "wellbeing" as const } } : {}),
       }),
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("counts"))))

@@ -32,6 +32,11 @@ export function Sidebar({ user }: SidebarProps) {
               url: "/dashboard/superadmin",
             },
             {
+              title: "Wellbeing Dashboard",
+              icon: HomeIcon,
+              url: "/dashboard.wellbeing",
+            },
+            {
               title: "Staff",
               icon: User,
               url: "/dashboard/superadmin/staff",

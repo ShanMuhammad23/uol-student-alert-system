@@ -11,7 +11,7 @@ export default async function WellbeingDashboardPage() {
   if (!user) {
     redirect("/auth/sign-in");
   }
-  if (user.role !== "wellbeing") {
+  if (user.role !== "wellbeing" && user.role !== "superadmin") {
     redirect("/dashboard");
   }
 
@@ -22,6 +22,7 @@ export default async function WellbeingDashboardPage() {
     <WellbeingDashboardClient
       initialMasterFilter={initialMasterFilter}
       filterOptions={filterOptions}
+      asWellbeingScope={user.role === "superadmin"}
     />
   );
 }
