@@ -1072,7 +1072,7 @@ export function NestedEnrollmentTableClient({
                                                     </span>
                                                     {notUpdatedVsHeld === 0 ? (
                                                       <span className="text-xs text-green-500">
-                                                        All held sessions posted
+                                                        Posted
                                                       </span>
                                                     ) : (
                                                       <span
@@ -1083,7 +1083,7 @@ export function NestedEnrollmentTableClient({
                                                             : "text-amber-600 dark:text-amber-400",
                                                         )}
                                                       >
-                                                        Not updated vs held (
+                                                        {notUpdatedVsHeld < 0 ? "Duplicate Posting" : "Not Posted"}(
                                                         {notUpdatedVsHeld})
                                                       </span>
                                                     )}
@@ -1148,7 +1148,7 @@ export function NestedEnrollmentTableClient({
                                                       ) : (
                                                         <span className="text-green-500 dark:text-green-400">▲</span>
                                                       )}{" "}
-                                                      {Math.abs(gpaChange).toFixed(2)}${typeof gpaPrev === "number"
+                                                      {Math.abs(gpaChange).toFixed(2)}{typeof gpaPrev === "number"
                                                         ? ` vs ${gpaPrev.toFixed(2)}`
                                                         : ""}
                                                       </>
