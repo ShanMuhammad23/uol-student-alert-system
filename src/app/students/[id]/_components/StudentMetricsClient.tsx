@@ -98,24 +98,27 @@ export function StudentMetricsClient({
 }: Props) {
   const isLoading = false;
   const studentRows = dbMetricRows;
+  const focusedCourseRows = useMemo(() => {
+    if (!studentRows.length) return [];
+    if (!selectedCourseCode) return [studentRows[0]];
+    const targetCourse = normalizeCourseCode(selectedCourseCode);
+    const matches = studentRows.filter((r) => {
+      const courseMatches =
+        normalizeCourseCode(String(r.courseId ?? "")) === targetCourse;
+      const sectionMatches =
+        !selectedSection || (r.sectionCode ?? "") === selectedSection;
+      return courseMatches && sectionMatches;
+    });
+    return matches.length ? matches : [studentRows[0]];
+  }, [studentRows, selectedCourseCode, selectedSection]);
+
   const worstGpaLevel = useMemo(() => {
     if (gpaTrendLevel === "critical") return "critical";
     if (gpaTrendLevel === "warning") return "warning";
     return getWorstLevel(studentRows.map((r) => r.gpaAlertLevel));
   }, [studentRows, gpaTrendLevel]);
   const selectedCourseAttendanceLevel = useMemo(() => {
-    const relevantRows = selectedCourseCode
-      ? studentRows.filter((r) => {
-          const courseMatches =
-            normalizeCourseCode(String(r.courseId ?? "")) ===
-            normalizeCourseCode(selectedCourseCode);
-          const sectionMatches =
-            !selectedSection || (r.sectionCode ?? "") === selectedSection;
-          return courseMatches && sectionMatches;
-        })
-      : studentRows;
-
-    const levels = relevantRows
+    const levels = focusedCourseRows
       .map((r) =>
         getAttendanceAlertLevel(
           Number(r.attendancePercentage ?? NaN),
@@ -127,26 +130,16 @@ export function StudentMetricsClient({
 
     return getWorstLevel(levels);
   }, [
-    studentRows,
+    focusedCourseRows,
     selectedClassAverage,
-    selectedCourseCode,
-    selectedSection,
   ]);
   const badgeAttendanceLevel = selectedCourseAttendanceLevel;
   const student = useMemo(
     () => {
       if (!studentRows.length) return null;
-      if (!selectedCourseCode) return studentRows[0];
-      const targetCourse = normalizeCourseCode(selectedCourseCode);
-      return (
-        studentRows.find(
-          (r) =>
-            normalizeCourseCode(String(r.courseId ?? "")) === targetCourse &&
-            (!selectedSection || (r.sectionCode ?? "") === selectedSection)
-        ) ?? studentRows[0]
-      );
+      return focusedCourseRows[0] ?? studentRows[0];
     },
-    [studentRows, selectedCourseCode, selectedSection, sapId]
+    [studentRows, focusedCourseRows, sapId]
   );
 
   if (section === "badges") {
