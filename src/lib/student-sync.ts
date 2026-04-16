@@ -865,7 +865,9 @@ export async function runStudentSync(
       const attendanceLevel =
         attendancePct == null
           ? null
-          : getAttendanceAlertLevel(attendancePct, classAvg, attendanceMarked);
+          : attendancePct <= 60
+            ? "critical"
+            : getAttendanceAlertLevel(attendancePct, classAvg, attendanceMarked);
       const gpaTrend = gpaTrendMap[row.sapId];
       const gpaCurrent = gpaTrend?.current ?? null;
       const gpaPrevious = gpaTrend?.previous ?? null;

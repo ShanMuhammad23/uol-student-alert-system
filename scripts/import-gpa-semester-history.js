@@ -44,6 +44,17 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function extractSgpa(props) {
+  return toNumber(
+    props?.Sgpa ??
+      props?.SGPA ??
+      props?.sgpa ??
+      props?.Spa ??
+      props?.SPA ??
+      props?.spa
+  );
+}
+
 function getAuthHeader() {
   const username = process.env.SAP_USERNAME;
   const password = process.env.SAP_PASSWORD;
@@ -179,9 +190,9 @@ async function upsertTermRows(pool, rows, year, perid) {
   const key = semesterKey(year, perid);
   let upserted = 0;
   for (const row of rows.values()) {
-    const semJson = row.cgpa == null ? {} : { [key]: row.cgpa };
+    const semJson = row.spa == null ? {} : { [key]: row.spa };
     const fall2025Value =
-      year === "2025" && perid === "003" && row.cgpa != null ? row.cgpa : null;
+      year === "2025" && perid === "003" && row.spa != null ? row.spa : null;
     await pool.query(
       `
       INSERT INTO student_gpa_profiles (
@@ -228,19 +239,19 @@ function mergeByStudent(entries, year, perid, existingStudents) {
       department_id: null,
       course_id: null,
       faculty_id: null,
-      cgpa: null,
+      spa: null,
     };
     const deptId = normalize(props.DeptId);
     const courseId = normalize(props.CrCode);
     const facultyId = normalize(props.FacId);
     const peryr = normalize(props.Peryr);
     const term = normalizePerid(props.Perid);
-    const cgpa = toNumber(props.Cgpa);
+    const spa = extractSgpa(props);
 
     if (!row.department_id && deptId) row.department_id = deptId;
     if (!row.course_id && courseId) row.course_id = courseId;
     if (!row.faculty_id && facultyId) row.faculty_id = facultyId;
-    if (peryr === year && term === perid && cgpa != null) row.cgpa = cgpa;
+    if (peryr === year && term === perid && spa != null) row.spa = spa;
 
     bySap.set(sapId, row);
   }
@@ -283,9 +294,9 @@ async function main() {
       const upserted = await upsertTermRows(pool, merged, term.year, term.perid);
       totalUpserted += upserted;
       console.log(
-        `[${term.year}/${term.perid}] fetched=${rows.length} students_with_cgpa=${Array.from(
+        `[${term.year}/${term.perid}] fetched=${rows.length} students_with_spa=${Array.from(
           merged.values()
-        ).filter((r) => r.cgpa != null).length} upserted=${upserted}`
+        ).filter((r) => r.spa != null).length} upserted=${upserted}`
       );
     }
 
@@ -297,7 +308,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("GPA import failed:", err?.message || err);
+  console.error("SPA import failed:", err?.message || err);
   process.exit(1);
 });
 

@@ -107,7 +107,11 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           ) AS attendance_has_warning,
           MAX(
             CASE
-              WHEN a.attendance_alert_level = 'critical' THEN 1
+              WHEN a.attendance_alert_level = 'critical'
+                OR (
+                  a.attendance_percentage IS NOT NULL
+                  AND a.attendance_percentage <= 60
+                ) THEN 1
               ELSE 0
             END
           ) AS attendance_has_critical

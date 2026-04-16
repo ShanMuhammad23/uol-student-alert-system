@@ -163,8 +163,8 @@ export async function getAttendanceSummariesForEnrollments(
 
 /**
  * Attendance alert rules:
- * - Red ("critical"): student attendance strictly below 75%, but only when classes held > 0.
- * - Yellow ("warning"): attendance ≥ 75% and at least 20 percentage points below class average.
+ * - Red ("critical"): student attendance less than or equal to 60%, but only when classes held > 0.
+ * - Yellow ("warning"): attendance above 60% and at least 20 percentage points below class average.
  */
 export function getAttendanceAlertLevel(
   studentPercentage: number,
@@ -173,7 +173,7 @@ export function getAttendanceAlertLevel(
 ): AttendanceAlertLevel {
   if (Number.isFinite(totalClassesHeld) && Number(totalClassesHeld) <= 0) return null;
   if (!Number.isFinite(studentPercentage)) return null;
-  if (studentPercentage < 75) return "critical";
+  if (studentPercentage <= 60) return "critical";
   if (classAverage == null || !Number.isFinite(classAverage)) return null;
   const diff = classAverage - studentPercentage; // positive = below class average
   if (diff >= 20) return "warning";

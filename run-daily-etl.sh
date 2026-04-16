@@ -10,6 +10,11 @@ CURL_MAX_TIME="1800"
 RETRY_COUNT="3"
 RETRY_DELAY_SECONDS="10"
 LOG_DIR="/var/log/student-alert-system"
+PIPELINE_NAME="daily_etl_shell"
+LOG_BUFFER_MAX_CHARS="120000"
+ETL_RUN_ID=""
+ETL_FINALIZED="0"
+LOG_BUFFER=""
 
 if [[ -z "${APP_BASE_URL}" ]]; then
   echo "ERROR: APP_BASE_URL is required" >&2
@@ -29,7 +34,70 @@ timestamp() {
 }
 
 log() {
-  echo "[$(timestamp)] $*" | tee -a "${LOG_FILE}"
+  local line="[$(timestamp)] $*"
+  echo "${line}" | tee -a "${LOG_FILE}"
+  LOG_BUFFER+="${line}"$'\n'
+  if (( ${#LOG_BUFFER} > LOG_BUFFER_MAX_CHARS )); then
+    LOG_BUFFER="${LOG_BUFFER: -LOG_BUFFER_MAX_CHARS}"
+  fi
+}
+
+require_etl_db_logging() {
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    echo "ERROR: DATABASE_URL is required for ETL run logging" >&2
+    exit 1
+  fi
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "ERROR: psql is required for ETL run logging" >&2
+    exit 1
+  fi
+}
+
+start_etl_run() {
+  require_etl_db_logging
+  ETL_RUN_ID="$(psql "${DATABASE_URL}" -X -A -t -q -v ON_ERROR_STOP=1 \
+    -v pipeline_name="${PIPELINE_NAME}" \
+    -c "INSERT INTO etl_runs (pipeline_name, status, error_message) VALUES (:'pipeline_name', 'running', '') RETURNING id;")"
+  ETL_RUN_ID="$(echo "${ETL_RUN_ID}" | tr -d '[:space:]')"
+  if [[ -z "${ETL_RUN_ID}" ]]; then
+    echo "ERROR: Failed to create etl_runs row" >&2
+    exit 1
+  fi
+}
+
+finalize_etl_run() {
+  local final_status="$1"
+  local summary="$2"
+  [[ -z "${ETL_RUN_ID}" ]] && return 0
+
+  psql "${DATABASE_URL}" -X -q -v ON_ERROR_STOP=1 \
+    -v run_id="${ETL_RUN_ID}" \
+    -v status="${final_status}" \
+    -v summary="${summary}" \
+    -v run_log="${LOG_BUFFER}" \
+    -c "UPDATE etl_runs
+        SET completed_at = NOW(),
+            status = :'status',
+            error_message = CONCAT(
+              COALESCE(:'summary', ''),
+              CASE WHEN COALESCE(:'summary', '') <> '' THEN E'\n\n' ELSE '' END,
+              COALESCE(:'run_log', '')
+            )
+        WHERE id = :'run_id'::bigint;" >/dev/null
+  ETL_FINALIZED="1"
+}
+
+on_exit() {
+  local exit_code="$1"
+  if [[ "${ETL_FINALIZED}" == "1" ]]; then
+    return
+  fi
+
+  if (( exit_code == 0 )); then
+    finalize_etl_run "success" "ETL run completed successfully"
+  else
+    finalize_etl_run "failed" "ETL run finished with errors"
+  fi
 }
 
 call_endpoint() {
@@ -102,6 +170,7 @@ run_gpa_import() {
 }
 
 main() {
+  start_etl_run
   log "ETL run started"
   local failed=0
   IFS=',' read -r -a endpoints <<< "${ETL_ENDPOINTS}"
@@ -138,11 +207,13 @@ main() {
 
   if (( failed == 1 )); then
     log "ETL run finished with errors"
-    exit 1
+    return 1
   fi
 
   log "ETL run completed successfully"
+  return 0
 }
 
 
+trap 'on_exit $?' EXIT
 main "$@"
