@@ -58,7 +58,6 @@ export function StatusStackedChart({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const titleColor = isDark ? "#E5E7EB" : "#111827";
-  const dataLabelColor = isDark ? "#F9FAFB" : "#111827";
   const axisLabelColor = isDark ? "#9CA3AF" : "#6B7280";
 
   const options: ApexOptions = {
@@ -83,19 +82,23 @@ export function StatusStackedChart({
         horizontal: false,
         columnWidth: "60%",
         borderRadius: 3,
+        // "top" stacks both series' labels toward the segment tops and overlaps with
+        // offsetY; "center" keeps each value inside its own stack slice.
         dataLabels: {
-          position: "top",
-          hideOverflowingLabels: false,
+          position: "center",
+          hideOverflowingLabels: true,
         },
       },
     },
     dataLabels: {
       enabled: true,
-      offsetY: -20,
+      offsetY: 0,
+      formatter: (val: number) => (val > 0 ? String(val) : ""),
       style: {
-        fontSize: "12px",
+        fontSize: "11px",
         fontWeight: "bold",
-        colors: [dataLabelColor],
+        // High contrast on saturated bar fills (open/closed colors are fixed).
+        colors: ["#FFFFFF", "#FFFFFF"],
       },
     },
     stroke: {
