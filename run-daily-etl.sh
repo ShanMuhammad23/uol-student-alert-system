@@ -87,11 +87,17 @@ require_etl_db_logging() {
   fi
 }
 
+sql_escape_literal() {
+  local raw="$1"
+  printf "%s" "${raw//\'/\'\'}"
+}
+
 start_etl_run() {
   require_etl_db_logging
+  local pipeline_name_sql
+  pipeline_name_sql="$(sql_escape_literal "${PIPELINE_NAME}")"
   ETL_RUN_ID="$(psql "${DATABASE_URL}" -X -A -t -q -v ON_ERROR_STOP=1 \
-    -v pipeline_name="${PIPELINE_NAME}" \
-    -c "INSERT INTO etl_runs (pipeline_name, status, error_message) VALUES (:'pipeline_name', 'running', '') RETURNING id;")"
+    -c "INSERT INTO etl_runs (pipeline_name, status, error_message) VALUES ('${pipeline_name_sql}', 'running', '') RETURNING id;")"
   ETL_RUN_ID="$(echo "${ETL_RUN_ID}" | tr -d '[:space:]')"
   if [[ -z "${ETL_RUN_ID}" ]]; then
     echo "ERROR: Failed to create etl_runs row" >&2
@@ -103,21 +109,22 @@ finalize_etl_run() {
   local final_status="$1"
   local summary="$2"
   [[ -z "${ETL_RUN_ID}" ]] && return 0
-
+  local status_sql
+  local summary_sql
+  local run_log_sql
+  status_sql="$(sql_escape_literal "${final_status}")"
+  summary_sql="$(sql_escape_literal "${summary}")"
+  run_log_sql="$(sql_escape_literal "${LOG_BUFFER}")"
   psql "${DATABASE_URL}" -X -q -v ON_ERROR_STOP=1 \
-    -v run_id="${ETL_RUN_ID}" \
-    -v status="${final_status}" \
-    -v summary="${summary}" \
-    -v run_log="${LOG_BUFFER}" \
     -c "UPDATE etl_runs
         SET completed_at = NOW(),
-            status = :'status',
+            status = '${status_sql}',
             error_message = CONCAT(
-              COALESCE(:'summary', ''),
-              CASE WHEN COALESCE(:'summary', '') <> '' THEN E'\n\n' ELSE '' END,
-              COALESCE(:'run_log', '')
+              COALESCE('${summary_sql}', ''),
+              CASE WHEN COALESCE('${summary_sql}', '') <> '' THEN E'\n\n' ELSE '' END,
+              COALESCE('${run_log_sql}', '')
             )
-        WHERE id = :'run_id'::bigint;" >/dev/null
+        WHERE id = ${ETL_RUN_ID}::bigint;" >/dev/null
   ETL_FINALIZED="1"
 }
 
