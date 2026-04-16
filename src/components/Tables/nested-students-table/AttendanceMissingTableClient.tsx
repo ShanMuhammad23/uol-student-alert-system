@@ -170,16 +170,62 @@ export function AttendanceMissingTableClient({
   ]);
 
   const summaryByDepartment = useMemo(() => {
-    const depts = new Map<string, DepartmentSummary>();
+    // Match `/api/dashboard/overview`: merge max(held) and max(posted) across *all* enrollments
+    // per class key, then compute missing once. Skipping rows with per-student missing <= 0
+    // would under-merge held/posted and inflate totals vs the overview card.
+    type ClassAgg = {
+      courseKey: string;
+      courseId: string;
+      courseTitle: string;
+      sectionCode: string | null;
+      eventPackageId: string | null;
+      deptName: string;
+      programName: string;
+      held: number;
+      posted: number;
+      instructors: Set<string>;
+      students: Set<string>;
+    };
+    const byClass = new Map<string, ClassAgg>();
+
     for (const row of rows) {
       const held = Number(row.totalClassesHeld ?? 0);
       const posted = Number(row.attendanceMarkedClasses ?? 0);
-      const missing = calculateMissingAttendance(held, posted);
-      if (missing <= 0) continue;
-
+      const courseKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
       const deptName = row.departmentName || "Unknown Department";
       const programName = row.programTitle || "Unknown Program";
-      const courseKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
+
+      let agg = byClass.get(courseKey);
+      if (!agg) {
+        agg = {
+          courseKey,
+          courseId: row.courseId,
+          courseTitle: row.courseTitle ?? row.courseId,
+          sectionCode: row.sectionCode ?? null,
+          eventPackageId: row.eventPackageId ?? null,
+          deptName,
+          programName,
+          held,
+          posted,
+          instructors: new Set<string>(),
+          students: new Set<string>(),
+        };
+        byClass.set(courseKey, agg);
+      } else {
+        if (held > agg.held) agg.held = held;
+        if (posted > agg.posted) agg.posted = posted;
+      }
+      agg.instructors.add(row.instructorName || "—");
+      agg.students.add(row.sapId);
+    }
+
+    const depts = new Map<string, DepartmentSummary>();
+    for (const agg of byClass.values()) {
+      const missing = calculateMissingAttendance(agg.held, agg.posted);
+      if (missing <= 0) continue;
+
+      const deptName = agg.deptName;
+      const programName = agg.programName;
 
       if (!depts.has(deptName)) {
         depts.set(deptName, { name: deptName, programs: new Map() });
@@ -194,27 +240,18 @@ export function AttendanceMissingTableClient({
       }
       const program = dept.programs.get(programName)!;
 
-      if (!program.courses.has(courseKey)) {
-        program.courses.set(courseKey, {
-          key: courseKey,
-          courseId: row.courseId,
-          courseTitle: row.courseTitle ?? row.courseId,
-          sectionCode: row.sectionCode ?? null,
-          eventPackageId: row.eventPackageId ?? null,
-          instructors: new Set<string>(),
-          held: 0,
-          posted: 0,
-          missing: 0,
-          students: new Set<string>(),
-        });
-      }
-
-      const course = program.courses.get(courseKey)!;
-      course.instructors.add(row.instructorName || "—");
-      course.students.add(row.sapId);
-      if (held > course.held) course.held = held;
-      if (posted > course.posted) course.posted = posted;
-      course.missing = calculateMissingAttendance(course.held, course.posted);
+      program.courses.set(agg.courseKey, {
+        key: agg.courseKey,
+        courseId: agg.courseId,
+        courseTitle: agg.courseTitle,
+        sectionCode: agg.sectionCode,
+        eventPackageId: agg.eventPackageId,
+        instructors: agg.instructors,
+        held: agg.held,
+        posted: agg.posted,
+        missing,
+        students: agg.students,
+      });
     }
     return depts;
   }, [rows]);
