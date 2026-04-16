@@ -93,6 +93,9 @@ export type StudentListingResult = {
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100000;
+const NOT_STARTED_INTERVENTION_STATUSES = ["not_started", "not-started"] as const;
+const INTERVENTION_ELIGIBLE_SQL =
+  "(a.gpa_alert_level IS NOT NULL OR a.attendance_alert_level IS NOT NULL)";
 
 function toArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
@@ -332,14 +335,35 @@ function buildWhere(
       const statuses = interventionFilters.filter((s) => s !== "not_started");
       if (wantsNotStarted && statuses.length) {
         params.push(statuses);
+        const statusesParamIndex = params.length;
+        params.push([...NOT_STARTED_INTERVENTION_STATUSES]);
+        const notStartedParamIndex = params.length;
         where.push(
-          `(latest.latest_intervention_status IS NULL OR latest.latest_intervention_status = ANY($${params.length}::text[]))`
+          `(
+            ${INTERVENTION_ELIGIBLE_SQL}
+            AND (
+              latest.latest_intervention_status IS NULL
+              OR latest.latest_intervention_status = ANY($${notStartedParamIndex}::text[])
+              OR latest.latest_intervention_status = ANY($${statusesParamIndex}::text[])
+            )
+          )`
         );
       } else if (wantsNotStarted) {
-        where.push(`latest.latest_intervention_status IS NULL`);
+        params.push([...NOT_STARTED_INTERVENTION_STATUSES]);
+        where.push(
+          `(
+            ${INTERVENTION_ELIGIBLE_SQL}
+            AND (
+              latest.latest_intervention_status IS NULL
+              OR latest.latest_intervention_status = ANY($${params.length}::text[])
+            )
+          )`
+        );
       } else {
         params.push(statuses);
-        where.push(`latest.latest_intervention_status = ANY($${params.length}::text[])`);
+        where.push(
+          `(${INTERVENTION_ELIGIBLE_SQL} AND latest.latest_intervention_status = ANY($${params.length}::text[]))`
+        );
       }
     }
   }
@@ -508,7 +532,13 @@ export async function getFilterDropdownCounts(
     const intSql = `${buildListingBaseCte(intParts.whereSql)}
       SELECT
         COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql})::int AS int_all,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status IS NULL)::int AS not_started,
+        COUNT(DISTINCT sap_id) FILTER (
+          WHERE ${eligibleSql}
+            AND (
+              latest_intervention_status IS NULL
+              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
+            )
+        )::int AS not_started,
         COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'initiated')::int AS initiated,
         COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'in-progress')::int AS in_progress,
         COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'referred')::int AS referred,

@@ -98,7 +98,11 @@ function applyInterventionFilters(
     const wantsReferred = interventionFilters.includes("referred");
     const wantsResolved = interventionFilters.includes("resolved");
 
-    if (!latestStatus) {
+    if (
+      !latestStatus ||
+      latestStatus === "not_started" ||
+      latestStatus === "not-started"
+    ) {
       return wantsNotStarted;
     }
 
@@ -106,6 +110,11 @@ function applyInterventionFilters(
     if (wantsInProgress && latestStatus === "in-progress") return true;
     if (wantsReferred && latestStatus === "referred") return true;
     if (wantsResolved && latestStatus === "resolved") return true;
+    if (
+      interventionFilters.includes("no_action_required") &&
+      latestStatus === "no-action-required"
+    )
+      return true;
 
     return false;
   });
