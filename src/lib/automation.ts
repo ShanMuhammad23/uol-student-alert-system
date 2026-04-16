@@ -100,10 +100,12 @@ export async function readAutomationLogs(lineLimit = 400): Promise<string[]> {
 
 export async function getLastAlertSnapshotUpdateAt(): Promise<string | null> {
   if (!pool) return null;
-  const res = await pool.query<{ updated_at: string | null }>(
-    `SELECT MAX(updated_at)::text AS updated_at
+  // Some deployments may not have `updated_at` on this table (schema drift).
+  // `created_at` exists in the expected schema and is sufficient for "last update" UI.
+  const res = await pool.query<{ created_at: string | null }>(
+    `SELECT MAX(created_at)::text AS created_at
      FROM alert_counts_by_dimension`
   );
-  return res.rows[0]?.updated_at ?? null;
+  return res.rows[0]?.created_at ?? null;
 }
 
