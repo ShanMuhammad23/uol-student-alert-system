@@ -2450,10 +2450,6 @@ export async function getInstructorCourseStats(
       const courseIds = res.rows.map((r) => r.course_id);
       if (!courseIds.length) return [];
       const courseNameById = new Map(res.rows.map((r) => [r.course_id, r.course_name]));
-      const courseIdBaseByFull = new Map(
-        courseIds.map((id) => [id, id.split("|")[0]?.trim() || id])
-      );
-      const normalizedCourseIds = Array.from(new Set(Array.from(courseIdBaseByFull.values())));
       const counts = await pool.query<{
         course_id: string;
         course_name: string;
@@ -2494,12 +2490,11 @@ export async function getInstructorCourseStats(
            COALESCE(SUM(attendance_critical), 0)::int AS red_attendance
          FROM scoped
          GROUP BY course_id`,
-        [pernr, normalizedCourseIds]
+        [pernr, courseIds]
       );
       const byCourse = new Map(counts.rows.map((r) => [r.course_id, r]));
       return courseIds.map((courseId) => {
-        const baseId = courseIdBaseByFull.get(courseId) ?? courseId;
-        const row = byCourse.get(baseId);
+        const row = byCourse.get(courseId);
         return {
           courseId,
           courseName: row?.course_name ?? courseNameById.get(courseId) ?? courseId,
