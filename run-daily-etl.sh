@@ -24,11 +24,28 @@ load_env_file() {
     return 0
   fi
 
-  # Load KEY=VALUE pairs for this shell process.
-  # shellcheck disable=SC1090
-  set -a
-  source "${env_file}"
-  set +a
+  # Parse .env safely as raw KEY=VALUE pairs (no shell expansion).
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%$'\r'}"
+    [[ -z "${line}" ]] && continue
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+    [[ "${line}" != *=* ]] && continue
+
+    local key="${line%%=*}"
+    local value="${line#*=}"
+
+    key="$(echo "${key}" | xargs)"
+    [[ -z "${key}" ]] && continue
+    [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && continue
+
+    if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+      value="${value:1:${#value}-2}"
+    elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+
+    export "${key}=${value}"
+  done < "${env_file}"
 }
 
 if [[ -z "${APP_BASE_URL}" ]]; then
