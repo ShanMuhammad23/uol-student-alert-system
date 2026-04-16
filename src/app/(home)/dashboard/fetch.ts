@@ -937,6 +937,16 @@ export async function getMasterFilterOptions(
         const selectedCourses = current?.course_ids?.length
           ? new Set(current.course_ids)
           : null;
+        const courseToProgramId = new Map<string, string>();
+        for (const row of scopedRowsRes.rows) {
+          const programId =
+            row.program_id && row.program_id.trim()
+              ? row.program_id
+              : getProgramFromCourse(row.course_id);
+          if (!courseToProgramId.has(row.course_id)) {
+            courseToProgramId.set(row.course_id, programId);
+          }
+        }
 
         const departmentsScoped = departments.filter((d) =>
           scopedDepartmentIds.has(d.value)
@@ -946,7 +956,9 @@ export async function getMasterFilterOptions(
         );
         const coursesScoped = courses.filter((c) => {
           if (!scopedCourseIds.has(c.value)) return false;
-          if (selectedPrograms && !selectedPrograms.has(getProgramFromCourse(c.value))) {
+          const programIdForCourse =
+            courseToProgramId.get(c.value) ?? getProgramFromCourse(c.value);
+          if (selectedPrograms && !selectedPrograms.has(programIdForCourse)) {
             return false;
           }
           return true;
@@ -976,8 +988,12 @@ export async function getMasterFilterOptions(
 
       if (user?.role === "hod" && user.department_ids?.length) {
         const deptSet = new Set(user.department_ids);
-        const scopedCoursesRes = await pool.query<{ course_id: string; instructor_pernr: string | null }>(
-          `SELECT DISTINCT course_id, instructor_pernr
+        const scopedCoursesRes = await pool.query<{
+          course_id: string;
+          program_id: string | null;
+          instructor_pernr: string | null;
+        }>(
+          `SELECT DISTINCT course_id, program_id, instructor_pernr
            FROM student_enrollment_current
            WHERE is_active = TRUE
              AND department_id = ANY($1::text[])`,
@@ -1000,13 +1016,25 @@ export async function getMasterFilterOptions(
         const selectedCourses = current?.course_ids?.length
           ? new Set(current.course_ids)
           : null;
+        const courseToProgramId = new Map<string, string>();
+        for (const row of scopedCoursesRes.rows) {
+          const programId =
+            row.program_id && row.program_id.trim()
+              ? row.program_id
+              : getProgramFromCourse(row.course_id);
+          if (!courseToProgramId.has(row.course_id)) {
+            courseToProgramId.set(row.course_id, programId);
+          }
+        }
 
         const programsScoped = programs.filter((p) =>
           scopedProgramIds.has(p.value)
         );
         const coursesScoped = courses.filter((c) => {
           if (!scopedCourseIds.has(c.value)) return false;
-          if (selectedPrograms && !selectedPrograms.has(getProgramFromCourse(c.value))) {
+          const programIdForCourse =
+            courseToProgramId.get(c.value) ?? getProgramFromCourse(c.value);
+          if (selectedPrograms && !selectedPrograms.has(programIdForCourse)) {
             return false;
           }
           return true;
