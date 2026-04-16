@@ -15,6 +15,21 @@ LOG_BUFFER_MAX_CHARS="120000"
 ETL_RUN_ID=""
 ETL_FINALIZED="0"
 LOG_BUFFER=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ETL_ENV_FILE="${ETL_ENV_FILE:-${SCRIPT_DIR}/.env}"
+
+load_env_file() {
+  local env_file="$1"
+  if [[ ! -f "${env_file}" ]]; then
+    return 0
+  fi
+
+  # Load KEY=VALUE pairs for this shell process.
+  # shellcheck disable=SC1090
+  set -a
+  source "${env_file}"
+  set +a
+}
 
 if [[ -z "${APP_BASE_URL}" ]]; then
   echo "ERROR: APP_BASE_URL is required" >&2
@@ -25,6 +40,8 @@ if [[ -z "${CRON_SECRET}" ]]; then
   echo "ERROR: CRON_SECRET is required" >&2
   exit 1
 fi
+
+load_env_file "${ETL_ENV_FILE}"
 
 mkdir -p "${LOG_DIR}" 
 LOG_FILE="${LOG_DIR}/etl-$(date +%Y-%m-%d).log"
