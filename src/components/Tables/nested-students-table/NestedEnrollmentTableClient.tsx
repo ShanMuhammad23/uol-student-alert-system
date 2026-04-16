@@ -857,18 +857,7 @@ export function NestedEnrollmentTableClient({
                                         <span className="font-semibold text-dark dark:text-white">
                                           {firstRow?.Teacher ?? "—"}
                                         </span>
-                                        {instructorStatsFromSource && (
-                                          <>
-                                            {" · "}
-                                            <span className="text-amber-500 font-semibold">
-                                              {instructorStatsFromSource.yellowAttendance}
-                                            </span>
-                                            {" | "}
-                                            <span className="text-red-600 font-semibold">
-                                              {instructorStatsFromSource.redAttendance}
-                                            </span>
-                                          </>
-                                        )}
+                                       
                                         {" · "}
                                         {rows.length} student
                                         {rows.length !== 1 ? "s" : ""}
