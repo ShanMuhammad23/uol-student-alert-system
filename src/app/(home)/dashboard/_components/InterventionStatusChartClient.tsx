@@ -62,11 +62,6 @@ export function InterventionStatusChartClient({
     resolved: number;
     noActionRequired: number;
   };
-
-  const debug =
-    process.env.NODE_ENV === "development" ||
-    process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "true" ||
-    process.env.NEXT_PUBLIC_INTERVENTION_DEBUG === "1";
   const dashboardFilter = useDashboardFilter();
   const { stats: cohortStatsBySlice } = useInterventionCohortStats();
 
@@ -433,23 +428,7 @@ export function InterventionStatusChartClient({
           statusColors={statusColors}
         />
       )}
-      {debug && (
-        <div className="px-2 pt-2">
-          <p className="text-[10px] text-neutral-500">
-            Role: {user?.role ?? "—"}; Slice: {effectiveSlice ?? "—"}; Intervention type(s):{" "}
-            {interventionTypesForDb.join(",")}; alertLevel: {alertLevelForRequest ?? "—"}; Total alerts:{" "}
-            {totalAlerts}
-          </p>
-          <p className="text-[10px] text-neutral-500">
-            DB counts: initiated={initiated}, in-progress={inProgress}, referred=
-            {referred}, resolved={resolved}, noActionRequired={noActionRequired}, notStarted=
-            {notStarted}
-          </p>
-          <p className="text-[10px] text-neutral-500">
-            Shared filters: attendance=[{attendanceFilters.join(",") || "—"}], gpa=[{gpaFilters.join(",") || "—"}]
-          </p>
-        </div>
-      )}
+     
     </div>
   );
 }

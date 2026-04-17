@@ -130,12 +130,12 @@ export function AlertSnapshotsLineChart({ points }: Props) {
     seriesIndex < 2 ? "dashed" : "solid";
   const series = [
     {
-      name: "Attendance Yellow",
+      name: "Attendance (20% < CA)",
       data: chartPoints.map((p) => p.yellowAttendance),
     },
-    { name: "Attendance Red", data: chartPoints.map((p) => p.redAttendance) },
-    { name: "GPA Yellow", data: chartPoints.map((p) => p.yellowGpa) },
-    { name: "GPA Red", data: chartPoints.map((p) => p.redGpa) },
+    { name: "Attendance(<=60%)", data: chartPoints.map((p) => p.redAttendance) },
+    { name: "SGPA (0.5 Drop)", data: chartPoints.map((p) => p.yellowGpa) },
+    { name: "SGPA (1.0 Drop)", data: chartPoints.map((p) => p.redGpa) },
   ];
 
   const options: ApexOptions = useMemo(

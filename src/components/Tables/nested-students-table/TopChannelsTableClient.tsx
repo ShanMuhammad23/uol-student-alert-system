@@ -671,6 +671,7 @@ export function TopChannelsTableClient({
                           returnToUrl={returnToUrl}
                           courseCode={row.courseId}
                           section={row.sectionCode ?? null}
+                          eventPackageId={row.eventPackageId ?? null}
                           classAverage={classAvg}
                           className="flex flex-col gap-1"
                           title="View profile"

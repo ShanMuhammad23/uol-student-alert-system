@@ -27,6 +27,8 @@ async function hasInterventionTypeColumn(): Promise<boolean> {
 }
 
 let hasAlertLevelColumnCache: boolean | null = null;
+let hasSectionCodeColumnCache: boolean | null = null;
+let hasEventPackageIdColumnCache: boolean | null = null;
 
 async function hasAlertLevelColumn(): Promise<boolean> {
   if (!pool) return false;
@@ -44,6 +46,42 @@ async function hasAlertLevelColumn(): Promise<boolean> {
   );
   hasAlertLevelColumnCache = Boolean(res.rows[0]?.exists);
   return hasAlertLevelColumnCache;
+}
+
+async function hasSectionCodeColumn(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasSectionCodeColumnCache !== null) return hasSectionCodeColumnCache;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name = 'section_code'
+    ) AS exists
+    `
+  );
+  hasSectionCodeColumnCache = Boolean(res.rows[0]?.exists);
+  return hasSectionCodeColumnCache;
+}
+
+async function hasEventPackageIdColumn(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasEventPackageIdColumnCache !== null) return hasEventPackageIdColumnCache;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name = 'event_package_id'
+    ) AS exists
+    `
+  );
+  hasEventPackageIdColumnCache = Boolean(res.rows[0]?.exists);
+  return hasEventPackageIdColumnCache;
 }
 
 /** Single intervention row as returned from DB (matches intervention-store InterventionRecord). */
@@ -98,17 +136,21 @@ export async function insertIntervention(row: {
   department_id: string;
   course_id: string;
   faculty_id: string;
+  section_code?: string | null;
+  event_package_id?: string | null;
 }): Promise<void> {
   if (!pool) throw new Error("Database not configured");
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
+  const hasSectionCode = await hasSectionCodeColumn();
+  const hasEventPackageId = await hasEventPackageIdColumn();
 
-  if (hasType && hasAlertLevel) {
+  if (hasType && hasAlertLevel && hasSectionCode && hasEventPackageId) {
     await pool.query(
       `INSERT INTO interventions (
         id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
-        staff_id, department_id, course_id, faculty_id, alert_level
-      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12, $13)`,
+        staff_id, department_id, course_id, faculty_id, alert_level, section_code, event_package_id
+      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12, $13, $14, $15)`,
       [
         row.id,
         row.student_sap_id,
@@ -123,6 +165,60 @@ export async function insertIntervention(row: {
         row.course_id,
         row.faculty_id,
         row.alert_level ?? null,
+        row.section_code ?? null,
+        row.event_package_id ?? null,
+      ]
+    );
+    return;
+  }
+
+  if (hasType && !hasAlertLevel && hasSectionCode && hasEventPackageId) {
+    await pool.query(
+      `INSERT INTO interventions (
+        id, student_sap_id, date, intervention_type, outreach_mode, remarks, status, performed_at,
+        staff_id, department_id, course_id, faculty_id, section_code, event_package_id
+      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::timestamptz, $9, $10, $11, $12, $13, $14)`,
+      [
+        row.id,
+        row.student_sap_id,
+        row.date,
+        row.intervention_type,
+        row.outreach_mode,
+        row.remarks ?? "",
+        row.status,
+        row.performed_at,
+        row.staff_id,
+        row.department_id,
+        row.course_id,
+        row.faculty_id,
+        row.section_code ?? null,
+        row.event_package_id ?? null,
+      ]
+    );
+    return;
+  }
+
+  if (!hasType && hasAlertLevel && hasSectionCode && hasEventPackageId) {
+    await pool.query(
+      `INSERT INTO interventions (
+        id, student_sap_id, date, outreach_mode, remarks, status, performed_at,
+        staff_id, department_id, course_id, faculty_id, alert_level, section_code, event_package_id
+      ) VALUES ($1, $2, $3::date, $4, $5, $6, $7::timestamptz, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        row.id,
+        row.student_sap_id,
+        row.date,
+        row.outreach_mode,
+        row.remarks ?? "",
+        row.status,
+        row.performed_at,
+        row.staff_id,
+        row.department_id,
+        row.course_id,
+        row.faculty_id,
+        row.alert_level ?? null,
+        row.section_code ?? null,
+        row.event_package_id ?? null,
       ]
     );
     return;

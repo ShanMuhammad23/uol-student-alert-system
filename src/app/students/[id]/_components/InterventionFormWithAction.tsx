@@ -25,6 +25,9 @@ type Props = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  focusedCourseId?: string | null;
+  focusedSectionCode?: string | null;
+  focusedEventPackageId?: string | null;
   mode?: "intervention" | "wellbeing";
 };
 
@@ -40,6 +43,9 @@ export function InterventionFormWithAction({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  focusedCourseId,
+  focusedSectionCode,
+  focusedEventPackageId,
   mode = "intervention",
   onClose,
 }: Props & { onClose?: () => void }) {
@@ -74,6 +80,9 @@ export function InterventionFormWithAction({
           outreachMode: data.outreachMode,
           remarks: data.remarks,
           status: data.status,
+          focusedCourseId: focusedCourseId ?? null,
+          focusedSectionCode: focusedSectionCode ?? null,
+          focusedEventPackageId: focusedEventPackageId ?? null,
         });
         setSuccess("Intervention added successfully.");
       }

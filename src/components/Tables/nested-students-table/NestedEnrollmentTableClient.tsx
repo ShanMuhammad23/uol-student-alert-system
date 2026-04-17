@@ -413,13 +413,6 @@ export function NestedEnrollmentTableClient({
 
   const { byDept } = groupEnrollmentByDeptProgramCourse(filteredList);
 
-  const interventionStatuses = useMemo(() => {
-    const map = new Map<string, string | null>();
-    for (const r of dbRows) {
-      map.set(String(r.sapId ?? "").trim(), r.latestInterventionStatus ?? null);
-    }
-    return map;
-  }, [dbRows]);
   const wellbeingBySap = useMemo(() => {
     const map = new Map<string, { status: "open" | "closed" | null; category: string | null }>();
     for (const r of dbRows) {
@@ -1045,9 +1038,7 @@ export function NestedEnrollmentTableClient({
                                             gpaLevel === "critical" ||
                                             gpaLevel === "warning";
                                           const latestStatus =
-                                            row.latestInterventionStatus ??
-                                            interventionStatuses.get(row.SapNo) ??
-                                            null;
+                                            row.latestInterventionStatus ?? null;
                                           const wellbeing = wellbeingBySap.get(
                                             String(row.SapNo ?? "").trim()
                                           );
@@ -1087,6 +1078,10 @@ export function NestedEnrollmentTableClient({
                                                         : String(row.CrCode ?? "")
                                                     }
                                                     section={row.Section ?? null}
+                                                    eventPackageId={String(
+                                                      (row as unknown as { Packnumber?: string })
+                                                        .Packnumber ?? ""
+                                                    )}
                                                     className="flex flex-col gap-0.5"
                                                     title="View profile"
                                                   >

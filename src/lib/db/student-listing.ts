@@ -97,6 +97,11 @@ const MAX_PAGE_SIZE = 100000;
 const NOT_STARTED_INTERVENTION_STATUSES = ["not_started", "not-started"] as const;
 const INTERVENTION_ELIGIBLE_SQL =
   "(a.gpa_alert_level IS NOT NULL OR a.attendance_alert_level IS NOT NULL)";
+type InterventionContextColumns = {
+  hasSectionCode: boolean;
+  hasEventPackageId: boolean;
+};
+let interventionContextColumnsCache: InterventionContextColumns | null = null;
 
 function toArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
@@ -179,6 +184,28 @@ function buildOrderBy(sortKey?: ListingSortKey, sortDirection?: ListingSortDirec
 function parseNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+async function getInterventionContextColumns(): Promise<InterventionContextColumns> {
+  if (!pool) {
+    return { hasSectionCode: false, hasEventPackageId: false };
+  }
+  if (interventionContextColumnsCache) return interventionContextColumnsCache;
+  const res = await pool.query<{ column_name: string }>(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name IN ('section_code', 'event_package_id')
+    `
+  );
+  const cols = new Set(res.rows.map((r) => String(r.column_name)));
+  interventionContextColumnsCache = {
+    hasSectionCode: cols.has("section_code"),
+    hasEventPackageId: cols.has("event_package_id"),
+  };
+  return interventionContextColumnsCache;
 }
 
 type BaseQueryParts = {
@@ -381,15 +408,48 @@ function buildWhere(
   };
 }
 
-function buildListingBaseCte(whereSql: string): string {
+function buildListingBaseCte(
+  whereSql: string,
+  interventionContext: InterventionContextColumns
+): string {
+  const latestSectionSelect = interventionContext.hasSectionCode
+    ? "COALESCE(section_code, '') AS section_code"
+    : "''::text AS section_code";
+  const latestSectionOrder = interventionContext.hasSectionCode
+    ? "COALESCE(section_code, '')"
+    : "''";
+  const latestPackageSelect = interventionContext.hasEventPackageId
+    ? "COALESCE(event_package_id, '') AS event_package_id"
+    : "''::text AS event_package_id";
+  const latestPackageOrder = interventionContext.hasEventPackageId
+    ? "COALESCE(event_package_id, '')"
+    : "''";
+  const latestContextJoin =
+    interventionContext.hasSectionCode && interventionContext.hasEventPackageId
+      ? `latest.course_id = e.course_id
+           AND COALESCE(latest.section_code, '') = COALESCE(e.section_code, '')
+           AND COALESCE(latest.event_package_id, '') = COALESCE(e.event_package_id, '')`
+      : `latest.course_id = e.course_id`;
   return `
     WITH latest AS (
-      SELECT DISTINCT ON (student_sap_id, COALESCE(course_id, ''))
+      SELECT DISTINCT ON (
+        student_sap_id,
+        COALESCE(course_id, ''),
+        ${latestSectionOrder},
+        ${latestPackageOrder}
+      )
         student_sap_id,
         COALESCE(course_id, '') AS course_id,
+        ${latestSectionSelect},
+        ${latestPackageSelect},
         status AS latest_intervention_status
       FROM interventions
-      ORDER BY student_sap_id, COALESCE(course_id, ''), performed_at DESC
+      ORDER BY
+        student_sap_id,
+        COALESCE(course_id, ''),
+        ${latestSectionOrder},
+        ${latestPackageOrder},
+        performed_at DESC
     ),
     latest_wellbeing AS (
       SELECT DISTINCT ON (student_sap_id)
@@ -442,7 +502,12 @@ function buildListingBaseCte(whereSql: string): string {
        AND a.event_package_id = e.event_package_id
       LEFT JOIN latest
         ON latest.student_sap_id = e.sap_id
-       AND (latest.course_id = e.course_id OR latest.course_id = '')
+       AND (
+         (
+           ${latestContextJoin}
+         )
+         OR latest.course_id = ''
+       )
       LEFT JOIN latest_wellbeing
         ON latest_wellbeing.student_sap_id = e.sap_id
       LEFT JOIN departments d ON d.id = e.department_id
@@ -476,6 +541,7 @@ export async function getFilterDropdownCounts(
   filters: ListingFilters
 ): Promise<FilterDropdownCounts | null> {
   if (!pool) return null;
+  const interventionContext = await getInterventionContextColumns();
 
   const zeroWellbeing = WELLBEING_RESOLUTION_OPTIONS.map(() => 0);
 
@@ -483,7 +549,7 @@ export async function getFilterDropdownCounts(
 
   try {
     const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]));
-    const gpaSql = `${buildListingBaseCte(gpaParts.whereSql)}
+    const gpaSql = `${buildListingBaseCte(gpaParts.whereSql, interventionContext)}
       , gpa_per_student AS (
         SELECT
           sap_id,
@@ -507,7 +573,7 @@ export async function getFilterDropdownCounts(
     const gRow = gpaRes.rows[0];
 
     const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]));
-    const attSql = `${buildListingBaseCte(attParts.whereSql)}
+    const attSql = `${buildListingBaseCte(attParts.whereSql, interventionContext)}
       , att_per_student AS (
         SELECT
           sap_id,
@@ -531,7 +597,7 @@ export async function getFilterDropdownCounts(
     const aRow = attRes.rows[0];
 
     const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]));
-    const intSql = `${buildListingBaseCte(intParts.whereSql)}
+    const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext)}
       SELECT
         COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql})::int AS int_all,
         COUNT(DISTINCT sap_id) FILTER (
@@ -600,7 +666,7 @@ export async function getFilterDropdownCounts(
         const pred = spec.closed ? existsClosed : existsOpen;
         wbSelectParts.push(`COUNT(DISTINCT sap_id) FILTER (WHERE ${pred})::int AS wb_${idx}`);
       }
-      const wbSql = `${buildListingBaseCte(wbParts.whereSql)}
+      const wbSql = `${buildListingBaseCte(wbParts.whereSql, interventionContext)}
       SELECT COUNT(DISTINCT sap_id)::int AS wb_all, ${wbSelectParts.join(", ")}
       FROM base`;
       const wbRes = await pool.query(wbSql, wbParams);
@@ -664,9 +730,10 @@ export async function getDistinctSapIdsForScope(
   filters: ListingFilters
 ): Promise<string[]> {
   if (!pool) return [];
+  const interventionContext = await getInterventionContextColumns();
   const { whereSql, params } = buildWhere(scope, filters);
   const sql = `
-    ${buildListingBaseCte(whereSql)}
+    ${buildListingBaseCte(whereSql, interventionContext)}
     SELECT DISTINCT sap_id FROM base
   `;
   const res = await pool.query<{ sap_id: string }>(sql, params);
@@ -690,8 +757,8 @@ export async function getStudentListing(
   const uniqueStudentsForTotal = request.uniqueStudentsForTotal === true;
 
   const { whereSql, params } = buildWhere(scope, request.filters ?? {});
-
-  const baseCte = buildListingBaseCte(whereSql);
+  const interventionContext = await getInterventionContextColumns();
+  const baseCte = buildListingBaseCte(whereSql, interventionContext);
 
   const countSql = uniqueStudentsForTotal
     ? `${baseCte}

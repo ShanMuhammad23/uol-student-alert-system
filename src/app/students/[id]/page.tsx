@@ -18,7 +18,13 @@ import { getWellbeingCasesByStudentSapId } from "@/lib/db/wellbeing";
 
 type PropsType = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string; course?: string; section?: string; class_avg?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    course?: string;
+    section?: string;
+    event_package?: string;
+    class_avg?: string;
+  }>;
 };
 
 const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
@@ -221,6 +227,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       : "/";
   const selectedCourseCode = resolvedSearchParams.course;
   const selectedSection = resolvedSearchParams.section;
+  const selectedEventPackageId = resolvedSearchParams.event_package;
   const classAverageParam = Number(resolvedSearchParams.class_avg);
   let selectedClassAverage =
     Number.isFinite(classAverageParam) && classAverageParam > 0
@@ -269,7 +276,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         : enrollmentRecords[0];
       if (selectedCourse?.CrCode) {
         const sectionCode = selectedSection ?? selectedCourse.Section ?? "";
-        const eventPackageId = "";
+        const eventPackageId = selectedEventPackageId ?? "";
         const alertRes = await pool.query<{ class_average_attendance: number | null }>(
           `SELECT class_average_attendance
            FROM student_alert_current
@@ -457,6 +464,9 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         senderDepartment={senderDepartmentName}
         senderFaculty={senderFacultyName}
         senderEmail={senderEmailForTemplate}
+        focusedCourseId={selectedCourseCode ?? null}
+        focusedSectionCode={selectedSection ?? null}
+        focusedEventPackageId={selectedEventPackageId ?? null}
         currentUserRole={currentUserRole}
         currentUserPernr={currentUserPernr}
       />

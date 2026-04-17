@@ -144,7 +144,12 @@ async function ensureDepartmentFromEnrollment(enrollment: EnrollmentRow): Promis
 }
 
 async function getEnrollmentContextFromDb(
-  sapId: string
+  sapId: string,
+  focused?: {
+    courseId?: string | null;
+    sectionCode?: string | null;
+    eventPackageId?: string | null;
+  }
 ): Promise<DbEnrollmentContext | null> {
   if (!pool) return null;
   const res = await pool.query<{
@@ -172,13 +177,26 @@ async function getEnrollmentContextFromDb(
      WHERE e.sap_id = $1
      ORDER BY
        CASE
+         WHEN $2::text <> ''
+          AND e.course_id = $2::text
+          AND COALESCE(e.section_code, '') = $3::text
+          AND COALESCE(e.event_package_id, '') = $4::text
+         THEN 0
+         ELSE 1
+       END ASC,
+       CASE
          WHEN a.attendance_alert_level = 'critical' OR a.gpa_alert_level = 'critical' THEN 3
          WHEN a.attendance_alert_level = 'warning' OR a.gpa_alert_level = 'warning' THEN 2
          ELSE 1
        END DESC,
        e.course_id ASC
      LIMIT 1`,
-    [sapId]
+    [
+      sapId,
+      String(focused?.courseId ?? "").trim(),
+      String(focused?.sectionCode ?? "").trim(),
+      String(focused?.eventPackageId ?? "").trim(),
+    ]
   );
   if (!res.rows.length) return null;
   const row = res.rows[0];
@@ -450,6 +468,9 @@ export async function recordIntervention(
     outreach_mode: string;
     remarks: string;
     status: string;
+    focused_course_id?: string | null;
+    focused_section_code?: string | null;
+    focused_event_package_id?: string | null;
   }
 ): Promise<void> {
   if (pool) {
@@ -457,7 +478,11 @@ export async function recordIntervention(
     if (!session?.user?.id) {
       throw new Error("You must be signed in to record an intervention.");
     }
-    const dbContext = await getEnrollmentContextFromDb(studentSapId);
+    const dbContext = await getEnrollmentContextFromDb(studentSapId, {
+      courseId: data.focused_course_id ?? null,
+      sectionCode: data.focused_section_code ?? null,
+      eventPackageId: data.focused_event_package_id ?? null,
+    });
     const alertLevel =
       data.intervention_type === "attendance"
         ? dbContext?.attendanceAlertLevel ?? null
@@ -510,6 +535,8 @@ export async function recordIntervention(
       department_id: departmentId,
       course_id: finalCourseId,
       faculty_id: facultyId,
+      section_code: String(data.focused_section_code ?? "").trim() || null,
+      event_package_id: String(data.focused_event_package_id ?? "").trim() || null,
     });
     revalidatePath("/");
     revalidatePath("/dashboard");

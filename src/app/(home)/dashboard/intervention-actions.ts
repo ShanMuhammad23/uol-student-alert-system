@@ -15,6 +15,9 @@ export type RecordInterventionInput = {
   outreachMode: string;
   remarks: string;
   status: string;
+  focusedCourseId?: string | null;
+  focusedSectionCode?: string | null;
+  focusedEventPackageId?: string | null;
 };
 
 export type RecordInterventionEmailInput = {
@@ -42,6 +45,9 @@ export async function recordIntervention(
     outreach_mode: data.outreachMode,
     remarks: data.remarks,
     status: data.status,
+    focused_course_id: data.focusedCourseId ?? null,
+    focused_section_code: data.focusedSectionCode ?? null,
+    focused_event_package_id: data.focusedEventPackageId ?? null,
   });
 }
 
