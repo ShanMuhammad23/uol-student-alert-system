@@ -50,6 +50,16 @@ function mapFacultyHeadingName(value?: string | null): string | null {
   return raw;
 }
 
+function deriveClassTypeLabel(eventPackageId?: string | null): string {
+  const raw = String(eventPackageId ?? "").trim();
+  if (!raw) return "N/A";
+  const lower = raw.toLowerCase();
+  if (lower.includes("lect")) return "LECT";
+  if (lower.includes("lab")) return "LAB";
+  if (lower.includes("tut")) return "TUT";
+  return raw;
+}
+
 type StudentProfileMetricRow = {
   courseId: string;
   courseTitle: string | null;
@@ -354,6 +364,15 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const senderFacultyName = facultyName?.replace("Faculty of", "").trim() ?? null;
   const senderEmailForTemplate =
     process.env.SMTP_FROM ?? "alert@student-alert.uol.edu.pk";
+  const focusedEnrollment = selectedCourseCode
+    ? enrollmentRecords.find((r) => String(r.CrCode ?? "").trim() === selectedCourseCode)
+    : enrollmentRecords[0];
+  const focusedCourseTitleForEmail = focusedEnrollment
+    ? `${String(focusedEnrollment.CrCode ?? "").trim()} - ${String(
+        focusedEnrollment.CrTitle ?? focusedEnrollment.CrCode ?? "N/A"
+      ).trim()}`
+    : "N/A";
+  const focusedClassTypeForEmail = deriveClassTypeLabel(selectedEventPackageId ?? null);
 
   return (
     <div id="student-profile-pdf-content" className="w-full space-y-6 mt-4">
@@ -467,6 +486,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         focusedCourseId={selectedCourseCode ?? null}
         focusedSectionCode={selectedSection ?? null}
         focusedEventPackageId={selectedEventPackageId ?? null}
+        focusedCourseTitle={focusedCourseTitleForEmail}
+        focusedClassType={focusedClassTypeForEmail}
         currentUserRole={currentUserRole}
         currentUserPernr={currentUserPernr}
       />

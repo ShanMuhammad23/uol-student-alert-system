@@ -87,6 +87,8 @@ type Props = {
   focusedCourseId?: string | null;
   focusedSectionCode?: string | null;
   focusedEventPackageId?: string | null;
+  focusedCourseTitle?: string | null;
+  focusedClassType?: string | null;
   currentUserRole:
     | "superadmin"
     | "dean"
@@ -132,6 +134,8 @@ export function InterventionHistorySection({
   focusedCourseId,
   focusedSectionCode,
   focusedEventPackageId,
+  focusedCourseTitle,
+  focusedClassType,
   currentUserRole,
   currentUserPernr,
 }: Props) {
@@ -728,6 +732,8 @@ export function InterventionHistorySection({
               focusedCourseId={focusedCourseId}
               focusedSectionCode={focusedSectionCode}
               focusedEventPackageId={focusedEventPackageId}
+              focusedCourseTitle={focusedCourseTitle}
+              focusedClassType={focusedClassType}
               onClose={() => setOpen(false)}
             />
           )}

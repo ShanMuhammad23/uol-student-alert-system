@@ -67,6 +67,8 @@ type InterventionFormProps = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  focusedCourseTitle?: string | null;
+  focusedClassType?: string | null;
   mode?: "intervention" | "wellbeing";
 };
 
@@ -138,6 +140,8 @@ const InterventionForm = ({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  focusedCourseTitle,
+  focusedClassType,
   mode = "intervention",
 }: InterventionFormProps) => {
   const dateId = useId();
@@ -187,6 +191,8 @@ const InterventionForm = ({
     const senderDepartmentText = senderDepartment?.trim() || "N/A";
     const senderFacultyText = senderFaculty?.trim() || "N/A";
     const senderEmailText = senderEmail?.trim() || "N/A";
+    const focusedCourseTitleText = focusedCourseTitle?.trim() || "N/A";
+    const focusedClassTypeText = focusedClassType?.trim() || "N/A";
     const deptFaculty = `${senderDepartmentText} ${senderFacultyText}`.trim();
     const nextSubject = subject.replace(
       "(SAP ID -----------)",
@@ -205,6 +211,8 @@ const InterventionForm = ({
       .replace("[Department] [Faculty]", deptFaculty || "N/A")
       .replace("[Department/Faculty Name]", deptFaculty || "N/A")
       .replace("[Email]", senderEmailText)
+      .replace("[Focused Course Title]", focusedCourseTitleText)
+      .replace("[Focused Class Type]", focusedClassTypeText)
       .replace("[Counsellor's Name]", "Counsellor")
       .replace(/\[sap_id\]/gi, sap)
       .replace(/\[student email\]/gi, `${sap}@student.uol.edu.pk`)
@@ -435,14 +443,19 @@ const InterventionForm = ({
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
-                HTML Editor (Editable)
+                HTML View (Editable)
               </label>
-              <textarea
-                value={emailBodyHtml}
-                onChange={(e) => setEmailBodyHtml(e.target.value)}
-                rows={10}
-                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-sm text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-              />
+              <div className=" dark:border-dark-3 dark:bg-dark-2">
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) =>
+                    setEmailBodyHtml((e.currentTarget as HTMLDivElement).innerHTML)
+                  }
+                  className="h-[420px] w-full overflow-auto  bg-white text-sm text-dark outline-none focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                  dangerouslySetInnerHTML={{ __html: emailBodyHtml }}
+                />
+              </div>
             </div>
           </div>
         ) : null}

@@ -28,6 +28,8 @@ type Props = {
   focusedCourseId?: string | null;
   focusedSectionCode?: string | null;
   focusedEventPackageId?: string | null;
+  focusedCourseTitle?: string | null;
+  focusedClassType?: string | null;
   mode?: "intervention" | "wellbeing";
 };
 
@@ -46,6 +48,8 @@ export function InterventionFormWithAction({
   focusedCourseId,
   focusedSectionCode,
   focusedEventPackageId,
+  focusedCourseTitle,
+  focusedClassType,
   mode = "intervention",
   onClose,
 }: Props & { onClose?: () => void }) {
@@ -131,6 +135,8 @@ export function InterventionFormWithAction({
         senderDepartment={senderDepartment}
         senderFaculty={senderFaculty}
         senderEmail={senderEmail}
+        focusedCourseTitle={focusedCourseTitle}
+        focusedClassType={focusedClassType}
         mode={mode}
       />
     </div>
