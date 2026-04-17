@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { DeanStatsUser } from "@/lib/enrollment";
 import type { CourseStats } from "../fetch";
 import { cn } from "@/lib/utils";
@@ -20,12 +21,66 @@ export function DeanCourseStats({
   onSelectCourseId,
 }: PropsType) {
   if (!user || user.role !== "dean") return null;
-  const list = stats ?? [];
+  const baseList = stats ?? [];
+  const [sortMetric, setSortMetric] = useState<
+    "attendance" | "sgpa" | "attendance-missing"
+  >("attendance");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const list = useMemo(() => {
+    const arr = [...baseList];
+    arr.sort((a, b) => {
+      const aAttendance = a.yellowAttendance + a.redAttendance;
+      const bAttendance = b.yellowAttendance + b.redAttendance;
+      const aSgpa = a.yellowGpa + a.redGpa;
+      const bSgpa = b.yellowGpa + b.redGpa;
+      const aMissing = aAttendance;
+      const bMissing = bAttendance;
+      const diff =
+        sortMetric === "attendance"
+          ? bAttendance - aAttendance
+          : sortMetric === "sgpa"
+          ? bSgpa - aSgpa
+          : bMissing - aMissing;
+      return sortDir === "desc" ? diff : -diff;
+    });
+    return arr;
+  }, [baseList, sortMetric, sortDir]);
   if (!list.length) return null;
 
   return (
-    <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {(["attendance", "sgpa", "attendance-missing"] as const).map((metric) => (
+          <button
+            key={metric}
+            type="button"
+            onClick={() => {
+              if (sortMetric === metric) {
+                setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+              } else {
+                setSortMetric(metric);
+                setSortDir("desc");
+              }
+            }}
+            className={cn(
+              "rounded-md border px-2 py-1 font-medium",
+              sortMetric === metric
+                ? "border-primary text-primary"
+                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-dark-5"
+            )}
+          >
+            {metric === "attendance"
+              ? "Attendance"
+              : metric === "sgpa"
+              ? "SGPA"
+              : "Attendance Missing"}{" "}
+            {sortMetric === metric ? (sortDir === "desc" ? "▼" : "▲") : ""}
+          </button>
+        ))}
+      </div>
+      <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
       {list.map((c) => {
+        const attendanceMissing = c.yellowAttendance + c.redAttendance;
         const key = c.courseId;
         const isSelected = masterFilterCourseIds?.length
           ? masterFilterCourseIds.includes(key)
@@ -95,10 +150,14 @@ export function DeanCourseStats({
               >
                 {c.redGpa}
               </span>
+              {" · "}
+              Att Missing:{" "}
+              <span className="text-red-500 font-bold">{attendanceMissing}</span>
             </span>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

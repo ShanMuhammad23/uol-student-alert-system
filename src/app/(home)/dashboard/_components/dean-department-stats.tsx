@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type {
   DepartmentStats,
   DeanStatsUser,
@@ -28,13 +29,66 @@ export function DeanDepartmentStats({
 
   const baseList = stats ?? [];
   if (!baseList.length) return null;
-  const list = baseList;
+  const [sortMetric, setSortMetric] = useState<
+    "attendance" | "sgpa" | "attendance-missing"
+  >("attendance");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const list = useMemo(() => {
+    const arr = [...baseList];
+    arr.sort((a, b) => {
+      const aAttendance = a.yellowAttendance + a.redAttendance;
+      const bAttendance = b.yellowAttendance + b.redAttendance;
+      const aSgpa = a.yellowGpa + a.redGpa;
+      const bSgpa = b.yellowGpa + b.redGpa;
+      const aMissing = aAttendance;
+      const bMissing = bAttendance;
+      const diff =
+        sortMetric === "attendance"
+          ? bAttendance - aAttendance
+          : sortMetric === "sgpa"
+          ? bSgpa - aSgpa
+          : bMissing - aMissing;
+      return sortDir === "desc" ? diff : -diff;
+    });
+    return arr;
+  }, [baseList, sortMetric, sortDir]);
 
   if (!list.length) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {(["attendance", "sgpa", "attendance-missing"] as const).map((metric) => (
+          <button
+            key={metric}
+            type="button"
+            onClick={() => {
+              if (sortMetric === metric) {
+                setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+              } else {
+                setSortMetric(metric);
+                setSortDir("desc");
+              }
+            }}
+            className={cn(
+              "rounded-md border px-2 py-1 font-medium",
+              sortMetric === metric
+                ? "border-primary text-primary"
+                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-dark-5"
+            )}
+          >
+            {metric === "attendance"
+              ? "Attendance"
+              : metric === "sgpa"
+              ? "SGPA"
+              : "Attendance Missing"}{" "}
+            {sortMetric === metric ? (sortDir === "desc" ? "▼" : "▲") : ""}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
       {list.map((d) => {
+        const attendanceMissing = d.yellowAttendance + d.redAttendance;
         const isSelected =
           masterFilterDepartmentIds?.length
             ? masterFilterDepartmentIds.includes(d.departmentId)
@@ -104,10 +158,14 @@ export function DeanDepartmentStats({
               >
                 {d.redGpa}
               </span>
+              {" · "}
+              Att Missing:{" "}
+              <span className="text-red-500 font-bold">{attendanceMissing}</span>
             </span>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
