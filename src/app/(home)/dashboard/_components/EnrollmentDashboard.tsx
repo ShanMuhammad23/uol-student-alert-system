@@ -31,6 +31,7 @@ import { InstructorCourseStats } from "./instructor-course-stats";
 import { TopChannelsTableClient } from "@/components/Tables/nested-students-table/TopChannelsTableClient";
 import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students-table/NestedEnrollmentTableClient";
 import { AttendanceMissingTableClient } from "@/components/Tables/nested-students-table/AttendanceMissingTableClient";
+import { InterventionStudentSearchTab } from "./InterventionStudentSearchTab";
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
 import { StudentsViewTabs } from "./StudentsViewTabs";
 import { DashboardUiStateProvider, useDashboardUiState } from "./DashboardUiStateContext";
@@ -63,7 +64,7 @@ type Props = {
   departmentIds: string[];
   programIds: string[];
   instructorIds: string[];
-  viewMode: "table" | "nested" | "attendance-missing";
+  viewMode: "table" | "nested" | "attendance-missing" | "intervention-search";
   /** Section IDs to expand in nested view (e.g. from URL ?expanded=). */
   expandedIds?: string[];
   /** Superadmin preview: scope filter-counts APIs to emulated role/faculty. */
@@ -340,6 +341,8 @@ function EnrollmentDashboardInner({
     if (viewMode === "nested") params.set("view", "nested");
     else if (viewMode === "attendance-missing")
       params.set("view", "attendance-missing");
+    else if (viewMode === "intervention-search")
+      params.set("view", "intervention-search");
     else params.delete("view");
 
     if (expandedIds.length) params.set("expanded", expandedIds.join(","));
@@ -676,7 +679,7 @@ function EnrollmentDashboardInner({
               resolutionFilters={localResolutionFilters}
             />
           </ExpandableListUrlSync>
-        ) : (
+        ) : viewMode === "attendance-missing" ? (
           <ExpandableListUrlSync>
             <AttendanceMissingTableClient
               returnToUrl={liveReturnToUrl}
@@ -688,6 +691,8 @@ function EnrollmentDashboardInner({
               resolutionFilters={localResolutionFilters}
             />
           </ExpandableListUrlSync>
+        ) : (
+          <InterventionStudentSearchTab />
         )}
       </div>
     </>

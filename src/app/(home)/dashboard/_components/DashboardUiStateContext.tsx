@@ -9,7 +9,11 @@ import {
   type ReactNode,
 } from "react";
 
-type ViewMode = "table" | "nested" | "attendance-missing";
+type ViewMode =
+  | "table"
+  | "nested"
+  | "attendance-missing"
+  | "intervention-search";
 
 type DashboardUiState = {
   viewMode: ViewMode;

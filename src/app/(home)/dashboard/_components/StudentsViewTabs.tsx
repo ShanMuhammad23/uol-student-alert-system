@@ -76,6 +76,20 @@ export function StudentsViewTabs({ className }: Props) {
           )}
         </span>
       </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={viewMode === "intervention-search"}
+        onClick={() => setViewMode("intervention-search")}
+        className={cn(
+          "rounded-md px-4 py-2 text-sm font-medium transition-colors",
+          viewMode === "intervention-search"
+            ? "bg-white text-primary shadow-sm dark:bg-gray-dark dark:text-primary"
+            : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
+        )}
+      >
+        Search Intervention By Student Number
+      </button>
     </div>
   );
 }

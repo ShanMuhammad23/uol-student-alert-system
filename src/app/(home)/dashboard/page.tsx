@@ -197,6 +197,8 @@ export default async function Home({ searchParams }: PropsType) {
       ? "nested"
       : params.view === "attendance-missing"
       ? "attendance-missing"
+      : params.view === "intervention-search"
+      ? "intervention-search"
       : "table";
   const expandedParam = params.expanded;
   const expandedIds = expandedParam ? expandedParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
@@ -223,6 +225,8 @@ export default async function Home({ searchParams }: PropsType) {
   if (viewMode === "nested") returnToParams.set("view", "nested");
   if (viewMode === "attendance-missing")
     returnToParams.set("view", "attendance-missing");
+  if (viewMode === "intervention-search")
+    returnToParams.set("view", "intervention-search");
   if (sortBy) returnToParams.set("sort", sortBy);
   if (sortOrder && sortBy) returnToParams.set("order", sortOrder);
   const returnToUrl = returnToParams.toString() ? `/dashboard/?${returnToParams.toString()}` : "/dashboard/";
