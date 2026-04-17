@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "NODE_OPTIONS='--no-network-family-autoselection' next start --port 3002",
+    "start": " next start --port 3002",
     "lint": "next lint",
     "import:gpa:fall2025": "node scripts/import-fall-2025-gpa.js",
     "import:gpa:history": "node scripts/import-gpa-semester-history.js",
