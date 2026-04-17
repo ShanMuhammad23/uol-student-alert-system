@@ -26,10 +26,7 @@ export function DeanProgramStats({
   stats = null,
   onSelectProgramId,
 }: PropsType) {
-  if (!user || user.role !== "dean") return null;
-
   const baseList = stats ?? [];
-  if (!baseList.length) return null;
 
   const [sortMetric, setSortMetric] = useState<
     "attendance" | "sgpa" | "attendance-missing"
@@ -55,6 +52,8 @@ export function DeanProgramStats({
     return arr;
   }, [baseList, sortMetric, sortDir]);
 
+  if (!user || user.role !== "dean") return null;
+  if (!baseList.length) return null;
   if (!list.length) return null;
 
   const effectiveDepartmentIds = masterFilterDepartmentIds ?? [];

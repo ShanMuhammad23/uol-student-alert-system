@@ -18,7 +18,6 @@ export function HodCourseStats({
   stats = null,
   onSelectCourseId,
 }: PropsType) {
-  if (!user || user.role !== "hod" || !user.department_ids?.length) return null;
   const baseList = stats ?? [];
   const [sortMetric, setSortMetric] = useState<
     "attendance" | "sgpa" | "attendance-missing"
@@ -43,6 +42,8 @@ export function HodCourseStats({
     });
     return arr;
   }, [baseList, sortMetric, sortDir]);
+  if (!user || user.role !== "hod" || !user.department_ids?.length) return null;
+  if (!baseList.length) return null;
   if (!list.length) return null;
 
   return (

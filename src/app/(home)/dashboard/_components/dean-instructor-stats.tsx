@@ -24,10 +24,7 @@ export function DeanInstructorStats({
   stats = null,
   onSelectInstructorId,
 }: PropsType) {
-  if (!user || user.role !== "dean") return null;
-
   const baseList = stats ?? [];
-  if (!baseList.length) return null;
 
   const [sortMetric, setSortMetric] = useState<
     "attendance" | "sgpa" | "attendance-missing"
@@ -53,6 +50,8 @@ export function DeanInstructorStats({
     return arr;
   }, [baseList, sortMetric, sortDir]);
 
+  if (!user || user.role !== "dean") return null;
+  if (!baseList.length) return null;
   if (!list.length) return null;
 
   return (
