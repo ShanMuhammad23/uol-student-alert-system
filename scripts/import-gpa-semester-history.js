@@ -12,7 +12,9 @@ const TERM_NAMES = {
 };
 
 function loadDotEnv() {
-  const envPath = path.join(process.cwd(), ".env");
+  // Resolve .env from project root (next to package.json), not process.cwd(), so the script
+  // works when npm is invoked from a non-repo cwd or node is run directly.
+  const envPath = path.join(__dirname, "..", ".env");
   if (!fs.existsSync(envPath)) return;
   const raw = fs.readFileSync(envPath, "utf-8");
   for (const line of raw.split(/\r?\n/)) {

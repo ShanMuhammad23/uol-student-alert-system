@@ -191,15 +191,38 @@ call_endpoint() {
 run_gpa_import() {
   local enrollment_faculty_id="$1"
   local attempt=1
+  local gpa_out
+  gpa_out="$(mktemp)"
+
+  if ! command -v npm >/dev/null 2>&1; then
+    rm -f "${gpa_out}"
+    log "ERROR: npm not found on PATH. Non-interactive shells (cron, systemd) often lack nvm/asdf paths; set PATH or use a full path to npm."
+    return 1
+  fi
 
   while (( attempt <= RETRY_COUNT )); do
     log "Running GPA import for enrollmentFacultyId=${enrollment_faculty_id} (attempt ${attempt}/${RETRY_COUNT})"
-    if SAP_FAC_CODE="${enrollment_faculty_id}" npm run import:gpa:history >> "${LOG_FILE}" 2>&1; then
+    : > "${gpa_out}"
+    # npm resolves package.json from cwd; run from repo root (same as typical PowerShell usage).
+    if (
+      cd "${SCRIPT_DIR}" || exit 1
+      SAP_FAC_CODE="${enrollment_faculty_id}" command npm run import:gpa:history
+    ) >> "${gpa_out}" 2>&1; then
+      cat "${gpa_out}" >> "${LOG_FILE}"
+      rm -f "${gpa_out}"
       log "SUCCESS GPA import (enrollmentFacultyId=${enrollment_faculty_id})"
       return 0
     fi
 
+    cat "${gpa_out}" >> "${LOG_FILE}"
     log "FAILED GPA import (enrollmentFacultyId=${enrollment_faculty_id})"
+    if [[ -s "${gpa_out}" ]]; then
+      while IFS= read -r line || [[ -n "${line}" ]]; do
+        log "[gpa] ${line}"
+      done < <(tail -n 50 "${gpa_out}")
+    else
+      log "[gpa] (no output; is npm/node installed and on PATH?)"
+    fi
     if (( attempt < RETRY_COUNT )); then
       log "Retrying GPA import in ${RETRY_DELAY_SECONDS}s..."
       sleep "${RETRY_DELAY_SECONDS}"
@@ -207,6 +230,7 @@ run_gpa_import() {
     (( attempt++ ))
   done
 
+  rm -f "${gpa_out}"
   return 1
 }
 
