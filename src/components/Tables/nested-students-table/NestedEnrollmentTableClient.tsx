@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import type { DepartmentStats, ProgramStats, InstructorStats } from "@/lib/enrollment";
@@ -162,6 +163,9 @@ export function NestedEnrollmentTableClient({
   const { expandedIds, setExpandedIds } = useDashboardUiState();
   const [dbRows, setDbRows] = useState<TopTableRow[]>([]);
   const [isLoadingDb, setIsLoadingDb] = useState(true);
+  const [attendanceStatsSortDirection, setAttendanceStatsSortDirection] = useState<
+    "asc" | "desc"
+  >("desc");
   const hasLoadedOnceRef = useRef(false);
   const roleScope = useMemo(() => {
     try {
@@ -907,6 +911,36 @@ export function NestedEnrollmentTableClient({
                                           <TableHead className="!text-left">
                                             Classes Held
                                           </TableHead>
+                                          <TableHead
+                                            className="!text-left cursor-pointer select-none"
+                                            onClick={() =>
+                                              setAttendanceStatsSortDirection((current) =>
+                                                current === "desc" ? "asc" : "desc"
+                                              )
+                                            }
+                                          >
+                                            <span className="inline-flex items-center gap-1">
+                                              Attendance Stats
+                                              <span className="inline-flex flex-col justify-center text-[10px] text-dark-6 dark:text-dark-5">
+                                                <ArrowUpIcon
+                                                  className={cn(
+                                                    "h-2 w-2",
+                                                    attendanceStatsSortDirection === "asc"
+                                                      ? "text-green-500"
+                                                      : "opacity-40"
+                                                  )}
+                                                />
+                                                <ArrowDownIcon
+                                                  className={cn(
+                                                    "h-2 w-2 -mt-0.5",
+                                                    attendanceStatsSortDirection === "desc"
+                                                      ? "text-green-500"
+                                                      : "opacity-40"
+                                                  )}
+                                                />
+                                              </span>
+                                            </span>
+                                          </TableHead>
                                           <TableHead className="!text-left">
                                             Attendance %
                                           </TableHead>
@@ -922,7 +956,19 @@ export function NestedEnrollmentTableClient({
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {rows.map((row, idx) => {
+                                        {[...rows]
+                                          .sort((a, b) => {
+                                            const aNotPosted =
+                                              (a.totalClassesHeld ?? 0) -
+                                              (a.attendanceMarkedClasses ?? 0);
+                                            const bNotPosted =
+                                              (b.totalClassesHeld ?? 0) -
+                                              (b.attendanceMarkedClasses ?? 0);
+                                            return attendanceStatsSortDirection === "desc"
+                                              ? bNotPosted - aNotPosted
+                                              : aNotPosted - bNotPosted;
+                                          })
+                                          .map((row, idx) => {
                                           const rowKey =
                                             row.Id ??
                                             `${row.SapNo}-${courseKey}-${row.Section ?? ""}-${(row as unknown as { Packnumber?: string }).Packnumber ?? ""}-${row.Teacher ?? ""}-${idx}`;
@@ -1062,17 +1108,19 @@ export function NestedEnrollmentTableClient({
                                               </TableCell>
                                             
                                               <TableCell className="!text-left">
+                                                {classesHeld === 0 ? "—" : classesHeld}
+                                              </TableCell>
+                                              <TableCell className="!text-left">
                                                 {classesHeld === 0 ? (
                                                   "—"
                                                 ) : (
                                                   <div className="flex flex-col gap-0.5">
-                                                    <span>{classesHeld}</span>
                                                     <span className="text-xs text-dark-6 dark:text-dark-5">
                                                       Posted: {attendancePosted}
                                                     </span>
                                                     {notUpdatedVsHeld === 0 ? (
                                                       <span className="text-xs text-green-500">
-                                                        Posted
+                                                        Not Posted: 0
                                                       </span>
                                                     ) : (
                                                       <span
@@ -1080,11 +1128,12 @@ export function NestedEnrollmentTableClient({
                                                           "text-xs",
                                                           notUpdatedVsHeld > 0
                                                             ? "text-red-600 dark:text-red-400"
-                                                            : "text-amber-600 dark:text-amber-400",
+                                                            : "text-amber-600 dark:text-amber-400"
                                                         )}
                                                       >
-                                                        {notUpdatedVsHeld < 0 ? "Duplicate Posting" : "Not Posted"}(
-                                                        {notUpdatedVsHeld})
+                                                        {notUpdatedVsHeld < 0
+                                                          ? `Duplicate Posting: ${Math.abs(notUpdatedVsHeld)}`
+                                                          : `Not Posted: ${notUpdatedVsHeld}`}
                                                       </span>
                                                     )}
                                                   </div>
@@ -1185,7 +1234,7 @@ export function NestedEnrollmentTableClient({
                                               </TableCell>
                                             </TableRow>
                                           );
-                                        })}
+                                          })}
                                       </TableBody>
                                     </Table>
                                   </div>

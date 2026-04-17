@@ -28,6 +28,7 @@ export type ListingSortKey =
   | "course"
   | "teacher"
   | "classesHeld"
+  | "attendanceStats"
   | "attendance"
   | "gpa"
   | "intervention";
@@ -166,6 +167,7 @@ function buildOrderBy(sortKey?: ListingSortKey, sortDirection?: ListingSortDirec
     course: "course_sort_text",
     teacher: "instructor_name",
     classesHeld: "total_classes_held",
+    attendanceStats: "(COALESCE(total_classes_held, 0) - COALESCE(attendance_marked_classes, 0))",
     attendance: "attendance_percentage",
     gpa: "gpa_current",
     intervention: "latest_intervention_status",

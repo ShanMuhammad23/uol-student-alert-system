@@ -40,6 +40,7 @@ type SortKey =
   | "course"
   | "teacher"
   | "classesHeld"
+  | "attendanceStats"
   | "attendance"
   | "gpa"
   | "intervention";
@@ -89,7 +90,7 @@ export function TopChannelsTableClient({
   const [error, setError] = useState<Error | null>(null);
   const [sortConfig, setSortConfig] = useState<
     { key: SortKey; direction: SortDirection } | null
-  >(null);
+  >({ key: "attendanceStats", direction: "desc" });
   const [rowsPerPage, setRowsPerPage] = useState<number | "all">(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
@@ -179,7 +180,7 @@ export function TopChannelsTableClient({
       page,
       pageSize,
       sortKey: sortConfig?.key ?? "name",
-      sortDirection: sortConfig?.direction ?? "asc",
+      sortDirection: sortConfig?.direction ?? "desc",
       roleScope,
       filters: {
         ...(masterFilter ?? {}),
@@ -556,13 +557,22 @@ export function TopChannelsTableClient({
                   onClick={() => handleSort("classesHeld")}
                 >
                   <div className="flex items-center gap-1">
+                    <span>Classes Held</span>
+                    {renderSortIcon("classesHeld")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="min-w-[170px] !text-left cursor-pointer select-none"
+                  onClick={() => handleSort("attendanceStats")}
+                >
+                  <div className="flex items-center gap-1">
                     <span className="whitespace-normal leading-tight">
-                      Classes Held{" "}
+                      Attendance Stats{" "}
                       <span className="block text-[10px] font-normal normal-case text-dark-6 dark:text-dark-5">
-                        vs posted below
+                        posted vs not posted
                       </span>
                     </span>
-                    {renderSortIcon("classesHeld")}
+                    {renderSortIcon("attendanceStats")}
                   </div>
                 </TableHead>
                 <TableHead
@@ -713,18 +723,18 @@ export function TopChannelsTableClient({
                       {row.instructorName ?? "—"}
                     </TableCell>
                     <TableCell className="!text-left">
+                      {classesHeld === 0 ? "—" : classesHeld}
+                    </TableCell>
+                    <TableCell className="!text-left">
                       {classesHeld === 0 ? (
                         "—"
                       ) : (
                         <div className="flex flex-col gap-0.5">
-                          <span>{classesHeld}</span>
                           <span className="text-xs text-dark-6 dark:text-dark-5">
                             Posted: {attendancePosted}
                           </span>
                           {notUpdatedVsHeld === 0 ? (
-                            <span className="text-green-500 text-xs">
-                             Posted
-                            </span>
+                            <span className="text-xs text-green-500">Not Posted: 0</span>
                           ) : (
                             <span
                               className={cn(
@@ -734,7 +744,9 @@ export function TopChannelsTableClient({
                                   : "text-amber-600 dark:text-amber-400"
                               )}
                             >
-                              {notUpdatedVsHeld < 0 ? "Duplicate Posting" : "Not Posted"} ({notUpdatedVsHeld})
+                              {notUpdatedVsHeld < 0
+                                ? `Duplicate Posting: ${Math.abs(notUpdatedVsHeld)}`
+                                : `Not Posted: ${notUpdatedVsHeld}`}
                             </span>
                           )}
                         </div>
