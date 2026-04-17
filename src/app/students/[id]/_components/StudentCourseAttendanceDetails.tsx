@@ -233,12 +233,18 @@ export function StudentCourseAttendanceDetails({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-800/50">
+      <div className="grid grid-cols-4 gap-4 rounded-xl bg-gray-50 p-4 dark:bg-gray-800/50">
         <div className="text-center">
           <p className="text-2xl font-bold dark:text-green-500">
             {displayTotalHeld}
           </p>
           <p className="text-xs dark:text-green-500">Classes Held</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold dark:text-green-500">
+            {displayPosted}
+          </p>
+          <p className="text-xs dark:text-green-500">Attendance Posted</p>
         </div>
         <div className="text-center">
           <p className="text-2xl font-bold text-green-500 dark:text-green-500">

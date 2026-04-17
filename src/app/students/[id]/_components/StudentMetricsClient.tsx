@@ -166,7 +166,7 @@ export function StudentMetricsClient({
         />
         <AlertBadge
           level={worstGpaLevel}
-          label={`GPA: ${
+          label={`SGPA: ${
             worstGpaLevel === "critical"
               ? "Red"
               : worstGpaLevel === "warning"
@@ -185,7 +185,7 @@ export function StudentMetricsClient({
           Loading attendance metrics...
         </div>
         <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark text-sm text-neutral-500">
-          Loading GPA metrics...
+          Loading SGPA metrics...
         </div>
       </div>
     );
@@ -258,7 +258,7 @@ export function StudentMetricsClient({
       <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">GPA</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">SGPA</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">Academic performance tracking</p>
           </div>
           <div
@@ -298,11 +298,11 @@ export function StudentMetricsClient({
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
               <InterventionStatusChart
                 data={chartSeries}
-                title="GPA Trend"
+                title="SGPA Trend"
               />
             </div>
           ) : (
-            <p className="text-sm text-neutral-500">No GPA history available.</p>
+            <p className="text-sm text-neutral-500">No SGPA history available.</p>
           )}
         </div>
       </div>
