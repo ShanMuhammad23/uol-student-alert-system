@@ -70,10 +70,10 @@ export function HodInstructorStats({
             )}
           >
             {metric === "attendance"
-              ? "Attendance"
+              ? "Alert (Att.)"
               : metric === "sgpa"
-              ? "SGPA"
-              : "Attendance Missing"}{" "}
+              ? "Alert (SGPA)"
+              : "Missing Attendance"}{" "}
             {sortMetric === metric ? (sortDir === "desc" ? "▼" : "▲") : ""}
           </button>
         ))}

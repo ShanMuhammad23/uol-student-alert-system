@@ -71,9 +71,9 @@ export function HodProgramStats({
             )}
           >
             {metric === "attendance"
-              ? "Attendance"
+              ? "Alert (Att.)"
               : metric === "sgpa"
-              ? "SGPA"
+              ? "Alert (SGPA)"
               : "Attendance Missing"}{" "}
             {sortMetric === metric ? (sortDir === "desc" ? "▼" : "▲") : ""}
           </button>

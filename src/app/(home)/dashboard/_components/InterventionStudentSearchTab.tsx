@@ -2,10 +2,21 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type Row = {
   courseId: string;
   courseTitle: string | null;
+  facultyName: string | null;
+  departmentName: string | null;
+  degreeTitle: string | null;
   sectionCode: string | null;
   eventPackageId: string | null;
   classType: string;
@@ -113,39 +124,57 @@ export function InterventionStudentSearchTab() {
       )}
 
       {rows.length > 0 && (
-        <div className="mt-4 overflow-x-auto rounded-md border border-stroke dark:border-dark-3">
-          <table className="w-full text-left">
-            <thead className="border-b border-stroke bg-gray-50 dark:border-dark-3 dark:bg-dark-2">
-              <tr className="text-xs uppercase text-dark-6 dark:text-dark-5">
-                <th className="px-4 py-3">Course</th>
-                <th className="px-4 py-3">Class Type</th>
-                <th className="px-4 py-3">Section</th>
-                <th className="px-4 py-3">Intervention Status</th>
-                <th className="px-4 py-3">Latest Intervention</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="mt-4">
+          <div className="mb-3 text-sm text-dark-6 dark:text-dark-5">
+            Total Intervention Rows:{" "}
+            <span className="font-semibold text-dark dark:text-white">
+              {rows.length.toLocaleString()}
+            </span>
+          </div>
+          <Table>
+            <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
+              <TableRow className="border-none uppercase [&>th]:bg-white [&>th]:dark:bg-gray-dark">
+                <TableHead className="min-w-[130px] !text-left">Faculty</TableHead>
+                <TableHead className="min-w-[180px] !text-left">Department</TableHead>
+                <TableHead className="min-w-[180px] !text-left">Degree</TableHead>
+                <TableHead className="min-w-[220px] !text-left">Course</TableHead>
+                <TableHead className="min-w-[100px] !text-left">Class Type</TableHead>
+                <TableHead className="min-w-[100px] !text-left">Section</TableHead>
+                <TableHead className="min-w-[180px] !text-left">Intervention Status</TableHead>
+                <TableHead className="min-w-[180px] !text-left">Latest Intervention</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((row) => (
-                <tr
+                <TableRow
                   key={`${row.courseId}-${row.sectionCode ?? ""}-${row.eventPackageId ?? ""}`}
-                  className="border-b border-stroke text-sm text-dark last:border-b-0 dark:border-dark-3 dark:text-white"
+                  className="text-base font-medium text-dark dark:text-white"
                 >
-                  <td className="px-4 py-3">
+                  <TableCell className="!text-left text-sm text-dark-6 dark:text-dark-5">
+                    {row.facultyName || "—"}
+                  </TableCell>
+                  <TableCell className="!text-left text-sm text-dark-6 dark:text-dark-5">
+                    {row.departmentName || "—"}
+                  </TableCell>
+                  <TableCell className="!text-left text-sm">
+                    {row.degreeTitle || "—"}
+                  </TableCell>
+                  <TableCell className="!text-left text-sm">
                     {row.courseId}
                     {row.courseTitle ? ` - ${row.courseTitle}` : ""}
-                  </td>
-                  <td className="px-4 py-3">{row.classType || "N/A"}</td>
-                  <td className="px-4 py-3">{row.sectionCode || "—"}</td>
-                  <td className="px-4 py-3">{humanizeStatus(row.latestStatus)}</td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="!text-left text-sm">{row.classType || "N/A"}</TableCell>
+                  <TableCell className="!text-left text-sm">{row.sectionCode || "—"}</TableCell>
+                  <TableCell className="!text-left text-sm">{humanizeStatus(row.latestStatus)}</TableCell>
+                  <TableCell className="!text-left text-sm">
                     {row.latestInterventionAt
                       ? new Date(row.latestInterventionAt).toLocaleString()
                       : "—"}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
