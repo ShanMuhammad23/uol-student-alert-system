@@ -77,7 +77,7 @@ export const authOptions: NextAuthOptions = {
       mutableUser.department_ids = departmentIds;
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.pernr = user.pernr;
@@ -87,6 +87,11 @@ export const authOptions: NextAuthOptions = {
         token.img = user.img;
         token.faculty_id = user.faculty_id;
         token.department_ids = user.department_ids ?? [];
+      }
+      if (trigger === "update" && session) {
+        const s = session as { img?: string | null; name?: string | null };
+        if (s.img !== undefined) token.img = s.img;
+        if (s.name !== undefined) token.name = s.name ?? undefined;
       }
       return token;
     },

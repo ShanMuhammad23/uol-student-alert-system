@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -37,20 +38,8 @@ type DepartmentRow = {
   faculty_id: string | null;
 };
 
-const FACULTY_NAME_FALLBACK: Record<string, string> = {
-  "50000172": "Faculty of Social Sciences",
-  "50000178": "Faculty of Pharmacy",
-};
-
 function resolveFacultyName(row: StaffListRow): string {
-  const dbName = (row.faculty_name ?? "").trim();
-  const isPlaceholder =
-    /^Faculty\s+\d+$/i.test(dbName) || dbName.length === 0;
-  if (!isPlaceholder) return dbName;
-  if (row.faculty_id && FACULTY_NAME_FALLBACK[row.faculty_id]) {
-    return FACULTY_NAME_FALLBACK[row.faculty_id];
-  }
-  return row.faculty_id ?? "—";
+  return resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name) ?? "—";
 }
 
 function resolveDepartmentNames(row: StaffListRow): string[] {

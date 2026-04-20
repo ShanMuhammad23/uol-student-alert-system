@@ -8,12 +8,9 @@ import {
 import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
+import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import Link from "next/link";
 import { AutomationPanel } from "./_components/AutomationPanel";
-const FACULTY_NAME_FALLBACK: Record<string, string> = {
-  "50000178": "Faculty of Pharmacy",
-  "50000172": "Faculty of Social Sciences",
-};
 function MetricCard({
   label,
   value,
@@ -116,7 +113,7 @@ export default async function SuperadminDashboardPage({
                 <option value="">All Faculties</option>
                 {facultyStats.map((f) => (
                   <option key={f.facultyId} value={f.facultyId}>
-                    {FACULTY_NAME_FALLBACK[f.facultyId] ?? f.facultyName}
+                    {resolveFacultyNameFromIdOrName(f.facultyId, f.facultyName) ?? f.facultyId}
                   </option>
                 ))}
               </select>
@@ -163,7 +160,8 @@ export default async function SuperadminDashboardPage({
               className="block rounded-[10px] bg-white p-5 shadow-1 transition-shadow hover:shadow-2xl dark:bg-gray-dark dark:shadow-card"
             >
               <p className="text-sm font-semibold text-dark dark:text-white">
-                {FACULTY_NAME_FALLBACK[f.facultyId] ?? f.facultyName} ( {f.total.toLocaleString()})
+                {resolveFacultyNameFromIdOrName(f.facultyId, f.facultyName) ?? f.facultyId} ({" "}
+                {f.total.toLocaleString()})
               </p>
             
               

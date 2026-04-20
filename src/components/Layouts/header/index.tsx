@@ -9,6 +9,7 @@ import { ThemeToggleSwitch } from "./theme-toggle";
 import { UserInfo } from "./user-info";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
 import { useEffect, useMemo, useState } from "react";
+import { normalizeFacultyName } from "@/lib/faculty-name";
 
 type HeaderProps = {
   user?: AppUser | null;
@@ -16,24 +17,6 @@ type HeaderProps = {
   totalStudents?: number;
   lastUpdated?: string | null;
 };
-
-const FACULTY_NAME_FALLBACK: Record<string, string> = {
-  "50000172": "Faculty of Social Sciences",
-  FAC_ENG: "Faculty of Social Sciences",
-  FAC_MGT: "Faculty of Social Sciences",
-  "50000178": "Faculty of Pharmacy",
-};
-
-function mapFacultyHeadingName(value?: string | null): string | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) return null;
-  if (FACULTY_NAME_FALLBACK[raw]) return FACULTY_NAME_FALLBACK[raw];
-  if (/^Faculty\s+\d+$/i.test(raw)) {
-    const id = raw.replace(/^Faculty\s+/i, "").trim();
-    return FACULTY_NAME_FALLBACK[id] ?? raw;
-  }
-  return raw;
-}
 
 function formatLastUpdatedLabel(value?: string | null): string | null {
   const raw = String(value ?? "").trim();
@@ -92,8 +75,8 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
       })
       .then((data) => {
         setEmulatedHeading(
-          mapFacultyHeadingName(data.screenHeading) ??
-            mapFacultyHeadingName(emulatedFacultyId) ??
+          normalizeFacultyName(data.screenHeading) ??
+            normalizeFacultyName(emulatedFacultyId) ??
             emulatedFacultyId
         );
         setEmulatedTotalStudents(
@@ -112,7 +95,7 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
         ) {
           return;
         }
-        setEmulatedHeading(mapFacultyHeadingName(emulatedFacultyId) ?? emulatedFacultyId);
+        setEmulatedHeading(normalizeFacultyName(emulatedFacultyId) ?? emulatedFacultyId);
         setEmulatedTotalStudents(undefined);
         setEmulatedLastUpdated(null);
       });
@@ -123,12 +106,12 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
   const resolvedHeading = useMemo(() => {
     if (isSuperadminDeanMode) {
       return (
-        mapFacultyHeadingName(emulatedHeading) ??
-        mapFacultyHeadingName(emulatedFacultyId) ??
+        normalizeFacultyName(emulatedHeading) ??
+        normalizeFacultyName(emulatedFacultyId) ??
         emulatedFacultyId
       );
     }
-    return mapFacultyHeadingName(screenHeading) ?? screenHeading;
+    return normalizeFacultyName(screenHeading) ?? screenHeading;
   }, [isSuperadminDeanMode, emulatedHeading, emulatedFacultyId, screenHeading]);
   const resolvedTotalStudents = isSuperadminDeanMode
     ? emulatedTotalStudents

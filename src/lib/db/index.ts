@@ -34,6 +34,19 @@ export type StaffRow = {
   img: string | null;
 };
 
+/** Get staff by primary key. Returns null if not found or DB not configured. */
+export async function getStaffById(staffId: string): Promise<StaffRow | null> {
+  if (!pool) return null;
+  const res = await pool.query<StaffRow>(
+    `SELECT id, pernr, name, email, password_hash, role, faculty_id, created_at, updated_at, img
+     FROM staff
+     WHERE id = $1
+     LIMIT 1`,
+    [staffId]
+  );
+  return res.rows[0] ?? null;
+}
+
 /** Get staff by email (case-insensitive). Returns null if not found or DB not configured. */
 export async function getStaffByEmail(email: string): Promise<StaffRow | null> {
   if (!pool) return null;
@@ -65,4 +78,88 @@ export async function getStaffByEmailWithDepartments(
   if (!staff) return null;
   const departmentIds = staff.role === "hod" ? await getStaffDepartmentIds(staff.id) : [];
   return { staff, departmentIds };
+}
+
+/** Profile screen: staff row plus faculty / department labels (matches schema.staff). */
+export type StaffProfileView = {
+  id: string;
+  pernr: string;
+  name: string;
+  email: string;
+  role: StaffRow["role"];
+  faculty_id: string | null;
+  faculty_name: string | null;
+  department_ids: string[];
+  department_names: string[];
+  img: string | null;
+  has_password: boolean;
+  created_at: string;
+};
+
+export async function getStaffProfileById(staffId: string): Promise<StaffProfileView | null> {
+  if (!pool) return null;
+  const staffRes = await pool.query<StaffRow>(
+    `SELECT id, pernr, name, email, password_hash, role, faculty_id, created_at, updated_at, img
+     FROM staff WHERE id = $1 LIMIT 1`,
+    [staffId]
+  );
+  const row = staffRes.rows[0];
+  if (!row) return null;
+
+  let faculty_name: string | null = null;
+  if (row.faculty_id) {
+    const fr = await pool.query<{ name: string }>(
+      `SELECT name FROM faculties WHERE id = $1 LIMIT 1`,
+      [row.faculty_id]
+    );
+    faculty_name = fr.rows[0]?.name ?? null;
+  }
+
+  const department_ids =
+    row.role === "hod" ? await getStaffDepartmentIds(staffId) : [];
+
+  let department_names: string[] = [];
+  if (department_ids.length > 0) {
+    const dr = await pool.query<{ name: string }>(
+      `SELECT name FROM departments WHERE id = ANY($1::varchar[]) ORDER BY name ASC`,
+      [department_ids]
+    );
+    department_names = dr.rows.map((r) => r.name);
+  }
+
+  return {
+    id: row.id,
+    pernr: row.pernr,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    faculty_id: row.faculty_id,
+    faculty_name,
+    department_ids,
+    department_names,
+    img: row.img,
+    has_password: !!row.password_hash,
+    created_at: row.created_at.toISOString(),
+  };
+}
+
+export async function updateStaffPasswordHash(
+  staffId: string,
+  passwordHash: string
+): Promise<boolean> {
+  if (!pool) return false;
+  const res = await pool.query(
+    `UPDATE staff SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+    [passwordHash, staffId]
+  );
+  return res.rowCount === 1;
+}
+
+export async function updateStaffImg(staffId: string, imgRelativePath: string): Promise<boolean> {
+  if (!pool) return false;
+  const res = await pool.query(
+    `UPDATE staff SET img = $1, updated_at = NOW() WHERE id = $2`,
+    [imgRelativePath, staffId]
+  );
+  return res.rowCount === 1;
 }

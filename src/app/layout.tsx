@@ -13,6 +13,7 @@ import type { PropsWithChildren } from "react";
 import { Providers } from "./providers";
 import { getCurrentUser, getLatestAlertCountsSnapshot } from "./(home)/dashboard/fetch";
 import { pool } from "@/lib/db";
+import { normalizeFacultyName } from "@/lib/faculty-name";
 
 const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
   FAC_ENG: "50000172",
@@ -47,7 +48,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           "SELECT name FROM faculties WHERE id = $1 LIMIT 1",
           [mappedFacultyId]
         );
-        screenHeading = faculty.rows[0]?.name ?? mappedFacultyId;
+        screenHeading =
+          normalizeFacultyName(faculty.rows[0]?.name ?? null) ??
+          normalizeFacultyName(mappedFacultyId) ??
+          mappedFacultyId;
 
         const total = await pool.query<{ total_students: number | string | null }>(
           `SELECT COALESCE(SUM(total_students), 0) AS total_students

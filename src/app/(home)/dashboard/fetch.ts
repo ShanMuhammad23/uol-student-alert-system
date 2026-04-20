@@ -10,8 +10,11 @@ import {
   type SessionScope as ListingSessionScope,
 } from "@/lib/db/student-listing";
 import { pool } from "@/lib/db";
+import { authOptions } from "@/lib/auth-config";
 import { fetchMonitoringEntries, mapMonitoringToStudents, getMonitoringStudentsBySapId } from "@/lib/sap-monitoring";
+import { getServerSession } from "next-auth";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
+import { normalizeFacultyName } from "@/lib/faculty-name";
 
 const ENROLLMENT_DATA_FILE = "enrollment_data.json";
 
@@ -130,7 +133,9 @@ function buildFacultiesFromEnrollment(records: EnrollmentRecord[]): Faculty[] {
   for (const r of records) {
     const id = (r.FacId ?? "").trim();
     if (!id) continue;
-    if (!byId.has(id)) byId.set(id, { id, name: `Faculty ${id}` });
+    if (!byId.has(id)) {
+      byId.set(id, { id, name: normalizeFacultyName(id) ?? `Faculty ${id}` });
+    }
   }
   return Array.from(byId.values());
 }
@@ -2657,8 +2662,6 @@ export function mapSessionToAppUser(session: {
 }
 
 export async function getCurrentUser(): Promise<AppUser | null> {
-  const { getServerSession } = await import("next-auth");
-  const { authOptions } = await import("@/lib/auth-config");
   const session = await getServerSession(authOptions);
   if (!session?.user) return null;
   return mapSessionToAppUser(session);

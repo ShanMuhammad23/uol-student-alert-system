@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { LogOutIcon, UserIcon } from "./icons";
+import { LogOutIcon, ProfileIcon, UserIcon } from "./icons";
 import { signOut } from "@/app/auth/actions";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
 
@@ -112,6 +112,16 @@ export function UserInfo({ user }: UserInfoProps) {
             >
               <UserIcon />
               <span className="mr-auto text-base font-medium">Superadmin</span>
+            </Link>
+          )}
+          {isSignedIn && (
+            <Link
+              href="/profile"
+              onClick={() => setIsOpen(false)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[9px] hover:bg-gray-2 hover:text-dark dark:hover:bg-dark-3 dark:hover:text-white"
+            >
+              <ProfileIcon />
+              <span className="mr-auto text-base font-medium">Profile</span>
             </Link>
           )}
         </div>

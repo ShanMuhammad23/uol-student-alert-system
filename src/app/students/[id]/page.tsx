@@ -15,6 +15,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getStudentGpaProfileBySapId } from "@/lib/db/gpa";
 import { getWellbeingCasesByStudentSapId } from "@/lib/db/wellbeing";
+import { normalizeFacultyName, toShortFacultyName } from "@/lib/faculty-name";
 
 type PropsType = {
   params: Promise<{ id: string }>;
@@ -31,24 +32,6 @@ const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
   FAC_ENG: "50000172",
   FAC_MGT: "50000172",
 };
-
-const FACULTY_NAME_FALLBACK: Record<string, string> = {
-  "50000172": "Faculty of Social Sciences",
-  FAC_ENG: "Faculty of Social Sciences",
-  FAC_MGT: "Faculty of Social Sciences",
-  "50000178": "Faculty of Pharmacy",
-};
-
-function mapFacultyHeadingName(value?: string | null): string | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) return null;
-  if (FACULTY_NAME_FALLBACK[raw]) return FACULTY_NAME_FALLBACK[raw];
-  if (/^Faculty\s+\d+$/i.test(raw)) {
-    const id = raw.replace(/^Faculty\s+/i, "").trim();
-    return FACULTY_NAME_FALLBACK[id] ?? raw;
-  }
-  return raw;
-}
 
 function deriveClassTypeLabel(eventPackageId?: string | null): string {
   const raw = String(eventPackageId ?? "").trim();
@@ -318,8 +301,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         [mappedFacultyId]
       );
       facultyName =
-        mapFacultyHeadingName(res.rows[0]?.name?.trim() ?? null) ??
-        mapFacultyHeadingName(mappedFacultyId) ??
+        normalizeFacultyName(res.rows[0]?.name?.trim() ?? null) ??
+        normalizeFacultyName(mappedFacultyId) ??
         null;
     } catch {
       facultyName = null;
@@ -329,8 +312,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     const mappedFacultyId =
       FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
     facultyName =
-      mapFacultyHeadingName(facultyId) ??
-      mapFacultyHeadingName(mappedFacultyId) ??
+      normalizeFacultyName(facultyId) ??
+      normalizeFacultyName(mappedFacultyId) ??
       `Faculty ${mappedFacultyId}`;
   }
 
@@ -361,7 +344,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
             : null;
   const senderDepartmentName =
     primaryEnrollment?.DeptName?.replace("Department of", "").trim() ?? null;
-  const senderFacultyName = facultyName?.replace("Faculty of", "").trim() ?? null;
+  const senderFacultyName = toShortFacultyName(facultyName);
   const senderEmailForTemplate =
     process.env.SMTP_FROM ?? "alert@student-alert.uol.edu.pk";
   const focusedEnrollment = selectedCourseCode
@@ -413,7 +396,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                 <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">
                   <span className="text-base">Faculty:</span>
                   <span className="font-medium">
-                    {facultyName?.replace("Faculty of", "") ?? "—"}
+                    {toShortFacultyName(facultyName) ?? "—"}
                   </span>
                 </span>
                 <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">

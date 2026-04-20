@@ -43,6 +43,25 @@ export function SettingsIcon(props: SVGPropsType) {
   );
 }
 
+export function ProfileIcon(props: SVGPropsType) {
+  return (
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 18 18"
+      fill="currentColor"
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M3.375 2.25A2.25 2.25 0 015.625 0h6.75a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0112.375 18h-6.75a2.25 2.25 0 01-2.25-2.25V2.25zm2.25-.563a.563.563 0 00-.563.563v13.5c0 .311.252.563.563.563h6.75a.563.563 0 00.563-.563V2.25a.563.563 0 00-.563-.563h-6.75z"
+      />
+      <path d="M6.188 4.5h5.625a.563.563 0 010 1.125H6.188a.563.563 0 010-1.125zM6.188 7.875h5.625a.563.563 0 010 1.125H6.188a.563.563 0 010-1.125zM6.75 11.25h4.5a.563.563 0 010 1.125H6.75a.563.563 0 010-1.125z" />
+    </svg>
+  );
+}
+
 export function LogOutIcon(props: SVGPropsType) {
   return (
     <svg
