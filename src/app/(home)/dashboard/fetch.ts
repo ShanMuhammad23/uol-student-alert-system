@@ -506,45 +506,118 @@ async function getAttendanceMissingByDimension(
     where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
   }
 
-  const res = await pool.query<{
-    dimension_id: string;
-    missing_count: number | string | null;
-  }>(
-    `WITH scoped AS (
-       SELECT
-         ${dimensionExpr} AS dimension_id,
-         e.course_id,
-         e.section_code,
-         e.event_package_id,
-         COALESCE(a.total_classes_held, 0) AS held,
-         COALESCE(a.attendance_marked_classes, 0) AS marked
-       FROM student_enrollment_current e
-       LEFT JOIN student_alert_current a
-         ON a.sap_id = e.sap_id
-        AND a.course_id = e.course_id
-        AND a.section_code = e.section_code
-        AND a.event_package_id = e.event_package_id
-       WHERE ${where.join(" AND ")}
-     ),
-     class_max AS (
-       SELECT
-         dimension_id,
-         course_id,
-         section_code,
-         event_package_id,
-         MAX(held) AS held,
-         MAX(marked) AS marked
-       FROM scoped
-       WHERE dimension_id IS NOT NULL AND dimension_id <> ''
-       GROUP BY dimension_id, course_id, section_code, event_package_id
-     )
-     SELECT
-       dimension_id,
-       COALESCE(SUM(GREATEST(held - marked, 0)), 0) AS missing_count
-     FROM class_max
-     GROUP BY dimension_id`,
-    params
-  );
+  const res =
+    dimensionType === "program"
+      ? await pool.query<{
+          dimension_id: string;
+          missing_count: number | string | null;
+        }>(
+          `WITH scoped AS (
+             SELECT
+               e.program_id AS dimension_id,
+               e.sap_id,
+               e.course_id,
+               e.section_code,
+               e.event_package_id,
+               COALESCE(a.total_classes_held, 0) AS held,
+               COALESCE(a.attendance_marked_classes, 0) AS marked
+             FROM student_enrollment_current e
+             LEFT JOIN student_alert_current a
+               ON a.sap_id = e.sap_id
+              AND a.course_id = e.course_id
+              AND a.section_code = e.section_code
+              AND a.event_package_id = e.event_package_id
+             WHERE ${where.join(" AND ")}
+           ),
+           class_max AS (
+             SELECT
+               course_id,
+               section_code,
+               event_package_id,
+               MAX(held) AS held,
+               MAX(marked) AS marked
+             FROM scoped
+             WHERE dimension_id IS NOT NULL AND dimension_id <> ''
+             GROUP BY course_id, section_code, event_package_id
+           ),
+           class_program_counts AS (
+             SELECT
+               dimension_id,
+               course_id,
+               section_code,
+               event_package_id,
+               COUNT(DISTINCT sap_id)::int AS student_count
+             FROM scoped
+             WHERE dimension_id IS NOT NULL AND dimension_id <> ''
+             GROUP BY dimension_id, course_id, section_code, event_package_id
+           ),
+           class_program_owner AS (
+             SELECT
+               dimension_id,
+               course_id,
+               section_code,
+               event_package_id
+             FROM (
+               SELECT
+                 cpc.*,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY cpc.course_id, cpc.section_code, cpc.event_package_id
+                   ORDER BY cpc.student_count DESC, cpc.dimension_id ASC
+                 ) AS rn
+               FROM class_program_counts cpc
+             ) ranked
+             WHERE rn = 1
+           )
+           SELECT
+             owner.dimension_id,
+             COALESCE(SUM(GREATEST(cm.held - cm.marked, 0)), 0) AS missing_count
+           FROM class_program_owner owner
+           JOIN class_max cm
+             ON cm.course_id = owner.course_id
+            AND cm.section_code = owner.section_code
+            AND cm.event_package_id = owner.event_package_id
+           GROUP BY owner.dimension_id`,
+          params
+        )
+      : await pool.query<{
+          dimension_id: string;
+          missing_count: number | string | null;
+        }>(
+          `WITH scoped AS (
+             SELECT
+               ${dimensionExpr} AS dimension_id,
+               e.course_id,
+               e.section_code,
+               e.event_package_id,
+               COALESCE(a.total_classes_held, 0) AS held,
+               COALESCE(a.attendance_marked_classes, 0) AS marked
+             FROM student_enrollment_current e
+             LEFT JOIN student_alert_current a
+               ON a.sap_id = e.sap_id
+              AND a.course_id = e.course_id
+              AND a.section_code = e.section_code
+              AND a.event_package_id = e.event_package_id
+             WHERE ${where.join(" AND ")}
+           ),
+           class_max AS (
+             SELECT
+               dimension_id,
+               course_id,
+               section_code,
+               event_package_id,
+               MAX(held) AS held,
+               MAX(marked) AS marked
+             FROM scoped
+             WHERE dimension_id IS NOT NULL AND dimension_id <> ''
+             GROUP BY dimension_id, course_id, section_code, event_package_id
+           )
+           SELECT
+             dimension_id,
+             COALESCE(SUM(GREATEST(held - marked, 0)), 0) AS missing_count
+           FROM class_max
+           GROUP BY dimension_id`,
+          params
+        );
 
   for (const row of res.rows) {
     map.set(row.dimension_id, toInt(row.missing_count));
