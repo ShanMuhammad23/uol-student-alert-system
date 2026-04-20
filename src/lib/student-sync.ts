@@ -59,6 +59,9 @@ type StudentSyncResult = {
   upsertedAlerts: number;
 };
 
+const GPA_WARNING_DROP = 1.0;
+const GPA_CRITICAL_DROP = 1.5;
+
 function normalizeCode(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
@@ -872,7 +875,13 @@ export async function runStudentSync(
       const gpaCurrent = gpaTrend?.current ?? null;
       const gpaPrevious = gpaTrend?.previous ?? null;
       const gpaChange = gpaTrend?.change ?? null;
-      const gpaLevel: "warning" | "critical" | null = gpaTrend?.level ?? null;
+      const gpaDrop = Math.abs(Math.min(0, gpaChange ?? 0));
+      const gpaLevel: "warning" | "critical" | null =
+        gpaDrop >= GPA_CRITICAL_DROP
+          ? "critical"
+          : gpaDrop >= GPA_WARNING_DROP
+            ? "warning"
+            : null;
       const overall: "none" | "warning" | "critical" =
         attendanceLevel === "critical" || gpaLevel === "critical"
           ? "critical"

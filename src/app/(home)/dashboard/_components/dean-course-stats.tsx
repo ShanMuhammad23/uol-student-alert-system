@@ -32,8 +32,8 @@ export function DeanCourseStats({
       const bAttendance = b.yellowAttendance + b.redAttendance;
       const aSgpa = a.yellowGpa + a.redGpa;
       const bSgpa = b.yellowGpa + b.redGpa;
-      const aMissing = aAttendance;
-      const bMissing = bAttendance;
+      const aMissing = a.attendanceMissing ?? 0;
+      const bMissing = b.attendanceMissing ?? 0;
       const diff =
         sortMetric === "attendance"
           ? bAttendance - aAttendance
@@ -44,6 +44,17 @@ export function DeanCourseStats({
     });
     return arr;
   }, [baseList, sortMetric, sortDir]);
+  const metricCounts = useMemo(() => {
+    let attendance = 0;
+    let sgpa = 0;
+    let missing = 0;
+    for (const row of baseList) {
+      attendance += row.yellowAttendance + row.redAttendance;
+      sgpa += row.yellowGpa + row.redGpa;
+      missing += row.attendanceMissing ?? 0;
+    }
+    return { attendance, sgpa, missing };
+  }, [baseList]);
   if (!user || user.role !== "dean") return null;
   if (!baseList.length) return null;
   if (!list.length) return null;
@@ -71,6 +82,11 @@ export function DeanCourseStats({
             )}
           >
             {metric === "attendance"
+              ? `${metricCounts.attendance} `
+              : metric === "sgpa"
+                ? `${metricCounts.sgpa} `
+                : `${metricCounts.missing} `}
+            {metric === "attendance"
               ? "Alert (Att.)"
               : metric === "sgpa"
               ? "Alert (SGPA)"
@@ -81,7 +97,7 @@ export function DeanCourseStats({
       </div>
       <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
       {list.map((c) => {
-        const attendanceMissing = c.yellowAttendance + c.redAttendance;
+        const attendanceMissing = c.attendanceMissing ?? 0;
         const key = c.courseId;
         const isSelected = masterFilterCourseIds?.length
           ? masterFilterCourseIds.includes(key)

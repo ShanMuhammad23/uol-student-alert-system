@@ -452,6 +452,106 @@ async function getDimensionCountsFromDb(
   return map;
 }
 
+type MissingDimensionType = "department" | "program" | "course" | "instructor";
+
+type MissingScope = {
+  facultyId?: string | null;
+  departmentIds?: string[];
+  programIds?: string[];
+  courseIds?: string[];
+  instructorIds?: string[];
+};
+
+async function getAttendanceMissingByDimension(
+  dimensionType: MissingDimensionType,
+  ids: string[],
+  scope?: MissingScope
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!pool || !ids.length) return map;
+
+  const dimensionExpr =
+    dimensionType === "department"
+      ? "e.department_id"
+      : dimensionType === "program"
+        ? "e.program_id"
+        : dimensionType === "course"
+          ? "e.course_id"
+          : "e.instructor_pernr";
+
+  const where: string[] = [
+    "e.is_active = TRUE",
+    `${dimensionExpr} = ANY($1::text[])`,
+  ];
+  const params: unknown[] = [ids];
+
+  if (scope?.facultyId) {
+    params.push(scope.facultyId);
+    where.push(`e.faculty_id = $${params.length}`);
+  }
+  if (scope?.departmentIds?.length) {
+    params.push(scope.departmentIds);
+    where.push(`e.department_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.programIds?.length) {
+    params.push(scope.programIds);
+    where.push(`e.program_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.courseIds?.length) {
+    params.push(scope.courseIds);
+    where.push(`e.course_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.instructorIds?.length) {
+    params.push(scope.instructorIds);
+    where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
+  }
+
+  const res = await pool.query<{
+    dimension_id: string;
+    missing_count: number | string | null;
+  }>(
+    `WITH scoped AS (
+       SELECT
+         ${dimensionExpr} AS dimension_id,
+         e.course_id,
+         e.section_code,
+         e.event_package_id,
+         COALESCE(a.total_classes_held, 0) AS held,
+         COALESCE(a.attendance_marked_classes, 0) AS marked
+       FROM student_enrollment_current e
+       LEFT JOIN student_alert_current a
+         ON a.sap_id = e.sap_id
+        AND a.course_id = e.course_id
+        AND a.section_code = e.section_code
+        AND a.event_package_id = e.event_package_id
+       WHERE ${where.join(" AND ")}
+     ),
+     class_max AS (
+       SELECT
+         dimension_id,
+         course_id,
+         section_code,
+         event_package_id,
+         MAX(held) AS held,
+         MAX(marked) AS marked
+       FROM scoped
+       WHERE dimension_id IS NOT NULL AND dimension_id <> ''
+       GROUP BY dimension_id, course_id, section_code, event_package_id
+     )
+     SELECT
+       dimension_id,
+       COALESCE(SUM(GREATEST(held - marked, 0)), 0) AS missing_count
+     FROM class_max
+     GROUP BY dimension_id`,
+    params
+  );
+
+  for (const row of res.rows) {
+    map.set(row.dimension_id, toInt(row.missing_count));
+  }
+  return map;
+}
+
 function applyDimensionFilterToCounts(
   yellow: number,
   red: number,
@@ -1222,6 +1322,7 @@ export type DepartmentStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 /** Reads public/enrollment_data.json and returns department stats: unique department names and unique student count per department. Optional facultyId filters by FacId. Alert counts (yellow/red) are 0 as enrollment data has no GPA/attendance. */
@@ -1311,6 +1412,17 @@ export async function getDeanDepartmentStats(
          ORDER BY department_name ASC`,
         params
       );
+      const missingByDepartment = await getAttendanceMissingByDimension(
+        "department",
+        res.rows.map((row) => row.department_id),
+        {
+          facultyId:
+            facultyId != null
+              ? FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId
+              : undefined,
+          departmentIds: options?.departmentIds,
+        }
+      );
       return res.rows.map((row) => ({
         departmentId: row.department_id,
         departmentName: row.department_name,
@@ -1319,6 +1431,7 @@ export async function getDeanDepartmentStats(
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
+        attendanceMissing: missingByDepartment.get(row.department_id) ?? 0,
       }));
     } catch {
       // Fall back to existing file/SAP paths below.
@@ -1415,6 +1528,7 @@ export type InstructorStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 /** Reads public/enrollment_data.json and returns instructor stats: unique instructors by Pernr (teacher employee number), with unique student count per teacher. Optional facultyId/departmentIds/instructorIds filter. Alert counts are 0. */
@@ -1528,6 +1642,15 @@ export async function getDeanInstructorStats(
          ORDER BY instructor_name ASC`,
         params
       );
+      const missingByInstructor = await getAttendanceMissingByDimension(
+        "instructor",
+        res.rows.map((row) => row.instructor_id),
+        {
+          facultyId: enrollmentFacId,
+          departmentIds: options?.departmentIds,
+          instructorIds: options?.instructorIds,
+        }
+      );
       return res.rows.map((row) => ({
         instructorId: row.instructor_id,
         instructorName: row.instructor_name,
@@ -1536,6 +1659,7 @@ export async function getDeanInstructorStats(
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
+        attendanceMissing: missingByInstructor.get(row.instructor_id) ?? 0,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -1690,6 +1814,14 @@ export async function getDeanProgramStats(
          ORDER BY program_title ASC`,
         params
       );
+      const missingByProgram = await getAttendanceMissingByDimension(
+        "program",
+        res.rows.map((row) => row.program_id),
+        {
+          facultyId: enrollmentFacId,
+          departmentIds: options?.departmentIds,
+        }
+      );
       return res.rows.map((row) => ({
         programId: row.program_id,
         programTitle: row.program_title,
@@ -1698,6 +1830,7 @@ export async function getDeanProgramStats(
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
+        attendanceMissing: missingByProgram.get(row.program_id) ?? 0,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -1761,6 +1894,7 @@ export type ProgramStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 export type FacultyStats = {
@@ -1979,6 +2113,7 @@ export type CourseStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 /** Course stats for Dean scoped to faculty and optional department/program/course filters. */
@@ -2053,6 +2188,16 @@ export async function getDeanCourseStats(
        ORDER BY course_name ASC`,
       params
     );
+    const missingByCourse = await getAttendanceMissingByDimension(
+      "course",
+      res.rows.map((row) => row.course_id),
+      {
+        facultyId: enrollmentFacId,
+        departmentIds: options?.departmentIds,
+        programIds: options?.programIds,
+        courseIds: options?.courseIds,
+      }
+    );
     return res.rows.map((row) => ({
       courseId: row.course_id,
       courseName: row.course_name,
@@ -2061,6 +2206,7 @@ export async function getDeanCourseStats(
       redGpa: toInt(row.red_gpa),
       yellowAttendance: toInt(row.yellow_attendance),
       redAttendance: toInt(row.red_attendance),
+      attendanceMissing: missingByCourse.get(row.course_id) ?? 0,
     }));
   } catch {
     return [];
@@ -2096,6 +2242,11 @@ export async function getHodProgramStats(
     const programIds = programRows.map((r) => r.program_id);
     if (!programIds.length) return [];
     const dbCounts = await getDimensionCountsFromDb("program", programIds);
+    const missingByProgram = await getAttendanceMissingByDimension(
+      "program",
+      programIds,
+      { departmentIds }
+    );
     const titleByProgramId = new Map(
       programRows.map((r) => [r.program_id, (r.program_title ?? "").trim()])
     );
@@ -2109,6 +2260,7 @@ export async function getHodProgramStats(
         redGpa: row ? toInt(row.red_gpa) : 0,
         yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
         redAttendance: row ? toInt(row.red_attendance) : 0,
+        attendanceMissing: missingByProgram.get(programId) ?? 0,
       };
     });
   } catch {
@@ -2156,6 +2308,16 @@ export async function getHodInstructorStats(
       const instructorIds = res.rows.map((r) => r.instructor_id);
       if (!instructorIds.length) return [];
       const dbCounts = await getDimensionCountsFromDb("instructor", instructorIds);
+      const missingByInstructor = await getAttendanceMissingByDimension(
+        "instructor",
+        instructorIds,
+        {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+          instructorIds: options?.instructorIds,
+        }
+      );
       return res.rows.map((teacher) => {
         const row = dbCounts.get(teacher.instructor_id);
         return {
@@ -2166,6 +2328,7 @@ export async function getHodInstructorStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
+          attendanceMissing: missingByInstructor.get(teacher.instructor_id) ?? 0,
         };
       });
     } catch {
@@ -2205,6 +2368,16 @@ export async function getHodInstructorStats(
     try {
       const instructorIds = teachers.map((t) => t.id);
       const dbCounts = await getDimensionCountsFromDb("instructor", instructorIds);
+      const missingByInstructor = await getAttendanceMissingByDimension(
+        "instructor",
+        instructorIds,
+        {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+          instructorIds: options?.instructorIds,
+        }
+      );
       return teachers.map((teacher) => {
         const row = dbCounts.get(teacher.id);
         return {
@@ -2215,6 +2388,7 @@ export async function getHodInstructorStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
+          attendanceMissing: missingByInstructor.get(teacher.id) ?? 0,
         };
       });
     } catch {
@@ -2310,6 +2484,15 @@ export async function getHodCourseStats(
         [normalizedCourseIds]
       );
       const byCourse = new Map(counts.rows.map((r) => [r.course_id, r]));
+      const missingByCourse = await getAttendanceMissingByDimension(
+        "course",
+        sortedCourseIds,
+        {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+        }
+      );
       return sortedCourseIds.map((courseId) => {
         const baseId = courseIdBaseByFull.get(courseId) ?? courseId;
         const row = byCourse.get(baseId);
@@ -2321,6 +2504,7 @@ export async function getHodCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
+          attendanceMissing: missingByCourse.get(courseId) ?? 0,
         };
       });
     } catch {
@@ -2374,6 +2558,15 @@ export async function getHodCourseStats(
       );
 
       const byCourse = new Map(res.rows.map((r) => [r.course_id, r]));
+      const missingByCourse = await getAttendanceMissingByDimension(
+        "course",
+        sortedCourseIds,
+        {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+        }
+      );
       return sortedCourseIds.map((courseId) => {
         const row = byCourse.get(courseId);
         return {
@@ -2384,6 +2577,7 @@ export async function getHodCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
+          attendanceMissing: missingByCourse.get(courseId) ?? 0,
         };
       });
     } catch {
@@ -2498,6 +2692,11 @@ export async function getInstructorCourseStats(
         [pernr, courseIds]
       );
       const byCourse = new Map(counts.rows.map((r) => [r.course_id, r]));
+      const missingByCourse = await getAttendanceMissingByDimension(
+        "course",
+        courseIds,
+        { instructorIds: [pernr], courseIds: options?.courseIds }
+      );
       return courseIds.map((courseId) => {
         const row = byCourse.get(courseId);
         return {
@@ -2508,6 +2707,7 @@ export async function getInstructorCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
+          attendanceMissing: missingByCourse.get(courseId) ?? 0,
         };
       });
     } catch {
@@ -2584,6 +2784,11 @@ export async function getInstructorCourseStats(
       );
 
       const byCourse = new Map(res.rows.map((r) => [r.course_id, r]));
+      const missingByCourse = await getAttendanceMissingByDimension(
+        "course",
+        courseIds,
+        { instructorIds: [pernr], courseIds }
+      );
       return courseIds.map((courseId) => {
         const row = byCourse.get(courseId);
         return {
@@ -2594,6 +2799,7 @@ export async function getInstructorCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
+          attendanceMissing: missingByCourse.get(courseId) ?? 0,
         };
       });
     } catch {

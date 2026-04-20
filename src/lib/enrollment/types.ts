@@ -28,6 +28,7 @@ export type DepartmentStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 export type ProgramStats = {
@@ -38,6 +39,7 @@ export type ProgramStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 export type InstructorStats = {
@@ -48,6 +50,7 @@ export type InstructorStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceMissing?: number;
 };
 
 /** Minimal user shape for dean stats (avoids importing server-only fetch/auth). */

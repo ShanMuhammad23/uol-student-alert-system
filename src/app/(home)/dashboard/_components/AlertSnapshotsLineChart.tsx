@@ -133,9 +133,9 @@ export function AlertSnapshotsLineChart({ points }: Props) {
       name: "Attendance (20% < CA)",
       data: chartPoints.map((p) => p.yellowAttendance),
     },
-    { name: "Attendance(<=60%)", data: chartPoints.map((p) => p.redAttendance) },
-    { name: "SGPA (0.5 Drop)", data: chartPoints.map((p) => p.yellowGpa) },
-    { name: "SGPA (1.0 Drop)", data: chartPoints.map((p) => p.redGpa) },
+    { name: "Attendance(≤60%)", data: chartPoints.map((p) => p.redAttendance) },
+    { name: "SGPA (1.0 Drop)", data: chartPoints.map((p) => p.yellowGpa) },
+    { name: "SGPA (1.5 Drop)", data: chartPoints.map((p) => p.redGpa) },
   ];
 
   const options: ApexOptions = useMemo(
