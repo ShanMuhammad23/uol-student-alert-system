@@ -6,8 +6,6 @@ import {
   getInterventionEmailsByStudentSapId,
   getInterventionsByStudentSapId,
 } from "@/data/intervention-store";
-import { readFile } from "fs/promises";
-import path from "path";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentMetricsClient } from "./_components/StudentMetricsClient";
 import { pool } from "@/lib/db";
@@ -63,73 +61,65 @@ type StudentProfileMetricRow = {
 async function getEnrollmentForStudentSapId(
   sapId: string
 ): Promise<EnrollmentRecord[]> {
-  if (pool) {
-    try {
-      const res = await pool.query<{
-        sap_id: string;
-        student_name: string | null;
-        department_id: string;
-        department_name: string | null;
-        department_code: string | null;
-        faculty_id: string | null;
-        program_id: string | null;
-        program_title: string | null;
-        course_id: string;
-        course_title: string | null;
-        section_code: string | null;
-        instructor_name: string | null;
-        instructor_pernr: string | null;
-      }>(
-        `SELECT
-           e.sap_id,
-           e.student_name,
-           e.department_id,
-           d.name AS department_name,
-           d.code AS department_code,
-           e.faculty_id,
-           e.program_id,
-           p.title AS program_title,
-           e.course_id,
-           c.title AS course_title,
-           NULLIF(e.section_code, '') AS section_code,
-           e.instructor_name,
-           e.instructor_pernr
-         FROM student_enrollment_current e
-         LEFT JOIN departments d ON d.id = e.department_id
-         LEFT JOIN programs p ON p.id = e.program_id
-         LEFT JOIN courses c ON c.id = e.course_id
-         WHERE e.sap_id = $1
-           AND e.is_active = TRUE
-         ORDER BY e.course_id ASC, e.section_code ASC`,
-        [sapId]
-      );
-      if (res.rows.length) {
-        return res.rows.map((r) => ({
-          SapNo: r.sap_id,
-          Name: r.student_name ?? r.sap_id,
-          DeptId: r.department_id,
-          DeptCode: r.department_code ?? r.department_id,
-          DeptName: r.department_name ?? r.department_id,
-          FacId: r.faculty_id ?? undefined,
-          DegreeCode: r.program_id ?? undefined,
-          DegreeTitle: r.program_title ?? undefined,
-          CrCode: r.course_id,
-          CrTitle: r.course_title ?? r.course_id,
-          Section: r.section_code ?? undefined,
-          Teacher: r.instructor_name ?? undefined,
-          Pernr: r.instructor_pernr ?? undefined,
-          Id: `${r.sap_id}-${r.course_id}-${r.section_code ?? ""}`,
-        }));
-      }
-    } catch {
-      // Fall through to file-based fallback.
-    }
+  if (!pool) return [];
+  try {
+    const res = await pool.query<{
+      sap_id: string;
+      student_name: string | null;
+      department_id: string;
+      department_name: string | null;
+      department_code: string | null;
+      faculty_id: string | null;
+      program_id: string | null;
+      program_title: string | null;
+      course_id: string;
+      course_title: string | null;
+      section_code: string | null;
+      instructor_name: string | null;
+      instructor_pernr: string | null;
+    }>(
+      `SELECT
+         e.sap_id,
+         e.student_name,
+         e.department_id,
+         d.name AS department_name,
+         d.code AS department_code,
+         e.faculty_id,
+         e.program_id,
+         p.title AS program_title,
+         e.course_id,
+         c.title AS course_title,
+         NULLIF(e.section_code, '') AS section_code,
+         e.instructor_name,
+         e.instructor_pernr
+       FROM student_enrollment_current e
+       LEFT JOIN departments d ON d.id = e.department_id
+       LEFT JOIN programs p ON p.id = e.program_id
+       LEFT JOIN courses c ON c.id = e.course_id
+       WHERE e.sap_id = $1
+         AND e.is_active = TRUE
+       ORDER BY e.course_id ASC, e.section_code ASC`,
+      [sapId]
+    );
+    return res.rows.map((r) => ({
+      SapNo: r.sap_id,
+      Name: r.student_name ?? r.sap_id,
+      DeptId: r.department_id,
+      DeptCode: r.department_code ?? r.department_id,
+      DeptName: r.department_name ?? r.department_id,
+      FacId: r.faculty_id ?? undefined,
+      DegreeCode: r.program_id ?? undefined,
+      DegreeTitle: r.program_title ?? undefined,
+      CrCode: r.course_id,
+      CrTitle: r.course_title ?? r.course_id,
+      Section: r.section_code ?? undefined,
+      Teacher: r.instructor_name ?? undefined,
+      Pernr: r.instructor_pernr ?? undefined,
+      Id: `${r.sap_id}-${r.course_id}-${r.section_code ?? ""}`,
+    }));
+  } catch {
+    return [];
   }
-  const dataPath = path.join(process.cwd(), "public", "enrollment_data.json");
-  const raw = await readFile(dataPath, "utf-8");
-  const data = JSON.parse(raw) as EnrollmentRecord[];
-  if (!Array.isArray(data)) return [];
-  return data.filter((r) => r.SapNo === sapId);
 }
 
 async function getStudentProfileMetricRows(

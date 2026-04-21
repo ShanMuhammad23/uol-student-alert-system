@@ -1,5 +1,3 @@
-import { readFile } from "fs/promises";
-import path from "path";
 import { getStudentsForRole, getCoursesForRole, getDepartmentsForRole } from "@/lib/role";
 import type { User } from "@/lib/role";
 import { getLatestInterventionStatusMap } from "@/data/intervention-store";
@@ -16,9 +14,7 @@ import { getServerSession } from "next-auth";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 
-const ENROLLMENT_DATA_FILE = "enrollment_data.json";
-
-/** Minimal shape of one record from public/enrollment_data.json (one row per course enrollment; same student can appear multiple times). */
+/** Minimal enrollment shape (one row per course enrollment; same student can appear multiple times). */
 type EnrollmentRecord = {
   DeptCode: string;
   DeptName: string;
@@ -43,10 +39,73 @@ const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
 };
 
 async function readEnrollmentFile(): Promise<EnrollmentRecord[]> {
-  const dataPath = path.join(process.cwd(), "public", ENROLLMENT_DATA_FILE);
-  const raw = await readFile(dataPath, "utf-8");
-  const data = JSON.parse(raw);
-  return Array.isArray(data) ? (data as EnrollmentRecord[]) : [];
+  if (!pool) return [];
+  try {
+    const res = await pool.query<{
+      sap_id: string;
+      student_name: string | null;
+      faculty_id: string | null;
+      department_id: string;
+      department_code: string | null;
+      department_name: string | null;
+      program_id: string | null;
+      program_title: string | null;
+      course_id: string;
+      course_title: string | null;
+      section_code: string | null;
+      instructor_name: string | null;
+      instructor_pernr: string | null;
+      campus_code: string | null;
+      term_year: string | null;
+      term_session: string | null;
+      event_package_id: string | null;
+    }>(
+      `SELECT
+         e.sap_id,
+         e.student_name,
+         e.faculty_id,
+         e.department_id,
+         d.code AS department_code,
+         d.name AS department_name,
+         e.program_id,
+         p.title AS program_title,
+         e.course_id,
+         c.title AS course_title,
+         e.section_code,
+         e.instructor_name,
+         e.instructor_pernr,
+         e.campus_code,
+         e.term_year,
+         e.term_session,
+         e.event_package_id
+       FROM student_enrollment_current e
+       LEFT JOIN departments d ON d.id = e.department_id
+       LEFT JOIN programs p ON p.id = e.program_id
+       LEFT JOIN courses c ON c.id = e.course_id
+       WHERE e.is_active = TRUE`
+    );
+    return res.rows.map((r) => ({
+      SapNo: r.sap_id,
+      Name: r.student_name ?? r.sap_id,
+      FacId: r.faculty_id ?? undefined,
+      DeptId: r.department_id,
+      DeptCode: r.department_code ?? r.department_id,
+      DeptName: r.department_name ?? r.department_id,
+      DegreeCode: r.program_id ?? undefined,
+      DegreeTitle: r.program_title ?? undefined,
+      CrCode: r.course_id,
+      CrTitle: r.course_title ?? r.course_id,
+      Section: r.section_code ?? undefined,
+      Teacher: r.instructor_name ?? undefined,
+      Pernr: r.instructor_pernr ?? undefined,
+      CampCode: r.campus_code ?? undefined,
+      Peryr: r.term_year ?? undefined,
+      Perid: r.term_session ?? undefined,
+      Packnumber: r.event_package_id ?? undefined,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function defaultStudent(sapId: string, name: string, departmentId: string, facultyId: string, courseId: string): Student {
@@ -469,6 +528,135 @@ type MissingScope = {
   courseIds?: string[];
   instructorIds?: string[];
 };
+
+type ScopedDimensionType = "department" | "program" | "course" | "instructor";
+
+async function getScopedDimensionCountsFromLive(
+  dimensionType: ScopedDimensionType,
+  scope: MissingScope
+): Promise<
+  Array<{
+    dimension_id: string;
+    dimension_name: string;
+    total_students: number | string | null;
+    yellow_gpa: number | string | null;
+    red_gpa: number | string | null;
+    yellow_attendance: number | string | null;
+    red_attendance: number | string | null;
+  }>
+> {
+  if (!pool) return [];
+  const params: unknown[] = [];
+  const where: string[] = [
+    "e.is_active = TRUE",
+    "dim.dimension_id IS NOT NULL",
+    "dim.dimension_id <> ''",
+  ];
+  if (scope.facultyId) {
+    params.push(scope.facultyId);
+    where.push(`e.faculty_id = $${params.length}`);
+  }
+  if (scope.departmentIds?.length) {
+    params.push(scope.departmentIds);
+    where.push(`e.department_id = ANY($${params.length}::text[])`);
+  }
+  if (scope.programIds?.length) {
+    params.push(scope.programIds);
+    where.push(`e.program_id = ANY($${params.length}::text[])`);
+  }
+  if (scope.courseIds?.length) {
+    params.push(scope.courseIds);
+    where.push(`e.course_id = ANY($${params.length}::text[])`);
+  }
+  if (scope.instructorIds?.length) {
+    params.push(scope.instructorIds);
+    where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
+  }
+
+  const dimensionSql =
+    dimensionType === "department"
+      ? `e.department_id AS dimension_id,
+         COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name`
+      : dimensionType === "program"
+        ? `e.program_id AS dimension_id,
+           COALESCE(NULLIF(TRIM(p.title), ''), e.program_id) AS dimension_name`
+        : dimensionType === "course"
+          ? `e.course_id AS dimension_id,
+             COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS dimension_name`
+          : `e.instructor_pernr AS dimension_id,
+             COALESCE(
+               NULLIF(TRIM(s.name), ''),
+               NULLIF(TRIM(e.instructor_name), ''),
+               e.instructor_pernr
+             ) AS dimension_name`;
+
+  const whereSql = where.join(" AND ");
+  const res = await pool.query<{
+    dimension_id: string;
+    dimension_name: string;
+    total_students: number | string | null;
+    yellow_gpa: number | string | null;
+    red_gpa: number | string | null;
+    yellow_attendance: number | string | null;
+    red_attendance: number | string | null;
+  }>(
+    `WITH scoped AS (
+       SELECT
+         dim.dimension_id,
+         dim.dimension_name,
+         e.sap_id,
+         MAX(
+           CASE
+             WHEN a.gpa_alert_level = 'critical' THEN 2
+             WHEN a.gpa_alert_level = 'warning' THEN 1
+             ELSE 0
+           END
+         ) AS gpa_sev,
+         MAX(
+           CASE WHEN a.attendance_alert_level = 'warning' THEN 1 ELSE 0 END
+         ) AS attendance_has_warning,
+         MAX(
+           CASE
+             WHEN a.attendance_alert_level = 'critical'
+               OR (
+                 a.attendance_percentage IS NOT NULL
+                 AND a.attendance_percentage <= 60
+               ) THEN 1
+             ELSE 0
+           END
+         ) AS attendance_has_critical
+       FROM student_enrollment_current e
+       CROSS JOIN LATERAL (
+         SELECT ${dimensionSql}
+       ) dim
+       LEFT JOIN departments d ON d.id = e.department_id
+       LEFT JOIN programs p ON p.id = e.program_id
+       LEFT JOIN courses c ON c.id = e.course_id
+       LEFT JOIN staff s ON s.pernr = e.instructor_pernr
+       LEFT JOIN student_alert_current a
+         ON a.sap_id = e.sap_id
+        AND a.course_id = e.course_id
+        AND a.section_code = e.section_code
+        AND a.event_package_id = e.event_package_id
+       WHERE ${whereSql}
+       GROUP BY dim.dimension_id, dim.dimension_name, e.sap_id
+     )
+     SELECT
+       dimension_id,
+       dimension_name,
+       COUNT(*)::int AS total_students,
+       COUNT(*) FILTER (WHERE gpa_sev = 1)::int AS yellow_gpa,
+       COUNT(*) FILTER (WHERE gpa_sev = 2)::int AS red_gpa,
+       COUNT(*) FILTER (WHERE attendance_has_warning = 1)::int AS yellow_attendance,
+       COUNT(*) FILTER (WHERE attendance_has_critical = 1)::int AS red_attendance
+     FROM scoped
+     GROUP BY dimension_id, dimension_name
+     ORDER BY dimension_name ASC`,
+    params
+  );
+
+  return res.rows;
+}
 
 async function getAttendanceMissingByDimension(
   dimensionType: MissingDimensionType,
@@ -1406,14 +1594,12 @@ export type DepartmentStats = {
   attendanceMissing?: number;
 };
 
-/** Reads public/enrollment_data.json and returns department stats: unique department names and unique student count per department. Optional facultyId filters by FacId. Alert counts (yellow/red) are 0 as enrollment data has no GPA/attendance. */
+/** Returns department stats from enrollment tables. */
 export async function getDepartmentStatsFromEnrollment(
   facultyId?: string | null
 ): Promise<DepartmentStats[]> {
   try {
-    const dataPath = path.join(process.cwd(), "public", ENROLLMENT_DATA_FILE);
-    const raw = await readFile(dataPath, "utf-8");
-    const records = JSON.parse(raw) as EnrollmentRecord[];
+    const records = await readEnrollmentFile();
     if (!Array.isArray(records) || !records.length) return [];
 
     let list = records;
@@ -1455,64 +1641,31 @@ export async function getDeanDepartmentStats(
 ): Promise<DepartmentStats[]> {
   if (pool) {
     try {
-      const params: unknown[] = [];
-      const where: string[] = [
-        `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
-        "ac.dimension_type = 'department'",
-      ];
-      if (facultyId) {
-        const enrollmentFacId =
-          FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
-        params.push(enrollmentFacId);
-        where.push(`d.faculty_id = $${params.length}`);
-      }
-      if (options?.departmentIds?.length) {
-        params.push(options.departmentIds);
-        where.push(`ac.dimension_id = ANY($${params.length}::text[])`);
-      }
-      const res = await pool.query<{
-        department_id: string;
-        department_name: string;
-        total_students: number | string | null;
-        yellow_gpa: number | string | null;
-        red_gpa: number | string | null;
-        yellow_attendance: number | string | null;
-        red_attendance: number | string | null;
-      }>(
-        `SELECT
-           ac.dimension_id AS department_id,
-           COALESCE(NULLIF(TRIM(ac.dimension_name), ''), ac.dimension_id) AS department_name,
-           ac.total_students,
-           ac.yellow_gpa,
-           ac.red_gpa,
-           ac.yellow_attendance,
-           ac.red_attendance
-         FROM alert_counts_by_dimension ac
-         LEFT JOIN departments d ON d.id = ac.dimension_id
-         WHERE ${where.join(" AND ")}
-         ORDER BY department_name ASC`,
-        params
-      );
+      const enrollmentFacId =
+        facultyId != null
+          ? FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId
+          : null;
+      const rows = await getScopedDimensionCountsFromLive("department", {
+        facultyId: enrollmentFacId,
+        departmentIds: options?.departmentIds,
+      });
       const missingByDepartment = await getAttendanceMissingByDimension(
         "department",
-        res.rows.map((row) => row.department_id),
+        rows.map((row) => row.dimension_id),
         {
-          facultyId:
-            facultyId != null
-              ? FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId
-              : undefined,
+          facultyId: enrollmentFacId,
           departmentIds: options?.departmentIds,
         }
       );
-      return res.rows.map((row) => ({
-        departmentId: row.department_id,
-        departmentName: row.department_name,
+      return rows.map((row) => ({
+        departmentId: row.dimension_id,
+        departmentName: row.dimension_name,
         total: toInt(row.total_students),
         yellowGpa: toInt(row.yellow_gpa),
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByDepartment.get(row.department_id) ?? 0,
+        attendanceMissing: missingByDepartment.get(row.dimension_id) ?? 0,
       }));
     } catch {
       // Fall back to existing file/SAP paths below.
@@ -1612,15 +1765,13 @@ export type InstructorStats = {
   attendanceMissing?: number;
 };
 
-/** Reads public/enrollment_data.json and returns instructor stats: unique instructors by Pernr (teacher employee number), with unique student count per teacher. Optional facultyId/departmentIds/instructorIds filter. Alert counts are 0. */
+/** Returns instructor stats from enrollment tables. */
 export async function getInstructorStatsFromEnrollment(
   facultyId?: string | null,
   options?: { departmentIds?: string[]; instructorIds?: string[] }
 ): Promise<InstructorStats[]> {
   try {
-    const dataPath = path.join(process.cwd(), "public", ENROLLMENT_DATA_FILE);
-    const raw = await readFile(dataPath, "utf-8");
-    const records = JSON.parse(raw) as EnrollmentRecord[];
+    const records = await readEnrollmentFile();
     if (!Array.isArray(records) || !records.length) return [];
 
     let list = records;
@@ -1672,75 +1823,29 @@ export async function getDeanInstructorStats(
       if (!facultyId) return [];
       const enrollmentFacId =
         FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
-      const params: unknown[] = [enrollmentFacId];
-      const where: string[] = [
-        `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
-        "ac.dimension_type = 'instructor'",
-        `EXISTS (
-          SELECT 1
-          FROM student_enrollment_current e
-          WHERE e.is_active = TRUE
-            AND e.instructor_pernr = ac.dimension_id
-            AND e.faculty_id = $1
-        )`,
-      ];
-      if (options?.departmentIds?.length) {
-        params.push(options.departmentIds);
-        where.push(
-          `EXISTS (
-            SELECT 1
-            FROM student_enrollment_current e
-            WHERE e.is_active = TRUE
-              AND e.instructor_pernr = ac.dimension_id
-              AND e.department_id = ANY($${params.length}::text[])
-          )`
-        );
-      }
-      if (options?.instructorIds?.length) {
-        params.push(options.instructorIds);
-        where.push(`ac.dimension_id = ANY($${params.length}::text[])`);
-      }
-      const res = await pool.query<{
-        instructor_id: string;
-        instructor_name: string;
-        total_students: number | string | null;
-        yellow_gpa: number | string | null;
-        red_gpa: number | string | null;
-        yellow_attendance: number | string | null;
-        red_attendance: number | string | null;
-      }>(
-        `SELECT
-           ac.dimension_id AS instructor_id,
-           COALESCE(NULLIF(TRIM(s.name), ''), NULLIF(TRIM(ac.dimension_name), ''), ac.dimension_id) AS instructor_name,
-           ac.total_students,
-           ac.yellow_gpa,
-           ac.red_gpa,
-           ac.yellow_attendance,
-           ac.red_attendance
-         FROM alert_counts_by_dimension ac
-         LEFT JOIN staff s ON s.pernr = ac.dimension_id
-         WHERE ${where.join(" AND ")}
-         ORDER BY instructor_name ASC`,
-        params
-      );
+      const rows = await getScopedDimensionCountsFromLive("instructor", {
+        facultyId: enrollmentFacId,
+        departmentIds: options?.departmentIds,
+        instructorIds: options?.instructorIds,
+      });
       const missingByInstructor = await getAttendanceMissingByDimension(
         "instructor",
-        res.rows.map((row) => row.instructor_id),
+        rows.map((row) => row.dimension_id),
         {
           facultyId: enrollmentFacId,
           departmentIds: options?.departmentIds,
           instructorIds: options?.instructorIds,
         }
       );
-      return res.rows.map((row) => ({
-        instructorId: row.instructor_id,
-        instructorName: row.instructor_name,
+      return rows.map((row) => ({
+        instructorId: row.dimension_id,
+        instructorName: row.dimension_name,
         total: toInt(row.total_students),
         yellowGpa: toInt(row.yellow_gpa),
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByInstructor.get(row.instructor_id) ?? 0,
+        attendanceMissing: missingByInstructor.get(row.dimension_id) ?? 0,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -1793,15 +1898,13 @@ export async function getDeanInstructorStats(
   });
 }
 
-/** Reads public/enrollment_data.json and returns program stats: unique program (DegreeCode/DegreeTitle) and unique student count per program. Optional facultyId filters by FacId; optional departmentIds filter by DeptCode. Alert counts are 0. */
+/** Returns program stats from enrollment tables. */
 export async function getProgramStatsFromEnrollment(
   facultyId?: string | null,
   options?: { departmentIds?: string[] }
 ): Promise<ProgramStats[]> {
   try {
-    const dataPath = path.join(process.cwd(), "public", ENROLLMENT_DATA_FILE);
-    const raw = await readFile(dataPath, "utf-8");
-    const records = JSON.parse(raw) as EnrollmentRecord[];
+    const records = await readEnrollmentFile();
     if (!Array.isArray(records) || !records.length) return [];
 
     let list = records;
@@ -1849,69 +1952,27 @@ export async function getDeanProgramStats(
       if (!facultyId) return [];
       const enrollmentFacId =
         FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
-      const params: unknown[] = [enrollmentFacId];
-      const where: string[] = [
-        `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
-        "ac.dimension_type = 'program'",
-        `EXISTS (
-          SELECT 1
-          FROM student_enrollment_current e
-          WHERE e.is_active = TRUE
-            AND e.program_id = ac.dimension_id
-            AND e.faculty_id = $1
-        )`,
-      ];
-      if (options?.departmentIds?.length) {
-        params.push(options.departmentIds);
-        where.push(
-          `EXISTS (
-            SELECT 1
-            FROM student_enrollment_current e
-            WHERE e.is_active = TRUE
-              AND e.program_id = ac.dimension_id
-              AND e.department_id = ANY($${params.length}::text[])
-          )`
-        );
-      }
-      const res = await pool.query<{
-        program_id: string;
-        program_title: string;
-        total_students: number | string | null;
-        yellow_gpa: number | string | null;
-        red_gpa: number | string | null;
-        yellow_attendance: number | string | null;
-        red_attendance: number | string | null;
-      }>(
-        `SELECT
-           ac.dimension_id AS program_id,
-           COALESCE(NULLIF(TRIM(ac.dimension_name), ''), ac.dimension_id) AS program_title,
-           ac.total_students,
-           ac.yellow_gpa,
-           ac.red_gpa,
-           ac.yellow_attendance,
-           ac.red_attendance
-         FROM alert_counts_by_dimension ac
-         WHERE ${where.join(" AND ")}
-         ORDER BY program_title ASC`,
-        params
-      );
+      const rows = await getScopedDimensionCountsFromLive("program", {
+        facultyId: enrollmentFacId,
+        departmentIds: options?.departmentIds,
+      });
       const missingByProgram = await getAttendanceMissingByDimension(
         "program",
-        res.rows.map((row) => row.program_id),
+        rows.map((row) => row.dimension_id),
         {
           facultyId: enrollmentFacId,
           departmentIds: options?.departmentIds,
         }
       );
-      return res.rows.map((row) => ({
-        programId: row.program_id,
-        programTitle: row.program_title,
+      return rows.map((row) => ({
+        programId: row.dimension_id,
+        programTitle: row.dimension_name,
         total: toInt(row.total_students),
         yellowGpa: toInt(row.yellow_gpa),
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByProgram.get(row.program_id) ?? 0,
+        attendanceMissing: missingByProgram.get(row.dimension_id) ?? 0,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -2207,71 +2268,15 @@ export async function getDeanCourseStats(
   try {
     const enrollmentFacId =
       FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
-    const params: unknown[] = [enrollmentFacId];
-    const where: string[] = [
-      `ac.snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})`,
-      "ac.dimension_type = 'course'",
-      `EXISTS (
-        SELECT 1
-        FROM student_enrollment_current e
-        WHERE e.is_active = TRUE
-          AND e.course_id = ac.dimension_id
-          AND e.faculty_id = $1
-      )`,
-    ];
-    if (options?.departmentIds?.length) {
-      params.push(options.departmentIds);
-      where.push(
-        `EXISTS (
-          SELECT 1
-          FROM student_enrollment_current e
-          WHERE e.is_active = TRUE
-            AND e.course_id = ac.dimension_id
-            AND e.department_id = ANY($${params.length}::text[])
-        )`
-      );
-    }
-    if (options?.programIds?.length) {
-      params.push(options.programIds);
-      where.push(
-        `EXISTS (
-          SELECT 1
-          FROM student_enrollment_current e
-          WHERE e.is_active = TRUE
-            AND e.course_id = ac.dimension_id
-            AND e.program_id = ANY($${params.length}::text[])
-        )`
-      );
-    }
-    if (options?.courseIds?.length) {
-      params.push(options.courseIds);
-      where.push(`ac.dimension_id = ANY($${params.length}::text[])`);
-    }
-    const res = await pool.query<{
-      course_id: string;
-      course_name: string;
-      total_students: number | string | null;
-      yellow_gpa: number | string | null;
-      red_gpa: number | string | null;
-      yellow_attendance: number | string | null;
-      red_attendance: number | string | null;
-    }>(
-      `SELECT
-         ac.dimension_id AS course_id,
-         COALESCE(NULLIF(TRIM(ac.dimension_name), ''), ac.dimension_id) AS course_name,
-         ac.total_students,
-         ac.yellow_gpa,
-         ac.red_gpa,
-         ac.yellow_attendance,
-         ac.red_attendance
-       FROM alert_counts_by_dimension ac
-       WHERE ${where.join(" AND ")}
-       ORDER BY course_name ASC`,
-      params
-    );
+    const rows = await getScopedDimensionCountsFromLive("course", {
+      facultyId: enrollmentFacId,
+      departmentIds: options?.departmentIds,
+      programIds: options?.programIds,
+      courseIds: options?.courseIds,
+    });
     const missingByCourse = await getAttendanceMissingByDimension(
       "course",
-      res.rows.map((row) => row.course_id),
+      rows.map((row) => row.dimension_id),
       {
         facultyId: enrollmentFacId,
         departmentIds: options?.departmentIds,
@@ -2279,15 +2284,15 @@ export async function getDeanCourseStats(
         courseIds: options?.courseIds,
       }
     );
-    return res.rows.map((row) => ({
-      courseId: row.course_id,
-      courseName: row.course_name,
+    return rows.map((row) => ({
+      courseId: row.dimension_id,
+      courseName: row.dimension_name,
       total: toInt(row.total_students),
       yellowGpa: toInt(row.yellow_gpa),
       redGpa: toInt(row.red_gpa),
       yellowAttendance: toInt(row.yellow_attendance),
       redAttendance: toInt(row.red_attendance),
-      attendanceMissing: missingByCourse.get(row.course_id) ?? 0,
+      attendanceMissing: missingByCourse.get(row.dimension_id) ?? 0,
     }));
   } catch {
     return [];

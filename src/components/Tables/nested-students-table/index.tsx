@@ -170,19 +170,10 @@ function groupStudentsForDean(
   return result;
 }
 
-/** Fetch enrollment data from public/enrollment_data.json */
+/** Fetch enrollment data from DB-backed API. */
 async function fetchEnrollmentData(): Promise<EnrollmentRecord[]> {
-  if (typeof window === "undefined") {
-    const fs = await import("fs/promises");
-    const path = await import("path");
-    const filePath = path.join(process.cwd(), "public", "enrollment_data.json");
-    const content = await fs.readFile(filePath, "utf-8");
-    const raw = JSON.parse(content) as unknown;
-    if (!Array.isArray(raw)) return [];
-    return raw as EnrollmentRecord[];
-  }
-  const res = await fetch("/enrollment_data.json", { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to load enrollment_data.json");
+  const res = await fetch("/api/enrollment", { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load enrollment data");
   const raw = (await res.json()) as unknown;
   if (!Array.isArray(raw)) return [];
   return raw as EnrollmentRecord[];
