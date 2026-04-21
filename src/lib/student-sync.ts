@@ -59,8 +59,8 @@ type StudentSyncResult = {
   upsertedAlerts: number;
 };
 
-const GPA_WARNING_DROP = 1.0;
-const GPA_CRITICAL_DROP = 1.5;
+const SGPA_WARNING_DROP = 1.0;
+const SGPA_CRITICAL_DROP = 1.5;
 
 function normalizeCode(value: string): string {
   const trimmed = value.trim();
@@ -871,15 +871,16 @@ export async function runStudentSync(
           : attendancePct <= 60
             ? "critical"
             : getAttendanceAlertLevel(attendancePct, classAvg, attendanceMarked);
+      // GPA trend map is SGPA-based for alerting.
       const gpaTrend = gpaTrendMap[row.sapId];
       const gpaCurrent = gpaTrend?.current ?? null;
       const gpaPrevious = gpaTrend?.previous ?? null;
       const gpaChange = gpaTrend?.change ?? null;
       const gpaDrop = Math.abs(Math.min(0, gpaChange ?? 0));
       const gpaLevel: "warning" | "critical" | null =
-        gpaDrop >= GPA_CRITICAL_DROP
+        gpaDrop >= SGPA_CRITICAL_DROP
           ? "critical"
-          : gpaDrop >= GPA_WARNING_DROP
+          : gpaDrop >= SGPA_WARNING_DROP
             ? "warning"
             : null;
       const overall: "none" | "warning" | "critical" =

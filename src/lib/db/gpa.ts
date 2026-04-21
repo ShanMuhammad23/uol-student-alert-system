@@ -4,6 +4,7 @@ export type StudentGpaProfileRow = {
   sap_id: string;
   cgpa_fall_2025: number | null;
   cgpa_semesters?: unknown;
+  sgpa_semesters?: unknown;
 };
 
 export type GpaTrendLevel = "warning" | "critical" | null;
@@ -163,7 +164,7 @@ export async function getGpaTrendMapBySapIds(
   if (!deduped.length) return {};
 
   const res = await pool.query<StudentGpaProfileRow>(
-    `SELECT sap_id, cgpa_fall_2025, cgpa_semesters
+    `SELECT sap_id, cgpa_fall_2025, sgpa_semesters
      FROM student_gpa_profiles
      WHERE sap_id = ANY($1::varchar[])`,
     [deduped]
@@ -171,8 +172,7 @@ export async function getGpaTrendMapBySapIds(
 
   const out: Record<string, StudentGpaTrend> = {};
   for (const row of res.rows) {
-    const fallback = parseNumeric(row.cgpa_fall_2025);
-    out[row.sap_id] = deriveTrendFromSemesters(row.cgpa_semesters, fallback);
+    out[row.sap_id] = deriveTrendFromSemesters(row.sgpa_semesters, null);
   }
   return out;
 }

@@ -137,7 +137,27 @@ CREATE INDEX IF NOT EXISTS idx_enroll_current_name ON student_enrollment_current
 CREATE INDEX IF NOT EXISTS idx_enroll_current_active ON student_enrollment_current(is_active);
 
 -- -----------------------------------------------------------------------------
--- 4) CURRENT ALERT FACTS (for consistent table + cards behavior)
+-- 4) STUDENT GPA PROFILES (semester-wise CGPA + SGPA history)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS student_gpa_profiles (
+  sap_id          VARCHAR(32) PRIMARY KEY REFERENCES students(sap_id) ON DELETE CASCADE,
+  department_id   VARCHAR(32),
+  course_id       VARCHAR(64),
+  faculty_id      VARCHAR(32),
+  cgpa_fall_2025  NUMERIC(4,2),
+  cgpa_semesters  JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sgpa_semesters  JSONB NOT NULL DEFAULT '{}'::jsonb,
+  source_year     VARCHAR(4),
+  source_term     VARCHAR(3),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_student_gpa_profiles_faculty_id ON student_gpa_profiles(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_student_gpa_profiles_department_id ON student_gpa_profiles(department_id);
+
+-- -----------------------------------------------------------------------------
+-- 5) CURRENT ALERT FACTS (for consistent table + cards behavior)
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS student_alert_current (
@@ -197,7 +217,7 @@ CREATE INDEX IF NOT EXISTS idx_alert_current_attendance_level
   ON student_alert_current(attendance_alert_level);
 
 -- -----------------------------------------------------------------------------
--- 5) DAILY SNAPSHOT AGGREGATES (used by dashboard cards/charts)
+-- 6) DAILY SNAPSHOT AGGREGATES (used by dashboard cards/charts)
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS alert_counts_by_dimension (
@@ -256,7 +276,7 @@ CREATE INDEX IF NOT EXISTS idx_student_alert_daily_dim
   ON student_alert_daily(snapshot_date, faculty_id, department_id, program_id, course_id, instructor_pernr);
 
 -- -----------------------------------------------------------------------------
--- 6) ETL RUN TRACKING
+-- 7) ETL RUN TRACKING
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS etl_runs (
@@ -275,7 +295,7 @@ CREATE TABLE IF NOT EXISTS etl_runs (
 CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_started ON etl_runs(pipeline_name, started_at DESC);
 
 -- -----------------------------------------------------------------------------
--- 7) INTERVENTIONS + WELLBEING
+-- 8) INTERVENTIONS + WELLBEING
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS interventions (

@@ -102,6 +102,7 @@ async function ensureTable(pool) {
       faculty_id VARCHAR(32),
       cgpa_fall_2025 NUMERIC(4,2),
       cgpa_semesters JSONB NOT NULL DEFAULT '{}'::jsonb,
+      sgpa_semesters JSONB NOT NULL DEFAULT '{}'::jsonb,
       source_year VARCHAR(4),
       source_term VARCHAR(3),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

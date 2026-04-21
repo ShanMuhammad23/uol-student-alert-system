@@ -1,8 +1,5 @@
 import { pool } from "@/lib/db";
 
-const GPA_WARNING_DROP = 1.0;
-const GPA_CRITICAL_DROP = 1.5;
-
 export type AlertCountsRow = {
   snapshot_date: string;
   dimension_type: "faculty" | "department" | "program" | "course" | "instructor";
@@ -89,10 +86,8 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           p.dimension_id,
           MAX(
             CASE
-              WHEN a.gpa_change IS NOT NULL
-                AND a.gpa_change <= -${GPA_CRITICAL_DROP} THEN 2
-              WHEN a.gpa_change IS NOT NULL
-                AND a.gpa_change <= -${GPA_WARNING_DROP} THEN 1
+              WHEN a.gpa_alert_level = 'critical' THEN 2
+              WHEN a.gpa_alert_level = 'warning' THEN 1
               ELSE 0
             END
           ) AS gpa_sev,

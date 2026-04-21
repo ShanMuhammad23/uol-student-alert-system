@@ -57,6 +57,14 @@ function extractSgpa(props) {
   );
 }
 
+function extractCgpa(props) {
+  return toNumber(
+    props?.Cgpa ??
+      props?.CGPA ??
+      props?.cgpa
+  );
+}
+
 function getAuthHeader() {
   const username = process.env.SAP_USERNAME;
   const password = process.env.SAP_PASSWORD;
@@ -169,6 +177,7 @@ async function ensureTable(pool) {
       faculty_id VARCHAR(32),
       cgpa_fall_2025 NUMERIC(4,2),
       cgpa_semesters JSONB NOT NULL DEFAULT '{}'::jsonb,
+      sgpa_semesters JSONB NOT NULL DEFAULT '{}'::jsonb,
       source_year VARCHAR(4),
       source_term VARCHAR(3),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -192,16 +201,17 @@ async function upsertTermRows(pool, rows, year, perid) {
   const key = semesterKey(year, perid);
   let upserted = 0;
   for (const row of rows.values()) {
-    const semJson = row.spa == null ? {} : { [key]: row.spa };
+    const cgpaSemJson = row.cgpa == null ? {} : { [key]: row.cgpa };
+    const sgpaSemJson = row.sgpa == null ? {} : { [key]: row.sgpa };
     const fall2025Value =
-      year === "2025" && perid === "003" && row.spa != null ? row.spa : null;
+      year === "2025" && perid === "003" && row.cgpa != null ? row.cgpa : null;
     await pool.query(
       `
       INSERT INTO student_gpa_profiles (
         sap_id, department_id, course_id, faculty_id,
-        cgpa_fall_2025, cgpa_semesters, source_year, source_term
+        cgpa_fall_2025, cgpa_semesters, sgpa_semesters, source_year, source_term
       )
-      VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
+      VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)
       ON CONFLICT (sap_id)
       DO UPDATE SET
         department_id = COALESCE(EXCLUDED.department_id, student_gpa_profiles.department_id),
@@ -209,6 +219,7 @@ async function upsertTermRows(pool, rows, year, perid) {
         faculty_id = COALESCE(EXCLUDED.faculty_id, student_gpa_profiles.faculty_id),
         cgpa_fall_2025 = COALESCE(EXCLUDED.cgpa_fall_2025, student_gpa_profiles.cgpa_fall_2025),
         cgpa_semesters = COALESCE(student_gpa_profiles.cgpa_semesters, '{}'::jsonb) || EXCLUDED.cgpa_semesters,
+        sgpa_semesters = COALESCE(student_gpa_profiles.sgpa_semesters, '{}'::jsonb) || EXCLUDED.sgpa_semesters,
         source_year = EXCLUDED.source_year,
         source_term = EXCLUDED.source_term,
         updated_at = NOW()
@@ -219,7 +230,8 @@ async function upsertTermRows(pool, rows, year, perid) {
         row.course_id,
         row.faculty_id,
         fall2025Value,
-        JSON.stringify(semJson),
+        JSON.stringify(cgpaSemJson),
+        JSON.stringify(sgpaSemJson),
         year,
         perid,
       ]
@@ -241,19 +253,22 @@ function mergeByStudent(entries, year, perid, existingStudents) {
       department_id: null,
       course_id: null,
       faculty_id: null,
-      spa: null,
+      sgpa: null,
+      cgpa: null,
     };
     const deptId = normalize(props.DeptId);
     const courseId = normalize(props.CrCode);
     const facultyId = normalize(props.FacId);
     const peryr = normalize(props.Peryr);
     const term = normalizePerid(props.Perid);
-    const spa = extractSgpa(props);
+    const sgpa = extractSgpa(props);
+    const cgpa = extractCgpa(props);
 
     if (!row.department_id && deptId) row.department_id = deptId;
     if (!row.course_id && courseId) row.course_id = courseId;
     if (!row.faculty_id && facultyId) row.faculty_id = facultyId;
-    if (peryr === year && term === perid && spa != null) row.spa = spa;
+    if (peryr === year && term === perid && sgpa != null) row.sgpa = sgpa;
+    if (peryr === year && term === perid && cgpa != null) row.cgpa = cgpa;
 
     bySap.set(sapId, row);
   }
@@ -296,9 +311,11 @@ async function main() {
       const upserted = await upsertTermRows(pool, merged, term.year, term.perid);
       totalUpserted += upserted;
       console.log(
-        `[${term.year}/${term.perid}] fetched=${rows.length} students_with_spa=${Array.from(
+        `[${term.year}/${term.perid}] fetched=${rows.length} students_with_sgpa=${Array.from(
           merged.values()
-        ).filter((r) => r.spa != null).length} upserted=${upserted}`
+        ).filter((r) => r.sgpa != null).length} students_with_cgpa=${Array.from(
+          merged.values()
+        ).filter((r) => r.cgpa != null).length} upserted=${upserted}`
       );
     }
 
