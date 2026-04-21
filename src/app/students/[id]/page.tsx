@@ -47,6 +47,7 @@ type StudentProfileMetricRow = {
   courseId: string;
   courseTitle: string | null;
   sectionCode: string | null;
+  eventPackageId: string | null;
   instructorName: string | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
@@ -131,6 +132,7 @@ async function getStudentProfileMetricRows(
       course_id: string;
       course_title: string | null;
       section_code: string | null;
+      event_package_id: string | null;
       instructor_name: string | null;
       total_classes_held: number | null;
       attendance_marked_classes: number | null;
@@ -145,6 +147,7 @@ async function getStudentProfileMetricRows(
          e.course_id,
          c.title AS course_title,
          NULLIF(e.section_code, '') AS section_code,
+         NULLIF(e.event_package_id, '') AS event_package_id,
          e.instructor_name,
          COALESCE(a.total_classes_held, 0) AS total_classes_held,
          COALESCE(a.attendance_marked_classes, 0) AS attendance_marked_classes,
@@ -170,6 +173,7 @@ async function getStudentProfileMetricRows(
       courseId: r.course_id,
       courseTitle: r.course_title,
       sectionCode: r.section_code,
+      eventPackageId: r.event_package_id,
       instructorName: r.instructor_name,
       totalClassesHeld: Number(r.total_classes_held ?? 0),
       attendanceMarkedClasses: Number(r.attendance_marked_classes ?? 0),
@@ -336,10 +340,47 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       `Faculty ${mappedFacultyId}`;
   }
 
+  const focusedMetricRow = suppressCourseFocus
+    ? null
+    : dbMetricRows.find((r) => {
+        const courseMatch =
+          !selectedCourseCode ||
+          String(r.courseId ?? "").trim() === String(selectedCourseCode).trim();
+        const sectionMatch =
+          !selectedSection ||
+          String(r.sectionCode ?? "").trim() === String(selectedSection).trim();
+        const packageMatch =
+          !selectedEventPackageId ||
+          String(r.eventPackageId ?? "").trim() === String(selectedEventPackageId).trim();
+        return courseMatch && sectionMatch && packageMatch;
+      }) ??
+      dbMetricRows.find((r) => {
+        const courseMatch =
+          !selectedCourseCode ||
+          String(r.courseId ?? "").trim() === String(selectedCourseCode).trim();
+        const sectionMatch =
+          !selectedSection ||
+          String(r.sectionCode ?? "").trim() === String(selectedSection).trim();
+        return courseMatch && sectionMatch;
+      }) ??
+      null;
   const attendanceForEmail =
-    dbMetricRows.find((r) => r.attendancePercentage != null)?.attendancePercentage ?? null;
-  const gpaPreviousForEmail = gpaProfile?.previous ?? null;
-  const gpaCurrentForEmail = gpaProfile?.current ?? null;
+    focusedMetricRow?.attendancePercentage ??
+    (suppressCourseFocus
+      ? dbMetricRows.find((r) => r.attendancePercentage != null)?.attendancePercentage ?? null
+      : null);
+  const orderedSgpaSeries = [...(gpaProfile?.semesters ?? [])];
+  const latestSeriesGpa = orderedSgpaSeries.at(-1)?.value ?? null;
+  const previousSeriesGpa =
+    orderedSgpaSeries.length >= 2
+      ? orderedSgpaSeries[orderedSgpaSeries.length - 2]?.value ?? null
+      : null;
+  const gpaCurrentForEmail =
+    gpaProfile?.current ??
+    latestSeriesGpa ??
+    dbMetricRows.find((r) => r.gpaCurrent != null)?.gpaCurrent ??
+    null;
+  const gpaPreviousForEmail = gpaProfile?.previous ?? previousSeriesGpa ?? null;
   const gpaDropForEmail =
     typeof gpaProfile?.change === "number" && Number.isFinite(gpaProfile.change)
       ? gpaProfile.change
@@ -349,6 +390,19 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
           Number.isFinite(gpaProfile.current)
         ? gpaProfile.previous - gpaProfile.current
         : null;
+  const orderedCgpaSeries = [...(gpaProfile?.cgpaSemesters ?? [])];
+  const cgpaCurrentForEmail = orderedCgpaSeries.at(-1)?.value ?? null;
+  const cgpaPreviousForEmail =
+    orderedCgpaSeries.length >= 2
+      ? orderedCgpaSeries[orderedCgpaSeries.length - 2]?.value ?? null
+      : null;
+  const cgpaDropForEmail =
+    typeof cgpaCurrentForEmail === "number" &&
+    Number.isFinite(cgpaCurrentForEmail) &&
+    typeof cgpaPreviousForEmail === "number" &&
+    Number.isFinite(cgpaPreviousForEmail)
+      ? cgpaPreviousForEmail - cgpaCurrentForEmail
+      : null;
   const senderDesignation =
     currentUserRole === "superadmin"
       ? "Superadmin"
@@ -494,6 +548,9 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         gpaPrevious={gpaPreviousForEmail}
         gpaCurrent={gpaCurrentForEmail}
         gpaDrop={gpaDropForEmail}
+        cgpaPrevious={cgpaPreviousForEmail}
+        cgpaCurrent={cgpaCurrentForEmail}
+        cgpaDrop={cgpaDropForEmail}
         senderName={currentUserName}
         senderDesignation={senderDesignation}
         senderDepartment={senderDepartmentName}

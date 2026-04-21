@@ -39,8 +39,11 @@ export const SOS_CHECK_IN_EMAIL_TEMPLATE = `
                   <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
                     Course: [Focused Course Title] ([Focused Class Type])
                   </p>
-                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
+                  <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
                     Previous SGPA: ___; Current SGPA: ___; Drop ____
+                  </p>
+                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
+                    Previous CGPA: ___; Current CGPA: ___; Drop ____
                   </p>
                 </td>
               </tr>
@@ -62,18 +65,12 @@ export const SOS_CHECK_IN_EMAIL_TEMPLATE = `
               Warm regards,<br />
               [Sender Name]<br />
               [Designation]<br />
-              Department of [Department] 
+              Department of [Department] <br />
               Faculty of [Faculty]
             </p>
           </td>
         </tr>
-        <tr>
-          <td style="padding:14px 24px 20px 24px;">
-            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#6b7280;">
-              This communication is sent for student support and care.
-            </p>
-          </td>
-        </tr>
+        
       </table>
     </td>
   </tr>

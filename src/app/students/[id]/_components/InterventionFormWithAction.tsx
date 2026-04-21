@@ -20,6 +20,9 @@ type Props = {
   gpaPrevious?: number | null;
   gpaCurrent?: number | null;
   gpaDrop?: number | null;
+  cgpaPrevious?: number | null;
+  cgpaCurrent?: number | null;
+  cgpaDrop?: number | null;
   senderName?: string | null;
   senderDesignation?: string | null;
   senderDepartment?: string | null;
@@ -40,6 +43,9 @@ export function InterventionFormWithAction({
   gpaPrevious,
   gpaCurrent,
   gpaDrop,
+  cgpaPrevious,
+  cgpaCurrent,
+  cgpaDrop,
   senderName,
   senderDesignation,
   senderDepartment,
@@ -130,6 +136,9 @@ export function InterventionFormWithAction({
         gpaPrevious={gpaPrevious}
         gpaCurrent={gpaCurrent}
         gpaDrop={gpaDrop}
+        cgpaPrevious={cgpaPrevious}
+        cgpaCurrent={cgpaCurrent}
+        cgpaDrop={cgpaDrop}
         senderName={senderName}
         senderDesignation={senderDesignation}
         senderDepartment={senderDepartment}

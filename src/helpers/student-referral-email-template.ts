@@ -22,7 +22,7 @@ export const STUDENT_REFERRAL_EMAIL_TEMPLATE = `
               Dear [Counsellor's Name],
             </p>
             <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
-              We are referring a student case (SAP ID ------) that requires your direct intervention. The details of all interventions carried out so far at faculty level are being shared for your reference.
+              We are referring a student case (SAP ID ------) that requires intervention from experts. The details of all interventions carried out so far at faculty level are being shared for your reference.
             </p>
             <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
               Kindly take up this case and proceed accordingly. Additionally, please update the case status on the portal, selecting the appropriate resolution option from the available dropdown.
@@ -35,17 +35,12 @@ export const STUDENT_REFERRAL_EMAIL_TEMPLATE = `
               [Sender Name]<br />
               [Designation]<br /><br />
               [Email]<br />
-              [Department/Faculty Name]
+              [Department]<br />
+              [Faculty]
             </p>
           </td>
         </tr>
-        <tr>
-          <td style="padding:14px 24px 20px 24px;">
-            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#6b7280;">
-              This communication is sent for student support and care.
-            </p>
-          </td>
-        </tr>
+      
       </table>
     </td>
   </tr>

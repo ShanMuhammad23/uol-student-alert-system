@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { ChevronUpIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 import {
@@ -62,6 +62,9 @@ type InterventionFormProps = {
   gpaPrevious?: number | null;
   gpaCurrent?: number | null;
   gpaDrop?: number | null;
+  cgpaPrevious?: number | null;
+  cgpaCurrent?: number | null;
+  cgpaDrop?: number | null;
   senderName?: string | null;
   senderDesignation?: string | null;
   senderDepartment?: string | null;
@@ -135,6 +138,9 @@ const InterventionForm = ({
   gpaPrevious,
   gpaCurrent,
   gpaDrop,
+  cgpaPrevious,
+  cgpaCurrent,
+  cgpaDrop,
   senderName,
   senderDesignation,
   senderDepartment,
@@ -166,14 +172,30 @@ const InterventionForm = ({
     text: string;
   } | null>(null);
   const shouldShowEmailSection =
-    mode === "intervention" && (status === "initiated" || status === "referred");
+    mode === "intervention" &&
+    (status === "initiated" || status === "in-progress" || status === "referred");
+  const canUseSosTemplate = status === "initiated" || status === "in-progress";
+  const canUseReferralTemplate = status === "referred";
+
+  useEffect(() => {
+    if (emailTemplateKey === "student_referral" && !canUseReferralTemplate) {
+      setEmailTemplateKey("");
+      setEmailSubject("");
+      setEmailBodyHtml("");
+    }
+    if (emailTemplateKey === "sos_check_in" && !canUseSosTemplate) {
+      setEmailTemplateKey("");
+      setEmailSubject("");
+      setEmailBodyHtml("");
+    }
+  }, [emailTemplateKey, canUseReferralTemplate, canUseSosTemplate]);
 
   const fillTemplateWithData = (
     subject: string,
     body: string
   ): { subject: string; body: string } => {
     const formatGpa = (value: number | null | undefined): string =>
-      typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "0.00";
+      typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "N/A";
     const studentDisplay = studentName?.trim() || "Student";
     const sap = studentSapId ?? "N/A";
     const attendanceText =
@@ -186,6 +208,12 @@ const InterventionForm = ({
     const gpaDropText = formatGpa(
       typeof gpaDrop === "number" && Number.isFinite(gpaDrop) ? Math.abs(gpaDrop) : gpaDrop
     );
+    const cgpaPrevText = formatGpa(cgpaPrevious);
+    const cgpaCurrentText =
+      cgpaCurrent == null || !Number.isFinite(cgpaCurrent) ? "N/A" : cgpaCurrent.toFixed(2);
+    const cgpaDropText = formatGpa(
+      typeof cgpaDrop === "number" && Number.isFinite(cgpaDrop) ? Math.abs(cgpaDrop) : cgpaDrop
+    );
     const senderNameText = senderName?.trim() || "N/A";
     const senderDesignationText = senderDesignation?.trim() || "N/A";
     const senderDepartmentText = senderDepartment?.trim() || "N/A";
@@ -193,7 +221,6 @@ const InterventionForm = ({
     const senderEmailText = senderEmail?.trim() || "N/A";
     const focusedCourseTitleText = focusedCourseTitle?.trim() || "N/A";
     const focusedClassTypeText = focusedClassType?.trim() || "N/A";
-    const deptFaculty = `${senderDepartmentText} ${senderFacultyText}`.trim();
     const nextSubject = subject.replace(
       "(SAP ID -----------)",
       `(SAP ID ${sap})`
@@ -203,13 +230,25 @@ const InterventionForm = ({
       .replace("SAP ID ------", `SAP ID ${sap}`)
       .replace("Attendance: ___%", `Attendance: ${attendanceText}`)
       .replace(
+        "Previous SGPA: ___; Current SGPA: ___; Drop ____",
+        `Previous SGPA: ${gpaPrevText}; Current SGPA: ${gpaCurrentText}; Drop ${gpaDropText}`
+      )
+      .replace(
         "Previous GPA: ___; Current GPA: ___; Drop ____",
         `Previous GPA: ${gpaPrevText}; Current GPA: ${gpaCurrentText}; Drop ${gpaDropText}`
       )
+      .replace(
+        "Previous CGPA: ___; Current CGPA: ___; Drop ____",
+        `Previous CGPA: ${cgpaPrevText}; Current CGPA: ${cgpaCurrentText}; Drop ${cgpaDropText}`
+      )
       .replace("[Sender Name]", senderNameText)
       .replace("[Designation]", senderDesignationText)
-      .replace("[Department] [Faculty]", deptFaculty || "N/A")
-      .replace("[Department/Faculty Name]", deptFaculty || "N/A")
+      .replace("[Department]", senderDepartmentText)
+      .replace("[Faculty]", senderFacultyText)
+      .replace(
+        "[Department/Faculty Name]",
+        `${senderDepartmentText} - ${senderFacultyText}`
+      )
       .replace("[Email]", senderEmailText)
       .replace("[Focused Course Title]", focusedCourseTitleText)
       .replace("[Focused Class Type]", focusedClassTypeText)
@@ -236,6 +275,7 @@ const InterventionForm = ({
       setEmailBodyHtml(t.body);
       return;
     }
+    setRecipientEmail("");
     const t = fillTemplateWithData(
       STUDENT_REFERRAL_EMAIL_SUBJECT,
       STUDENT_REFERRAL_EMAIL_TEMPLATE
@@ -393,28 +433,32 @@ const InterventionForm = ({
       <div className="space-y-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
         <h4 className="text-body-sm font-semibold text-dark dark:text-white">Email Section</h4>
         <div className="flex flex-wrap items-center gap-4">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
-            <input
-              type="radio"
-              name="emailTemplate"
-              value="sos_check_in"
-              checked={emailTemplateKey === "sos_check_in"}
-              onChange={() => handleSelectTemplate("sos_check_in")}
-              className="h-4 w-4 accent-primary"
-            />
-            SOS Check-In Template
-          </label>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
-            <input
-              type="radio"
-              name="emailTemplate"
-              value="student_referral"
-              checked={emailTemplateKey === "student_referral"}
-              onChange={() => handleSelectTemplate("student_referral")}
-              className="h-4 w-4 accent-primary"
-            />
-            Student Referral Template
-          </label>
+          {canUseSosTemplate ? (
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+              <input
+                type="radio"
+                name="emailTemplate"
+                value="sos_check_in"
+                checked={emailTemplateKey === "sos_check_in"}
+                onChange={() => handleSelectTemplate("sos_check_in")}
+                className="h-4 w-4 accent-primary"
+              />
+              SOS Check-In Template
+            </label>
+          ) : null}
+          {canUseReferralTemplate ? (
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+              <input
+                type="radio"
+                name="emailTemplate"
+                value="student_referral"
+                checked={emailTemplateKey === "student_referral"}
+                onChange={() => handleSelectTemplate("student_referral")}
+                className="h-4 w-4 accent-primary"
+              />
+              Student Referral Template
+            </label>
+          ) : null}
         </div>
 
         {emailTemplateKey ? (

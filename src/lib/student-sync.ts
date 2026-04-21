@@ -26,6 +26,7 @@ type EnrollmentRow = {
   Packnumber?: string;
   CrCreditHrs?: string | number;
   ClassType?: string;
+  BookDate?: string;
 };
 
 type AttendanceRow = {
@@ -33,6 +34,7 @@ type AttendanceRow = {
   CrCode?: string;
   EventPackageId?: string;
   Section?: string;
+  Adate?: string;
 };
 
 type AttendanceApiEntry = {
@@ -40,6 +42,7 @@ type AttendanceApiEntry = {
   CrCode?: string;
   EventPackageId?: string;
   Section?: string;
+  Adate?: string;
   AcadYear?: string;
   AcadPerid?: string;
 };
@@ -82,6 +85,24 @@ function normalizeCreditHours(value: string | number | null | undefined): string
   const asNumber = Number(raw);
   if (Number.isFinite(asNumber)) return String(asNumber);
   return raw;
+}
+
+function parseDateOnly(value: string | null | undefined): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const isoMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+
+  const sapDateMatch = raw.match(/\/Date\((\d+)(?:[+-]\d+)?\)\//);
+  if (sapDateMatch) {
+    const epoch = Number(sapDateMatch[1]);
+    if (Number.isFinite(epoch)) return new Date(epoch).toISOString().slice(0, 10);
+  }
+
+  const parsed = Date.parse(raw);
+  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+  return null;
 }
 
 function buildClassContextKey(
@@ -453,12 +474,30 @@ export async function runStudentSync(
   }
 
   const absencesByEnrollmentKey = new Map<string, number>();
+  const bookDateByEnrollmentKey = new Map<string, string>();
+  for (const row of sourceEnrollments) {
+    const sapId = String(row.SapNo ?? "").trim();
+    const course = normalizeCourseCode(String(row.CrCode ?? ""));
+    const pkg = String(row.Packnumber ?? row.Section ?? "").trim();
+    const bookDate = parseDateOnly(row.BookDate);
+    if (!sapId || !course || !pkg || !bookDate) continue;
+    const key = `${sapId}__${course}__${pkg}`;
+    const existing = bookDateByEnrollmentKey.get(key);
+    if (!existing || bookDate > existing) {
+      bookDateByEnrollmentKey.set(key, bookDate);
+    }
+  }
   for (const row of attendanceRows) {
     const sapId = String(row.Sapno ?? "").trim();
     const course = normalizeCourseCode(String(row.CrCode ?? ""));
     const pkg = String(row.EventPackageId ?? row.Section ?? "").trim();
     if (!sapId || !course || !pkg) continue;
     const key = `${sapId}__${course}__${pkg}`;
+    const attendanceDate = parseDateOnly(row.Adate);
+    const bookDate = bookDateByEnrollmentKey.get(key);
+    if (bookDate) {
+      if (!attendanceDate || attendanceDate <= bookDate) continue;
+    }
     absencesByEnrollmentKey.set(key, (absencesByEnrollmentKey.get(key) ?? 0) + 1);
   }
 
