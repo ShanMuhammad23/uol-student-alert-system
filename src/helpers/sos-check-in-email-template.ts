@@ -65,8 +65,8 @@ export const SOS_CHECK_IN_EMAIL_TEMPLATE = `
               Warm regards,<br />
               [Sender Name]<br />
               [Designation]<br />
-              Department of [Department] <br />
-              Faculty of [Faculty]
+               [Department] <br />
+              [Faculty]
             </p>
           </td>
         </tr>

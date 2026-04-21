@@ -47,7 +47,10 @@ export function SgpaCgpaMixedChart({
     },
     dataLabels: {
       enabled: true,
-      formatter: (value: number) => Number(value).toFixed(2),
+      enabledOnSeries: [0, 1],
+      formatter: (value: number) => String(value),
+      // Keep line labels visually above points.
+      offsetY: -10,
     },
     labels: safeCategories,
     xaxis: {
@@ -66,7 +69,7 @@ export function SgpaCgpaMixedChart({
       tickAmount: 4,
       title: { text: "GPA" },
       labels: {
-        formatter: (value) => Number(value).toFixed(1),
+        formatter: (value) => String(value),
       },
     },
     colors: ["#3B82F6", "#22C55E"],
@@ -74,6 +77,10 @@ export function SgpaCgpaMixedChart({
       bar: {
         borderRadius: 4,
         columnWidth: "45%",
+        dataLabels: {
+          // Keep SGPA labels centered inside each column.
+          position: "center",
+        },
       },
     },
     legend: {
