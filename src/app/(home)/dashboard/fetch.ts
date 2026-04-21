@@ -523,11 +523,19 @@ type MissingDimensionType = "department" | "program" | "course" | "instructor";
 
 type MissingScope = {
   facultyId?: string | null;
+  facultyIds?: string[];
   departmentIds?: string[];
   programIds?: string[];
   courseIds?: string[];
   instructorIds?: string[];
 };
+
+function buildFacultyScopeIds(facultyId: string | null | undefined): string[] {
+  const raw = String(facultyId ?? "").trim();
+  if (!raw) return [];
+  const mapped = FACULTY_ID_TO_ENROLLMENT_FAC_ID[raw];
+  return Array.from(new Set([raw, mapped].filter(Boolean) as string[]));
+}
 
 type ScopedDimensionType = "department" | "program" | "course" | "instructor";
 
@@ -546,13 +554,24 @@ async function getScopedDimensionCountsFromLive(
   }>
 > {
   if (!pool) return [];
+  const dimensionIdExpr =
+    dimensionType === "department"
+      ? "e.department_id"
+      : dimensionType === "program"
+        ? "e.program_id"
+        : dimensionType === "course"
+          ? "e.course_id"
+          : "e.instructor_pernr";
+  const dimensionIdTextExpr = `COALESCE(${dimensionIdExpr}::text, '')`;
   const params: unknown[] = [];
   const where: string[] = [
     "e.is_active = TRUE",
-    "dim.dimension_id IS NOT NULL",
-    "dim.dimension_id <> ''",
+    `${dimensionIdTextExpr} <> ''`,
   ];
-  if (scope.facultyId) {
+  if (scope.facultyIds?.length) {
+    params.push(scope.facultyIds);
+    where.push(`e.faculty_id = ANY($${params.length}::text[])`);
+  } else if (scope.facultyId) {
     params.push(scope.facultyId);
     where.push(`e.faculty_id = $${params.length}`);
   }
@@ -575,15 +594,15 @@ async function getScopedDimensionCountsFromLive(
 
   const dimensionSql =
     dimensionType === "department"
-      ? `e.department_id AS dimension_id,
+      ? `e.department_id::text AS dimension_id,
          COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name`
       : dimensionType === "program"
-        ? `e.program_id AS dimension_id,
+        ? `e.program_id::text AS dimension_id,
            COALESCE(NULLIF(TRIM(p.title), ''), e.program_id) AS dimension_name`
         : dimensionType === "course"
-          ? `e.course_id AS dimension_id,
+          ? `e.course_id::text AS dimension_id,
              COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS dimension_name`
-          : `e.instructor_pernr AS dimension_id,
+          : `e.instructor_pernr::text AS dimension_id,
              COALESCE(
                NULLIF(TRIM(s.name), ''),
                NULLIF(TRIM(e.instructor_name), ''),
@@ -602,8 +621,7 @@ async function getScopedDimensionCountsFromLive(
   }>(
     `WITH scoped AS (
        SELECT
-         dim.dimension_id,
-         dim.dimension_name,
+         ${dimensionSql},
          e.sap_id,
          MAX(
            CASE
@@ -626,9 +644,6 @@ async function getScopedDimensionCountsFromLive(
            END
          ) AS attendance_has_critical
        FROM student_enrollment_current e
-       CROSS JOIN LATERAL (
-         SELECT ${dimensionSql}
-       ) dim
        LEFT JOIN departments d ON d.id = e.department_id
        LEFT JOIN programs p ON p.id = e.program_id
        LEFT JOIN courses c ON c.id = e.course_id
@@ -639,7 +654,7 @@ async function getScopedDimensionCountsFromLive(
         AND a.section_code = e.section_code
         AND a.event_package_id = e.event_package_id
        WHERE ${whereSql}
-       GROUP BY dim.dimension_id, dim.dimension_name, e.sap_id
+      GROUP BY dimension_id, dimension_name, e.sap_id
      )
      SELECT
        dimension_id,
@@ -681,7 +696,10 @@ async function getAttendanceMissingByDimension(
   ];
   const params: unknown[] = [ids];
 
-  if (scope?.facultyId) {
+  if (scope?.facultyIds?.length) {
+    params.push(scope.facultyIds);
+    where.push(`e.faculty_id = ANY($${params.length}::text[])`);
+  } else if (scope?.facultyId) {
     params.push(scope.facultyId);
     where.push(`e.faculty_id = $${params.length}`);
   }
@@ -1641,19 +1659,16 @@ export async function getDeanDepartmentStats(
 ): Promise<DepartmentStats[]> {
   if (pool) {
     try {
-      const enrollmentFacId =
-        facultyId != null
-          ? FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId
-          : null;
+      const facultyScopeIds = buildFacultyScopeIds(facultyId);
       const rows = await getScopedDimensionCountsFromLive("department", {
-        facultyId: enrollmentFacId,
+        facultyIds: facultyScopeIds,
         departmentIds: options?.departmentIds,
       });
       const missingByDepartment = await getAttendanceMissingByDimension(
         "department",
         rows.map((row) => row.dimension_id),
         {
-          facultyId: enrollmentFacId,
+          facultyIds: facultyScopeIds,
           departmentIds: options?.departmentIds,
         }
       );
@@ -1821,10 +1836,9 @@ export async function getDeanInstructorStats(
   if (pool) {
     try {
       if (!facultyId) return [];
-      const enrollmentFacId =
-        FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
+      const facultyScopeIds = buildFacultyScopeIds(facultyId);
       const rows = await getScopedDimensionCountsFromLive("instructor", {
-        facultyId: enrollmentFacId,
+        facultyIds: facultyScopeIds,
         departmentIds: options?.departmentIds,
         instructorIds: options?.instructorIds,
       });
@@ -1832,7 +1846,7 @@ export async function getDeanInstructorStats(
         "instructor",
         rows.map((row) => row.dimension_id),
         {
-          facultyId: enrollmentFacId,
+          facultyIds: facultyScopeIds,
           departmentIds: options?.departmentIds,
           instructorIds: options?.instructorIds,
         }
@@ -1950,17 +1964,16 @@ export async function getDeanProgramStats(
   if (pool) {
     try {
       if (!facultyId) return [];
-      const enrollmentFacId =
-        FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
+      const facultyScopeIds = buildFacultyScopeIds(facultyId);
       const rows = await getScopedDimensionCountsFromLive("program", {
-        facultyId: enrollmentFacId,
+        facultyIds: facultyScopeIds,
         departmentIds: options?.departmentIds,
       });
       const missingByProgram = await getAttendanceMissingByDimension(
         "program",
         rows.map((row) => row.dimension_id),
         {
-          facultyId: enrollmentFacId,
+          facultyIds: facultyScopeIds,
           departmentIds: options?.departmentIds,
         }
       );
@@ -2266,10 +2279,9 @@ export async function getDeanCourseStats(
   if (!facultyId) return [];
   if (!pool) return [];
   try {
-    const enrollmentFacId =
-      FACULTY_ID_TO_ENROLLMENT_FAC_ID[facultyId] ?? facultyId;
+    const facultyScopeIds = buildFacultyScopeIds(facultyId);
     const rows = await getScopedDimensionCountsFromLive("course", {
-      facultyId: enrollmentFacId,
+      facultyIds: facultyScopeIds,
       departmentIds: options?.departmentIds,
       programIds: options?.programIds,
       courseIds: options?.courseIds,
@@ -2278,7 +2290,7 @@ export async function getDeanCourseStats(
       "course",
       rows.map((row) => row.dimension_id),
       {
-        facultyId: enrollmentFacId,
+        facultyIds: facultyScopeIds,
         departmentIds: options?.departmentIds,
         programIds: options?.programIds,
         courseIds: options?.courseIds,
