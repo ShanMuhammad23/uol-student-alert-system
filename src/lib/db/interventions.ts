@@ -84,6 +84,74 @@ async function hasEventPackageIdColumn(): Promise<boolean> {
   return hasEventPackageIdColumnCache;
 }
 
+let hasCaseTypeColumnCache: boolean | null = null;
+let hasAssigneeStaffIdColumnCache: boolean | null = null;
+
+export async function hasCaseTypeColumn(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasCaseTypeColumnCache !== null) return hasCaseTypeColumnCache;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name = 'case_type'
+    ) AS exists
+    `
+  );
+  hasCaseTypeColumnCache = Boolean(res.rows[0]?.exists);
+  return hasCaseTypeColumnCache;
+}
+
+export async function hasAssigneeStaffIdColumn(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasAssigneeStaffIdColumnCache !== null) return hasAssigneeStaffIdColumnCache;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'interventions'
+        AND column_name = 'assignee_staff_id'
+    ) AS exists
+    `
+  );
+  hasAssigneeStaffIdColumnCache = Boolean(res.rows[0]?.exists);
+  return hasAssigneeStaffIdColumnCache;
+}
+
+async function patchInterventionCaseAndAssignee(
+  interventionId: string,
+  opts: {
+    case_type?: "referred" | "internal" | "external";
+    assignee_staff_id?: string | null;
+  }
+): Promise<void> {
+  if (!pool) return;
+  const hasCT = await hasCaseTypeColumn();
+  const hasA = await hasAssigneeStaffIdColumn();
+  if (!hasCT && !hasA) return;
+  const parts: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+  if (hasCT) {
+    parts.push(`case_type = $${i++}`);
+    vals.push(opts.case_type ?? "referred");
+  }
+  if (hasA) {
+    parts.push(`assignee_staff_id = $${i++}`);
+    vals.push(opts.assignee_staff_id ?? null);
+  }
+  vals.push(interventionId);
+  await pool.query(
+    `UPDATE interventions SET ${parts.join(", ")} WHERE id = $${i}`,
+    vals
+  );
+}
+
 /** Single intervention row as returned from DB (matches intervention-store InterventionRecord). */
 export type InterventionRow = {
   id: string;
@@ -98,6 +166,10 @@ export type InterventionRow = {
   uploader_name?: string | null;
   uploader_email?: string | null;
   uploader_pernr?: string | null;
+  case_type?: "referred" | "internal" | "external" | null;
+  assignee_name?: string | null;
+  assignee_pernr?: string | null;
+  assignee_email?: string | null;
 };
 
 /** Ensure a course exists in the courses table (for intervention FK). Upserts by id. */
@@ -138,6 +210,8 @@ export async function insertIntervention(row: {
   faculty_id: string;
   section_code?: string | null;
   event_package_id?: string | null;
+  case_type?: "referred" | "internal" | "external";
+  assignee_staff_id?: string | null;
 }): Promise<void> {
   if (!pool) throw new Error("Database not configured");
   const hasType = await hasInterventionTypeColumn();
@@ -169,6 +243,10 @@ export async function insertIntervention(row: {
         row.event_package_id ?? null,
       ]
     );
+    await patchInterventionCaseAndAssignee(row.id, {
+      case_type: row.case_type,
+      assignee_staff_id: row.assignee_staff_id,
+    });
     return;
   }
 
@@ -195,6 +273,10 @@ export async function insertIntervention(row: {
         row.event_package_id ?? null,
       ]
     );
+    await patchInterventionCaseAndAssignee(row.id, {
+      case_type: row.case_type,
+      assignee_staff_id: row.assignee_staff_id,
+    });
     return;
   }
 
@@ -221,6 +303,10 @@ export async function insertIntervention(row: {
         row.event_package_id ?? null,
       ]
     );
+    await patchInterventionCaseAndAssignee(row.id, {
+      case_type: row.case_type,
+      assignee_staff_id: row.assignee_staff_id,
+    });
     return;
   }
 
@@ -245,6 +331,10 @@ export async function insertIntervention(row: {
         row.faculty_id,
       ]
     );
+    await patchInterventionCaseAndAssignee(row.id, {
+      case_type: row.case_type,
+      assignee_staff_id: row.assignee_staff_id,
+    });
     return;
   }
 
@@ -269,6 +359,10 @@ export async function insertIntervention(row: {
         row.alert_level ?? null,
       ]
     );
+    await patchInterventionCaseAndAssignee(row.id, {
+      case_type: row.case_type,
+      assignee_staff_id: row.assignee_staff_id,
+    });
     return;
   }
 
@@ -292,6 +386,10 @@ export async function insertIntervention(row: {
       row.faculty_id,
     ]
   );
+  await patchInterventionCaseAndAssignee(row.id, {
+    case_type: row.case_type,
+    assignee_staff_id: row.assignee_staff_id,
+  });
 }
 
 /** All interventions for a student from DB, newest first. */
@@ -300,11 +398,45 @@ export async function getInterventionsByStudentSapIdFromDb(
 ): Promise<InterventionRow[]> {
   if (!pool) return [];
   const hasType = await hasInterventionTypeColumn();
+  const hasCT = await hasCaseTypeColumn();
+  const hasA = await hasAssigneeStaffIdColumn();
+  const selectParts: string[] = [
+    "i.id",
+    "i.student_sap_id",
+    "i.date",
+  ];
+  if (hasType) selectParts.push("i.intervention_type");
+  if (hasCT) selectParts.push("i.case_type");
+  selectParts.push(
+    "i.outreach_mode",
+    "i.remarks",
+    "i.status",
+    "i.performed_at",
+    "i.staff_id",
+    "s.name AS uploader_name",
+    "s.email AS uploader_email",
+    "s.pernr AS uploader_pernr"
+  );
+  if (hasA) {
+    selectParts.push(
+      "asn.name AS assignee_name",
+      "asn.pernr AS assignee_pernr",
+      "asn.email AS assignee_email"
+    );
+  }
+  const sql = `
+    SELECT ${selectParts.join(", ")}
+    FROM interventions i
+    LEFT JOIN staff s ON s.id = i.staff_id
+    ${hasA ? "LEFT JOIN staff asn ON asn.id = i.assignee_staff_id" : ""}
+    WHERE i.student_sap_id = $1
+    ORDER BY i.performed_at DESC`;
   const res = await pool.query<{
     id: string;
     student_sap_id: string;
     date: string;
     intervention_type?: "attendance" | "gpa" | "both" | null;
+    case_type?: string | null;
     outreach_mode: string;
     remarks: string;
     status: string;
@@ -313,38 +445,48 @@ export async function getInterventionsByStudentSapIdFromDb(
     uploader_name: string | null;
     uploader_email: string | null;
     uploader_pernr: string | null;
-  }>(
-    hasType
-      ? `SELECT i.id, i.student_sap_id, i.date, i.intervention_type, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.name AS uploader_name, s.email AS uploader_email, s.pernr AS uploader_pernr
-         FROM interventions i
-         LEFT JOIN staff s ON s.id = i.staff_id
-         WHERE i.student_sap_id = $1
-         ORDER BY i.performed_at DESC`
-      : `SELECT i.id, i.student_sap_id, i.date, i.outreach_mode, i.remarks, i.status, i.performed_at, i.staff_id, s.name AS uploader_name, s.email AS uploader_email, s.pernr AS uploader_pernr
-         FROM interventions i
-         LEFT JOIN staff s ON s.id = i.staff_id
-         WHERE i.student_sap_id = $1
-         ORDER BY i.performed_at DESC`,
-    [sapId]
-  );
-  return res.rows.map((r) => ({
-    ...r,
-    intervention_type:
-      r.intervention_type === "gpa"
-        ? "gpa"
-        : r.intervention_type === "both"
-          ? "both"
-          : "attendance",
-    date: typeof r.date === "string" ? r.date : (r.date as unknown as Date).toISOString().slice(0, 10),
-    performed_at:
-      typeof r.performed_at === "string"
-        ? r.performed_at
-        : (r.performed_at as Date).toISOString(),
-    staff_id: r.staff_id ?? null,
-    uploader_name: r.uploader_name ?? null,
-    uploader_email: r.uploader_email ?? null,
-    uploader_pernr: r.uploader_pernr ?? null,
-  }));
+    assignee_name?: string | null;
+    assignee_pernr?: string | null;
+    assignee_email?: string | null;
+  }>(sql, [sapId]);
+  return res.rows.map((r) => {
+    const ct = r.case_type;
+    const caseTypeNorm =
+      ct === "internal" || ct === "external"
+        ? ct
+        : ct === "referred"
+          ? "referred"
+          : "referred";
+    return {
+      id: r.id,
+      student_sap_id: r.student_sap_id,
+      intervention_type:
+        r.intervention_type === "gpa"
+          ? "gpa"
+          : r.intervention_type === "both"
+            ? "both"
+            : "attendance",
+      outreach_mode: r.outreach_mode,
+      remarks: r.remarks,
+      status: r.status,
+      date:
+        typeof r.date === "string"
+          ? r.date
+          : (r.date as unknown as Date).toISOString().slice(0, 10),
+      performed_at:
+        typeof r.performed_at === "string"
+          ? r.performed_at
+          : (r.performed_at as Date).toISOString(),
+      staff_id: r.staff_id ?? null,
+      uploader_name: r.uploader_name ?? null,
+      uploader_email: r.uploader_email ?? null,
+      uploader_pernr: r.uploader_pernr ?? null,
+      case_type: hasCT ? caseTypeNorm : null,
+      assignee_name: hasA ? r.assignee_name ?? null : null,
+      assignee_pernr: hasA ? r.assignee_pernr ?? null : null,
+      assignee_email: hasA ? r.assignee_email ?? null : null,
+    };
+  });
 }
 
 export async function deleteInterventionByIdFromDb(id: string): Promise<{ student_sap_id: string } | null> {

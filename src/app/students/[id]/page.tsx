@@ -25,6 +25,8 @@ type PropsType = {
     section?: string;
     event_package?: string;
     class_avg?: string;
+    /** `external` — wellbeing external direct case entry from dashboard (no course focus). */
+    direct_case?: string;
   }>;
 };
 
@@ -218,17 +220,31 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     resolvedSearchParams.from && resolvedSearchParams.from.startsWith("/")
       ? resolvedSearchParams.from
       : "/";
-  const selectedCourseCode = resolvedSearchParams.course;
-  const selectedSection = resolvedSearchParams.section;
-  const selectedEventPackageId = resolvedSearchParams.event_package;
+  const rawDirectCase = resolvedSearchParams.direct_case?.trim().toLowerCase();
+  /** Wellbeing-initiated direct cases are always external; internal is for academic workflows elsewhere. */
+  const directCaseMode = rawDirectCase === "external" ? ("external" as const) : null;
+  const suppressCourseFocus = directCaseMode != null;
+  const selectedCourseCode = suppressCourseFocus ? undefined : resolvedSearchParams.course;
+  const selectedSection = suppressCourseFocus ? undefined : resolvedSearchParams.section;
+  const selectedEventPackageId = suppressCourseFocus
+    ? undefined
+    : resolvedSearchParams.event_package;
   const classAverageParam = Number(resolvedSearchParams.class_avg);
   let selectedClassAverage =
     Number.isFinite(classAverageParam) && classAverageParam > 0
       ? classAverageParam
       : null;
   const sapIdFromUrl = id;
-  if (currentUserRole === "wellbeing" && pool) {
-    const access = await pool.query<{ status: string | null; has_case: boolean }>(
+  const allowWellbeingDirectCaseEntry =
+    directCaseMode != null &&
+    (currentUserRole === "wellbeing" || currentUserRole === "superadmin");
+
+  if (currentUserRole === "wellbeing" && pool && !allowWellbeingDirectCaseEntry) {
+    const access = await pool.query<{
+      status: string | null;
+      has_case: boolean;
+      has_direct: boolean;
+    }>(
       `WITH latest AS (
          SELECT status
          FROM interventions
@@ -242,13 +258,18 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
            SELECT 1
            FROM wellbeing_cases wb
            WHERE wb.student_sap_id = $1
-         ) AS has_case`,
+         ) AS has_case,
+         EXISTS (
+           SELECT 1 FROM wellbeing_direct_cases wdc
+           WHERE wdc.student_sap_id = $1
+         ) AS has_direct`,
       [sapIdFromUrl]
     );
     const row = access.rows[0];
     const isReferred = row?.status === "referred";
     const hasWellbeingCase = row?.has_case === true;
-    if (!isReferred && !hasWellbeingCase) {
+    const hasDirectCase = row?.has_direct === true;
+    if (!isReferred && !hasWellbeingCase && !hasDirectCase) {
       notFound();
     }
   }
@@ -262,7 +283,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   if (!enrollmentRecords.length) notFound();
   const primaryEnrollment = enrollmentRecords[0] ?? null;
 
-  if (!selectedClassAverage && pool) {
+  if (!selectedClassAverage && pool && !suppressCourseFocus) {
     try {
       const selectedCourse = selectedCourseCode
         ? enrollmentRecords.find((r) => String(r.CrCode ?? "").trim() === selectedCourseCode)
@@ -347,15 +368,23 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const senderFacultyName = toShortFacultyName(facultyName);
   const senderEmailForTemplate =
     process.env.SMTP_FROM ?? "alert@student-alert.uol.edu.pk";
-  const focusedEnrollment = selectedCourseCode
-    ? enrollmentRecords.find((r) => String(r.CrCode ?? "").trim() === selectedCourseCode)
-    : enrollmentRecords[0];
-  const focusedCourseTitleForEmail = focusedEnrollment
-    ? `${String(focusedEnrollment.CrCode ?? "").trim()} - ${String(
-        focusedEnrollment.CrTitle ?? focusedEnrollment.CrCode ?? "N/A"
-      ).trim()}`
-    : "N/A";
-  const focusedClassTypeForEmail = deriveClassTypeLabel(selectedEventPackageId ?? null);
+  const focusedEnrollment =
+    suppressCourseFocus || !selectedCourseCode
+      ? null
+      : enrollmentRecords.find((r) => String(r.CrCode ?? "").trim() === selectedCourseCode);
+  const primaryEnrollmentForFocus = suppressCourseFocus ? null : enrollmentRecords[0] ?? null;
+  const focusedCourseTitleForEmail = suppressCourseFocus
+    ? "N/A"
+    : (focusedEnrollment ?? primaryEnrollmentForFocus)
+      ? `${String((focusedEnrollment ?? primaryEnrollmentForFocus)?.CrCode ?? "").trim()} - ${String(
+          (focusedEnrollment ?? primaryEnrollmentForFocus)?.CrTitle ??
+            (focusedEnrollment ?? primaryEnrollmentForFocus)?.CrCode ??
+            "N/A"
+        ).trim()}`
+      : "N/A";
+  const focusedClassTypeForEmail = suppressCourseFocus
+    ? "N/A"
+    : deriveClassTypeLabel(selectedEventPackageId ?? null);
 
   return (
     <div id="student-profile-pdf-content" className="w-full space-y-6 mt-4">
@@ -428,6 +457,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         gpaChange={gpaProfile?.change ?? null}
         gpaTrendLevel={gpaProfile?.level ?? null}
         gpaTrendSeries={gpaProfile?.semesters ?? []}
+        noFocusedCourse={suppressCourseFocus}
       />
           </div>
         </div>
@@ -448,6 +478,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         gpaTrendLevel={gpaProfile?.level ?? null}
         gpaTrendSeries={gpaProfile?.semesters ?? []}
         selectedClassAverage={selectedClassAverage}
+        noFocusedCourse={suppressCourseFocus}
       />
 
       {/* Intervention History (table + Add Intervention dialog) */}
@@ -473,6 +504,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         focusedClassType={focusedClassTypeForEmail}
         currentUserRole={currentUserRole}
         currentUserPernr={currentUserPernr}
+        directCaseMode={directCaseMode}
       />
 
      

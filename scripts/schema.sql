@@ -313,7 +313,9 @@ CREATE TABLE IF NOT EXISTS interventions (
   staff_id           UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
   department_id      VARCHAR(32) REFERENCES departments(id) ON DELETE SET NULL,
   course_id          VARCHAR(64) REFERENCES courses(id) ON DELETE SET NULL,
-  faculty_id         VARCHAR(32) REFERENCES faculties(id) ON DELETE SET NULL
+  faculty_id         VARCHAR(32) REFERENCES faculties(id) ON DELETE SET NULL,
+  case_type          VARCHAR(16) NOT NULL DEFAULT 'referred' CHECK (case_type IN ('referred', 'internal', 'external')),
+  assignee_staff_id  UUID REFERENCES staff(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_interventions_student_sap_id ON interventions(student_sap_id);
@@ -323,6 +325,8 @@ CREATE INDEX IF NOT EXISTS idx_interventions_staff_id ON interventions(staff_id)
 CREATE INDEX IF NOT EXISTS idx_interventions_department_id ON interventions(department_id);
 CREATE INDEX IF NOT EXISTS idx_interventions_course_id ON interventions(course_id);
 CREATE INDEX IF NOT EXISTS idx_interventions_faculty_id ON interventions(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_interventions_case_type ON interventions(case_type);
+CREATE INDEX IF NOT EXISTS idx_interventions_assignee_staff_id ON interventions(assignee_staff_id);
 
 CREATE TABLE IF NOT EXISTS intervention_emails (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -360,6 +364,19 @@ CREATE TABLE IF NOT EXISTS wellbeing_cases (
 CREATE INDEX IF NOT EXISTS idx_wellbeing_cases_student ON wellbeing_cases(student_sap_id);
 CREATE INDEX IF NOT EXISTS idx_wellbeing_cases_category ON wellbeing_cases(category);
 CREATE INDEX IF NOT EXISTS idx_wellbeing_cases_status ON wellbeing_cases(wellbeing_status);
+
+-- Direct wellbeing-initiated cases (links to interventions row for unified listing)
+CREATE TABLE IF NOT EXISTS wellbeing_direct_cases (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_sap_id      VARCHAR(32) NOT NULL REFERENCES students(sap_id) ON DELETE CASCADE,
+  intervention_id     VARCHAR(64) NOT NULL UNIQUE REFERENCES interventions(id) ON DELETE CASCADE,
+  external_notes      TEXT NOT NULL DEFAULT '',
+  created_by_staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_wellbeing_direct_cases_student ON wellbeing_direct_cases(student_sap_id);
+CREATE INDEX IF NOT EXISTS idx_wellbeing_direct_cases_intervention ON wellbeing_direct_cases(intervention_id);
 
 -- =============================================================================
 -- End schema

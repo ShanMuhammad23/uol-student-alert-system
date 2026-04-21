@@ -40,6 +40,8 @@ type Props = {
   gpaTrendLevel?: "warning" | "critical" | null;
   gpaTrendSeries?: { key?: string; label?: string; x?: string; value?: number; y?: number }[];
   selectedClassAverage?: number | null;
+  /** When true (e.g. wellbeing external direct case), do not treat a single course as selected. */
+  noFocusedCourse?: boolean;
 };
 
 const EMPTY_ATTENDANCE = {
@@ -95,11 +97,13 @@ export function StudentMetricsClient({
   gpaTrendLevel = null,
   gpaTrendSeries = [],
   selectedClassAverage = null,
+  noFocusedCourse = false,
 }: Props) {
   const isLoading = false;
   const studentRows = dbMetricRows;
   const focusedCourseRows = useMemo(() => {
     if (!studentRows.length) return [];
+    if (noFocusedCourse) return studentRows;
     if (!selectedCourseCode) return [studentRows[0]];
     const targetCourse = normalizeCourseCode(selectedCourseCode);
     const matches = studentRows.filter((r) => {
@@ -110,7 +114,7 @@ export function StudentMetricsClient({
       return courseMatches && sectionMatches;
     });
     return matches.length ? matches : [studentRows[0]];
-  }, [studentRows, selectedCourseCode, selectedSection]);
+  }, [studentRows, selectedCourseCode, selectedSection, noFocusedCourse]);
 
   const worstGpaLevel = useMemo(() => {
     if (gpaTrendLevel === "critical") return "critical";
@@ -134,13 +138,38 @@ export function StudentMetricsClient({
     selectedClassAverage,
   ]);
   const badgeAttendanceLevel = selectedCourseAttendanceLevel;
-  const student = useMemo(
-    () => {
-      if (!studentRows.length) return null;
-      return focusedCourseRows[0] ?? studentRows[0];
-    },
-    [studentRows, focusedCourseRows, sapId]
-  );
+  const student = useMemo(() => {
+    if (!studentRows.length) return null;
+    if (noFocusedCourse) {
+      let totalHeld = 0;
+      let marked = 0;
+      let attended = 0;
+      let sumClassAvg = 0;
+      let nClassAvg = 0;
+      for (const r of studentRows) {
+        totalHeld += r.totalClassesHeld ?? 0;
+        marked += r.attendanceMarkedClasses ?? 0;
+        attended += r.classesAttended ?? 0;
+        const ca = r.classAverageAttendance;
+        if (ca != null && Number.isFinite(ca)) {
+          sumClassAvg += ca;
+          nClassAvg += 1;
+        }
+      }
+      const pct = marked > 0 ? (attended / marked) * 100 : 0;
+      const base = studentRows[0];
+      return {
+        ...base,
+        totalClassesHeld: totalHeld,
+        attendanceMarkedClasses: marked,
+        classesAttended: attended,
+        attendancePercentage: pct,
+        classAverageAttendance:
+          nClassAvg > 0 ? sumClassAvg / nClassAvg : base?.classAverageAttendance ?? null,
+      };
+    }
+    return focusedCourseRows[0] ?? studentRows[0];
+  }, [studentRows, focusedCourseRows, noFocusedCourse]);
 
   if (section === "badges") {
     if (isLoading) {
@@ -252,6 +281,7 @@ export function StudentMetricsClient({
             student?.classAverageAttendance ??
             null
           }
+          noFocusedCourse={noFocusedCourse}
         />
       </div>
 

@@ -11,6 +11,7 @@ import { TopChannelsTableClient } from "@/components/Tables/nested-students-tabl
 import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options";
 import type { FilterDropdownCounts } from "@/lib/db/student-listing";
 import { WellbeingMasterFilter } from "./WellbeingMasterFilter";
+import { DirectWellbeingCaseForm } from "./DirectWellbeingCaseForm";
 
 type Props = {
   initialMasterFilter: MasterFilterParams;
@@ -52,6 +53,7 @@ export function WellbeingDashboardClient({
     useState<MasterFilterParams>(initialMasterFilter);
   const [resolutionFilters, setResolutionFilters] = useState<string[]>([]);
   const [counts, setCounts] = useState<FilterDropdownCounts | null>(null);
+  const [activeTab, setActiveTab] = useState<"caseload" | "direct">("caseload");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,15 +102,46 @@ export function WellbeingDashboardClient({
     <div className="mt-4 space-y-4">
       <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark dark:shadow-card">
         <h1 className="text-2xl font-bold text-dark dark:text-white">
-          Wellbeing Referred & Resolved Cases
+          Wellbeing caseload
         </h1>
         <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
-          Students still in referred intervention stage, or with cases closed by wellbeing.
+          Referred students, resolved cases, and direct internal/external cases. Use the Direct case
+          tab to log a new wellbeing-initiated case.
         </p>
+        <div className="mt-4 inline-flex rounded-lg border border-stroke p-1 dark:border-dark-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("caseload")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+              activeTab === "caseload"
+                ? "bg-primary text-white"
+                : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white"
+            }`}
+          >
+            Caseload
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("direct")}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+              activeTab === "direct"
+                ? "bg-primary text-white"
+                : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white"
+            }`}
+          >
+            Direct case
+          </button>
+        </div>
       </div>
 
-  
-
+      {activeTab === "direct" ? (
+        <DirectWellbeingCaseForm
+          returnToUrl={
+            asWellbeingScope ? "/dashboard.wellbeing?as=wellbeing" : "/dashboard.wellbeing"
+          }
+        />
+      ) : (
+        <>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card
           label="Referred Cases"
@@ -142,6 +175,8 @@ export function WellbeingDashboardClient({
         masterFilter={masterFilter}
         resolutionFilters={resolutionFilters}
       />
+        </>
+      )}
     </div>
   );
 }

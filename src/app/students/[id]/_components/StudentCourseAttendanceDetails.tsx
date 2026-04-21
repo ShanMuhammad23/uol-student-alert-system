@@ -35,6 +35,8 @@ type Props = {
   overallAttendance: OverallAttendance;
   monitoringClassAverage?: number | null;
   attendanceAlertLevel?: "critical" | "warning" | null;
+  /** No single course focus (e.g. wellbeing external direct case). */
+  noFocusedCourse?: boolean;
 };
 
 export function StudentCourseAttendanceDetails({
@@ -45,6 +47,7 @@ export function StudentCourseAttendanceDetails({
   overallAttendance,
   monitoringClassAverage = null,
   attendanceAlertLevel = null,
+  noFocusedCourse = false,
 }: Props) {
   const {
     attendanceSummaries,
@@ -58,6 +61,49 @@ export function StudentCourseAttendanceDetails({
     selectedAttendanceKey,
     selectedDbRow,
   } = useMemo(() => {
+    if (noFocusedCourse && dbMetricRows.length) {
+      let totalHeld = 0;
+      let marked = 0;
+      let attended = 0;
+      for (const r of dbMetricRows) {
+        totalHeld += r.totalClassesHeld ?? 0;
+        marked += r.attendanceMarkedClasses ?? 0;
+        attended += r.classesAttended ?? 0;
+      }
+      const pct = marked > 0 ? (attended / marked) * 100 : 0;
+      return {
+        selectedSummary: {
+          totalHeld,
+          attendanceMarked: marked,
+          attended,
+          percentage: pct,
+          absences: marked - attended,
+        },
+        selectedLabel: null,
+        selectedAttendanceKey: null,
+        selectedDbRow: null,
+      };
+    }
+
+    if (noFocusedCourse && !dbMetricRows.length) {
+      const th = overallAttendance.total_classes_held;
+      const att = overallAttendance.classes_attended;
+      const posted = th;
+      const pct = overallAttendance.attendance_percentage;
+      return {
+        selectedSummary: {
+          totalHeld: th,
+          attendanceMarked: posted,
+          attended: att,
+          percentage: pct,
+          absences: posted - att,
+        },
+        selectedLabel: null,
+        selectedAttendanceKey: null,
+        selectedDbRow: null,
+      };
+    }
+
     if (dbMetricRows.length) {
       const selected =
         (selectedCourseCode
@@ -114,7 +160,7 @@ export function StudentCourseAttendanceDetails({
         }) ?? null;
     }
 
-    if (!target) {
+    if (!target && !noFocusedCourse) {
       target = enrollmentRecords[0] ?? null;
     }
     if (!target) {
@@ -144,6 +190,8 @@ export function StudentCourseAttendanceDetails({
     enrollmentRecords,
     selectedCourseCode,
     selectedSection,
+    noFocusedCourse,
+    overallAttendance,
   ]);
   const tableRows = useMemo(
     () =>
@@ -193,7 +241,9 @@ export function StudentCourseAttendanceDetails({
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-gray-700 dark:text-gray-300">
-              Attendance for this course
+              {noFocusedCourse
+                ? "Overall attendance (all courses)"
+                : "Attendance for this course"}
             </span>
             <div className="flex items-center gap-2">
               <span

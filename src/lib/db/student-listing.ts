@@ -1,5 +1,9 @@
 import { pool } from "@/lib/db";
 import {
+  hasAssigneeStaffIdColumn,
+  hasCaseTypeColumn,
+} from "@/lib/db/interventions";
+import {
   WELLBEING_RESOLUTION_BY_VALUE,
   WELLBEING_RESOLUTION_OPTIONS,
   type WellbeingResolutionValue,
@@ -78,6 +82,10 @@ export type StudentListingRow = {
   latestInterventionStatus: string | null;
   latestWellbeingStatus: "open" | "closed" | null;
   latestWellbeingCategory: string | null;
+  /** Global latest intervention metadata (wellbeing caseload). */
+  interventionCaseType: string | null;
+  assigneeName: string | null;
+  assigneePernr: string | null;
   courseStudentCount: number;
   isActive: boolean;
 };
@@ -279,7 +287,8 @@ function buildResolutionWhereClause(
 function buildWhere(
   scope: SessionScope,
   filters: ListingFilters,
-  skip?: Set<ListingWhereSkip>
+  skip?: Set<ListingWhereSkip>,
+  wellbeingOpts?: { extendedDirectCases: boolean }
 ): BaseQueryParts {
   const params: unknown[] = [];
   const where: string[] = ["e.is_active = TRUE"];
@@ -294,9 +303,14 @@ function buildWhere(
     params.push(scope.pernr);
     where.push(`e.instructor_pernr = $${params.length}`);
   } else if (scope.role === "wellbeing") {
-    // Referred (intervention) OR closed case in wellbeing_cases — not intervention-only "resolved".
+    // Referred, closed wellbeing_cases resolution, or direct internal/external cases (when schema supports case_type).
+    const directCaseSql =
+      wellbeingOpts?.extendedDirectCases === true
+        ? `OR COALESCE(sig.global_case_type, 'referred') IN ('internal', 'external')`
+        : "";
     where.push(`(
       latest.latest_intervention_status = 'referred'
+      ${directCaseSql}
       OR EXISTS (
         SELECT 1 FROM wellbeing_cases wb_list
         WHERE wb_list.student_sap_id = e.sap_id
@@ -408,10 +422,73 @@ function buildWhere(
   };
 }
 
+type GlobalInterventionColumns = {
+  hasCaseType: boolean;
+  hasAssignee: boolean;
+};
+
+async function resolveWellbeingListingOptions(scope: SessionScope): Promise<{
+  globalIntervention: GlobalInterventionColumns | null;
+  extendedDirectCases: boolean;
+}> {
+  if (scope.role !== "wellbeing") {
+    return { globalIntervention: null, extendedDirectCases: false };
+  }
+  const hasC = await hasCaseTypeColumn();
+  const hasA = await hasAssigneeStaffIdColumn();
+  if (!hasC && !hasA) {
+    return { globalIntervention: null, extendedDirectCases: false };
+  }
+  return {
+    globalIntervention: { hasCaseType: hasC, hasAssignee: hasA },
+    extendedDirectCases: hasC,
+  };
+}
+
+function buildStudentInterventionGlobalCteSql(cols: GlobalInterventionColumns): string {
+  const caseExpr = cols.hasCaseType
+    ? "COALESCE(i.case_type, 'referred')"
+    : "'referred'::varchar";
+  const assigneeJoin = cols.hasAssignee
+    ? "LEFT JOIN staff sa ON sa.id = i.assignee_staff_id"
+    : "";
+  const assigneeNameExpr = cols.hasAssignee ? "sa.name" : "NULL::varchar";
+  const assigneePernrExpr = cols.hasAssignee ? "sa.pernr" : "NULL::varchar";
+  return `
+    student_intervention_global AS (
+      SELECT DISTINCT ON (i.student_sap_id)
+        i.student_sap_id,
+        ${caseExpr} AS global_case_type,
+        ${assigneeNameExpr} AS global_assignee_name,
+        ${assigneePernrExpr} AS global_assignee_pernr
+      FROM interventions i
+      ${assigneeJoin}
+      ORDER BY i.student_sap_id, i.performed_at DESC
+    ),
+  `;
+}
+
 function buildListingBaseCte(
   whereSql: string,
-  interventionContext: InterventionContextColumns
+  interventionContext: InterventionContextColumns,
+  globalIntervention?: GlobalInterventionColumns | null
 ): string {
+  const globalPrefix =
+    globalIntervention != null
+      ? buildStudentInterventionGlobalCteSql(globalIntervention)
+      : "";
+  const globalSelect =
+    globalIntervention != null
+      ? `sig.global_case_type,
+        sig.global_assignee_name,
+        sig.global_assignee_pernr,`
+      : `NULL::varchar AS global_case_type,
+        NULL::varchar AS global_assignee_name,
+        NULL::varchar AS global_assignee_pernr,`;
+  const globalJoin =
+    globalIntervention != null
+      ? `LEFT JOIN student_intervention_global sig ON sig.student_sap_id = e.sap_id`
+      : "";
   const latestSectionSelect = interventionContext.hasSectionCode
     ? "COALESCE(section_code, '') AS section_code"
     : "''::text AS section_code";
@@ -431,7 +508,8 @@ function buildListingBaseCte(
            AND COALESCE(latest.event_package_id, '') = COALESCE(e.event_package_id, '')`
       : `latest.course_id = e.course_id`;
   return `
-    WITH latest AS (
+    WITH ${globalPrefix}
+    latest AS (
       SELECT DISTINCT ON (
         student_sap_id,
         COALESCE(course_id, ''),
@@ -485,6 +563,7 @@ function buildListingBaseCte(
         latest.latest_intervention_status,
         latest_wellbeing.latest_wellbeing_status,
         latest_wellbeing.latest_wellbeing_category,
+        ${globalSelect}
         CONCAT(e.course_id, ' ', COALESCE(c.title, '')) AS course_sort_text,
         COUNT(*) OVER (
           PARTITION BY
@@ -510,6 +589,7 @@ function buildListingBaseCte(
        )
       LEFT JOIN latest_wellbeing
         ON latest_wellbeing.student_sap_id = e.sap_id
+      ${globalJoin}
       LEFT JOIN departments d ON d.id = e.department_id
       LEFT JOIN programs p ON p.id = e.program_id
       LEFT JOIN courses c ON c.id = e.course_id
@@ -548,8 +628,11 @@ export async function getFilterDropdownCounts(
   const eligibleSql = `(gpa_alert_level IS NOT NULL OR attendance_alert_level IS NOT NULL)`;
 
   try {
-    const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]));
-    const gpaSql = `${buildListingBaseCte(gpaParts.whereSql, interventionContext)}
+    const wbOpts = await resolveWellbeingListingOptions(scope);
+    const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]), {
+      extendedDirectCases: wbOpts.extendedDirectCases,
+    });
+    const gpaSql = `${buildListingBaseCte(gpaParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       , gpa_per_student AS (
         SELECT
           sap_id,
@@ -572,8 +655,10 @@ export async function getFilterDropdownCounts(
     }>(gpaSql, gpaParts.params);
     const gRow = gpaRes.rows[0];
 
-    const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]));
-    const attSql = `${buildListingBaseCte(attParts.whereSql, interventionContext)}
+    const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]), {
+      extendedDirectCases: wbOpts.extendedDirectCases,
+    });
+    const attSql = `${buildListingBaseCte(attParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       , att_per_student AS (
         SELECT
           sap_id,
@@ -596,8 +681,10 @@ export async function getFilterDropdownCounts(
     }>(attSql, attParts.params);
     const aRow = attRes.rows[0];
 
-    const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]));
-    const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext)}
+    const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]), {
+      extendedDirectCases: wbOpts.extendedDirectCases,
+    });
+    const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       SELECT
         COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql})::int AS int_all,
         COUNT(DISTINCT sap_id) FILTER (
@@ -627,7 +714,9 @@ export async function getFilterDropdownCounts(
     let wellbeingAll = 0;
     let wellbeing = zeroWellbeing;
     try {
-      const wbParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["resolution"]));
+      const wbParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["resolution"]), {
+        extendedDirectCases: wbOpts.extendedDirectCases,
+      });
       const wbSelectParts: string[] = [];
       const wbParams = [...wbParts.params];
       for (let idx = 0; idx < WELLBEING_RESOLUTION_OPTIONS.length; idx++) {
@@ -666,7 +755,7 @@ export async function getFilterDropdownCounts(
         const pred = spec.closed ? existsClosed : existsOpen;
         wbSelectParts.push(`COUNT(DISTINCT sap_id) FILTER (WHERE ${pred})::int AS wb_${idx}`);
       }
-      const wbSql = `${buildListingBaseCte(wbParts.whereSql, interventionContext)}
+      const wbSql = `${buildListingBaseCte(wbParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       SELECT COUNT(DISTINCT sap_id)::int AS wb_all, ${wbSelectParts.join(", ")}
       FROM base`;
       const wbRes = await pool.query(wbSql, wbParams);
@@ -731,9 +820,12 @@ export async function getDistinctSapIdsForScope(
 ): Promise<string[]> {
   if (!pool) return [];
   const interventionContext = await getInterventionContextColumns();
-  const { whereSql, params } = buildWhere(scope, filters);
+  const wbOpts = await resolveWellbeingListingOptions(scope);
+  const { whereSql, params } = buildWhere(scope, filters, undefined, {
+    extendedDirectCases: wbOpts.extendedDirectCases,
+  });
   const sql = `
-    ${buildListingBaseCte(whereSql, interventionContext)}
+    ${buildListingBaseCte(whereSql, interventionContext, wbOpts.globalIntervention)}
     SELECT DISTINCT sap_id FROM base
   `;
   const res = await pool.query<{ sap_id: string }>(sql, params);
@@ -756,9 +848,12 @@ export async function getStudentListing(
   const uniqueStudents = request.uniqueStudents === true;
   const uniqueStudentsForTotal = request.uniqueStudentsForTotal === true;
 
-  const { whereSql, params } = buildWhere(scope, request.filters ?? {});
+  const wbOpts = await resolveWellbeingListingOptions(scope);
+  const { whereSql, params } = buildWhere(scope, request.filters ?? {}, undefined, {
+    extendedDirectCases: wbOpts.extendedDirectCases,
+  });
   const interventionContext = await getInterventionContextColumns();
-  const baseCte = buildListingBaseCte(whereSql, interventionContext);
+  const baseCte = buildListingBaseCte(whereSql, interventionContext, wbOpts.globalIntervention);
 
   const countSql = uniqueStudentsForTotal
     ? `${baseCte}
@@ -830,6 +925,9 @@ export async function getStudentListing(
       latest_intervention_status,
       latest_wellbeing_status,
       latest_wellbeing_category,
+      global_case_type,
+      global_assignee_name,
+      global_assignee_pernr,
       course_student_count,
       is_active
     FROM ${uniqueStudents ? "ranked" : "base"}
@@ -862,6 +960,9 @@ export async function getStudentListing(
     latest_intervention_status: string | null;
     latest_wellbeing_status: "open" | "closed" | null;
     latest_wellbeing_category: string | null;
+    global_case_type: string | null;
+    global_assignee_name: string | null;
+    global_assignee_pernr: string | null;
     course_student_count: number;
     is_active: boolean | null;
   }>(listSql, listParams);
@@ -900,6 +1001,9 @@ export async function getStudentListing(
       latestInterventionStatus: row.latest_intervention_status,
       latestWellbeingStatus: row.latest_wellbeing_status,
       latestWellbeingCategory: row.latest_wellbeing_category,
+      interventionCaseType: row.global_case_type,
+      assigneeName: row.global_assignee_name,
+      assigneePernr: row.global_assignee_pernr,
       courseStudentCount: parseNumber(row.course_student_count),
       isActive: row.is_active === true,
     })),

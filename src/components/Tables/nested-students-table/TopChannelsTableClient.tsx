@@ -70,6 +70,9 @@ type TopTableRow = {
   latestInterventionStatus: string | null;
   latestWellbeingStatus?: "open" | "closed" | null;
   latestWellbeingCategory?: string | null;
+  interventionCaseType?: string | null;
+  assigneeName?: string | null;
+  assigneePernr?: string | null;
   courseStudentCount: number;
   isActive?: boolean;
 };
@@ -251,6 +254,7 @@ export function TopChannelsTableClient({
         "Attendance %",
         "GPA",
         "Intervention Status",
+        ...(isWellbeingScreen ? ["Case type", "Assignee"] : []),
         "Wellbeing Status",
       ];
 
@@ -267,6 +271,10 @@ export function TopChannelsTableClient({
           typeof row.gpaCurrent === "number" ? row.gpaCurrent.toFixed(2) : "—";
         const courseValue = `${row.courseId}-${row.courseTitle ?? row.courseId ?? "—"}`;
 
+        const assigneeCsv =
+          row.assigneeName && row.assigneePernr
+            ? `${row.assigneeName} (${row.assigneePernr})`
+            : row.assigneeName ?? "—";
         const values = [
           row.studentName ?? "—",
           row.sapId ?? "—",
@@ -278,6 +286,9 @@ export function TopChannelsTableClient({
           attendanceValue,
           gpaValue,
           interventionStatusLabel(row.latestInterventionStatus),
+          ...(isWellbeingScreen
+            ? [row.interventionCaseType ? String(row.interventionCaseType) : "—", assigneeCsv]
+            : []),
           row.latestWellbeingStatus
             ? `${row.latestWellbeingStatus}${row.latestWellbeingCategory ? ` (${row.latestWellbeingCategory})` : ""}`
             : "—",
@@ -431,7 +442,8 @@ export function TopChannelsTableClient({
         <div className="mt-4">
           {isWellbeingScreen && (
             <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5">
-              Referred interventions, or a case closed by wellbeing (stored in wellbeing_cases).
+              Referred interventions, direct internal/external cases, or a case closed by wellbeing
+              (wellbeing_cases). Case type and assignee reflect the latest intervention row.
               {uniqueStudents ? " One row per student." : ""}
             </div>
           )}
@@ -607,6 +619,16 @@ export function TopChannelsTableClient({
                     {renderSortIcon("intervention")}
                   </div>
                 </TableHead>
+                {isWellbeingScreen && (
+                  <>
+                    <TableHead className="min-w-[120px] !text-left">
+                      <span>Case type</span>
+                    </TableHead>
+                    <TableHead className="min-w-[160px] !text-left">
+                      <span>Assignee</span>
+                    </TableHead>
+                  </>
+                )}
                 <TableHead className="min-w-[170px] !text-left">
                   <div className="flex items-center gap-1">
                     <span>Wellbeing Status</span>
@@ -802,6 +824,27 @@ export function TopChannelsTableClient({
                         goodStanding={!hasAnyAlert}
                       />
                     </TableCell>
+                    {isWellbeingScreen && (
+                      <>
+                        <TableCell className="!text-left text-sm capitalize text-dark dark:text-white">
+                          {row.interventionCaseType ? row.interventionCaseType : "—"}
+                        </TableCell>
+                        <TableCell className="!text-left text-sm text-dark dark:text-white">
+                          {row.assigneeName ? (
+                            <span>
+                              {row.assigneeName}
+                              {row.assigneePernr ? (
+                                <span className="ml-1 text-xs text-dark-6 dark:text-dark-5">
+                                  ({row.assigneePernr})
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell className="!text-left">
                       {row.latestWellbeingStatus ? (
                         <span

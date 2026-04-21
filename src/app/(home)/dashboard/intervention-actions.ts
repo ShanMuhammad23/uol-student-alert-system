@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { insertWellbeingCase } from "@/lib/db/wellbeing";
 import { pool } from "@/lib/db";
+import { recordDirectWellbeingIntervention as saveDirectWellbeingIntervention } from "@/data/intervention-store";
 
 /** Form payload from Intervention-Form (date, outreachMode, remarks, status). */
 export type RecordInterventionInput = {
@@ -33,6 +34,17 @@ export type RecordWellbeingCaseInput = {
   remarks: string;
   /** Manual option: append a new intervention row with status "resolved". */
   setInterventionResolved?: boolean;
+};
+
+/** Wellbeing direct cases are always external. */
+export type RecordDirectWellbeingCaseInput = {
+  date: string;
+  interventionType: "attendance" | "gpa" | "both";
+  outreachMode: string;
+  remarks: string;
+  status: string;
+  assigneeStaffId: string;
+  externalNotes?: string;
 };
 
 export async function recordIntervention(
@@ -75,7 +87,11 @@ export async function recordWellbeingCase(
     throw new Error("Only wellbeing can add wellbeing resolution.");
   }
   if (session.user.role === "wellbeing" && pool) {
-    const access = await pool.query<{ status: string | null; has_case: boolean }>(
+    const access = await pool.query<{
+      status: string | null;
+      has_case: boolean;
+      has_direct: boolean;
+    }>(
       `WITH latest AS (
          SELECT status
          FROM interventions
@@ -89,13 +105,18 @@ export async function recordWellbeingCase(
            SELECT 1
            FROM wellbeing_cases wb
            WHERE wb.student_sap_id = $1
-         ) AS has_case`,
+         ) AS has_case,
+         EXISTS (
+           SELECT 1 FROM wellbeing_direct_cases wdc
+           WHERE wdc.student_sap_id = $1
+         ) AS has_direct`,
       [studentSapId]
     );
     const row = access.rows[0];
     const isReferred = row?.status === "referred";
     const hasWellbeingCase = row?.has_case === true;
-    if (!isReferred && !hasWellbeingCase) {
+    const hasDirectCase = row?.has_direct === true;
+    if (!isReferred && !hasWellbeingCase && !hasDirectCase) {
       throw new Error("Wellbeing can only manage referred students.");
     }
   }
@@ -142,4 +163,30 @@ export async function recordWellbeingCase(
       status: "resolved",
     });
   }
+}
+
+export async function recordDirectWellbeingCase(
+  studentSapId: string,
+  data: RecordDirectWellbeingCaseInput
+): Promise<void> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in.");
+  }
+  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+    throw new Error("Only wellbeing can add direct cases.");
+  }
+  if (!String(data.assigneeStaffId ?? "").trim()) {
+    throw new Error("Assignee is required.");
+  }
+  await saveDirectWellbeingIntervention(studentSapId, {
+    date: data.date,
+    intervention_type: data.interventionType,
+    outreach_mode: data.outreachMode,
+    remarks: data.remarks,
+    status: data.status,
+    case_type: "external",
+    assignee_staff_id: data.assigneeStaffId,
+    external_notes: data.externalNotes,
+  });
 }

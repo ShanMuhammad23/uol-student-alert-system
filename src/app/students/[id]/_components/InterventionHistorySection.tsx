@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import {
   Table,
   TableBody,
@@ -24,6 +24,9 @@ type InterventionRecord = {
   uploader_name?: string | null;
   uploader_email?: string | null;
   uploader_pernr?: string | null;
+  case_type?: "referred" | "internal" | "external" | null;
+  assignee_name?: string | null;
+  assignee_pernr?: string | null;
 };
 
 type SentEmailRecord = {
@@ -97,6 +100,8 @@ type Props = {
     | "wellbeing"
     | null;
   currentUserPernr: string | null;
+  /** From `?direct_case=external` — show external direct case form on the student profile. */
+  directCaseMode?: "external" | null;
 };
 
 const EDIT_WINDOW_MS = 30 * 60 * 1000;
@@ -138,6 +143,7 @@ export function InterventionHistorySection({
   focusedClassType,
   currentUserRole,
   currentUserPernr,
+  directCaseMode = null,
 }: Props) {
   const canDelete = currentUserRole === "superadmin";
   const canAddIntervention = true;
@@ -379,6 +385,25 @@ export function InterventionHistorySection({
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
+      {isWellbeingView && directCaseMode === "external" && (
+        <div className="mb-6 rounded-xl border border-primary/40 bg-primary/5 p-5 dark:border-primary/30 dark:bg-primary/10">
+          <h4 className="text-base font-semibold text-dark dark:text-white">
+            Direct case (external)
+          </h4>
+          <p className="mt-1 text-sm text-dark-6 dark:text-dark-5">
+            Enter assignee and intervention details. This profile was opened without a focused course.
+          </p>
+          <div className="mt-4">
+            <Suspense
+              fallback={
+                <p className="text-sm text-dark-6 dark:text-dark-5">Loading form…</p>
+              }
+            >
+              <WellbeingResolutionFormWithAction studentSapId={studentSapId} variant="direct" />
+            </Suspense>
+          </div>
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -433,6 +458,8 @@ export function InterventionHistorySection({
                   <TableRow className="border-stroke dark:border-dark-3">
                     <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Type</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Case type</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Assignee</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
@@ -453,6 +480,23 @@ export function InterventionHistorySection({
                         </TableCell>
                         <TableCell className="text-dark dark:text-white">
                           {formatInterventionType(int.intervention_type)}
+                        </TableCell>
+                        <TableCell className="text-dark dark:text-white capitalize">
+                          {int.case_type ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-dark dark:text-white">
+                          {int.assignee_name ? (
+                            <>
+                              {int.assignee_name}
+                              {int.assignee_pernr ? (
+                                <span className="ml-1 text-xs text-dark-6 dark:text-dark-5">
+                                  ({int.assignee_pernr})
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell className="text-dark dark:text-white">
                           {formatOutreachMode(int.outreach_mode)}

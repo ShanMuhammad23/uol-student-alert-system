@@ -19,6 +19,7 @@ import {
   type InterventionRoleScope,
   type InterventionRoleScopeStats,
 } from "@/lib/db/interventions";
+import { insertWellbeingDirectCase } from "@/lib/db/wellbeing-direct-cases";
 
 /** Matches Intervention-Form fields for intervention history. */
 export type InterventionRecord = {
@@ -35,6 +36,10 @@ export type InterventionRecord = {
   uploader_name?: string | null;
   uploader_email?: string | null;
   uploader_pernr?: string | null;
+  case_type?: "referred" | "internal" | "external" | null;
+  assignee_name?: string | null;
+  assignee_pernr?: string | null;
+  assignee_email?: string | null;
 };
 
 export type InterventionEmailRecord = {
@@ -576,6 +581,95 @@ export async function recordIntervention(
   }
   writeFileSync(storePath, JSON.stringify(stored, null, 2), "utf-8");
   revalidatePath("/");
+  revalidatePath(`/students/${studentSapId}`);
+}
+
+/** Wellbeing-initiated external direct case. Creates intervention + wellbeing_direct_cases row. */
+export async function recordDirectWellbeingIntervention(
+  studentSapId: string,
+  data: {
+    date: string;
+    intervention_type: "attendance" | "gpa" | "both";
+    outreach_mode: string;
+    remarks: string;
+    status: string;
+    case_type: "external";
+    assignee_staff_id: string;
+    external_notes?: string;
+  }
+): Promise<void> {
+  if (!pool) {
+    throw new Error("Database not configured.");
+  }
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in.");
+  }
+  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+    throw new Error("Only wellbeing staff can add direct cases.");
+  }
+  const dbContext = await getEnrollmentContextFromDb(studentSapId, {});
+  if (!dbContext?.departmentId || !dbContext?.facultyId) {
+    throw new Error(
+      "Student context not found in enrollment. Check the SAP ID and try again."
+    );
+  }
+  const departmentId = String(dbContext.departmentId).trim();
+  const facultyId = String(dbContext.facultyId).trim();
+  const courseId = String(dbContext.courseId ?? "").trim() || "unknown";
+  await ensureCourseExists(courseId, {
+    title: dbContext.courseTitle ?? undefined,
+    departmentId,
+    facultyId,
+  });
+  const performedAt = new Date().toISOString();
+  const interventionId = `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const alertLevel =
+    data.intervention_type === "attendance"
+      ? dbContext.attendanceAlertLevel ?? null
+      : data.intervention_type === "gpa"
+        ? dbContext.gpaAlertLevel ?? null
+        : dbContext.attendanceAlertLevel === "critical" ||
+            dbContext.gpaAlertLevel === "critical"
+          ? "critical"
+          : dbContext.attendanceAlertLevel === "warning" ||
+              dbContext.gpaAlertLevel === "warning"
+            ? "warning"
+            : null;
+
+  await insertIntervention({
+    id: interventionId,
+    student_sap_id: studentSapId,
+    date: data.date,
+    intervention_type: data.intervention_type,
+    alert_level: alertLevel,
+    outreach_mode: data.outreach_mode,
+    remarks: data.remarks ?? "",
+    status: data.status,
+    performed_at: performedAt,
+    staff_id: session.user.id,
+    department_id: departmentId,
+    course_id: courseId,
+    faculty_id: facultyId,
+    section_code: null,
+    event_package_id: null,
+    case_type: data.case_type,
+    assignee_staff_id: data.assignee_staff_id,
+  });
+
+  const created = await insertWellbeingDirectCase({
+    studentSapId,
+    interventionId,
+    externalNotes: data.external_notes ?? "",
+    createdByStaffId: session.user.id,
+  });
+  if (!created) {
+    throw new Error("Failed to link direct wellbeing case (check DB migration).");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard.wellbeing");
   revalidatePath(`/students/${studentSapId}`);
 }
 
