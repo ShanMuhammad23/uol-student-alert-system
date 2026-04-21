@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 
-import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
 import {
@@ -11,6 +10,7 @@ import {
 } from "@/lib/attendance-utils";
 
 import { StudentCourseAttendanceDetails } from "./StudentCourseAttendanceDetails";
+import { SgpaCgpaMixedChart } from "./SgpaCgpaMixedChart";
 
 type SectionKind = "badges" | "analytics";
 
@@ -39,6 +39,7 @@ type Props = {
   gpaChange?: number | null;
   gpaTrendLevel?: "warning" | "critical" | null;
   gpaTrendSeries?: { key?: string; label?: string; x?: string; value?: number; y?: number }[];
+  cgpaTrendSeries?: { key?: string; label?: string; x?: string; value?: number; y?: number }[];
   selectedClassAverage?: number | null;
   /** When true (e.g. wellbeing external direct case), do not treat a single course as selected. */
   noFocusedCourse?: boolean;
@@ -96,6 +97,7 @@ export function StudentMetricsClient({
   gpaChange = null,
   gpaTrendLevel = null,
   gpaTrendSeries = [],
+  cgpaTrendSeries = [],
   selectedClassAverage = null,
   noFocusedCourse = false,
 }: Props) {
@@ -235,7 +237,7 @@ export function StudentMetricsClient({
     typeof gpaChange === "number"
       ? Number(gpaChange.toFixed(2))
       : Number((currentGpaValue - previousGpaValue).toFixed(2));
-  const chartSeries = gpaTrendSeries
+  const sgpaSeries = gpaTrendSeries
     .map((p) => {
       const x = p.label ?? p.x ?? p.key ?? "";
       const y = typeof p.value === "number" ? p.value : p.y;
@@ -243,6 +245,24 @@ export function StudentMetricsClient({
       return { x, y };
     })
     .filter((p): p is { x: string; y: number } => p != null);
+  const cgpaSeries = cgpaTrendSeries
+    .map((p) => {
+      const x = p.label ?? p.x ?? p.key ?? "";
+      const y = typeof p.value === "number" ? p.value : p.y;
+      if (!x || typeof y !== "number" || !Number.isFinite(y)) return null;
+      return { x, y };
+    })
+    .filter((p): p is { x: string; y: number } => p != null);
+  const mixedChartData = useMemo(() => {
+    const labels = (sgpaSeries.length ? sgpaSeries : cgpaSeries).map((p) => p.x);
+    const sgpaByLabel = new Map(sgpaSeries.map((p) => [p.x, p.y]));
+    const cgpaByLabel = new Map(cgpaSeries.map((p) => [p.x, p.y]));
+    return {
+      categories: labels,
+      sgpa: labels.map((label) => Number(sgpaByLabel.get(label) ?? 0)),
+      cgpa: labels.map((label) => Number(cgpaByLabel.get(label) ?? 0)),
+    };
+  }, [sgpaSeries, cgpaSeries]);
   const attendanceAlert =
     selectedCourseAttendanceLevel && selectedCourseAttendanceLevel !== "none"
       ? selectedCourseAttendanceLevel
@@ -324,15 +344,17 @@ export function StudentMetricsClient({
             </div>
           </div>
 
-          {chartSeries.length ? (
+          {mixedChartData.categories.length ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-              <InterventionStatusChart
-                data={chartSeries}
-                title="SGPA Trend"
+              <SgpaCgpaMixedChart
+                categories={mixedChartData.categories}
+                sgpa={mixedChartData.sgpa}
+                cgpa={mixedChartData.cgpa}
+                title="SGPA (Column) & CGPA (Line)"
               />
             </div>
           ) : (
-            <p className="text-sm text-neutral-500">No SGPA history available.</p>
+            <p className="text-sm text-neutral-500">No SGPA/CGPA history available.</p>
           )}
         </div>
       </div>

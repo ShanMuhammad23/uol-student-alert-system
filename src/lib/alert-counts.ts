@@ -12,9 +12,22 @@ export type AlertCountsRow = {
   red_attendance: number;
 };
 
-export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertCountsRow[]> {
+type AlertCountOptions = {
+  facultyIds?: string[];
+};
+
+export async function buildAlertCountRows(
+  snapshotDate?: string,
+  options?: AlertCountOptions
+): Promise<AlertCountsRow[]> {
   if (!pool) throw new Error("DATABASE_URL is not configured");
   const date = snapshotDate ?? new Date().toISOString().slice(0, 10);
+  const scopedFacultyIds = Array.from(
+    new Set((options?.facultyIds ?? []).map((v) => String(v).trim()).filter(Boolean))
+  );
+  if (!scopedFacultyIds.length) {
+    throw new Error("facultyIds is required for alert counts (global counts are disabled).");
+  }
   const res = await pool.query<AlertCountsRow>(
     `
       WITH enrollment_dim AS (
@@ -25,7 +38,10 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           COALESCE(NULLIF(TRIM(f.name), ''), e.faculty_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN faculties f ON f.id = e.faculty_id
-        WHERE e.is_active = TRUE AND e.faculty_id IS NOT NULL AND e.faculty_id <> ''
+        WHERE e.is_active = TRUE
+          AND e.faculty_id IS NOT NULL
+          AND e.faculty_id <> ''
+          AND e.faculty_id = ANY($2::text[])
 
         UNION ALL
 
@@ -36,7 +52,10 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN departments d ON d.id = e.department_id
-        WHERE e.is_active = TRUE AND e.department_id IS NOT NULL AND e.department_id <> ''
+        WHERE e.is_active = TRUE
+          AND e.department_id IS NOT NULL
+          AND e.department_id <> ''
+          AND e.faculty_id = ANY($2::text[])
 
         UNION ALL
 
@@ -47,7 +66,10 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           COALESCE(NULLIF(TRIM(p.title), ''), e.program_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN programs p ON p.id = e.program_id
-        WHERE e.is_active = TRUE AND e.program_id IS NOT NULL AND e.program_id <> ''
+        WHERE e.is_active = TRUE
+          AND e.program_id IS NOT NULL
+          AND e.program_id <> ''
+          AND e.faculty_id = ANY($2::text[])
 
         UNION ALL
 
@@ -58,7 +80,10 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN courses c ON c.id = e.course_id
-        WHERE e.is_active = TRUE AND e.course_id IS NOT NULL AND e.course_id <> ''
+        WHERE e.is_active = TRUE
+          AND e.course_id IS NOT NULL
+          AND e.course_id <> ''
+          AND e.faculty_id = ANY($2::text[])
 
         UNION ALL
 
@@ -73,7 +98,10 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
           ) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN staff s ON s.pernr = e.instructor_pernr
-        WHERE e.is_active = TRUE AND e.instructor_pernr IS NOT NULL AND e.instructor_pernr <> ''
+        WHERE e.is_active = TRUE
+          AND e.instructor_pernr IS NOT NULL
+          AND e.instructor_pernr <> ''
+          AND e.faculty_id = ANY($2::text[])
       ),
       pop AS (
         SELECT DISTINCT sap_id, dimension_type, dimension_id, dimension_name
@@ -150,7 +178,7 @@ export async function buildAlertCountRows(snapshotDate?: string): Promise<AlertC
        AND s.dimension_id = p.dimension_id
       GROUP BY p.dimension_type, p.dimension_id, p.dimension_name
     `,
-    [date]
+    [date, scopedFacultyIds]
   );
 
   return res.rows;

@@ -467,6 +467,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         gpaChange={gpaProfile?.change ?? null}
         gpaTrendLevel={gpaProfile?.level ?? null}
         gpaTrendSeries={gpaProfile?.semesters ?? []}
+        cgpaTrendSeries={gpaProfile?.cgpaSemesters ?? []}
         noFocusedCourse={suppressCourseFocus}
       />
           </div>
@@ -487,6 +488,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         gpaChange={gpaProfile?.change ?? null}
         gpaTrendLevel={gpaProfile?.level ?? null}
         gpaTrendSeries={gpaProfile?.semesters ?? []}
+        cgpaTrendSeries={gpaProfile?.cgpaSemesters ?? []}
         selectedClassAverage={selectedClassAverage}
         noFocusedCourse={suppressCourseFocus}
       />

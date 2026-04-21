@@ -18,6 +18,7 @@ export type StudentGpaTrend = {
 
 export type StudentGpaProfile = StudentGpaTrend & {
   semesters: Array<{ key: string; label: string; value: number }>;
+  cgpaSemesters: Array<{ key: string; label: string; value: number }>;
 };
 
 const TERM_RANK: Record<string, number> = {
@@ -184,7 +185,7 @@ export async function getStudentGpaProfileBySapId(
   const id = String(sapId ?? "").trim();
   if (!id) return null;
   const res = await pool.query<StudentGpaProfileRow>(
-    `SELECT sap_id, cgpa_fall_2025, cgpa_semesters
+    `SELECT sap_id, cgpa_fall_2025, cgpa_semesters, sgpa_semesters
      FROM student_gpa_profiles
      WHERE sap_id = $1
      LIMIT 1`,
@@ -192,8 +193,16 @@ export async function getStudentGpaProfileBySapId(
   );
   const row = res.rows[0];
   if (!row) return null;
+  const trend = deriveTrendFromSemesters(row.sgpa_semesters, null);
   const fallback = parseNumeric(row.cgpa_fall_2025);
-  const trend = deriveTrendFromSemesters(row.cgpa_semesters, fallback);
-  const semesters = deriveSemesterPoints(row.cgpa_semesters);
-  return { ...trend, semesters };
+  const semesters = deriveSemesterPoints(row.sgpa_semesters);
+  const cgpaSemesters = deriveSemesterPoints(row.cgpa_semesters);
+  if (!cgpaSemesters.length && fallback != null) {
+    cgpaSemesters.push({
+      key: "current",
+      label: "Current",
+      value: fallback,
+    });
+  }
+  return { ...trend, semesters, cgpaSemesters };
 }

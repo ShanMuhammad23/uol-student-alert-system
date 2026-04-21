@@ -142,16 +142,17 @@ function getSapCredentials() {
 
 async function fetchAttendanceEntriesFromSap(
   acadYear: string,
-  acadPerid: string
+  acadPerid: string,
+  facultyCode: string
 ): Promise<AttendanceApiEntry[]> {
   const baseUrl =
     process.env.SAP_ATTENDANCE_BASE_URL ??
     "http://uolerp.uol.edu.pk:8000/sap/opu/odata/sap/ZATTENDANCEAPI_SRV/attendanceSet";
-  const filter = `(AcadYear eq '${acadYear}' and AcadPerid eq '${acadPerid}')`;
-  const encodedFilter = filter.replace(/ /g, "%20").replace(/'/g, "%27");
-  const url = `${baseUrl}?$filter=${encodedFilter}`;
+  const filter = `(AcadYear eq '${acadYear}' and AcadPerid eq '${acadPerid}' and FacCode eq '${facultyCode}')`;
+  const url = new URL(baseUrl);
+  url.searchParams.set("$filter", filter);
 
-  const res = await fetch(url, {
+  const res = await fetch(url.toString(), {
     method: "GET",
     headers: {
       Accept: "application/xml",
@@ -322,8 +323,16 @@ export async function runStudentSync(
   const enrollmentRows = enrollmentRowsByFaculty.flat();
   let attendanceRows: AttendanceRow[] = [];
   try {
-    const attendanceFromApi = await fetchAttendanceEntriesFromSap(pYear, pSess);
-    attendanceRows = attendanceFromApi;
+    const attendanceRowsByFaculty = await Promise.all(
+      facultyCodes.map(async (facultyCode) => {
+        const rows = await fetchAttendanceEntriesFromSap(pYear, pSess, facultyCode);
+        console.info(
+          `[student-sync] Attendance fetched facultyCode=${facultyCode} rows=${rows.length}`
+        );
+        return rows;
+      })
+    );
+    attendanceRows = attendanceRowsByFaculty.flat();
   } catch {
     attendanceRows = await readJsonArray<AttendanceRow>("attendance_data.json");
   }

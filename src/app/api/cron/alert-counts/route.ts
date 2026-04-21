@@ -20,8 +20,39 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const queryFacultyIds = req.nextUrl.searchParams
+      .get("facultyIds")
+      ?.split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const queryFacultyId = req.nextUrl.searchParams.get("facultyId")?.trim();
+    let bodyFacultyIds: string[] = [];
+    let bodyFacultyId: string | null = null;
+    try {
+      const body = await req.json();
+      bodyFacultyIds = Array.isArray(body?.facultyIds)
+        ? body.facultyIds.map((v: unknown) => String(v).trim()).filter(Boolean)
+        : [];
+      bodyFacultyId = typeof body?.facultyId === "string" ? body.facultyId.trim() : null;
+    } catch {
+      // Allow empty body.
+    }
+    const facultyIds = Array.from(
+      new Set(
+        [queryFacultyId, ...(queryFacultyIds ?? []), bodyFacultyId, ...bodyFacultyIds].filter(
+          Boolean
+        ) as string[]
+      )
+    );
+    if (!facultyIds.length) {
+      return NextResponse.json(
+        { error: "facultyIds is required. Global alert counts are disabled." },
+        { status: 400 }
+      );
+    }
+
     const snapshotDate = new Date().toISOString().slice(0, 10);
-    const rows = await buildAlertCountRows(snapshotDate);
+    const rows = await buildAlertCountRows(snapshotDate, { facultyIds });
     const upserted = await upsertAlertCountRows(rows);
 
     return NextResponse.json(
