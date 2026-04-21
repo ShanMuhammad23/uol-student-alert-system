@@ -52,7 +52,15 @@ export type ListingRequest = {
 };
 
 export type SessionScope = {
-  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+  role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
+  staff_id?: string | null;
   faculty_id?: string | null;
   department_ids?: string[] | null;
   pernr?: string | null;
@@ -317,6 +325,50 @@ function buildWhere(
           AND wb_list.wellbeing_status = 'closed'
       )
     )`);
+  } else if (scope.role === "wellbeing-counseller") {
+    const staffId = String(scope.staff_id ?? "").trim();
+    if (!staffId) {
+      where.push("1=0");
+    } else {
+      params.push(staffId);
+      const sid = params.length;
+      where.push(`(
+        (latest.latest_intervention_status = 'referred' AND COALESCE(sig.global_assignee_staff_id, '') = $${sid}::text)
+        OR EXISTS (
+          SELECT 1
+          FROM wellbeing_direct_cases wdc
+          JOIN interventions i_dir ON i_dir.id = wdc.intervention_id
+          WHERE wdc.student_sap_id = e.sap_id
+            AND i_dir.staff_id = $${sid}::uuid
+        )
+        OR (
+          COALESCE(sig.global_intervention_status, '') = 'resolved'
+          AND COALESCE(sig.global_performer_staff_id, '') = $${sid}::text
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM wellbeing_cases wb_c
+          WHERE wb_c.student_sap_id = e.sap_id
+            AND wb_c.wellbeing_status = 'closed'
+            AND wb_c.staff_id = $${sid}::uuid
+        )
+      )`);
+    }
+  } else if (scope.role === "wellbeing-head") {
+    // Head view remains broader wellbeing scope.
+    const directCaseSql =
+      wellbeingOpts?.extendedDirectCases === true
+        ? `OR COALESCE(sig.global_case_type, 'referred') IN ('internal', 'external')`
+        : "";
+    where.push(`(
+      latest.latest_intervention_status = 'referred'
+      ${directCaseSql}
+      OR EXISTS (
+        SELECT 1 FROM wellbeing_cases wb_list
+        WHERE wb_list.student_sap_id = e.sap_id
+          AND wb_list.wellbeing_status = 'closed'
+      )
+    )`);
   }
 
   const departmentIds = toArray(filters.department_ids);
@@ -371,7 +423,12 @@ function buildWhere(
     where.push(`(e.student_name ILIKE $${i} OR e.sap_id ILIKE $${i})`);
   }
 
-  if (!skip?.has("intervention") && scope.role !== "wellbeing") {
+  if (
+    !skip?.has("intervention") &&
+    scope.role !== "wellbeing" &&
+    scope.role !== "wellbeing-counseller" &&
+    scope.role !== "wellbeing-head"
+  ) {
     const interventionFilters = normalizeInterventionFilters(filters.interventionFilters);
     if (interventionFilters?.length) {
       const wantsNotStarted = interventionFilters.includes("not_started");
@@ -431,14 +488,15 @@ async function resolveWellbeingListingOptions(scope: SessionScope): Promise<{
   globalIntervention: GlobalInterventionColumns | null;
   extendedDirectCases: boolean;
 }> {
-  if (scope.role !== "wellbeing") {
+  if (
+    scope.role !== "wellbeing" &&
+    scope.role !== "wellbeing-counseller" &&
+    scope.role !== "wellbeing-head"
+  ) {
     return { globalIntervention: null, extendedDirectCases: false };
   }
   const hasC = await hasCaseTypeColumn();
   const hasA = await hasAssigneeStaffIdColumn();
-  if (!hasC && !hasA) {
-    return { globalIntervention: null, extendedDirectCases: false };
-  }
   return {
     globalIntervention: { hasCaseType: hasC, hasAssignee: hasA },
     extendedDirectCases: hasC,
@@ -454,10 +512,14 @@ function buildStudentInterventionGlobalCteSql(cols: GlobalInterventionColumns): 
     : "";
   const assigneeNameExpr = cols.hasAssignee ? "sa.name" : "NULL::varchar";
   const assigneePernrExpr = cols.hasAssignee ? "sa.pernr" : "NULL::varchar";
+  const assigneeIdExpr = cols.hasAssignee ? "i.assignee_staff_id::text" : "NULL::text";
   return `
     student_intervention_global AS (
       SELECT DISTINCT ON (i.student_sap_id)
         i.student_sap_id,
+        i.status AS global_intervention_status,
+        i.staff_id::text AS global_performer_staff_id,
+        ${assigneeIdExpr} AS global_assignee_staff_id,
         ${caseExpr} AS global_case_type,
         ${assigneeNameExpr} AS global_assignee_name,
         ${assigneePernrExpr} AS global_assignee_pernr
@@ -480,9 +542,15 @@ function buildListingBaseCte(
   const globalSelect =
     globalIntervention != null
       ? `sig.global_case_type,
+        sig.global_intervention_status,
+        sig.global_performer_staff_id,
+        sig.global_assignee_staff_id,
         sig.global_assignee_name,
         sig.global_assignee_pernr,`
       : `NULL::varchar AS global_case_type,
+        NULL::varchar AS global_intervention_status,
+        NULL::varchar AS global_performer_staff_id,
+        NULL::varchar AS global_assignee_staff_id,
         NULL::varchar AS global_assignee_name,
         NULL::varchar AS global_assignee_pernr,`;
   const globalJoin =

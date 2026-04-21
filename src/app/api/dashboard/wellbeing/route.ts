@@ -47,10 +47,7 @@ export async function POST(req: Request) {
           body.roleScope?.role === "hod" ||
           body.roleScope?.role === "wellbeing"
         ? body.roleScope.role
-        : sessionUser.role === "wellbeing-head" ||
-            sessionUser.role === "wellbeing-counseller"
-          ? "wellbeing"
-          : sessionUser.role;
+        : sessionUser.role;
   const user =
     sessionUser.role === "superadmin" && body.roleScope
       ? {

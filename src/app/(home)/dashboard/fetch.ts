@@ -2947,12 +2947,7 @@ export function mapSessionToAppUser(session: {
     sap_id: u.pernr,
     name: u.name,
     email: u.email,
-    role:
-      u.role === "wellbeing-head" || u.role === "wellbeing-counseller"
-        ? "wellbeing"
-        : u.role === "instructor"
-          ? "instructor"
-          : u.role,
+    role: u.role === "instructor" ? "instructor" : u.role,
     faculty_id: u.faculty_id,
     department_id: u.department_ids?.[0] ?? null,
     department_ids: u.department_ids?.length ? u.department_ids : null,
@@ -3162,14 +3157,14 @@ export async function getWellbeingChartData(
           user?.role === "dean" ||
           user?.role === "hod" ||
           user?.role === "wellbeing" ||
+          user?.role === "wellbeing-head" ||
+          user?.role === "wellbeing-counseller" ||
           user?.role === "superadmin"
         ? user.role
-        : user?.role === "wellbeing-head" ||
-            user?.role === "wellbeing-counseller"
-          ? "wellbeing"
         : "superadmin";
   const scope: ListingSessionScope = {
     role,
+    staff_id: user?.id ?? null,
     faculty_id: user?.faculty_id ?? null,
     department_ids: user?.department_ids ?? null,
     pernr: user?.sap_id?.trim() || null,
@@ -3190,7 +3185,13 @@ export async function getWellbeingChartDataForWellbeingRole(
   user: AppUser
 ): Promise<StatusStackedChartData> {
   const scope: ListingSessionScope = {
-    role: "wellbeing",
+    role:
+      user.role === "wellbeing-counseller"
+        ? "wellbeing-counseller"
+        : user.role === "wellbeing-head"
+          ? "wellbeing-head"
+          : "wellbeing",
+    staff_id: user.id,
     faculty_id: user.faculty_id,
     department_ids: user.department_ids,
     pernr: user.sap_id?.trim() || null,

@@ -10,6 +10,7 @@ import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options
 
 function toSessionScope(session: {
   user?: {
+    id?: string;
     role?: string;
     faculty_id?: string | null;
     department_ids?: unknown;
@@ -18,20 +19,25 @@ function toSessionScope(session: {
 }): SessionScope | null {
   const rawRole = session?.user?.role;
   const role =
-    rawRole === "wellbeing-head" || rawRole === "wellbeing-counseller"
-      ? "wellbeing"
-      : rawRole;
+    rawRole === "wellbeing-head"
+      ? "wellbeing-head"
+      : rawRole === "wellbeing-counseller"
+        ? "wellbeing-counseller"
+        : rawRole;
   if (
     role !== "superadmin" &&
     role !== "dean" &&
     role !== "hod" &&
     role !== "instructor" &&
-    role !== "wellbeing"
+    role !== "wellbeing" &&
+    role !== "wellbeing-head" &&
+    role !== "wellbeing-counseller"
   ) {
     return null;
   }
   return {
     role,
+    staff_id: session?.user?.id ?? null,
     faculty_id: session?.user?.faculty_id ?? null,
     department_ids: Array.isArray(session?.user?.department_ids)
       ? session.user.department_ids
