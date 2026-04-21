@@ -253,16 +253,14 @@ export function StudentMetricsClient({
       return { x, y };
     })
     .filter((p): p is { x: string; y: number } => p != null);
-  const mixedChartData = useMemo(() => {
-    const labels = (sgpaSeries.length ? sgpaSeries : cgpaSeries).map((p) => p.x);
-    const sgpaByLabel = new Map(sgpaSeries.map((p) => [p.x, p.y]));
-    const cgpaByLabel = new Map(cgpaSeries.map((p) => [p.x, p.y]));
-    return {
-      categories: labels,
-      sgpa: labels.map((label) => Number(sgpaByLabel.get(label) ?? 0)),
-      cgpa: labels.map((label) => Number(cgpaByLabel.get(label) ?? 0)),
-    };
-  }, [sgpaSeries, cgpaSeries]);
+  const labels = (sgpaSeries.length ? sgpaSeries : cgpaSeries).map((p) => p.x);
+  const sgpaByLabel = new Map(sgpaSeries.map((p) => [p.x, p.y]));
+  const cgpaByLabel = new Map(cgpaSeries.map((p) => [p.x, p.y]));
+  const mixedChartData = {
+    categories: labels,
+    sgpa: labels.map((label) => Number(sgpaByLabel.get(label) ?? 0)),
+    cgpa: labels.map((label) => Number(cgpaByLabel.get(label) ?? 0)),
+  };
   const attendanceAlert =
     selectedCourseAttendanceLevel && selectedCourseAttendanceLevel !== "none"
       ? selectedCourseAttendanceLevel
