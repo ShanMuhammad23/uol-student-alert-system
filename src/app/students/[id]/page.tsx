@@ -237,9 +237,17 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const sapIdFromUrl = id;
   const allowWellbeingDirectCaseEntry =
     directCaseMode != null &&
-    (currentUserRole === "wellbeing" || currentUserRole === "superadmin");
+    (currentUserRole === "wellbeing" ||
+      currentUserRole === "wellbeing-counseller" ||
+      currentUserRole === "wellbeing-head" ||
+      currentUserRole === "superadmin");
 
-  if (currentUserRole === "wellbeing" && pool && !allowWellbeingDirectCaseEntry) {
+  if (
+    (currentUserRole === "wellbeing" ||
+      currentUserRole === "wellbeing-counseller") &&
+    pool &&
+    !allowWellbeingDirectCaseEntry
+  ) {
     const access = await pool.query<{
       status: string | null;
       has_case: boolean;
@@ -360,7 +368,9 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
           ? "Head of Department"
           : currentUserRole === "instructor"
             ? "Instructor"
-              : currentUserRole === "wellbeing"
+              : currentUserRole === "wellbeing" ||
+                  currentUserRole === "wellbeing-counseller" ||
+                  currentUserRole === "wellbeing-head"
                 ? "Wellbeing Officer"
             : null;
   const senderDepartmentName =

@@ -7,7 +7,13 @@ type StaffDetails = {
   name: string;
   img: string | null;
   email: string;
-  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+  role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
   pernr: string;
   facultyName: string;
   departments: string[];

@@ -284,7 +284,15 @@ export type AppUser = {
   name: string;
   email: string;
   password?: string;
-  role: "superadmin" | "dean" | "hod" | "teacher" | "instructor" | "wellbeing";
+  role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "teacher"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
   faculty_id: string | null;
   department_id: string | null;
   department_ids: string[] | null;
@@ -2919,7 +2927,14 @@ export function mapSessionToAppUser(session: {
     pernr: string;
     name: string;
     email: string;
-    role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+    role:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller";
     faculty_id: string | null;
     department_ids: string[];
     img: string | null;
@@ -2932,7 +2947,12 @@ export function mapSessionToAppUser(session: {
     sap_id: u.pernr,
     name: u.name,
     email: u.email,
-    role: u.role === "instructor" ? "instructor" : u.role,
+    role:
+      u.role === "wellbeing-head" || u.role === "wellbeing-counseller"
+        ? "wellbeing"
+        : u.role === "instructor"
+          ? "instructor"
+          : u.role,
     faculty_id: u.faculty_id,
     department_id: u.department_ids?.[0] ?? null,
     department_ids: u.department_ids?.length ? u.department_ids : null,
@@ -3144,6 +3164,9 @@ export async function getWellbeingChartData(
           user?.role === "wellbeing" ||
           user?.role === "superadmin"
         ? user.role
+        : user?.role === "wellbeing-head" ||
+            user?.role === "wellbeing-counseller"
+          ? "wellbeing"
         : "superadmin";
   const scope: ListingSessionScope = {
     role,

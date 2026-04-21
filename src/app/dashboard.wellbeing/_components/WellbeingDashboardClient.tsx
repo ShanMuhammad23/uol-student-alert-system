@@ -137,7 +137,9 @@ export function WellbeingDashboardClient({
       {activeTab === "direct" ? (
         <DirectWellbeingCaseForm
           returnToUrl={
-            asWellbeingScope ? "/dashboard.wellbeing?as=wellbeing" : "/dashboard.wellbeing"
+            asWellbeingScope
+              ? "/dashboard/wellbeing/counseller?as=wellbeing"
+              : "/dashboard/wellbeing/counseller"
           }
         />
       ) : (
@@ -170,7 +172,11 @@ export function WellbeingDashboardClient({
         onChangeResolutionFilters={setResolutionFilters}
       />
       <TopChannelsTableClient
-        returnToUrl={asWellbeingScope ? "/dashboard.wellbeing?as=wellbeing" : "/dashboard.wellbeing"}
+        returnToUrl={
+          asWellbeingScope
+            ? "/dashboard/wellbeing/counseller?as=wellbeing"
+            : "/dashboard/wellbeing/counseller"
+        }
         uniqueStudents
         masterFilter={masterFilter}
         resolutionFilters={resolutionFilters}

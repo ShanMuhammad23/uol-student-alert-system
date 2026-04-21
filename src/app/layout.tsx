@@ -97,7 +97,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           [latestSnapshotDate, user.sap_id]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
-      } else if (user.role === "wellbeing") {
+      } else if (
+        user.role === "wellbeing" ||
+        user.role === "wellbeing-head" ||
+        user.role === "wellbeing-counseller"
+      ) {
         screenHeading = "Wellbeing Referred Cases";
         const total = await pool.query<{ total_students: number | string | null }>(
           `WITH latest AS (

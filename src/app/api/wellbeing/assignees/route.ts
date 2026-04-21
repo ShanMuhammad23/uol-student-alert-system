@@ -8,7 +8,11 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+  const isWellbeingRole =
+    session.user.role === "wellbeing" ||
+    session.user.role === "wellbeing-head" ||
+    session.user.role === "wellbeing-counseller";
+  if (!isWellbeingRole && session.user.role !== "superadmin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!pool) {
@@ -22,7 +26,7 @@ export async function GET() {
   }>(
     `SELECT id::text, name, pernr, email
      FROM staff
-     WHERE role = 'wellbeing'
+     WHERE role IN ('wellbeing', 'wellbeing-head', 'wellbeing-counseller')
      ORDER BY name ASC`
   );
   return NextResponse.json({

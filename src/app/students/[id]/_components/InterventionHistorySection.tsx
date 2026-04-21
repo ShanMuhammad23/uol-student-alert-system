@@ -98,6 +98,8 @@ type Props = {
     | "hod"
     | "instructor"
     | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
     | null;
   currentUserPernr: string | null;
   /** From `?direct_case=external` — show external direct case form on the student profile. */
@@ -378,7 +380,10 @@ export function InterventionHistorySection({
     }
   };
 
-  const isWellbeingView = currentUserRole === "wellbeing";
+  const isWellbeingView =
+    currentUserRole === "wellbeing" ||
+    currentUserRole === "wellbeing-head" ||
+    currentUserRole === "wellbeing-counseller";
   const resolutionRows = wellbeingRows.filter(
     (wb) => wb.category === "Flex (Academic)" || wb.category === "Flex (Financial)"
   );

@@ -65,7 +65,10 @@ export async function POST(req: Request) {
   ): SessionScope => {
     if (sourceUser.role === "superadmin" && roleScope) {
       return {
-        role: roleScope.role === "teacher" ? "instructor" : roleScope.role,
+        role:
+          roleScope.role === "teacher"
+            ? "instructor"
+            : roleScope.role,
         faculty_id: roleScope.facultyId ?? null,
         department_ids: roleScope.departmentIds?.length
           ? roleScope.departmentIds
@@ -74,7 +77,13 @@ export async function POST(req: Request) {
       };
     }
     return {
-      role: sourceUser.role === "teacher" ? "instructor" : sourceUser.role,
+      role:
+        sourceUser.role === "teacher"
+          ? "instructor"
+          : sourceUser.role === "wellbeing-head" ||
+              sourceUser.role === "wellbeing-counseller"
+            ? "wellbeing"
+            : sourceUser.role,
       faculty_id: sourceUser.faculty_id ?? null,
       department_ids: sourceUser.department_ids?.length
         ? sourceUser.department_ids

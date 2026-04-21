@@ -63,8 +63,11 @@ export default async function Home({ searchParams }: PropsType) {
   if (!user) {
     redirect("/auth/sign-in");
   }
-  if (user.role === "wellbeing") {
-    redirect("/dashboard.wellbeing");
+  if (user.role === "wellbeing-head") {
+    redirect("/dashboard/wellbeing/admin");
+  }
+  if (user.role === "wellbeing-counseller" || user.role === "wellbeing") {
+    redirect("/dashboard/wellbeing/counseller");
   }
 
   const asParam = Array.isArray(params.as) ? params.as[0] : params.as;

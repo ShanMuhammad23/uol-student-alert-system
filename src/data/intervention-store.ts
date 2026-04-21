@@ -605,7 +605,11 @@ export async function recordDirectWellbeingIntervention(
   if (!session?.user?.id) {
     throw new Error("You must be signed in.");
   }
-  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+  const isWellbeingRole =
+    session.user.role === "wellbeing" ||
+    session.user.role === "wellbeing-head" ||
+    session.user.role === "wellbeing-counseller";
+  if (!isWellbeingRole && session.user.role !== "superadmin") {
     throw new Error("Only wellbeing staff can add direct cases.");
   }
   const dbContext = await getEnrollmentContextFromDb(studentSapId, {});
@@ -669,7 +673,7 @@ export async function recordDirectWellbeingIntervention(
 
   revalidatePath("/");
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard.wellbeing");
+  revalidatePath("/dashboard/wellbeing/counseller");
   revalidatePath(`/students/${studentSapId}`);
 }
 

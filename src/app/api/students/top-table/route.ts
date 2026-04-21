@@ -17,7 +17,11 @@ type Body = ListingRequest & {
 };
 
 function toSessionScope(session: any): SessionScope | null {
-  const role = session?.user?.role;
+  const rawRole = session?.user?.role;
+  const role =
+    rawRole === "wellbeing-head" || rawRole === "wellbeing-counseller"
+      ? "wellbeing"
+      : rawRole;
   if (
     role !== "superadmin" &&
     role !== "dean" &&

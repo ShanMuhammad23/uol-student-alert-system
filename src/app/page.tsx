@@ -6,8 +6,11 @@ const HomePage = async () => {
   if (user?.role === "superadmin") {
     redirect("/dashboard/superadmin");
   }
-  if (user?.role === "wellbeing") {
-    redirect("/dashboard.wellbeing");
+  if (user?.role === "wellbeing-head") {
+    redirect("/dashboard/wellbeing/admin");
+  }
+  if (user?.role === "wellbeing-counseller" || user?.role === "wellbeing") {
+    redirect("/dashboard/wellbeing/counseller");
   }
   redirect("/dashboard");
 };

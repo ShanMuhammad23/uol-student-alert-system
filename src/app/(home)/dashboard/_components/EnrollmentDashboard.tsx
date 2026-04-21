@@ -614,7 +614,9 @@ function EnrollmentDashboardInner({
               ? "dean"
               : user.role === "instructor"
                 ? "teacher"
-                : user.role === "wellbeing"
+                : user.role === "wellbeing" ||
+                    user.role === "wellbeing-head" ||
+                    user.role === "wellbeing-counseller"
                   ? "dean"
                 : user.role
           }

@@ -83,10 +83,18 @@ export async function recordWellbeingCase(
   if (!session?.user?.id) {
     throw new Error("You must be signed in.");
   }
-  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+  const isWellbeingRole =
+    session.user.role === "wellbeing" ||
+    session.user.role === "wellbeing-counseller" ||
+    session.user.role === "wellbeing-head";
+  if (!isWellbeingRole && session.user.role !== "superadmin") {
     throw new Error("Only wellbeing can add wellbeing resolution.");
   }
-  if (session.user.role === "wellbeing" && pool) {
+  if (
+    (session.user.role === "wellbeing" ||
+      session.user.role === "wellbeing-counseller") &&
+    pool
+  ) {
     const access = await pool.query<{
       status: string | null;
       has_case: boolean;
@@ -173,7 +181,11 @@ export async function recordDirectWellbeingCase(
   if (!session?.user?.id) {
     throw new Error("You must be signed in.");
   }
-  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+  const isWellbeingRoleForDirect =
+    session.user.role === "wellbeing" ||
+    session.user.role === "wellbeing-counseller" ||
+    session.user.role === "wellbeing-head";
+  if (!isWellbeingRoleForDirect && session.user.role !== "superadmin") {
     throw new Error("Only wellbeing can add direct cases.");
   }
   if (!String(data.assigneeStaffId ?? "").trim()) {

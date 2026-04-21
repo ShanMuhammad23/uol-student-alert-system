@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS staff (
   name          VARCHAR(255) NOT NULL,
   email         VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255),
-  role          VARCHAR(20) NOT NULL CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing')),
+  role          VARCHAR(32) NOT NULL CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller')),
   faculty_id    VARCHAR(32) REFERENCES faculties(id),
   img           TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),

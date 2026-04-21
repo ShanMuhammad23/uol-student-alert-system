@@ -47,7 +47,10 @@ export async function POST(req: Request) {
           body.roleScope?.role === "hod" ||
           body.roleScope?.role === "wellbeing"
         ? body.roleScope.role
-        : sessionUser.role;
+        : sessionUser.role === "wellbeing-head" ||
+            sessionUser.role === "wellbeing-counseller"
+          ? "wellbeing"
+          : sessionUser.role;
   const user =
     sessionUser.role === "superadmin" && body.roleScope
       ? {
@@ -63,7 +66,9 @@ export async function POST(req: Request) {
 
   try {
     const data =
-      user.role === "wellbeing"
+      user.role === "wellbeing" ||
+      user.role === "wellbeing-head" ||
+      user.role === "wellbeing-counseller"
         ? await getWellbeingChartDataForWellbeingRole(user)
         : await getWellbeingChartData(
             user,

@@ -23,7 +23,9 @@ export async function GET(req: Request) {
     session.user.role !== "dean" &&
     session.user.role !== "hod" &&
     session.user.role !== "instructor" &&
-    session.user.role !== "wellbeing"
+    session.user.role !== "wellbeing" &&
+    session.user.role !== "wellbeing-head" &&
+    session.user.role !== "wellbeing-counseller"
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -6,7 +6,14 @@ declare module "next-auth" {
     pernr: string;
     name: string;
     email: string;
-    role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+    role:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller";
     img: string | null;
     faculty_id: string | null;
     department_ids: string[];
@@ -24,7 +31,14 @@ declare module "next-auth/jwt" {
     pernr: string;
     name?: string;
     email?: string;
-    role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+    role:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller";
     img: string | null;
     faculty_id: string | null;
     department_ids: string[];

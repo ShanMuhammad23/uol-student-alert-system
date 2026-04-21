@@ -27,7 +27,14 @@ export type StaffRow = {
   name: string;
   email: string;
   password_hash: string | null;
-  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+  role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
   faculty_id: string | null;
   created_at: Date;
   updated_at: Date;

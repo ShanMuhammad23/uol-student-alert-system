@@ -120,7 +120,9 @@ export function TopChannelsTableClient({
       return undefined;
     }
   })();
-  const isWellbeingScreen = returnToUrl.includes("/dashboard.wellbeing");
+  const isWellbeingScreen =
+    returnToUrl.includes("/dashboard.wellbeing") ||
+    returnToUrl.includes("/dashboard/wellbeing");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);

@@ -67,7 +67,9 @@ export type DashboardUser = {
     | "hod"
     | "teacher"
     | "instructor"
-    | "wellbeing";
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
   faculty_id: string | null;
 };
 

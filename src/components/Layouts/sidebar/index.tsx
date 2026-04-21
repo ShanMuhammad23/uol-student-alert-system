@@ -34,7 +34,7 @@ export function Sidebar({ user }: SidebarProps) {
             {
               title: "Wellbeing Dashboard",
               icon: HomeIcon,
-              url: "/dashboard.wellbeing",
+              url: "/dashboard/wellbeing/admin",
             },
             {
               title: "Staff",
@@ -50,7 +50,7 @@ export function Sidebar({ user }: SidebarProps) {
         },
       ];
     }
-    if (user?.role === "wellbeing") {
+    if (user?.role === "wellbeing-counseller" || user?.role === "wellbeing") {
       return [
         {
           label: "MAIN MENU",
@@ -58,7 +58,21 @@ export function Sidebar({ user }: SidebarProps) {
             {
               title: "Wellbeing Dashboard",
               icon: HomeIcon,
-              url: "/dashboard.wellbeing",
+              url: "/dashboard/wellbeing/counseller",
+            },
+          ],
+        },
+      ];
+    }
+    if (user?.role === "wellbeing-head") {
+      return [
+        {
+          label: "MAIN MENU",
+          items: [
+            {
+              title: "Wellbeing Admin",
+              icon: HomeIcon,
+              url: "/dashboard/wellbeing/admin",
             },
           ],
         },

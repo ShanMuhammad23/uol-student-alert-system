@@ -20,7 +20,13 @@ type StaffListRow = {
   name: string;
   img: string | null;
   email: string;
-  role: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing";
+  role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
   faculty_id: string | null;
   faculty_name: string | null;
   department_names: string[] | null;
@@ -105,14 +111,24 @@ async function createStaffAction(formData: FormData) {
     | "dean"
     | "hod"
     | "instructor"
-    | "wellbeing";
+    | "wellbeing-head"
+    | "wellbeing-counseller";
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
 
   if (!name || !email || !pernr || !password || !role) {
     redirect("/dashboard/superadmin/staff?error=missing_required");
   }
-  if (!["superadmin", "dean", "hod", "instructor", "wellbeing"].includes(role)) {
+  if (
+    ![
+      "superadmin",
+      "dean",
+      "hod",
+      "instructor",
+      "wellbeing-head",
+      "wellbeing-counseller",
+    ].includes(role)
+  ) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
   if ((role === "dean" || role === "instructor") && !facultyId) {

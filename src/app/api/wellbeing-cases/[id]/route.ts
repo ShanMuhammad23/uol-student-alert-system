@@ -12,7 +12,11 @@ export async function PUT(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.role !== "wellbeing" && session.user.role !== "superadmin") {
+  const isWellbeingRole =
+    session.user.role === "wellbeing" ||
+    session.user.role === "wellbeing-head" ||
+    session.user.role === "wellbeing-counseller";
+  if (!isWellbeingRole && session.user.role !== "superadmin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -32,7 +36,11 @@ export async function PUT(
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  if (session.user.role === "wellbeing" && pool) {
+  if (
+    (session.user.role === "wellbeing" ||
+      session.user.role === "wellbeing-counseller") &&
+    pool
+  ) {
     const ownership = await pool.query<{ student_sap_id: string }>(
       `SELECT student_sap_id
        FROM wellbeing_cases
