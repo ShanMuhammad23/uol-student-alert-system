@@ -595,6 +595,8 @@ export async function recordDirectWellbeingIntervention(
     status: string;
     case_type: "external";
     assignee_staff_id: string;
+    reason_for_visit?: string;
+    initial_findings?: string;
     external_notes?: string;
   }
 ): Promise<void> {
@@ -664,6 +666,10 @@ export async function recordDirectWellbeingIntervention(
   const created = await insertWellbeingDirectCase({
     studentSapId,
     interventionId,
+    visitDate: data.date,
+    reasonForVisit: data.reason_for_visit ?? data.remarks ?? "",
+    initialFindings: data.initial_findings ?? data.external_notes ?? "",
+    directCaseStatus: data.status,
     externalNotes: data.external_notes ?? "",
     createdByStaffId: session.user.id,
   });

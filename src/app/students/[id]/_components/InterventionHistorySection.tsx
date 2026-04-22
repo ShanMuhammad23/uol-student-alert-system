@@ -156,6 +156,7 @@ export function InterventionHistorySection({
   const canDelete = currentUserRole === "superadmin";
   const canAddIntervention = true;
   const [open, setOpen] = useState(false);
+  const [openDirectCaseDialog, setOpenDirectCaseDialog] = useState(false);
   const [rows, setRows] = useState(interventions);
   const [wellbeingRows, setWellbeingRows] = useState(wellbeingCases);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -396,23 +397,6 @@ export function InterventionHistorySection({
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
-      {isWellbeingView && directCaseMode === "external" && (
-        <div className="mb-6 rounded-xl border border-primary/40 bg-primary/5 p-5 dark:border-primary/30 dark:bg-primary/10">
-          <h4 className="text-base font-semibold text-dark dark:text-white">
-            Direct Case Intervention
-          </h4>
-         
-          <div className="mt-4">
-            <Suspense
-              fallback={
-                <p className="text-sm text-dark-6 dark:text-dark-5">Loading form…</p>
-              }
-            >
-              <WellbeingResolutionFormWithAction studentSapId={studentSapId} variant="direct" />
-            </Suspense>
-          </div>
-        </div>
-      )}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -434,6 +418,15 @@ export function InterventionHistorySection({
         </button>
         {canAddIntervention && (
           <div className="flex items-center gap-2">
+          {isWellbeingView && (
+            <button
+              type="button"
+              onClick={() => setOpenDirectCaseDialog(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-gray-dark"
+            >
+              Add Direct Case
+            </button>
+          )}
           <button
               type="button"
               onClick={() => setOpen(true)}
@@ -466,7 +459,7 @@ export function InterventionHistorySection({
                 <TableHeader>
                   <TableRow className="border-stroke dark:border-dark-3">
                     <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
-                    <TableHead className="font-semibold text-dark dark:text-white">Type</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Alert Type</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Case type</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Assignee</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
@@ -491,7 +484,7 @@ export function InterventionHistorySection({
                           {formatInterventionType(int.intervention_type)}
                         </TableCell>
                         <TableCell className="text-dark dark:text-white capitalize">
-                          {int.case_type ?? "—"}
+                          {int.case_type?.replace("external", "direct") ?? "—"}
                         </TableCell>
                         <TableCell className="text-dark dark:text-white">
                           {int.assignee_name ? (
@@ -795,6 +788,44 @@ export function InterventionHistorySection({
           )}
         </div>
       </dialog>
+      {openDirectCaseDialog && (
+        <dialog
+          open
+          onCancel={() => setOpenDirectCaseDialog(false)}
+          className={cn(
+            "fixed left-1/2 top-1/2 z-[70] m-0 w-[min(92vw,42rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
+            "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
+            "[&::backdrop]:bg-black/50"
+          )}
+        >
+          <div className="flex items-center justify-between border-b border-stroke px-6 py-4 dark:border-dark-3">
+            <h4 className="text-lg font-semibold text-dark dark:text-white">
+              Add Direct Case
+            </h4>
+            <button
+              type="button"
+              onClick={() => setOpenDirectCaseDialog(false)}
+              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <div className="px-6 py-4">
+            <Suspense
+              fallback={
+                <p className="text-sm text-dark-6 dark:text-dark-5">Loading form…</p>
+              }
+            >
+              <WellbeingResolutionFormWithAction
+                studentSapId={studentSapId}
+                variant="direct"
+                onClose={() => setOpenDirectCaseDialog(false)}
+              />
+            </Suspense>
+          </div>
+        </dialog>
+      )}
 
       {editingId && (
         <dialog

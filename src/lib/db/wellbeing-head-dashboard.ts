@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db";
-import { hasCaseTypeColumn } from "@/lib/db/interventions";
+import { hasAssigneeStaffIdColumn, hasCaseTypeColumn } from "@/lib/db/interventions";
 
 type CaseType = "referred" | "internal" | "external";
 type CaseStatus = "open" | "closed";
@@ -9,11 +9,6 @@ type CaseRow = {
   category: string | null;
   wellbeing_status: string | null;
   counsellor_name: string | null;
-};
-
-type LatestInterventionRow = {
-  student_sap_id: string;
-  status: string | null;
   case_type: string | null;
 };
 
@@ -141,34 +136,6 @@ function buildSection(rows: CaseRow[], studentCaseTypeMap: Map<string, CaseType>
   return out;
 }
 
-function applyTotalsFromInterventions(
-  metrics: SectionMetrics,
-  rows: LatestInterventionRow[]
-): SectionMetrics {
-  const next: SectionMetrics = {
-    ...metrics,
-    totals: {
-      totalCases: 0,
-      referred: 0,
-      resolved: 0,
-      openCases: 0,
-    },
-  };
-
-  for (const row of rows) {
-    const caseType = normalizeCaseType(row.case_type);
-    const statusRaw = String(row.status ?? "").trim().toLowerCase();
-    const isResolved = statusRaw === "resolved";
-
-    next.totals.totalCases += 1;
-    if (caseType === "referred") next.totals.referred += 1;
-    if (isResolved) next.totals.resolved += 1;
-    else next.totals.openCases += 1;
-  }
-
-  return next;
-}
-
 export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDashboardData> {
   if (!pool) {
     return {
@@ -180,42 +147,36 @@ export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDash
 
   const hasCaseType = await hasCaseTypeColumn();
   const caseTypeExpr = hasCaseType ? "COALESCE(i.case_type, 'referred')" : "'referred'::varchar";
+  const hasAssignee = await hasAssigneeStaffIdColumn();
+  const assigneeJoin = hasAssignee ? "LEFT JOIN staff s ON s.id = i.assignee_staff_id" : "";
+  const assigneeNameExpr = hasAssignee ? "s.name" : "NULL::varchar";
 
-  const [rowsResult, caseTypeResult, latestInterventionsResult] = await Promise.all([
-    pool.query<CaseRow>(
-      `
-      SELECT
-        wb.student_sap_id,
-        wb.category,
-        wb.wellbeing_status,
-        s.name AS counsellor_name
+  const rowsResult = await pool.query<CaseRow>(
+    `
+    SELECT DISTINCT ON (i.student_sap_id)
+      i.student_sap_id,
+      wb_latest.category,
+      CASE
+        WHEN LOWER(COALESCE(i.status, '')) = 'resolved' THEN 'closed'
+        ELSE 'open'
+      END AS wellbeing_status,
+      ${assigneeNameExpr} AS counsellor_name,
+      ${caseTypeExpr} AS case_type
+    FROM interventions i
+    LEFT JOIN LATERAL (
+      SELECT wb.category
       FROM wellbeing_cases wb
-      LEFT JOIN staff s ON s.id = wb.staff_id
-      `
-    ),
-    pool.query<{ student_sap_id: string; case_type: string }>(
-      `
-      SELECT DISTINCT ON (i.student_sap_id)
-        i.student_sap_id,
-        ${caseTypeExpr} AS case_type
-      FROM interventions i
-      ORDER BY i.student_sap_id, i.performed_at DESC, i.id DESC
-      `
-    ),
-    pool.query<LatestInterventionRow>(
-      `
-      SELECT DISTINCT ON (i.student_sap_id)
-        i.student_sap_id,
-        i.status,
-        ${caseTypeExpr} AS case_type
-      FROM interventions i
-      ORDER BY i.student_sap_id, i.performed_at DESC, i.id DESC
-      `
-    ),
-  ]);
+      WHERE wb.student_sap_id = i.student_sap_id
+      ORDER BY wb.updated_at DESC, wb.opened_at DESC, wb.id DESC
+      LIMIT 1
+    ) wb_latest ON TRUE
+    ${assigneeJoin}
+    ORDER BY i.student_sap_id, i.performed_at DESC, i.id DESC
+    `
+  );
 
   const studentCaseTypeMap = new Map<string, CaseType>();
-  for (const row of caseTypeResult.rows) {
+  for (const row of rowsResult.rows) {
     studentCaseTypeMap.set(
       String(row.student_sap_id ?? "").trim(),
       normalizeCaseType(row.case_type)
@@ -232,22 +193,9 @@ export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDash
     return type === "internal" || type === "external";
   });
 
-  const allMetrics = buildSection(allRows, studentCaseTypeMap);
-  const referredMetrics = buildSection(referredRows, studentCaseTypeMap);
-  const directMetrics = buildSection(directRows, studentCaseTypeMap);
-
-  const latestRows = latestInterventionsResult.rows;
-  const latestReferred = latestRows.filter(
-    (row) => normalizeCaseType(row.case_type) === "referred"
-  );
-  const latestDirect = latestRows.filter((row) => {
-    const type = normalizeCaseType(row.case_type);
-    return type === "internal" || type === "external";
-  });
-
   return {
-    totalRecords: applyTotalsFromInterventions(allMetrics, latestRows),
-    referredCases: applyTotalsFromInterventions(referredMetrics, latestReferred),
-    directCases: applyTotalsFromInterventions(directMetrics, latestDirect),
+    totalRecords: buildSection(allRows, studentCaseTypeMap),
+    referredCases: buildSection(referredRows, studentCaseTypeMap),
+    directCases: buildSection(directRows, studentCaseTypeMap),
   };
 }

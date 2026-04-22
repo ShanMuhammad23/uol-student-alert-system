@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StudentProfileLink } from "@/components/Tables/nested-students-table/StudentProfileLink";
+import { DirectWellbeingCaseForm } from "@/app/dashboard.wellbeing/_components/DirectWellbeingCaseForm";
 import type {
   WellbeingAssigneeOption,
   WellbeingHeadCaseListItem,
@@ -37,6 +38,7 @@ export function WellbeingCaseTabs({ referredCases, directCases, assignees }: Pro
     return out;
   });
   const [errorById, setErrorById] = useState<Record<string, string>>({});
+  const [showDirectCaseForm, setShowDirectCaseForm] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const tabRows = useMemo(
@@ -82,33 +84,49 @@ export function WellbeingCaseTabs({ referredCases, directCases, assignees }: Pro
   return (
     <section className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border border-stroke p-1 dark:border-dark-3">
-          <button
-            type="button"
-            onClick={() => setActiveTab("referred")}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition",
-              activeTab === "referred"
-                ? "bg-primary text-white"
-                : "text-dark hover:bg-gray-100 dark:text-white dark:hover:bg-dark-2"
-            )}
-          >
-            Referred Cases ({referredCases.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("direct")}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition",
-              activeTab === "direct"
-                ? "bg-primary text-white"
-                : "text-dark hover:bg-gray-100 dark:text-white dark:hover:bg-dark-2"
-            )}
-          >
-            Direct Cases ({directCases.length})
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-stroke p-1 dark:border-dark-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab("referred")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition",
+                activeTab === "referred"
+                  ? "bg-primary text-white"
+                  : "text-dark hover:bg-gray-100 dark:text-white dark:hover:bg-dark-2"
+              )}
+            >
+              Referred Cases ({referredCases.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("direct")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition",
+                activeTab === "direct"
+                  ? "bg-primary text-white"
+                  : "text-dark hover:bg-gray-100 dark:text-white dark:hover:bg-dark-2"
+              )}
+            >
+              Direct Cases ({directCases.length})
+            </button>
+          </div>
+          {activeTab === "direct" ? (
+            <button
+              type="button"
+              onClick={() => setShowDirectCaseForm((prev) => !prev)}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary/90"
+            >
+              {showDirectCaseForm ? "Hide Add Direct Case" : "Add Direct Case"}
+            </button>
+          ) : null}
         </div>
       </div>
+      {activeTab === "direct" && showDirectCaseForm ? (
+        <div className="mb-4">
+          <DirectWellbeingCaseForm returnToUrl="/dashboard/wellbeing/admin" />
+        </div>
+      ) : null}
 
       {tabRows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-stroke py-6 text-center text-sm text-dark-6 dark:border-dark-3 dark:text-dark-5">

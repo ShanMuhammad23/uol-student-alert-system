@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   recordDirectWellbeingCase,
   recordWellbeingCase,
@@ -20,14 +20,6 @@ type Category = "Counselling" | "Monitoring" | "Flex (Academic)" | "Flex (Financ
 type WellbeingStatus = "open" | "closed";
 type InterventionStatusUpdate = "unchanged" | "resolved";
 
-const OUTREACH_MODES = [
-  { value: "email", label: "Email" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "phone-call", label: "Phone Call" },
-  { value: "meeting", label: "Meeting" },
-  { value: "not-applicable", label: "Not Applicable" },
-] as const;
-
 const STATUS_OPTIONS = [
   { value: "initiated", label: "Initiated" },
   { value: "in-progress", label: "In-Progress" },
@@ -44,13 +36,8 @@ export function WellbeingResolutionFormWithAction({
   variant = "resolution",
 }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const dateId = useId();
-  const outreachId = useId();
-  const typeId = useId();
   const statusId = useId();
-  const assigneeId = useId();
 
   const isDirect = variant === "direct";
 
@@ -66,15 +53,10 @@ export function WellbeingResolutionFormWithAction({
   } | null>(null);
 
   const [assignees, setAssignees] = useState<Assignee[]>([]);
-  const [loadingAssignees, setLoadingAssignees] = useState(isDirect);
-  const [assigneeStaffId, setAssigneeStaffId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [interventionType, setInterventionType] = useState<"attendance" | "gpa" | "both">(
-    "attendance"
-  );
-  const [outreachMode, setOutreachMode] = useState("");
   const [interventionStatus, setInterventionStatus] = useState("in-progress");
-  const [externalNotes, setExternalNotes] = useState("");
+  const [reasonForVisit, setReasonForVisit] = useState("");
+  const [initialFindings, setInitialFindings] = useState("");
 
   useEffect(() => {
     if (!isDirect) return;
@@ -87,20 +69,11 @@ export function WellbeingResolutionFormWithAction({
       .catch(() => {
         if (!cancelled) setAssignees([]);
       })
-      .finally(() => {
-        if (!cancelled) setLoadingAssignees(false);
-      });
+      .finally(() => {});
     return () => {
       cancelled = true;
     };
   }, [isDirect]);
-
-  const clearDirectCaseQuery = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("direct_case");
-    const q = params.toString();
-    router.replace(q ? `${pathname}?${q}` : pathname);
-  };
 
   const handleSubmitResolution = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,28 +103,22 @@ export function WellbeingResolutionFormWithAction({
   const handleSubmitDirect = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!assigneeStaffId.trim()) {
-      setMessage({ type: "error", text: "Select a wellbeing assignee." });
-      return;
-    }
-    if (!outreachMode) {
-      setMessage({ type: "error", text: "Select an outreach mode." });
+    if (!reasonForVisit.trim()) {
+      setMessage({ type: "error", text: "Reason for visit is required." });
       return;
     }
 
     setIsSaving(true);
     try {
+      const defaultAssignee = assignees[0]?.id ?? "";
       await recordDirectWellbeingCase(studentSapId, {
         date,
-        interventionType,
-        outreachMode,
-        remarks,
+        reasonForVisit,
+        initialFindings,
         status: interventionStatus,
-        assigneeStaffId,
-        externalNotes,
+        assigneeStaffId: defaultAssignee || undefined,
       });
       setMessage({ type: "success", text: "Direct case recorded successfully." });
-      clearDirectCaseQuery();
       router.refresh();
       onClose?.();
     } catch (err) {
@@ -168,37 +135,9 @@ export function WellbeingResolutionFormWithAction({
     return (
       <form onSubmit={handleSubmitDirect} className="space-y-4">
         <p className="text-xs text-dark-6 dark:text-dark-5">
-          External direct case — no course focus. Enrollment context is taken from the student&apos;s
+          Direct case — no course focus. Enrollment context is taken from the student&apos;s
           record.
         </p>
-
-        <div>
-          <label
-            htmlFor={assigneeId}
-            className="mb-2 block text-sm font-medium text-dark dark:text-white"
-          >
-            Assignee (wellbeing handler)
-          </label>
-          <div className="relative">
-            <select
-              id={assigneeId}
-              value={assigneeStaffId}
-              onChange={(e) => setAssigneeStaffId(e.target.value)}
-              required
-              disabled={loadingAssignees}
-              className="w-full appearance-none rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
-            >
-              <option value="">{loadingAssignees ? "Loading…" : "Select assignee"}</option>
-              {assignees.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                  {a.pernr ? ` (${a.pernr})` : ""}
-                </option>
-              ))}
-            </select>
-            <ChevronUpIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 rotate-180" />
-          </div>
-        </div>
 
         <div>
           <label htmlFor={dateId} className="mb-2 block text-sm font-medium text-dark dark:text-white">
@@ -214,81 +153,33 @@ export function WellbeingResolutionFormWithAction({
           />
         </div>
 
-        <div className="space-y-2">
-          <span className="block text-sm font-medium text-dark dark:text-white">Type</span>
-          <div id={typeId} className="flex flex-wrap gap-4">
-            {(
-              [
-                ["attendance", "Attendance"],
-                ["gpa", "GPA"],
-                ["both", "Both"],
-              ] as const
-            ).map(([value, label]) => (
-              <label key={value} className="inline-flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="direct-intervention-type"
-                  value={value}
-                  checked={interventionType === value}
-                  onChange={() => setInterventionType(value)}
-                />
-                <span className="text-sm text-dark dark:text-white">{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
         <div>
-          <label htmlFor={outreachId} className="mb-2 block text-sm font-medium text-dark dark:text-white">
-            Outreach mode
+          <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
+            Reason for Visit
           </label>
-          <div className="relative">
-            <select
-              id={outreachId}
-              value={outreachMode}
-              onChange={(e) => setOutreachMode(e.target.value)}
-              required
-              className="w-full appearance-none rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
-            >
-              <option value="" disabled hidden>
-                Select mode
-              </option>
-              {OUTREACH_MODES.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <ChevronUpIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 rotate-180" />
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-dark dark:text-white">Remarks</label>
           <textarea
             rows={3}
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
+            value={reasonForVisit}
+            onChange={(e) => setReasonForVisit(e.target.value)}
             className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
           />
         </div>
 
         <div>
           <label className="mb-2 block text-sm font-medium text-dark dark:text-white">
-            External notes (optional)
+            Initial Findings and Current Situation
           </label>
           <textarea
-            rows={2}
-            value={externalNotes}
-            onChange={(e) => setExternalNotes(e.target.value)}
-            placeholder="Partner agency, referral reference, etc."
+            rows={4}
+            value={initialFindings}
+            onChange={(e) => setInitialFindings(e.target.value)}
             className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:text-white"
           />
         </div>
 
         <div>
           <label htmlFor={statusId} className="mb-2 block text-sm font-medium text-dark dark:text-white">
-            Intervention status
+            Status
           </label>
           <div className="relative">
             <select

@@ -370,10 +370,23 @@ CREATE TABLE IF NOT EXISTS wellbeing_direct_cases (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_sap_id      VARCHAR(32) NOT NULL REFERENCES students(sap_id) ON DELETE CASCADE,
   intervention_id     VARCHAR(64) NOT NULL UNIQUE REFERENCES interventions(id) ON DELETE CASCADE,
+  visit_date          DATE,
+  reason_for_visit    TEXT NOT NULL DEFAULT '',
+  initial_findings    TEXT NOT NULL DEFAULT '',
+  direct_case_status  VARCHAR(32) NOT NULL DEFAULT 'in-progress' CHECK (direct_case_status IN ('initiated', 'in-progress', 'referred', 'resolved', 'no-action-required')),
   external_notes      TEXT NOT NULL DEFAULT '',
   created_by_staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE wellbeing_direct_cases
+  ADD COLUMN IF NOT EXISTS visit_date DATE;
+ALTER TABLE wellbeing_direct_cases
+  ADD COLUMN IF NOT EXISTS reason_for_visit TEXT NOT NULL DEFAULT '';
+ALTER TABLE wellbeing_direct_cases
+  ADD COLUMN IF NOT EXISTS initial_findings TEXT NOT NULL DEFAULT '';
+ALTER TABLE wellbeing_direct_cases
+  ADD COLUMN IF NOT EXISTS direct_case_status VARCHAR(32) NOT NULL DEFAULT 'in-progress';
 
 CREATE INDEX IF NOT EXISTS idx_wellbeing_direct_cases_student ON wellbeing_direct_cases(student_sap_id);
 CREATE INDEX IF NOT EXISTS idx_wellbeing_direct_cases_intervention ON wellbeing_direct_cases(intervention_id);

@@ -39,12 +39,13 @@ export type RecordWellbeingCaseInput = {
 /** Wellbeing direct cases are always external. */
 export type RecordDirectWellbeingCaseInput = {
   date: string;
-  interventionType: "attendance" | "gpa" | "both";
-  outreachMode: string;
-  remarks: string;
+  /** UI label: Reason for Visit */
+  reasonForVisit: string;
+  /** UI label: Initial Findings and Current Situation */
+  initialFindings: string;
   status: string;
-  assigneeStaffId: string;
-  externalNotes?: string;
+  /** Optional override; defaults to current wellbeing user when omitted. */
+  assigneeStaffId?: string;
 };
 
 export async function recordIntervention(
@@ -188,17 +189,17 @@ export async function recordDirectWellbeingCase(
   if (!isWellbeingRoleForDirect && session.user.role !== "superadmin") {
     throw new Error("Only wellbeing can add direct cases.");
   }
-  if (!String(data.assigneeStaffId ?? "").trim()) {
-    throw new Error("Assignee is required.");
-  }
+  const assigneeStaffId = String(data.assigneeStaffId ?? "").trim() || session.user.id;
   await saveDirectWellbeingIntervention(studentSapId, {
     date: data.date,
-    intervention_type: data.interventionType,
-    outreach_mode: data.outreachMode,
-    remarks: data.remarks,
+    intervention_type: "both",
+    outreach_mode: "meeting",
+    remarks: data.reasonForVisit,
     status: data.status,
     case_type: "external",
-    assignee_staff_id: data.assigneeStaffId,
-    external_notes: data.externalNotes,
+    assignee_staff_id: assigneeStaffId,
+    reason_for_visit: data.reasonForVisit,
+    initial_findings: data.initialFindings,
+    external_notes: data.initialFindings,
   });
 }
