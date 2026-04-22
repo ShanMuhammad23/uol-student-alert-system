@@ -114,30 +114,32 @@ export async function buildAlertCountRows(
           p.dimension_id,
           MAX(
             CASE
-              WHEN a.gpa_alert_level = 'critical' THEN 2
               WHEN a.gpa_alert_level = 'warning' THEN 1
               ELSE 0
             END
-          ) AS gpa_sev,
+          ) AS gpa_has_warning,
           MAX(
-            CASE a.attendance_alert_level
-              WHEN 'critical' THEN 2
-              WHEN 'warning' THEN 1
+            CASE
+              WHEN a.gpa_alert_level = 'critical' THEN 1
               ELSE 0
             END
-          ) AS attendance_sev
-          ,
+          ) AS gpa_has_critical,
+          MAX(
+            CASE
+              WHEN a.attendance_alert_level = 'warning' THEN 1
+              ELSE 0
+            END
+          ) AS attendance_has_warning,
           MAX(
             CASE
               WHEN a.attendance_alert_level = 'critical'
                 OR (
                   a.attendance_percentage IS NOT NULL
                   AND a.attendance_percentage <= 60
-                ) THEN 2
-              WHEN a.attendance_alert_level = 'warning' THEN 1
+                ) THEN 1
               ELSE 0
             END
-          ) AS attendance_sev_bucket
+          ) AS attendance_has_critical
         FROM pop p
         LEFT JOIN student_enrollment_current e
           ON e.is_active = TRUE
@@ -162,10 +164,10 @@ export async function buildAlertCountRows(
         p.dimension_id::text AS dimension_id,
         p.dimension_name::text AS dimension_name,
         COUNT(*)::int AS total_students,
-        COUNT(*) FILTER (WHERE COALESCE(s.gpa_sev, 0) = 1)::int AS yellow_gpa,
-        COUNT(*) FILTER (WHERE COALESCE(s.gpa_sev, 0) = 2)::int AS red_gpa,
-        COUNT(*) FILTER (WHERE COALESCE(s.attendance_sev_bucket, 0) = 1)::int AS yellow_attendance,
-        COUNT(*) FILTER (WHERE COALESCE(s.attendance_sev_bucket, 0) = 2)::int AS red_attendance
+        COUNT(*) FILTER (WHERE COALESCE(s.gpa_has_warning, 0) = 1)::int AS yellow_gpa,
+        COUNT(*) FILTER (WHERE COALESCE(s.gpa_has_critical, 0) = 1)::int AS red_gpa,
+        COUNT(*) FILTER (WHERE COALESCE(s.attendance_has_warning, 0) = 1)::int AS yellow_attendance,
+        COUNT(*) FILTER (WHERE COALESCE(s.attendance_has_critical, 0) = 1)::int AS red_attendance
       FROM pop p
       LEFT JOIN sev s
         ON s.sap_id = p.sap_id

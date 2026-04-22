@@ -712,7 +712,7 @@ export async function getFilterDropdownCounts(
       SELECT
         COUNT(*)::int AS total_all,
         COUNT(*) FILTER (WHERE has_red)::int AS red,
-        COUNT(*) FILTER (WHERE has_yellow AND NOT has_red)::int AS yellow,
+        COUNT(*) FILTER (WHERE has_yellow)::int AS yellow,
         COUNT(*) FILTER (WHERE NOT has_red AND NOT has_yellow)::int AS good
       FROM gpa_per_student`;
     const gpaRes = await pool.query<{
@@ -738,7 +738,7 @@ export async function getFilterDropdownCounts(
       SELECT
         COUNT(*)::int AS total_all,
         COUNT(*) FILTER (WHERE has_red)::int AS red,
-        COUNT(*) FILTER (WHERE has_yellow AND NOT has_red)::int AS yellow,
+        COUNT(*) FILTER (WHERE has_yellow)::int AS yellow,
         COUNT(*) FILTER (WHERE NOT has_red AND NOT has_yellow)::int AS good
       FROM att_per_student`;
     const attRes = await pool.query<{
