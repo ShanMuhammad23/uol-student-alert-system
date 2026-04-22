@@ -102,11 +102,10 @@ export function WellbeingDashboardClient({
     <div className="mt-4 space-y-4">
       <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark dark:shadow-card">
         <h1 className="text-2xl font-bold text-dark dark:text-white">
-          Wellbeing caseload
+           Caseload
         </h1>
         <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
-          Referred students, resolved cases, and direct internal/external cases. Use the Direct case
-          tab to log a new wellbeing-initiated case.
+          Referred cases and dDirect cases.
         </p>
         <div className="mt-4 inline-flex rounded-lg border border-stroke p-1 dark:border-dark-3">
           <button
@@ -118,7 +117,7 @@ export function WellbeingDashboardClient({
                 : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white"
             }`}
           >
-            Caseload
+            Referred
           </button>
           <button
             type="button"
@@ -129,7 +128,7 @@ export function WellbeingDashboardClient({
                 : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white"
             }`}
           >
-            Direct case
+            Direct
           </button>
         </div>
       </div>

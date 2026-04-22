@@ -8,22 +8,47 @@ type WellbeingHeadSectionProps = {
   title: string;
   metrics: SectionMetrics;
   compact?: boolean;
+  statMode?: "overall" | "referred" | "direct";
 };
 
 export function WellbeingHeadSection({
   title,
   metrics,
   compact = false,
+  statMode = "overall",
 }: WellbeingHeadSectionProps) {
+  const statCards =
+    statMode === "referred"
+      ? [
+          { label: "Referred", value: metrics.totals.totalCases, tone: "purple" as const },
+          { label: "Resolved", value: metrics.totals.resolved, tone: "purple" as const },
+          { label: "Open", value: metrics.totals.openCases, tone: "green" as const },
+        ]
+      : statMode === "direct"
+      ? [
+          { label: "Total Cases", value: metrics.totals.totalCases },
+          { label: "Resolved", value: metrics.totals.resolved, tone: "purple" as const },
+          { label: "Open", value: metrics.totals.openCases, tone: "green" as const },
+        ]
+      : [
+          { label: "Total Cases", value: metrics.totals.totalCases },
+          { label: "Resolved", value: metrics.totals.resolved, tone: "purple" as const },
+          { label: "Open", value: metrics.totals.openCases, tone: "green" as const },
+        ];
+
   return (
     <section className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
       <h2 className="text-xl font-semibold text-dark dark:text-white">{title}</h2>
       <div className="flex gap-4">
-          <WellbeingHeadStatCard label="Total Cases" value={metrics.totals.totalCases} />
-          <WellbeingHeadStatCard label="Referred" value={metrics.totals.referred} tone="purple" />
-          <WellbeingHeadStatCard label="Resolved" value={metrics.totals.resolved} tone="purple" />
-          <WellbeingHeadStatCard label="Open Cases" value={metrics.totals.openCases} tone="green" />
-        </div>
+        {statCards.map((card) => (
+          <WellbeingHeadStatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            tone={card.tone}
+          />
+        ))}
+      </div>
       <div className='mt-4'>
        
 
@@ -36,7 +61,7 @@ export function WellbeingHeadSection({
         >
           <div className="rounded-[10px] border border-stroke p-3 dark:border-dark-3">
             <WellbeingHeadStackedChart
-              title="All Cases (Category-wise)"
+              title="All(Category-wise)"
               xAxis={metrics.categoryChart.categories}
               open={metrics.categoryChart.open}
               closed={metrics.categoryChart.closed}
@@ -44,7 +69,7 @@ export function WellbeingHeadSection({
           </div>
           <div className="rounded-[10px] border border-stroke p-3 dark:border-dark-3">
             <WellbeingHeadStackedChart
-              title="Counseller-wise Cases"
+              title="Counseller-wise"
               xAxis={metrics.counsellorChart.counsellors}
               open={metrics.counsellorChart.open}
               closed={metrics.counsellorChart.closed}

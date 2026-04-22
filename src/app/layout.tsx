@@ -102,7 +102,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         user.role === "wellbeing-head" ||
         user.role === "wellbeing-counseller"
       ) {
-        screenHeading = "Wellbeing Referred Cases";
+        screenHeading = "UOL Wellbeing Center";
         const total = await pool.query<{ total_students: number | string | null }>(
           `WITH latest AS (
              SELECT DISTINCT ON (student_sap_id)

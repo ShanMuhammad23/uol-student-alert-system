@@ -399,11 +399,9 @@ export function InterventionHistorySection({
       {isWellbeingView && directCaseMode === "external" && (
         <div className="mb-6 rounded-xl border border-primary/40 bg-primary/5 p-5 dark:border-primary/30 dark:bg-primary/10">
           <h4 className="text-base font-semibold text-dark dark:text-white">
-            Direct case (external)
+            Direct Case Intervention
           </h4>
-          <p className="mt-1 text-sm text-dark-6 dark:text-dark-5">
-            Enter assignee and intervention details. This profile was opened without a focused course.
-          </p>
+         
           <div className="mt-4">
             <Suspense
               fallback={
