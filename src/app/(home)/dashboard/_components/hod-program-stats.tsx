@@ -98,6 +98,7 @@ export function HodProgramStats({
       <div className="max-h-[228px] space-y-2 overflow-y-auto pr-1">
       {list.map((p) => {
         const attendanceMissing = p.attendanceMissing ?? 0;
+        const attendanceClassesHeld = p.attendanceClassesHeld ?? 0;
         const isSelected =
           (masterFilterProgramIds?.length
             ? masterFilterProgramIds.includes(p.programId)
@@ -127,7 +128,8 @@ export function HodProgramStats({
               {" | "}
               <span className={cn("text-red-500 font-bold", p.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{p.redGpa}</span>
               {" · "}
-              Att Missing: <span className="text-red-500 font-bold">{attendanceMissing}</span>
+              Att Missing <span className="text-red-500 font-bold">{attendanceMissing}</span> of{" "}
+              <span className="text-red-500 font-bold">{attendanceClassesHeld}</span> 
             </span>
           </button>
         );

@@ -104,6 +104,7 @@ export function DeanDepartmentStats({
       <div className="flex flex-wrap gap-2">
       {list.map((d) => {
         const attendanceMissing = d.attendanceMissing ?? 0;
+        const attendanceClassesHeld = d.attendanceClassesHeld ?? 0;
         const isSelected =
           masterFilterDepartmentIds?.length
             ? masterFilterDepartmentIds.includes(d.departmentId)
@@ -174,8 +175,11 @@ export function DeanDepartmentStats({
                 {d.redGpa}
               </span>
               {" · "}
-              Att Missing:{" "}
-              <span className="text-red-500 font-bold">{attendanceMissing}</span>
+              Att Missing{" "}
+              <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
+              of{" "}
+              <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>{" "}
+        
             </span>
           </button>
         );

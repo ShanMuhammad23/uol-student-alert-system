@@ -108,6 +108,7 @@ export function DeanProgramStats({
       <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
       {list.map((p) => {
         const attendanceMissing = p.attendanceMissing ?? 0;
+        const attendanceClassesHeld = p.attendanceClassesHeld ?? 0;
         const isSelected =
           masterFilterProgramIds?.length
             ? masterFilterProgramIds.includes(p.programId)
@@ -178,8 +179,11 @@ export function DeanProgramStats({
                 {p.redGpa}
               </span>
               {" · "}
-              Att Missing:{" "}
-              <span className="text-red-500 font-bold">{attendanceMissing}</span>
+              Att Missing{" "}
+              <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
+              of{" "}
+              <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>{" "}
+            
             </span>
           </button>
         );

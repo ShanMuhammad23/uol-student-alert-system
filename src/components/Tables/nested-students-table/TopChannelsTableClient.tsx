@@ -576,20 +576,6 @@ export function TopChannelsTableClient({
                   </div>
                 </TableHead>
                 <TableHead
-                  className="min-w-[170px] !text-left cursor-pointer select-none"
-                  onClick={() => handleSort("attendanceStats")}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="whitespace-normal leading-tight">
-                      Attendance Stats{" "}
-                      <span className="block text-[10px] font-normal normal-case text-dark-6 dark:text-dark-5">
-                        posted vs not posted
-                      </span>
-                    </span>
-                    {renderSortIcon("attendanceStats")}
-                  </div>
-                </TableHead>
-                <TableHead
                   className="min-w-[160px] !text-left cursor-pointer select-none"
                   onClick={() => handleSort("attendance")}
                 >
@@ -750,33 +736,7 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left">
                       {classesHeld === 0 ? "—" : classesHeld}
                     </TableCell>
-                    <TableCell className="!text-left">
-                      {classesHeld === 0 ? (
-                        "—"
-                      ) : (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs text-dark-6 dark:text-dark-5">
-                            Posted: {attendancePosted}
-                          </span>
-                          {notUpdatedVsHeld === 0 ? (
-                            <span className="text-xs text-green-500">Not Posted: 0</span>
-                          ) : (
-                            <span
-                              className={cn(
-                                "text-xs",
-                                notUpdatedVsHeld > 0
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-amber-600 dark:text-amber-400"
-                              )}
-                            >
-                              {notUpdatedVsHeld < 0
-                                ? `Duplicate Posting: ${Math.abs(notUpdatedVsHeld)}`
-                                : `Not Posted: ${notUpdatedVsHeld}`}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
+                   
                     <TableCell className="!text-left">
                       {attendance != null ? (
                         <div className="flex flex-col">
@@ -795,7 +755,7 @@ export function TopChannelsTableClient({
                           )}
                         </div>
                       ) : (
-                        "—"
+                        "Not Posted"
                       )}
                     </TableCell>
                     <TableCell className="!text-left">

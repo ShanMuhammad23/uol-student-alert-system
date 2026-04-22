@@ -27,6 +27,7 @@ export type DepartmentStats = {
   yellowGpa: number;
   redGpa: number;
   yellowAttendance: number;
+  attendanceClassesHeld: number;
   redAttendance: number;
   attendanceMissing?: number;
 };
@@ -39,6 +40,7 @@ export type ProgramStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceClassesHeld: number;
   attendanceMissing?: number;
 };
 
@@ -50,6 +52,7 @@ export type InstructorStats = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  attendanceClassesHeld: number;
   attendanceMissing?: number;
 };
 

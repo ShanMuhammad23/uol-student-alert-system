@@ -677,8 +677,8 @@ async function getAttendanceMissingByDimension(
   dimensionType: MissingDimensionType,
   ids: string[],
   scope?: MissingScope
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
+): Promise<Map<string, { missing: number; held: number }>> {
+  const map = new Map<string, { missing: number; held: number }>();
   if (!pool || !ids.length) return map;
 
   const dimensionExpr =
@@ -725,6 +725,7 @@ async function getAttendanceMissingByDimension(
       ? await pool.query<{
           dimension_id: string;
           missing_count: number | string | null;
+          held_count: number | string | null;
         }>(
           `WITH scoped AS (
              SELECT
@@ -784,7 +785,8 @@ async function getAttendanceMissingByDimension(
            )
            SELECT
              owner.dimension_id,
-             COALESCE(SUM(GREATEST(cm.held - cm.marked, 0)), 0) AS missing_count
+            COALESCE(SUM(GREATEST(cm.held - cm.marked, 0)), 0) AS missing_count,
+            COALESCE(SUM(cm.held), 0) AS held_count
            FROM class_program_owner owner
            JOIN class_max cm
              ON cm.course_id = owner.course_id
@@ -796,6 +798,7 @@ async function getAttendanceMissingByDimension(
       : await pool.query<{
           dimension_id: string;
           missing_count: number | string | null;
+          held_count: number | string | null;
         }>(
           `WITH scoped AS (
              SELECT
@@ -827,14 +830,18 @@ async function getAttendanceMissingByDimension(
            )
            SELECT
              dimension_id,
-             COALESCE(SUM(GREATEST(held - marked, 0)), 0) AS missing_count
+            COALESCE(SUM(GREATEST(held - marked, 0)), 0) AS missing_count,
+            COALESCE(SUM(held), 0) AS held_count
            FROM class_max
            GROUP BY dimension_id`,
           params
         );
 
   for (const row of res.rows) {
-    map.set(row.dimension_id, toInt(row.missing_count));
+    map.set(row.dimension_id, {
+      missing: toInt(row.missing_count),
+      held: toInt(row.held_count),
+    });
   }
   return map;
 }
@@ -1610,6 +1617,7 @@ export type DepartmentStats = {
   yellowAttendance: number;
   redAttendance: number;
   attendanceMissing?: number;
+  attendanceClassesHeld?: number;
 };
 
 /** Returns department stats from enrollment tables. */
@@ -1680,7 +1688,8 @@ export async function getDeanDepartmentStats(
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByDepartment.get(row.dimension_id) ?? 0,
+        attendanceMissing: missingByDepartment.get(row.dimension_id)?.missing ?? 0,
+        attendanceClassesHeld: missingByDepartment.get(row.dimension_id)?.held ?? 0,
       }));
     } catch {
       // Fall back to existing file/SAP paths below.
@@ -1778,6 +1787,7 @@ export type InstructorStats = {
   yellowAttendance: number;
   redAttendance: number;
   attendanceMissing?: number;
+  attendanceClassesHeld?: number;
 };
 
 /** Returns instructor stats from enrollment tables. */
@@ -1859,7 +1869,8 @@ export async function getDeanInstructorStats(
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByInstructor.get(row.dimension_id) ?? 0,
+        attendanceMissing: missingByInstructor.get(row.dimension_id)?.missing ?? 0,
+        attendanceClassesHeld: missingByInstructor.get(row.dimension_id)?.held ?? 0,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -1985,7 +1996,8 @@ export async function getDeanProgramStats(
         redGpa: toInt(row.red_gpa),
         yellowAttendance: toInt(row.yellow_attendance),
         redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByProgram.get(row.dimension_id) ?? 0,
+        attendanceMissing: missingByProgram.get(row.dimension_id)?.missing ?? 0,
+        attendanceClassesHeld: missingByProgram.get(row.dimension_id)?.held ?? 0,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -2050,6 +2062,7 @@ export type ProgramStats = {
   yellowAttendance: number;
   redAttendance: number;
   attendanceMissing?: number;
+  attendanceClassesHeld?: number;
 };
 
 export type FacultyStats = {
@@ -2269,6 +2282,7 @@ export type CourseStats = {
   yellowAttendance: number;
   redAttendance: number;
   attendanceMissing?: number;
+  attendanceClassesHeld?: number;
 };
 
 /** Course stats for Dean scoped to faculty and optional department/program/course filters. */
@@ -2304,7 +2318,8 @@ export async function getDeanCourseStats(
       redGpa: toInt(row.red_gpa),
       yellowAttendance: toInt(row.yellow_attendance),
       redAttendance: toInt(row.red_attendance),
-      attendanceMissing: missingByCourse.get(row.dimension_id) ?? 0,
+      attendanceMissing: missingByCourse.get(row.dimension_id)?.missing ?? 0,
+      attendanceClassesHeld: missingByCourse.get(row.dimension_id)?.held ?? 0,
     }));
   } catch {
     return [];
@@ -2358,7 +2373,8 @@ export async function getHodProgramStats(
         redGpa: row ? toInt(row.red_gpa) : 0,
         yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
         redAttendance: row ? toInt(row.red_attendance) : 0,
-        attendanceMissing: missingByProgram.get(programId) ?? 0,
+        attendanceMissing: missingByProgram.get(programId)?.missing ?? 0,
+        attendanceClassesHeld: missingByProgram.get(programId)?.held ?? 0,
       };
     });
   } catch {
@@ -2426,7 +2442,10 @@ export async function getHodInstructorStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
-          attendanceMissing: missingByInstructor.get(teacher.instructor_id) ?? 0,
+          attendanceMissing:
+            missingByInstructor.get(teacher.instructor_id)?.missing ?? 0,
+          attendanceClassesHeld:
+            missingByInstructor.get(teacher.instructor_id)?.held ?? 0,
         };
       });
     } catch {
@@ -2486,7 +2505,8 @@ export async function getHodInstructorStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
-          attendanceMissing: missingByInstructor.get(teacher.id) ?? 0,
+          attendanceMissing: missingByInstructor.get(teacher.id)?.missing ?? 0,
+          attendanceClassesHeld: missingByInstructor.get(teacher.id)?.held ?? 0,
         };
       });
     } catch {
@@ -2602,7 +2622,8 @@ export async function getHodCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
-          attendanceMissing: missingByCourse.get(courseId) ?? 0,
+          attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
+          attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
         };
       });
     } catch {
@@ -2675,7 +2696,8 @@ export async function getHodCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
-          attendanceMissing: missingByCourse.get(courseId) ?? 0,
+          attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
+          attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
         };
       });
     } catch {
@@ -2805,7 +2827,8 @@ export async function getInstructorCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
-          attendanceMissing: missingByCourse.get(courseId) ?? 0,
+          attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
+          attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
         };
       });
     } catch {
@@ -2897,7 +2920,8 @@ export async function getInstructorCourseStats(
           redGpa: row ? toInt(row.red_gpa) : 0,
           yellowAttendance: row ? toInt(row.yellow_attendance) : 0,
           redAttendance: row ? toInt(row.red_attendance) : 0,
-          attendanceMissing: missingByCourse.get(courseId) ?? 0,
+          attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
+          attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
         };
       });
     } catch {

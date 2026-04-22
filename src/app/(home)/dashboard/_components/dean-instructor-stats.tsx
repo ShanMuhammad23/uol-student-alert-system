@@ -104,6 +104,7 @@ export function DeanInstructorStats({
       <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
       {list.map((i) => {
         const attendanceMissing = i.attendanceMissing ?? 0;
+        const attendanceClassesHeld = i.attendanceClassesHeld ?? 0;
         return (
         <button
           key={i.instructorId}
@@ -167,8 +168,11 @@ export function DeanInstructorStats({
               {i.redGpa}
             </span>
             {" · "}
-            Att Missing:{" "}
-            <span className="text-red-500 font-bold">{attendanceMissing}</span>
+            Att Missing{" "}
+            <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
+            of{" "}
+            <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>{" "}
+            
           </span>
         </button>
       )})}

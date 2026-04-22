@@ -96,6 +96,7 @@ export function HodCourseStats({
       <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
       {list.map((c) => {
         const attendanceMissing = c.attendanceMissing ?? 0;
+        const attendanceClassesHeld = c.attendanceClassesHeld ?? 0;
         return (
         <button
           key={c.courseId}
@@ -126,7 +127,8 @@ export function HodCourseStats({
             {" | "}
             <span className={cn("text-red-500 font-bold", c.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{c.redGpa}</span>
             {" · "}
-            Att Missing: <span className="text-red-500 font-bold">{attendanceMissing}</span>
+            Att Missing <span className="text-red-500 font-bold">{attendanceMissing}</span> of{" "}
+            <span className="text-red-500 font-bold">{attendanceClassesHeld}</span> 
           </span>
         </button>
       )})}
