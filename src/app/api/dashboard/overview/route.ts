@@ -126,8 +126,12 @@ export async function POST(req: Request) {
     }
   ).then((listing) => {
     const byClass = new Map<string, { held: number; marked: number }>();
+    let attendanceCaseYellow = 0;
+    let attendanceCaseRed = 0;
     for (const row of listing.rows) {
       if (row.isActive === false) continue;
+      if (row.attendanceAlertLevel === "warning") attendanceCaseYellow += 1;
+      if (row.attendanceAlertLevel === "critical") attendanceCaseRed += 1;
       const classKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
       const held = Number(row.totalClassesHeld ?? 0);
       const marked = Number(row.attendanceMarkedClasses ?? 0);
@@ -148,7 +152,13 @@ export async function POST(req: Request) {
       updatedAttendance += value.marked;
       missingCount += calculateMissingAttendance(value.held, value.marked);
     }
-    return { updatedAttendance, totalClassesHeld, missingCount };
+    return {
+      updatedAttendance,
+      totalClassesHeld,
+      missingCount,
+      attendanceCaseYellow,
+      attendanceCaseRed,
+    };
   });
 
   const [overview, attendanceCoverage] = await Promise.all([
@@ -171,6 +181,8 @@ export async function POST(req: Request) {
     attendance: {
       grossYellow: grossAttendanceYellow,
       grossRed: grossAttendanceRed,
+      caseYellow: attendanceCoverage.attendanceCaseYellow,
+      caseRed: attendanceCoverage.attendanceCaseRed,
       updatedAttendance: attendanceCoverage.updatedAttendance,
       totalClassesHeld: attendanceCoverage.totalClassesHeld,
       missingCount: attendanceCoverage.missingCount,

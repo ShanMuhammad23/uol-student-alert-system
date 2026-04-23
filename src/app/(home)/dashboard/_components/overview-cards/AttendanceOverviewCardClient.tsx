@@ -22,6 +22,8 @@ type PropsType = {
   interventionClosedYellowCount: number;
   interventionClosedRedCount: number;
   totalStudents: number;
+  totalAlertCasesYellow?: number;
+  totalAlertCasesRed?: number;
   updatedAttendanceCount: number;
   totalHeldCount: number;
   attendanceMissingCount?: number;
@@ -41,6 +43,8 @@ export function AttendanceOverviewCardClient({
   interventionClosedYellowCount,
   interventionClosedRedCount,
   totalStudents,
+  totalAlertCasesYellow = 0,
+  totalAlertCasesRed = 0,
   updatedAttendanceCount,
   totalHeldCount,
   attendanceMissingCount,
@@ -67,6 +71,11 @@ export function AttendanceOverviewCardClient({
   const visibleInterventionClosedRed =
     !allowed.size || allowed.has("red") ? interventionClosedRedCount : 0;
   const totalAlerts = visibleYellow + visibleRed;
+  const visibleAlertCasesYellow =
+    !allowed.size || allowed.has("yellow") ? totalAlertCasesYellow : 0;
+  const visibleAlertCasesRed =
+    !allowed.size || allowed.has("red") ? totalAlertCasesRed : 0;
+  const totalAlertCases = visibleAlertCasesYellow + visibleAlertCasesRed;
   const yellowPercentage =
     totalStudents > 0 ? (visibleYellow / totalStudents) * 100 : 0;
   const redPercentage = totalStudents > 0 ? (visibleRed / totalStudents) * 100 : 0;
@@ -125,7 +134,10 @@ export function AttendanceOverviewCardClient({
                 {visibleYellow}
                
                 <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
-                  {visibleInterventionClosedYellow}
+                  Closed: {visibleInterventionClosedYellow}
+                </span>
+                <span className="block text-xs font-medium text-yellow-500 dark:text-yellow-300">
+                  Cases: {visibleAlertCasesYellow}
                 </span>
               </button>
               <span className="text-dark-4 dark:text-dark-5" aria-hidden>
@@ -148,7 +160,10 @@ export function AttendanceOverviewCardClient({
                 {visibleRed}
                 
                 <span className="block text-base font-medium text-red-600 dark:text-red-600">
-                  {visibleInterventionClosedRed}
+                  Closed: {visibleInterventionClosedRed}
+                </span>
+                <span className="block text-xs font-medium text-red-600 dark:text-red-400">
+                  Cases: {visibleAlertCasesRed}
                 </span>
               </button>
             </dt>
@@ -173,7 +188,6 @@ export function AttendanceOverviewCardClient({
       </div>
    
       <p className="mt-3 text-base  text-dark-6 dark:text-dark-5">
-          
           <span className=" text-dark dark:text-white">
             Attendance Missing: {resolvedAttendanceMissingCount} / {totalHeldCount.toLocaleString()} Classes (
             {totalHeldCount > 0
