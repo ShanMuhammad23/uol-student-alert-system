@@ -43,6 +43,20 @@ function deriveClassTypeLabel(eventPackageId?: string | null): string {
   return raw;
 }
 
+function formatAdmissionLabel(
+  admissionSession: string | null | undefined,
+  admissionYear: string | null | undefined
+): string | null {
+  const session = String(admissionSession ?? "").trim().toLowerCase();
+  const year = String(admissionYear ?? "").trim();
+  if (!session || !year) return null;
+  const sessionLabel =
+    session === "spring" || session === "summer" || session === "fall"
+      ? `${session.charAt(0).toUpperCase()}${session.slice(1)}`
+      : session.charAt(0).toUpperCase() + session.slice(1);
+  return `${sessionLabel} ${year}`;
+}
+
 type StudentProfileMetricRow = {
   courseId: string;
   courseTitle: string | null;
@@ -73,6 +87,8 @@ async function getEnrollmentForStudentSapId(
       faculty_id: string | null;
       program_id: string | null;
       program_title: string | null;
+      admission_year: string | null;
+      admission_session: string | null;
       course_id: string;
       course_title: string | null;
       section_code: string | null;
@@ -88,6 +104,8 @@ async function getEnrollmentForStudentSapId(
          e.faculty_id,
          e.program_id,
          p.title AS program_title,
+         e.admission_year,
+         e.admission_session,
          e.course_id,
          c.title AS course_title,
          NULLIF(e.section_code, '') AS section_code,
@@ -111,6 +129,8 @@ async function getEnrollmentForStudentSapId(
       FacId: r.faculty_id ?? undefined,
       DegreeCode: r.program_id ?? undefined,
       DegreeTitle: r.program_title ?? undefined,
+      AdmAyear: r.admission_year ?? undefined,
+      AdmSession: r.admission_session ?? undefined,
       CrCode: r.course_id,
       CrTitle: r.course_title ?? r.course_id,
       Section: r.section_code ?? undefined,
@@ -284,6 +304,10 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const dbMetricRows = await getStudentProfileMetricRows(sapIdFromUrl);
   if (!enrollmentRecords.length) notFound();
   const primaryEnrollment = enrollmentRecords[0] ?? null;
+  const admissionLabel = formatAdmissionLabel(
+    String(primaryEnrollment?.AdmSession ?? ""),
+    String(primaryEnrollment?.AdmAyear ?? "")
+  );
 
   if (!selectedClassAverage && pool && !suppressCourseFocus) {
     try {
@@ -495,6 +519,10 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                       primaryEnrollment?.DegreeCode ??
                       "—"}
                   </span>
+                </span>
+                <span className="flex flex-col gap-1.5 border-l border-white/20 pl-4">
+                  <span className="text-base">Admission:</span>
+                  <span className="font-medium">{admissionLabel ?? "—"}</span>
                 </span>
               </div>
             </div>

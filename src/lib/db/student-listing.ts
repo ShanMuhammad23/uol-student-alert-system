@@ -69,6 +69,8 @@ export type SessionScope = {
 export type StudentListingRow = {
   sapId: string;
   studentName: string;
+  admissionYear: string | null;
+  admissionSession: string | null;
   departmentName: string;
   programTitle: string;
   courseId: string;
@@ -609,6 +611,8 @@ function buildListingBaseCte(
       SELECT
         e.sap_id,
         COALESCE(NULLIF(TRIM(e.student_name), ''), e.sap_id) AS student_name,
+        NULLIF(TRIM(e.admission_year), '') AS admission_year,
+        NULLIF(TRIM(e.admission_session), '') AS admission_session,
         e.department_id,
         COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS department_name,
         e.program_id,
@@ -973,6 +977,8 @@ export async function getStudentListing(
     SELECT
       sap_id,
       student_name,
+      admission_year,
+      admission_session,
       department_name,
       program_title,
       course_id,
@@ -1008,6 +1014,8 @@ export async function getStudentListing(
   const listRes = await pool.query<{
     sap_id: string;
     student_name: string;
+    admission_year: string | null;
+    admission_session: string | null;
     department_name: string;
     program_title: string;
     course_id: string;
@@ -1039,6 +1047,8 @@ export async function getStudentListing(
     rows: listRes.rows.map((row) => ({
       sapId: row.sap_id,
       studentName: row.student_name,
+      admissionYear: row.admission_year,
+      admissionSession: row.admission_session,
       departmentName: row.department_name,
       programTitle: row.program_title,
       courseId: row.course_id,

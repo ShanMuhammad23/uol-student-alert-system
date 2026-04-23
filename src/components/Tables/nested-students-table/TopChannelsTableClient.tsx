@@ -50,6 +50,8 @@ type SortDirection = "asc" | "desc";
 type TopTableRow = {
   sapId: string;
   studentName: string;
+  admissionYear?: string | null;
+  admissionSession?: string | null;
   departmentName: string;
   programTitle: string;
   courseId: string;
@@ -76,6 +78,17 @@ type TopTableRow = {
   courseStudentCount: number;
   isActive?: boolean;
 };
+
+function formatAdmissionLabel(
+  admissionSession?: string | null,
+  admissionYear?: string | null
+): string | null {
+  const session = String(admissionSession ?? "").trim().toLowerCase();
+  const year = String(admissionYear ?? "").trim();
+  if (!session || !year) return null;
+  const sessionLabel = `${session.charAt(0).toUpperCase()}${session.slice(1)}`;
+  return `${sessionLabel} ${year}`;
+}
 
 export function TopChannelsTableClient({
   className,
@@ -562,12 +575,12 @@ export function TopChannelsTableClient({
                   onClick={() => handleSort("teacher")}
                 >
                   <div className="flex items-center gap-1">
-                    <span>Instructor Name</span>
+                    <span>Instructor</span>
                     {renderSortIcon("teacher")}
                   </div>
                 </TableHead>
                 <TableHead
-                  className="min-w-[140px] !text-left cursor-pointer select-none"
+                  className="min-w-80px] !text-left cursor-pointer select-none"
                   onClick={() => handleSort("classesHeld")}
                 >
                   <div className="flex items-center gap-1">
@@ -640,6 +653,10 @@ export function TopChannelsTableClient({
                   row.gpaAlertLevel === "critical" || row.gpaAlertLevel === "warning";
                 const hasAnyAlert = hasAttendanceAlert || hasGpaAlert;
                 const latestStatus = row.latestInterventionStatus;
+                const admissionLabel = formatAdmissionLabel(
+                  row.admissionSession,
+                  row.admissionYear
+                );
 
                 const classesHeld = row.totalClassesHeld ?? 0;
                 const attendancePosted = row.attendanceMarkedClasses ?? 0;
@@ -692,6 +709,11 @@ export function TopChannelsTableClient({
                           <span className="text-sm text-[#1f4a3d] dark:text-white">
                             SAPID: {row.sapId}
                           </span>
+                          {admissionLabel ? (
+                            <span className="text-xs text-[#1f4a3d] dark:text-white">
+                              Adm: {admissionLabel}
+                            </span>
+                          ) : null}
                         </StudentProfileLink>
                       ) : (
                         row.studentName ?? "—"
@@ -739,6 +761,7 @@ export function TopChannelsTableClient({
                    
                     <TableCell className="!text-left">
                       {attendance != null ? (
+                        <>
                         <div className="flex flex-col">
                           <span className="inline-flex items-center gap-2">
                             <span className={attendanceColorClass}>
@@ -754,8 +777,13 @@ export function TopChannelsTableClient({
                             </span>
                           )}
                         </div>
+                        </>
                       ) : (
-                        "Not Posted"
+                        <>
+                        <span className="text-xs text-dark-6 dark:text-white">
+                          Not Posted
+                        </span>
+                        </>
                       )}
                     </TableCell>
                     <TableCell className="!text-left">

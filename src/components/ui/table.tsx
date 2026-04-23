@@ -6,7 +6,7 @@ export function Table({
   ...props
 }: React.HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="relative w-full overflow-auto">
+    <div className="relative w-full overflow-auto custom-scrollbar">
       <table
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}
@@ -68,7 +68,7 @@ export function TableHead({
   return (
     <th
       className={cn(
-        "h-12 px-4 text-left align-middle font-medium text-neutral-500 dark:text-neutral-400 [&:has([role=checkbox])]:pr-0",
+        "h-12 py-2 px-1 text-left align-middle font-medium text-neutral-500 dark:text-neutral-400 [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -83,7 +83,7 @@ export function TableCell({
   return (
     <td
       className={cn(
-        "p-4 align-middle [&:has([role=checkbox])]:pr-0",
+        "py-2 px-1  align-middle [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

@@ -23,6 +23,8 @@ type EnrollmentRow = {
   CampCode?: string;
   Peryr?: string;
   Perid?: string;
+  AdmAyear?: string;
+  AdmPerid?: string;
   Packnumber?: string;
   CrCreditHrs?: string | number;
   ClassType?: string;
@@ -104,6 +106,18 @@ function parseDateOnly(value: string | null | undefined): string | null {
 
   const parsed = Date.parse(raw);
   if (!Number.isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+  return null;
+}
+
+function mapAdmissionSessionFromPerid(
+  perid: string | null | undefined
+): "spring" | "summer" | "fall" | null {
+  const raw = String(perid ?? "").trim();
+  if (!raw) return null;
+  const normalized = raw.padStart(3, "0");
+  if (normalized === "001") return "spring";
+  if (normalized === "002") return "summer";
+  if (normalized === "003") return "fall";
   return null;
 }
 
@@ -538,6 +552,9 @@ export async function runStudentSync(
     instructorName: string | null;
     termYear: string;
     termSession: string;
+    admissionYear: string | null;
+    admissionPeriodId: string | null;
+    admissionSession: "spring" | "summer" | "fall" | null;
     campusCode: string;
     classTypeKey: string;
     creditHoursKey: string;
@@ -598,6 +615,9 @@ export async function runStudentSync(
         instructorName: String(row.Teacher ?? "").trim() || null,
         termYear: String(row.Peryr ?? pYear).trim(),
         termSession: String(row.Perid ?? pSess).trim(),
+        admissionYear: String(row.AdmAyear ?? "").trim() || null,
+        admissionPeriodId: String(row.AdmPerid ?? "").trim() || null,
+        admissionSession: mapAdmissionSessionFromPerid(row.AdmPerid),
         campusCode: String(row.CampCode ?? campus).trim(),
         classTypeKey,
         creditHoursKey: classTypeOrCreditKey,
@@ -839,10 +859,11 @@ export async function runStudentSync(
         `INSERT INTO student_enrollment_current (
            sap_id, student_name, faculty_id, department_id, program_id, course_id,
            section_code, event_package_id, instructor_pernr, instructor_name,
-           term_year, term_session, campus_code, is_active, snapshot_at
+           term_year, term_session, admission_year, admission_period_id, admission_session,
+           campus_code, is_active, snapshot_at
          )
          VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,TRUE,NOW()
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,TRUE,NOW()
          )
          ON CONFLICT (sap_id, course_id, section_code, event_package_id) DO UPDATE SET
            student_name = EXCLUDED.student_name,
@@ -853,6 +874,9 @@ export async function runStudentSync(
            instructor_name = EXCLUDED.instructor_name,
            term_year = EXCLUDED.term_year,
            term_session = EXCLUDED.term_session,
+           admission_year = EXCLUDED.admission_year,
+           admission_period_id = EXCLUDED.admission_period_id,
+           admission_session = EXCLUDED.admission_session,
            campus_code = EXCLUDED.campus_code,
            is_active = TRUE,
            snapshot_at = NOW(),
@@ -870,6 +894,9 @@ export async function runStudentSync(
           row.instructorName,
           row.termYear,
           row.termSession,
+          row.admissionYear,
+          row.admissionPeriodId,
+          row.admissionSession,
           row.campusCode,
         ]
       );

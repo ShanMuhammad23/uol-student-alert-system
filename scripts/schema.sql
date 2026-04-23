@@ -119,6 +119,9 @@ CREATE TABLE IF NOT EXISTS student_enrollment_current (
   instructor_name   VARCHAR(255),
   term_year         VARCHAR(8),
   term_session      VARCHAR(8),
+  admission_year    VARCHAR(8),
+  admission_period_id VARCHAR(8),
+  admission_session VARCHAR(16),
   campus_code       VARCHAR(16),
   is_active         BOOLEAN NOT NULL DEFAULT TRUE,
   snapshot_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -133,6 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_enroll_current_program ON student_enrollment_curr
 CREATE INDEX IF NOT EXISTS idx_enroll_current_course ON student_enrollment_current(course_id, sap_id);
 CREATE INDEX IF NOT EXISTS idx_enroll_current_instructor ON student_enrollment_current(instructor_pernr, sap_id);
 CREATE INDEX IF NOT EXISTS idx_enroll_current_term ON student_enrollment_current(term_year, term_session, campus_code);
+CREATE INDEX IF NOT EXISTS idx_enroll_current_admission ON student_enrollment_current(admission_year, admission_period_id, admission_session);
 CREATE INDEX IF NOT EXISTS idx_enroll_current_name ON student_enrollment_current(student_name);
 CREATE INDEX IF NOT EXISTS idx_enroll_current_active ON student_enrollment_current(is_active);
 

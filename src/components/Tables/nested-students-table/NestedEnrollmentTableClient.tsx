@@ -123,6 +123,8 @@ type Props = {
 type TopTableRow = {
   sapId: string;
   studentName: string;
+  admissionYear?: string | null;
+  admissionSession?: string | null;
   departmentName: string;
   programTitle: string;
   courseId: string;
@@ -144,6 +146,17 @@ type TopTableRow = {
   latestWellbeingStatus?: "open" | "closed" | null;
   latestWellbeingCategory?: string | null;
 };
+
+function formatAdmissionLabel(
+  admissionSession?: string | null,
+  admissionYear?: string | null
+): string | null {
+  const session = String(admissionSession ?? "").trim().toLowerCase();
+  const year = String(admissionYear ?? "").trim();
+  if (!session || !year) return null;
+  const sessionLabel = `${session.charAt(0).toUpperCase()}${session.slice(1)}`;
+  return `${sessionLabel} ${year}`;
+}
 
 export function NestedEnrollmentTableClient({
   className,
@@ -250,6 +263,8 @@ export function NestedEnrollmentTableClient({
         DeptId: r.departmentName,
         DeptName: r.departmentName,
         DegreeTitle: r.programTitle,
+        AdmAyear: r.admissionYear ?? undefined,
+        AdmSession: r.admissionSession ?? undefined,
         CrCode: r.courseId,
         CrTitle: r.courseTitle,
         Teacher: r.instructorName,
@@ -1042,6 +1057,10 @@ export function NestedEnrollmentTableClient({
                                           const wellbeing = wellbeingBySap.get(
                                             String(row.SapNo ?? "").trim()
                                           );
+                                          const admissionLabel = formatAdmissionLabel(
+                                            String((row as { AdmSession?: string }).AdmSession ?? ""),
+                                            String((row as { AdmAyear?: string }).AdmAyear ?? "")
+                                          );
 
                                           const classesHeld =
                                             row.totalClassesHeld ??
@@ -1091,6 +1110,11 @@ export function NestedEnrollmentTableClient({
                                                     <span className="text-sm text-[#1f4a3d] dark:text-white">
                                                       SAPID: {row.SapNo}
                                                     </span>
+                                                    {admissionLabel ? (
+                                                      <span className="text-xs text-[#1f4a3d] dark:text-white">
+                                                        {admissionLabel}
+                                                      </span>
+                                                    ) : null}
                                                   </StudentProfileLink>
                                                 ) : (
                                                   <div className="flex flex-col gap-0.5">
