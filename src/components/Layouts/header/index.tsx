@@ -23,10 +23,14 @@ function formatLastUpdatedLabel(value?: string | null): string | null {
   if (!raw) return null;
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
   });
 }
 
