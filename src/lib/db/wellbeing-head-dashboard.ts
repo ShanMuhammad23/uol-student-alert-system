@@ -1,7 +1,7 @@
 import { pool } from "@/lib/db";
 import { hasAssigneeStaffIdColumn, hasCaseTypeColumn } from "@/lib/db/interventions";
 
-type CaseType = "referred" | "internal" | "external";
+type CaseType = "referred" | "internal" | "external" | null;
 type CaseStatus = "open" | "closed";
 
 type CaseRow = {
@@ -76,7 +76,8 @@ function normalizeStatus(input: string | null | undefined): CaseStatus {
 function normalizeCaseType(input: string | null | undefined): CaseType {
   const raw = String(input ?? "").trim().toLowerCase();
   if (raw === "internal" || raw === "external") return raw;
-  return "referred";
+  if (raw === "referred") return "referred";
+  return null;
 }
 
 function createEmptyMetrics(): SectionMetrics {
@@ -98,7 +99,7 @@ function buildSection(rows: CaseRow[], studentCaseTypeMap: Map<string, CaseType>
     const status = normalizeStatus(row.wellbeing_status);
     const category = normalizeCategory(row.category);
     const counsellor = String(row.counsellor_name ?? "").trim() || "Unassigned";
-    const caseType = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? "referred";
+    const caseType = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? null;
 
     out.totals.totalCases += 1;
     if (status === "closed") out.totals.resolved += 1;
@@ -146,7 +147,9 @@ export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDash
   }
 
   const hasCaseType = await hasCaseTypeColumn();
-  const caseTypeExpr = hasCaseType ? "COALESCE(i.case_type, 'referred')" : "'referred'::varchar";
+  const caseTypeExpr = hasCaseType
+    ? "i.case_type"
+    : "CASE WHEN LOWER(COALESCE(i.status, '')) = 'referred' THEN 'referred' ELSE NULL END::varchar";
   const hasAssignee = await hasAssigneeStaffIdColumn();
   const assigneeJoin = hasAssignee ? "LEFT JOIN staff s ON s.id = i.assignee_staff_id" : "";
   const assigneeNameExpr = hasAssignee ? "s.name" : "NULL::varchar";
@@ -184,17 +187,21 @@ export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDash
   }
 
   const allRows = rowsResult.rows;
-  const referredRows = allRows.filter((row) => {
-    const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? "referred";
+  const visibleRows = allRows.filter((row) => {
+    const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? null;
+    return type === "referred" || type === "external";
+  });
+  const referredRows = visibleRows.filter((row) => {
+    const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? null;
     return type === "referred";
   });
-  const directRows = allRows.filter((row) => {
-    const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? "referred";
-    return type === "internal" || type === "external";
+  const directRows = visibleRows.filter((row) => {
+    const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? null;
+    return type === "external";
   });
 
   return {
-    totalRecords: buildSection(allRows, studentCaseTypeMap),
+    totalRecords: buildSection(visibleRows, studentCaseTypeMap),
     referredCases: buildSection(referredRows, studentCaseTypeMap),
     directCases: buildSection(directRows, studentCaseTypeMap),
   };

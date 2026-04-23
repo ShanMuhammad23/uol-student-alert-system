@@ -36,13 +36,25 @@ function normalizeStatus(input: string | null | undefined): string {
   return String(input ?? "").trim().toLowerCase() === "resolved" ? "resolved" : "open";
 }
 
+function normalizeCaseType(
+  input: string | null | undefined
+): "referred" | "internal" | "external" | null {
+  const raw = String(input ?? "").trim().toLowerCase();
+  if (raw === "referred" || raw === "internal" || raw === "external") {
+    return raw;
+  }
+  return null;
+}
+
 export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseListings> {
   if (!pool) {
     return { referredCases: [], directCases: [] };
   }
 
   const hasCaseType = await hasCaseTypeColumn();
-  const caseTypeExpr = hasCaseType ? "i.case_type" : "'referred'::varchar";
+  const caseTypeExpr = hasCaseType
+    ? "i.case_type"
+    : "CASE WHEN LOWER(COALESCE(i.status, '')) = 'referred' THEN 'referred' ELSE NULL END::varchar";
   const hasAssignee = await hasAssigneeStaffIdColumn();
   const assigneeIdExpr = hasAssignee ? "i.assignee_staff_id::text" : "NULL::text";
   const assigneeJoin = hasAssignee ? "LEFT JOIN staff sa ON sa.id = i.assignee_staff_id" : "";
@@ -62,7 +74,7 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
     classes_attended: number | null;
     gpa_current: number | null;
     status: string | null;
-    case_type: "referred" | "internal" | "external" | null;
+    case_type: string | null;
     assignee_staff_id: string | null;
     assignee_name: string | null;
     assignee_pernr: string | null;
@@ -117,7 +129,7 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
     classesAttended: row.classes_attended,
     gpaCurrent: row.gpa_current,
     status: normalizeStatus(row.status),
-    caseType: row.case_type,
+    caseType: normalizeCaseType(row.case_type),
     assigneeStaffId: row.assignee_staff_id,
     assigneeName: row.assignee_name,
     assigneePernr: row.assignee_pernr,
@@ -125,8 +137,8 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
   }));
 
   return {
-    referredCases: mapped.filter((row) => row.caseType === "referred" || row.caseType === null),
-    directCases: mapped.filter((row) => row.caseType === "internal" || row.caseType === "external"),
+    referredCases: mapped.filter((row) => row.caseType === "referred"),
+    directCases: mapped.filter((row) => row.caseType === "external"),
   };
 }
 
