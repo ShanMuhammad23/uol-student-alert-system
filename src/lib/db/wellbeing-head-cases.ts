@@ -14,6 +14,7 @@ export type WellbeingHeadCaseListItem = {
   classesAttended: number | null;
   gpaCurrent: number | null;
   status: string;
+  workflowStatus: string | null;
   caseType: "referred" | "internal" | "external" | null;
   assigneeStaffId: string | null;
   assigneeName: string | null;
@@ -74,6 +75,7 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
     classes_attended: number | null;
     gpa_current: number | null;
     status: string | null;
+    workflow_status: string | null;
     case_type: string | null;
     assignee_staff_id: string | null;
     assignee_name: string | null;
@@ -94,6 +96,7 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
         a.classes_attended,
         a.gpa_current,
         i.status,
+        LOWER(COALESCE(i.status, '')) AS workflow_status,
         ${caseTypeExpr} AS case_type,
         ${assigneeIdExpr} AS assignee_staff_id,
         ${assigneeNameExpr} AS assignee_name,
@@ -129,6 +132,7 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
     classesAttended: row.classes_attended,
     gpaCurrent: row.gpa_current,
     status: normalizeStatus(row.status),
+    workflowStatus: row.workflow_status,
     caseType: normalizeCaseType(row.case_type),
     assigneeStaffId: row.assignee_staff_id,
     assigneeName: row.assignee_name,
@@ -137,7 +141,9 @@ export async function getWellbeingHeadCaseListings(): Promise<WellbeingHeadCaseL
   }));
 
   return {
-    referredCases: mapped.filter((row) => row.caseType === "referred"),
+    referredCases: mapped.filter(
+      (row) => row.caseType === "referred" && row.workflowStatus !== "initiated"
+    ),
     directCases: mapped.filter((row) => row.caseType === "external"),
   };
 }

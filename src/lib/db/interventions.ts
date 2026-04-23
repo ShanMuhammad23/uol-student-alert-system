@@ -128,6 +128,7 @@ async function patchInterventionCaseAndAssignee(
   opts: {
     case_type?: "referred" | "internal" | "external";
     assignee_staff_id?: string | null;
+    status?: string;
   }
 ): Promise<void> {
   if (!pool) return;
@@ -138,8 +139,13 @@ async function patchInterventionCaseAndAssignee(
   const vals: unknown[] = [];
   let i = 1;
   if (hasCT) {
+    const derivedCaseType =
+      opts.case_type ??
+      (String(opts.status ?? "").trim().toLowerCase() === "referred"
+        ? "referred"
+        : "internal");
     parts.push(`case_type = $${i++}`);
-    vals.push(opts.case_type ?? "referred");
+    vals.push(derivedCaseType);
   }
   if (hasA) {
     parts.push(`assignee_staff_id = $${i++}`);
@@ -218,6 +224,11 @@ export async function insertIntervention(row: {
   const hasAlertLevel = await hasAlertLevelColumn();
   const hasSectionCode = await hasSectionCodeColumn();
   const hasEventPackageId = await hasEventPackageIdColumn();
+  const normalizedCaseType: "referred" | "internal" | "external" =
+    row.case_type ??
+    (String(row.status ?? "").trim().toLowerCase() === "referred"
+      ? "referred"
+      : "internal");
 
   if (hasType && hasAlertLevel && hasSectionCode && hasEventPackageId) {
     await pool.query(
@@ -244,8 +255,9 @@ export async function insertIntervention(row: {
       ]
     );
     await patchInterventionCaseAndAssignee(row.id, {
-      case_type: row.case_type,
+      case_type: normalizedCaseType,
       assignee_staff_id: row.assignee_staff_id,
+      status: row.status,
     });
     return;
   }
@@ -274,8 +286,9 @@ export async function insertIntervention(row: {
       ]
     );
     await patchInterventionCaseAndAssignee(row.id, {
-      case_type: row.case_type,
+      case_type: normalizedCaseType,
       assignee_staff_id: row.assignee_staff_id,
+      status: row.status,
     });
     return;
   }
@@ -304,8 +317,9 @@ export async function insertIntervention(row: {
       ]
     );
     await patchInterventionCaseAndAssignee(row.id, {
-      case_type: row.case_type,
+      case_type: normalizedCaseType,
       assignee_staff_id: row.assignee_staff_id,
+      status: row.status,
     });
     return;
   }
@@ -332,8 +346,9 @@ export async function insertIntervention(row: {
       ]
     );
     await patchInterventionCaseAndAssignee(row.id, {
-      case_type: row.case_type,
+      case_type: normalizedCaseType,
       assignee_staff_id: row.assignee_staff_id,
+      status: row.status,
     });
     return;
   }
@@ -360,8 +375,9 @@ export async function insertIntervention(row: {
       ]
     );
     await patchInterventionCaseAndAssignee(row.id, {
-      case_type: row.case_type,
+      case_type: normalizedCaseType,
       assignee_staff_id: row.assignee_staff_id,
+      status: row.status,
     });
     return;
   }
@@ -387,8 +403,9 @@ export async function insertIntervention(row: {
     ]
   );
   await patchInterventionCaseAndAssignee(row.id, {
-    case_type: row.case_type,
+    case_type: normalizedCaseType,
     assignee_staff_id: row.assignee_staff_id,
+    status: row.status,
   });
 }
 

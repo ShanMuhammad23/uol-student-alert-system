@@ -8,6 +8,7 @@ type CaseRow = {
   student_sap_id: string;
   category: string | null;
   wellbeing_status: string | null;
+  workflow_status: string | null;
   counsellor_name: string | null;
   case_type: string | null;
 };
@@ -163,6 +164,7 @@ export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDash
         WHEN LOWER(COALESCE(i.status, '')) = 'resolved' THEN 'closed'
         ELSE 'open'
       END AS wellbeing_status,
+      LOWER(COALESCE(i.status, '')) AS workflow_status,
       ${assigneeNameExpr} AS counsellor_name,
       ${caseTypeExpr} AS case_type
     FROM interventions i
@@ -189,7 +191,9 @@ export async function getWellbeingHeadDashboardData(): Promise<WellbeingHeadDash
   const allRows = rowsResult.rows;
   const visibleRows = allRows.filter((row) => {
     const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? null;
-    return type === "referred" || type === "external";
+    if (type === "external") return true;
+    if (type === "referred") return row.workflow_status !== "initiated";
+    return false;
   });
   const referredRows = visibleRows.filter((row) => {
     const type = studentCaseTypeMap.get(String(row.student_sap_id ?? "").trim()) ?? null;
