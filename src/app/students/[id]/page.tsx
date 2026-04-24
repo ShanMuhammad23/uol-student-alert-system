@@ -393,6 +393,11 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     (suppressCourseFocus
       ? dbMetricRows.find((r) => r.attendancePercentage != null)?.attendancePercentage ?? null
       : null);
+  const attendanceAlertLevelForEmail =
+    focusedMetricRow?.attendanceAlertLevel ??
+    (suppressCourseFocus
+      ? dbMetricRows.find((r) => r.attendanceAlertLevel != null)?.attendanceAlertLevel ?? null
+      : null);
   const orderedSgpaSeries = [...(gpaProfile?.semesters ?? [])];
   const latestSeriesGpa = orderedSgpaSeries.at(-1)?.value ?? null;
   const previousSeriesGpa =
@@ -445,7 +450,9 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     primaryEnrollment?.DeptName?.replace("Department of", "").trim() ?? null;
   const senderFacultyName = toShortFacultyName(facultyName);
   const senderEmailForTemplate =
-    process.env.SMTP_FROM ?? "alert@student-alert.uol.edu.pk";
+    session?.user?.email?.trim() ||
+    process.env.SMTP_FROM ||
+    "alert@student-alert.uol.edu.pk";
   const focusedEnrollment =
     suppressCourseFocus || !selectedCourseCode
       ? null
@@ -573,6 +580,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         studentSapId={sapIdFromUrl}
         studentName={primaryEnrollment?.Name ?? sapIdFromUrl}
         attendancePercent={attendanceForEmail}
+        attendanceAlertLevel={attendanceAlertLevelForEmail}
         gpaPrevious={gpaPreviousForEmail}
         gpaCurrent={gpaCurrentForEmail}
         gpaDrop={gpaDropForEmail}

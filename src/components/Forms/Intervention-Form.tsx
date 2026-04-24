@@ -47,6 +47,7 @@ export type InterventionEmailTemplateKey = "sos_check_in" | "student_referral";
 export type InterventionEmailData = {
   templateKey: InterventionEmailTemplateKey;
   recipientEmail: string;
+  replyToEmail: string;
   subject: string;
   bodyHtml: string;
 };
@@ -59,6 +60,7 @@ type InterventionFormProps = {
   studentSapId?: string;
   studentName?: string | null;
   attendancePercent?: number | null;
+  attendanceAlertLevel?: "warning" | "critical" | null;
   gpaPrevious?: number | null;
   gpaCurrent?: number | null;
   gpaDrop?: number | null;
@@ -135,6 +137,7 @@ const InterventionForm = ({
   studentSapId,
   studentName,
   attendancePercent,
+  attendanceAlertLevel,
   gpaPrevious,
   gpaCurrent,
   gpaDrop,
@@ -165,6 +168,7 @@ const InterventionForm = ({
   const [emailTemplateKey, setEmailTemplateKey] =
     useState<InterventionEmailTemplateKey | "">("");
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [replyToEmail, setReplyToEmail] = useState(senderEmail?.trim() ?? "");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBodyHtml, setEmailBodyHtml] = useState("");
   const [submitMessage, setSubmitMessage] = useState<{
@@ -190,6 +194,12 @@ const InterventionForm = ({
     }
   }, [emailTemplateKey, canUseReferralTemplate, canUseSosTemplate]);
 
+  useEffect(() => {
+    if (!replyToEmail.trim() && senderEmail?.trim()) {
+      setReplyToEmail(senderEmail.trim());
+    }
+  }, [senderEmail, replyToEmail]);
+
   const fillTemplateWithData = (
     subject: string,
     body: string
@@ -202,6 +212,13 @@ const InterventionForm = ({
       attendancePercent == null || !Number.isFinite(attendancePercent)
         ? "N/A"
         : `${attendancePercent.toFixed(1)}%`;
+    const attendanceColor =
+      attendanceAlertLevel === "critical"
+        ? "#DC2626"
+        : attendanceAlertLevel === "warning"
+          ? "#D97706"
+          : "#374151";
+    const attendanceHtml = `<span style="font-weight:700;color:${attendanceColor};">${attendanceText}</span>`;
     const gpaPrevText = formatGpa(gpaPrevious);
     const gpaCurrentText =
       gpaCurrent == null || !Number.isFinite(gpaCurrent) ? "N/A" : gpaCurrent.toFixed(2);
@@ -214,6 +231,34 @@ const InterventionForm = ({
     const cgpaDropText = formatGpa(
       typeof cgpaDrop === "number" && Number.isFinite(cgpaDrop) ? Math.abs(cgpaDrop) : cgpaDrop
     );
+    const sgpaDelta =
+      typeof gpaCurrent === "number" &&
+      Number.isFinite(gpaCurrent) &&
+      typeof gpaPrevious === "number" &&
+      Number.isFinite(gpaPrevious)
+        ? gpaCurrent - gpaPrevious
+        : null;
+    const cgpaDelta =
+      typeof cgpaCurrent === "number" &&
+      Number.isFinite(cgpaCurrent) &&
+      typeof cgpaPrevious === "number" &&
+      Number.isFinite(cgpaPrevious)
+        ? cgpaCurrent - cgpaPrevious
+        : null;
+    const formatSigned = (value: number) =>
+      `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
+    const buildTrendHtml = (delta: number | null) => {
+      if (delta == null) return "Trend N/A";
+      if (delta > 0) {
+        return `<span style="font-weight:700;color:#15803D;">Up ${formatSigned(delta)}</span>`;
+      }
+      if (delta < 0) {
+        return `<span style="font-weight:700;color:#DC2626;">Drop ${Math.abs(delta).toFixed(2)}</span>`;
+      }
+      return `<span style="font-weight:700;color:#374151;">No change</span>`;
+    };
+    const sgpaTrendHtml = buildTrendHtml(sgpaDelta);
+    const cgpaTrendHtml = buildTrendHtml(cgpaDelta);
     const senderNameText = senderName?.trim() || "N/A";
     const senderDesignationText = senderDesignation?.trim() || "N/A";
     const senderDepartmentText = senderDepartment?.trim() || "N/A";
@@ -228,18 +273,18 @@ const InterventionForm = ({
     const nextBody = body
       .replace("[Student Name]", studentDisplay)
       .replace("SAP ID ------", `SAP ID ${sap}`)
-      .replace("Attendance: ___%", `Attendance: ${attendanceText}`)
+      .replace("Attendance: ___%", `Attendance: ${attendanceHtml}`)
       .replace(
         "Previous SGPA: ___; Current SGPA: ___; Drop ____",
-        `Previous SGPA: ${gpaPrevText}; Current SGPA: ${gpaCurrentText}; Drop ${gpaDropText}`
+        `Previous SGPA: ${gpaPrevText}; Current SGPA: ${gpaCurrentText}; ${sgpaTrendHtml}`
       )
       .replace(
         "Previous GPA: ___; Current GPA: ___; Drop ____",
-        `Previous GPA: ${gpaPrevText}; Current GPA: ${gpaCurrentText}; Drop ${gpaDropText}`
+        `Previous GPA: ${gpaPrevText}; Current GPA: ${gpaCurrentText}; ${sgpaTrendHtml}`
       )
       .replace(
         "Previous CGPA: ___; Current CGPA: ___; Drop ____",
-        `Previous CGPA: ${cgpaPrevText}; Current CGPA: ${cgpaCurrentText}; Drop ${cgpaDropText}`
+        `Previous CGPA: ${cgpaPrevText}; Current CGPA: ${cgpaCurrentText}; ${cgpaTrendHtml}`
       )
       .replace("[Sender Name]", senderNameText)
       .replace("[Designation]", senderDesignationText)
@@ -267,6 +312,7 @@ const InterventionForm = ({
       if (sap) {
         setRecipientEmail(`${sap}@student.uol.edu.pk`);
       }
+      setReplyToEmail(senderEmail?.trim() ?? "");
       const t = fillTemplateWithData(
         SOS_CHECK_IN_EMAIL_SUBJECT,
         SOS_CHECK_IN_EMAIL_TEMPLATE
@@ -276,6 +322,7 @@ const InterventionForm = ({
       return;
     }
     setRecipientEmail("");
+    setReplyToEmail(senderEmail?.trim() ?? "");
     const t = fillTemplateWithData(
       STUDENT_REFERRAL_EMAIL_SUBJECT,
       STUDENT_REFERRAL_EMAIL_TEMPLATE
@@ -297,6 +344,9 @@ const InterventionForm = ({
         if (!recipientEmail.trim()) {
           throw new Error("Recipient email is required to send email.");
         }
+        if (!replyToEmail.trim()) {
+          throw new Error("Reply-To email is required to send email.");
+        }
       }
 
       await onSubmit({
@@ -312,6 +362,7 @@ const InterventionForm = ({
         await onSendEmail({
           templateKey: emailTemplateKey,
           recipientEmail: recipientEmail.trim(),
+          replyToEmail: replyToEmail.trim(),
           subject: emailSubject.trim(),
           bodyHtml: emailBodyHtml.trim(),
         });
@@ -472,6 +523,18 @@ const InterventionForm = ({
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
                 placeholder="recipient@example.com"
+                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                Reply-To Email
+              </label>
+              <input
+                type="email"
+                value={replyToEmail}
+                onChange={(e) => setReplyToEmail(e.target.value)}
+                placeholder="reply-to@example.com"
                 className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
               />
             </div>

@@ -79,6 +79,7 @@ type Props = {
   studentSapId: string;
   studentName?: string | null;
   attendancePercent?: number | null;
+  attendanceAlertLevel?: "warning" | "critical" | null;
   gpaPrevious?: number | null;
   gpaCurrent?: number | null;
   gpaDrop?: number | null;
@@ -133,6 +134,7 @@ export function InterventionHistorySection({
   studentSapId,
   studentName,
   attendancePercent,
+  attendanceAlertLevel,
   gpaPrevious,
   gpaCurrent,
   gpaDrop,
@@ -767,6 +769,7 @@ export function InterventionHistorySection({
               studentSapId={studentSapId}
               studentName={studentName}
               attendancePercent={attendancePercent}
+              attendanceAlertLevel={attendanceAlertLevel}
               gpaPrevious={gpaPrevious}
               gpaCurrent={gpaCurrent}
               gpaDrop={gpaDrop}

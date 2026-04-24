@@ -348,7 +348,7 @@ export function StudentMetricsClient({
                 categories={mixedChartData.categories}
                 sgpa={mixedChartData.sgpa}
                 cgpa={mixedChartData.cgpa}
-                title="SGPA (Column) & CGPA (Line)"
+                title="SGPA  & CGPA"
               />
             </div>
           ) : (

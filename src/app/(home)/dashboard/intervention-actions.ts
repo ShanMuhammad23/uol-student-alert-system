@@ -24,6 +24,7 @@ export type RecordInterventionInput = {
 export type RecordInterventionEmailInput = {
   templateKey: InterventionEmailTemplateKey;
   recipientEmail: string;
+  replyToEmail: string;
   subject: string;
   bodyHtml: string;
 };
@@ -71,6 +72,7 @@ export async function recordInterventionEmail(
   await saveInterventionEmail(studentSapId, {
     template_key: data.templateKey,
     recipient_email: data.recipientEmail,
+    reply_to_email: data.replyToEmail,
     subject: data.subject,
     body_html: data.bodyHtml,
   });

@@ -766,6 +766,7 @@ export async function saveInterventionEmail(
   data: {
     template_key: "sos_check_in" | "student_referral";
     recipient_email: string;
+    reply_to_email?: string;
     subject: string;
     body_html: string;
   }
@@ -793,6 +794,12 @@ export async function saveInterventionEmail(
   if (recipient.toLowerCase() === fromAddress.toLowerCase()) {
     throw new Error("Recipient email must be different from sender email.");
   }
+  const replyTo =
+    String(data.reply_to_email ?? "").trim() ||
+    String(session.user.email ?? "").trim();
+  if (!replyTo) {
+    throw new Error("Reply-To email is required.");
+  }
 
   const { default: nodemailer } = await import("nodemailer");
   const transport = nodemailer.createTransport({
@@ -807,7 +814,7 @@ export async function saveInterventionEmail(
     to: recipient,
     subject: data.subject,
     html: data.body_html,
-    replyTo: session.user.email ?? undefined,
+    replyTo,
   });
 
   await pool.query(
