@@ -94,7 +94,7 @@ export function HodStatsCollapsible({
   instructorCount,
 }: HodStatsCollapsibleProps) {
   return (
-    <div className="mt-4 border-t border-gray-3 pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="mt-4  pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
       <CollapsibleSection
         title="Program"
         count={programCount}

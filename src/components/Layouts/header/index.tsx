@@ -174,6 +174,7 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
                 Last updated: {formattedLastUpdated}
               </p>
             )}
+            <p className="text-lg text-gray-600 dark:text-gray-300 border-l border-gray-300 pl-2">Next Update: Tomorrow 04:00 AM</p>
             
           </div>
         )}

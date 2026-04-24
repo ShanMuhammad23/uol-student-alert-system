@@ -12,7 +12,7 @@ export function InstructorStatsCollapsible({ courseContent, courseCount }: Props
   const [open, setOpen] = useState(true);
 
   return (
-    <div className="mt-4 border-t border-gray-3 pt-4">
+    <div className="mt-4  pt-4">
       <div className="rounded-lg border border-stroke dark:border-stroke-dark bg-white dark:bg-gray-dark overflow-hidden">
         <button
           type="button"
