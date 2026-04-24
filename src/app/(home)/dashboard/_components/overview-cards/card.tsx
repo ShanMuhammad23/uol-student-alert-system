@@ -182,7 +182,7 @@ export function OverviewCard({
         </div>
       </div>
 
-      {hasYellowRed && label === "GPA" ? (
+      {hasYellowRed && label.toUpperCase().includes("GPA") ? (
         <div className="ml-4 flex items-center">
           <DonutChart
             data={[
