@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS student_alert_current (
   total_classes_held        INTEGER NOT NULL DEFAULT 0,
   attendance_marked_classes INTEGER NOT NULL DEFAULT 0, -- monitoring Att
   attendance_not_updated_classes INTEGER NOT NULL DEFAULT 0, -- GREATEST(Held - Att, 0)
+  last_attendance_posted_at TIMESTAMPTZ,
   classes_attended          INTEGER NOT NULL DEFAULT 0,
   attendance_percentage     NUMERIC(5,2),
   class_average_attendance  NUMERIC(5,2),
@@ -219,6 +220,9 @@ CREATE INDEX IF NOT EXISTS idx_alert_current_gpa_level
 
 CREATE INDEX IF NOT EXISTS idx_alert_current_attendance_level
   ON student_alert_current(attendance_alert_level);
+
+ALTER TABLE student_alert_current
+  ADD COLUMN IF NOT EXISTS last_attendance_posted_at TIMESTAMPTZ;
 
 -- -----------------------------------------------------------------------------
 -- 6) DAILY SNAPSHOT AGGREGATES (used by dashboard cards/charts)

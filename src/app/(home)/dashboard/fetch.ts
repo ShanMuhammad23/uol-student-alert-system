@@ -2283,7 +2283,60 @@ export type CourseStats = {
   redAttendance: number;
   attendanceMissing?: number;
   attendanceClassesHeld?: number;
+  lastAttendancePostedAt?: string | null;
 };
+
+async function getLastAttendancePostedByCourse(
+  courseIds: string[],
+  scope?: {
+    facultyIds?: string[];
+    departmentIds?: string[];
+    programIds?: string[];
+    instructorIds?: string[];
+    courseIds?: string[];
+  }
+): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>();
+  const ids = Array.from(new Set(courseIds.map((v) => String(v).trim()).filter(Boolean)));
+  if (!pool || !ids.length) return map;
+  const params: unknown[] = [ids];
+  const where: string[] = ["e.is_active = TRUE", "e.course_id = ANY($1::text[])"];
+  if (scope?.facultyIds?.length) {
+    params.push(scope.facultyIds);
+    where.push(`e.faculty_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.departmentIds?.length) {
+    params.push(scope.departmentIds);
+    where.push(`e.department_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.programIds?.length) {
+    params.push(scope.programIds);
+    where.push(`e.program_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.instructorIds?.length) {
+    params.push(scope.instructorIds);
+    where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
+  }
+  const res = await pool.query<{
+    course_id: string;
+    last_attendance_posted_at: string | null;
+  }>(
+    `SELECT
+       e.course_id,
+       MAX(a.last_attendance_posted_at)::text AS last_attendance_posted_at
+     FROM student_enrollment_current e
+     LEFT JOIN student_alert_current a
+       ON a.sap_id = e.sap_id
+      AND a.course_id = e.course_id
+      AND a.section_code = e.section_code
+      AND a.event_package_id = e.event_package_id
+     WHERE ${where.join(" AND ")}
+     GROUP BY e.course_id`,
+    params
+  );
+  for (const row of res.rows) map.set(row.course_id, row.last_attendance_posted_at);
+  return map;
+}
 
 /** Course stats for Dean scoped to faculty and optional department/program/course filters. */
 export async function getDeanCourseStats(
@@ -2310,6 +2363,14 @@ export async function getDeanCourseStats(
         courseIds: options?.courseIds,
       }
     );
+    const lastAttendancePostedByCourse = await getLastAttendancePostedByCourse(
+      rows.map((row) => row.dimension_id),
+      {
+        facultyIds: facultyScopeIds,
+        departmentIds: options?.departmentIds,
+        programIds: options?.programIds,
+      }
+    );
     return rows.map((row) => ({
       courseId: row.dimension_id,
       courseName: row.dimension_name,
@@ -2320,6 +2381,8 @@ export async function getDeanCourseStats(
       redAttendance: toInt(row.red_attendance),
       attendanceMissing: missingByCourse.get(row.dimension_id)?.missing ?? 0,
       attendanceClassesHeld: missingByCourse.get(row.dimension_id)?.held ?? 0,
+      lastAttendancePostedAt:
+        lastAttendancePostedByCourse.get(row.dimension_id) ?? null,
     }));
   } catch {
     return [];
@@ -2611,6 +2674,13 @@ export async function getHodCourseStats(
           courseIds: options?.courseIds,
         }
       );
+      const lastAttendancePostedByCourse = await getLastAttendancePostedByCourse(
+        sortedCourseIds,
+        {
+          departmentIds,
+          programIds: options?.programIds,
+        }
+      );
       return sortedCourseIds.map((courseId) => {
         const baseId = courseIdBaseByFull.get(courseId) ?? courseId;
         const row = byCourse.get(baseId);
@@ -2624,6 +2694,8 @@ export async function getHodCourseStats(
           redAttendance: row ? toInt(row.red_attendance) : 0,
           attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
           attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
+          lastAttendancePostedAt:
+            lastAttendancePostedByCourse.get(courseId) ?? null,
         };
       });
     } catch {
@@ -2686,6 +2758,14 @@ export async function getHodCourseStats(
           courseIds: options?.courseIds,
         }
       );
+      const lastAttendancePostedByCourse = await getLastAttendancePostedByCourse(
+        sortedCourseIds,
+        {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+        }
+      );
       return sortedCourseIds.map((courseId) => {
         const row = byCourse.get(courseId);
         return {
@@ -2698,6 +2778,8 @@ export async function getHodCourseStats(
           redAttendance: row ? toInt(row.red_attendance) : 0,
           attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
           attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
+          lastAttendancePostedAt:
+            lastAttendancePostedByCourse.get(courseId) ?? null,
         };
       });
     } catch {
@@ -2817,6 +2899,10 @@ export async function getInstructorCourseStats(
         courseIds,
         { instructorIds: [pernr], courseIds: options?.courseIds }
       );
+      const lastAttendancePostedByCourse = await getLastAttendancePostedByCourse(
+        courseIds,
+        { instructorIds: [pernr] }
+      );
       return courseIds.map((courseId) => {
         const row = byCourse.get(courseId);
         return {
@@ -2829,6 +2915,8 @@ export async function getInstructorCourseStats(
           redAttendance: row ? toInt(row.red_attendance) : 0,
           attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
           attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
+          lastAttendancePostedAt:
+            lastAttendancePostedByCourse.get(courseId) ?? null,
         };
       });
     } catch {
@@ -2910,6 +2998,10 @@ export async function getInstructorCourseStats(
         courseIds,
         { instructorIds: [pernr], courseIds }
       );
+      const lastAttendancePostedByCourse = await getLastAttendancePostedByCourse(
+        courseIds,
+        { instructorIds: [pernr] }
+      );
       return courseIds.map((courseId) => {
         const row = byCourse.get(courseId);
         return {
@@ -2922,6 +3014,8 @@ export async function getInstructorCourseStats(
           redAttendance: row ? toInt(row.red_attendance) : 0,
           attendanceMissing: missingByCourse.get(courseId)?.missing ?? 0,
           attendanceClassesHeld: missingByCourse.get(courseId)?.held ?? 0,
+          lastAttendancePostedAt:
+            lastAttendancePostedByCourse.get(courseId) ?? null,
         };
       });
     } catch {

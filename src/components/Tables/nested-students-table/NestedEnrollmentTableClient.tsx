@@ -37,6 +37,7 @@ type NestedEnrollmentRow = EnrollmentRecord & {
   classAverageAttendance: number | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
+  lastAttendancePostedAt: string | null;
   classesAttended: number;
   latestInterventionStatus: string | null;
 };
@@ -134,6 +135,7 @@ type TopTableRow = {
   eventPackageId?: string | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
+  lastAttendancePostedAt: string | null;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -156,6 +158,17 @@ function formatAdmissionLabel(
   if (!session || !year) return null;
   const sessionLabel = `${session.charAt(0).toUpperCase()}${session.slice(1)}`;
   return `${sessionLabel} ${year}`;
+}
+
+function formatLastAttendanceUpdated(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
 }
 
 export function NestedEnrollmentTableClient({
@@ -280,6 +293,7 @@ export function NestedEnrollmentTableClient({
         classAverageAttendance: r.classAverageAttendance ?? null,
         totalClassesHeld: r.totalClassesHeld ?? 0,
         attendanceMarkedClasses: r.attendanceMarkedClasses ?? 0,
+        lastAttendancePostedAt: r.lastAttendancePostedAt ?? null,
         classesAttended: r.classesAttended ?? 0,
         latestInterventionStatus: r.latestInterventionStatus ?? null,
         latestWellbeingStatus: r.latestWellbeingStatus ?? null,
@@ -1074,6 +1088,10 @@ export function NestedEnrollmentTableClient({
                                             row.classesAttended ??
                                             summary?.attended ??
                                             0;
+                                          const attendanceLastUpdated =
+                                            formatLastAttendanceUpdated(
+                                              row.lastAttendancePostedAt
+                                            );
                                           const notUpdatedVsHeld =
                                             classesHeld - attendancePosted;
                                           const attendancePct =
@@ -1177,6 +1195,9 @@ export function NestedEnrollmentTableClient({
                                                        Class Avg: {classAvg.toFixed(1)}%
                                                       </span>
                                                     )}
+                                                    <span className="text-xs text-dark-6 dark:text-white">
+                                                      Last updated: {attendanceLastUpdated}
+                                                    </span>
                                                   </div>
                                                 ) : isAttendanceLoading ? (
                                                   "Calculating..."
@@ -1191,9 +1212,17 @@ export function NestedEnrollmentTableClient({
                                                         )
                                                       </span>
                                                     </span>
+                                                    <span className="text-xs text-dark-6 dark:text-white">
+                                                      Last updated: {attendanceLastUpdated}
+                                                    </span>
                                                   </div>
                                                 ) : (
-                                                  "—"
+                                                  <div className="flex flex-col">
+                                                    <span>—</span>
+                                                    <span className="text-xs text-dark-6 dark:text-white">
+                                                      Last updated: {attendanceLastUpdated}
+                                                    </span>
+                                                  </div>
                                                 )}
                                               </TableCell>
                                               <TableCell className="!text-left">

@@ -12,6 +12,17 @@ type PropsType = {
   onSelectCourseId?: (courseId: string) => void;
 };
 
+function formatLastUpdated(value?: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
 export function HodCourseStats({
   user,
   selectedCourseId,
@@ -97,6 +108,7 @@ export function HodCourseStats({
       {list.map((c) => {
         const attendanceMissing = c.attendanceMissing ?? 0;
         const attendanceClassesHeld = c.attendanceClassesHeld ?? 0;
+        const lastUpdated = formatLastUpdated(c.lastAttendancePostedAt);
         return (
         <button
           key={c.courseId}
@@ -128,7 +140,9 @@ export function HodCourseStats({
             <span className={cn("text-red-500 font-bold", c.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{c.redGpa}</span>
             {" · "}
             Att Missing <span className="text-red-500 font-bold">{attendanceMissing}</span> of{" "}
-            <span className="text-red-500 font-bold">{attendanceClassesHeld}</span> 
+            <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>
+            {" · "}
+            Last updated <span className="font-semibold text-dark dark:text-white">{lastUpdated}</span>
           </span>
         </button>
       )})}

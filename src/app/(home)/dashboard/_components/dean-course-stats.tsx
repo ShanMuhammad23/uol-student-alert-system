@@ -13,6 +13,17 @@ type PropsType = {
   onSelectCourseId?: (courseId: string) => void;
 };
 
+function formatLastUpdated(value?: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
 export function DeanCourseStats({
   user,
   selectedCourseId,
@@ -99,6 +110,7 @@ export function DeanCourseStats({
       {list.map((c) => {
         const attendanceMissing = c.attendanceMissing ?? 0;
         const attendanceClassesHeld = c.attendanceClassesHeld ?? 0;
+        const lastUpdated = formatLastUpdated(c.lastAttendancePostedAt);
         const key = c.courseId;
         const isSelected = masterFilterCourseIds?.length
           ? masterFilterCourseIds.includes(key)
@@ -173,7 +185,9 @@ export function DeanCourseStats({
               <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
               of{" "}
               <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>{" "}
-             
+              {" · "}
+              Last updated{" "}
+              <span className="font-semibold text-dark dark:text-white">{lastUpdated}</span>
             </span>
           </button>
         );
