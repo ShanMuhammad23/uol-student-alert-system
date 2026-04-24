@@ -61,7 +61,6 @@ type TopTableRow = {
   eventPackageId?: string | null;
   totalClassesHeld: number;
   attendanceMarkedClasses: number;
-  lastAttendancePostedAt: string | null;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -89,17 +88,6 @@ function formatAdmissionLabel(
   if (!session || !year) return null;
   const sessionLabel = `${session.charAt(0).toUpperCase()}${session.slice(1)}`;
   return `${sessionLabel} ${year}`;
-}
-
-function formatLastAttendanceUpdated(value: string | null | undefined): string {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
 }
 
 export function TopChannelsTableClient({
@@ -672,9 +660,6 @@ export function TopChannelsTableClient({
 
                 const classesHeld = row.totalClassesHeld ?? 0;
                 const attendancePosted = row.attendanceMarkedClasses ?? 0;
-                const attendanceLastUpdated = formatLastAttendanceUpdated(
-                  row.lastAttendancePostedAt
-                );
                 const classesAttended = row.classesAttended ?? 0;
                 const notUpdatedVsHeld = classesHeld - attendancePosted;
                 const attendance = row.attendancePercentage;
@@ -791,18 +776,12 @@ export function TopChannelsTableClient({
                               Class Avg: {classAvg.toFixed(1)}%
                             </span>
                           )}
-                          <span className="text-xs text-dark-6 dark:text-white">
-                            Last updated: {attendanceLastUpdated}
-                          </span>
                         </div>
                         </>
                       ) : (
                         <>
                         <span className="text-xs text-dark-6 dark:text-white">
                           Not Posted
-                        </span>
-                        <span className="block text-xs text-dark-6 dark:text-white">
-                          Last updated: {attendanceLastUpdated}
                         </span>
                         </>
                       )}

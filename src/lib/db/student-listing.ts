@@ -81,7 +81,6 @@ export type StudentListingRow = {
   totalClassesHeld: number;
   /** Sessions with attendance posted (SAP Att); denominator for attendance %. */
   attendanceMarkedClasses: number;
-  lastAttendancePostedAt: string | null;
   classesAttended: number;
   attendancePercentage: number | null;
   classAverageAttendance: number | null;
@@ -625,7 +624,6 @@ function buildListingBaseCte(
         COALESCE(NULLIF(TRIM(e.instructor_name), ''), e.instructor_pernr, '—') AS instructor_name,
         a.total_classes_held,
         a.attendance_marked_classes,
-        a.last_attendance_posted_at,
         a.classes_attended,
         a.attendance_percentage,
         a.class_average_attendance,
@@ -990,7 +988,6 @@ export async function getStudentListing(
       NULLIF(event_package_id, '') AS event_package_id,
       COALESCE(total_classes_held, 0) AS total_classes_held,
       COALESCE(attendance_marked_classes, 0) AS attendance_marked_classes,
-      last_attendance_posted_at,
       COALESCE(classes_attended, 0) AS classes_attended,
       attendance_percentage,
       class_average_attendance,
@@ -1028,7 +1025,6 @@ export async function getStudentListing(
     event_package_id: string | null;
     total_classes_held: number;
     attendance_marked_classes: number;
-    last_attendance_posted_at: string | null;
     classes_attended: number;
     attendance_percentage: number | null;
     class_average_attendance: number | null;
@@ -1065,7 +1061,6 @@ export async function getStudentListing(
         return total;
       })(),
       attendanceMarkedClasses: parseNumber(row.attendance_marked_classes),
-      lastAttendancePostedAt: row.last_attendance_posted_at,
       classesAttended: (() => {
         return parseNumber(row.classes_attended);
       })(),

@@ -1040,15 +1040,13 @@ export async function runStudentSync(
            sap_id, course_id, section_code, event_package_id,
            faculty_id, department_id, program_id, instructor_pernr,
            total_classes_held, attendance_marked_classes, attendance_not_updated_classes,
-           last_attendance_posted_at, classes_attended, attendance_percentage,
+           classes_attended, attendance_percentage,
            class_average_attendance, attendance_deviation, gpa_current, gpa_previous, gpa_change,
            attendance_alert_level, gpa_alert_level, overall_alert_level,
            computed_at
          )
          VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
-           CASE WHEN $10 > 0 THEN NOW() ELSE NULL END,
-           $12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW()
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW()
          )
          ON CONFLICT (sap_id, course_id, section_code, event_package_id) DO UPDATE SET
            faculty_id = EXCLUDED.faculty_id,
@@ -1058,11 +1056,6 @@ export async function runStudentSync(
            total_classes_held = EXCLUDED.total_classes_held,
            attendance_marked_classes = EXCLUDED.attendance_marked_classes,
            attendance_not_updated_classes = EXCLUDED.attendance_not_updated_classes,
-           last_attendance_posted_at = CASE
-             WHEN EXCLUDED.attendance_marked_classes > student_alert_current.attendance_marked_classes
-               THEN NOW()
-             ELSE student_alert_current.last_attendance_posted_at
-           END,
            classes_attended = EXCLUDED.classes_attended,
            attendance_percentage = EXCLUDED.attendance_percentage,
            class_average_attendance = EXCLUDED.class_average_attendance,
