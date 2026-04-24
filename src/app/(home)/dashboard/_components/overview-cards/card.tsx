@@ -95,7 +95,7 @@ export function OverviewCard({
           </dd>
         </Link>
 
-        <div className="mt-6 flex items-end justify-between">
+        <div className="mt-2 flex items-end justify-between">
           <dl>
             {hasYellowRed ? (
               <dt className="mb-1.5 flex items-center gap-4 text-heading-4 font-bold">
@@ -103,7 +103,7 @@ export function OverviewCard({
                   type="button"
                   onClick={onYellowClick}
                   className={cn(
-                    "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    "rounded px-4 border-r-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     visibleYellow > 0
                       ? "text-yellow-400 dark:text-yellow-400 hover:bg-yellow-400/10 cursor-pointer"
                       : "text-gray-600 dark:text-gray-400 cursor-default",
@@ -124,14 +124,12 @@ export function OverviewCard({
                     </>
                   )}
                 </button>
-                <span className="text-dark-4 dark:text-dark-5" aria-hidden>
-                  |
-                </span>
+               
                 <button
                   type="button"
                   onClick={onRedClick}
                   className={cn(
-                    "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    "rounded px-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     visibleRed > 0
                       ? "text-red-600 dark:text-red-600 hover:bg-red-600/10 cursor-pointer"
                       : "text-grey-600 dark:text-white cursor-default",

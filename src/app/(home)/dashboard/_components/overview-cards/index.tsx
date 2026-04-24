@@ -289,7 +289,7 @@ export function OverviewCardsGroup({
         data-active={active === "gpa"}
       >
         <OverviewCard
-          label="GPA"
+          label="SGPA"
           titleHref={gpaHref}
           totalStudents={liveCounts.totalStudents}
           data={{

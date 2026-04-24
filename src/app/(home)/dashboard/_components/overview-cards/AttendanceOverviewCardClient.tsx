@@ -94,6 +94,10 @@ export function AttendanceOverviewCardClient({
     totalHeldCount !== 0
       ? (resolvedAttendanceMissingCount / totalHeldCount) * 100
       : 0;
+  const normalizedAttendanceMissingPercentage = Math.min(
+    100,
+    Math.max(0, attendanceMissingPercentage)
+  );
 
   return (
     <div
@@ -114,14 +118,14 @@ export function AttendanceOverviewCardClient({
           </dd>
         </Link>
 
-        <div className="mt-6 flex items-end justify-between">
+        <div className="mt-2 flex items-end justify-between">
           <dl>
             <dt className="mb-1.5 flex items-center gap-4 text-heading-4 font-bold">
               <button
                 type="button"
                 onClick={onYellowClick}
                 className={cn(
-                  "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  "rounded px-2 border-r-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   visibleYellow > 0
                     ? "text-yellow-400 dark:text-yellow-400 hover:bg-yellow-400/10 cursor-pointer"
                     : "text-gray-600 dark:text-gray-400 cursor-default",
@@ -140,14 +144,12 @@ export function AttendanceOverviewCardClient({
                   Cases: {visibleAlertCasesYellow}
                 </span>
               </button>
-              <span className="text-dark-4 dark:text-dark-5" aria-hidden>
-                |
-              </span>
+            
               <button
                 type="button"
                 onClick={onRedClick}
                 className={cn(
-                  "rounded px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  "rounded px-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   visibleRed > 0
                     ? "text-red-600 dark:text-red-600 hover:bg-red-600/10 cursor-pointer"
                     : "text-grey-600 dark:text-white cursor-default",
@@ -188,14 +190,30 @@ export function AttendanceOverviewCardClient({
       </div>
    
       <p className="mt-3 text-base  text-dark-6 dark:text-dark-5">
-          <span className=" text-dark dark:text-white">
-            Attendance Missing: {resolvedAttendanceMissingCount} / {totalHeldCount.toLocaleString()} Classes (
-            {totalHeldCount > 0
-              ? `${attendanceMissingPercentage.toFixed(1)}%`
-              : "0%"}
-            )
-          </span>
+        <div className="flex items-center justify-between">
+        <span className=" text-dark dark:text-white">
+          Attendance Missing:
+        </span>
+        <span className=" text-dark dark:text-white">
+          {resolvedAttendanceMissingCount} of {totalHeldCount.toLocaleString()} Classes
+          ({normalizedAttendanceMissingPercentage.toFixed(1)}%)
+        </span>
+        </div>
+          
         </p>
+      <div
+        className="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-3"
+        role="progressbar"
+        aria-label="Attendance missing progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(normalizedAttendanceMissingPercentage)}
+      >
+        <div
+          className="h-full rounded-full bg-amber-500 transition-all duration-300"
+          style={{ width: `${normalizedAttendanceMissingPercentage}%` }}
+        />
+      </div>
     </div>
   );
 }

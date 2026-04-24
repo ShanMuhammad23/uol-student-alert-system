@@ -207,7 +207,8 @@ export async function upsertAlertCountRows(rows: AlertCountsRow[]): Promise<numb
         yellow_gpa = EXCLUDED.yellow_gpa,
         red_gpa = EXCLUDED.red_gpa,
         yellow_attendance = EXCLUDED.yellow_attendance,
-        red_attendance = EXCLUDED.red_attendance
+        red_attendance = EXCLUDED.red_attendance,
+        updated_at = NOW()
     `;
 
     for (const row of rows) {

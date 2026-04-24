@@ -377,7 +377,7 @@ export function InterventionStatusChartClient({
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
-    "No Action Required": "#64748B",
+    "Not Required": "#64748B",
     Initiated: "#B5B126",
     "In-Progress": "#DBBE0F",
     Referred: "#9C5A99",
@@ -386,7 +386,7 @@ export function InterventionStatusChartClient({
 
   const data = [
     { x: "Not Started", y: notStarted },
-    { x: "No Action Required", y: noActionRequired },
+    { x: "Not Required", y: noActionRequired },
     { x: "Initiated", y: initiated },
     { x: "In-Progress", y: inProgress },
     { x: "Resolved", y: resolved },
