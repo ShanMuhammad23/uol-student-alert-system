@@ -101,7 +101,7 @@ export function DeanDepartmentStats({
           </button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
       {list.map((d) => {
         const attendanceMissing = d.attendanceMissing ?? 0;
         const attendanceClassesHeld = d.attendanceClassesHeld ?? 0;
