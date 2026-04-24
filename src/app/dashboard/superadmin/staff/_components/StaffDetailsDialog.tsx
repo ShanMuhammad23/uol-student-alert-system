@@ -34,7 +34,7 @@ export function StaffDetailsDialog({ staff }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2.5 rounded-md px-1 py-0.5 text-left hover:bg-gray-2 dark:hover:bg-dark-3"
+        className="flex items-center gap-2.5 rounded-md px-1 py-1 text-left hover:bg-gray-2 dark:hover:bg-dark-3"
         aria-label={`View details for ${staff.name || "staff"}`}
       >
         <Image
@@ -44,7 +44,12 @@ export function StaffDetailsDialog({ staff }: Props) {
           height={32}
           className="h-8 w-8 rounded-full object-cover"
         />
-        <span>{staff.name || "—"}</span>
+        <span className="min-w-0">
+          <span className="block truncate">{staff.name || "—"}</span>
+          <span className="block truncate text-xs font-normal text-dark-6">
+            {staff.email || "—"}
+          </span>
+        </span>
       </button>
 
       {open && (

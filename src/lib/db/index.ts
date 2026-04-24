@@ -41,6 +41,8 @@ export type StaffRow = {
   img: string | null;
   reset_otp_hash?: string | null;
   reset_otp_expires_at?: Date | null;
+  login_count?: number | null;
+  last_login_at?: Date | null;
 };
 
 /** Get staff by primary key. Returns null if not found or DB not configured. */
@@ -223,4 +225,17 @@ export async function getStaffResetOtpInfoByEmail(email: string): Promise<{
     [email]
   );
   return res.rows[0] ?? null;
+}
+
+export async function bumpStaffLoginStats(staffId: string): Promise<boolean> {
+  if (!pool) return false;
+  const res = await pool.query(
+    `UPDATE staff
+     SET login_count = COALESCE(login_count, 0) + 1,
+         last_login_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1`,
+    [staffId]
+  );
+  return res.rowCount === 1;
 }

@@ -2,7 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { compare } from "bcryptjs";
-import { getStaffByEmailWithDepartments } from "@/lib/db";
+import { bumpStaffLoginStats, getStaffByEmailWithDepartments } from "@/lib/db";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -31,6 +31,7 @@ export const authOptions: NextAuthOptions = {
 
         const valid = await compare(password, hash);
         if (!valid) return null;
+        await bumpStaffLoginStats(staff.id);
 
         return {
           id: staff.id,
@@ -47,7 +48,10 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24, // 24 hours
+  },
+  jwt: {
+    maxAge: 60 * 60 * 24, // 24 hours
   },
   callbacks: {
     async signIn({ user, account }) {
@@ -82,6 +86,7 @@ export const authOptions: NextAuthOptions = {
       mutableUser.img = staff.img;
       mutableUser.faculty_id = staff.faculty_id;
       mutableUser.department_ids = departmentIds;
+      await bumpStaffLoginStats(staff.id);
       return true;
     },
     async jwt({ token, user, trigger, session }) {

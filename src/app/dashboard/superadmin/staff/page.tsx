@@ -1,17 +1,8 @@
 import { pool } from "@/lib/db";
-import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { StaffDetailsDialog } from "./_components/StaffDetailsDialog";
+import { StaffDirectoryTableClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryTableClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
 
 type StaffListRow = {
@@ -30,6 +21,9 @@ type StaffListRow = {
   faculty_id: string | null;
   faculty_name: string | null;
   department_names: string[] | null;
+  department_ids: string[] | null;
+  login_count: number | null;
+  last_login_at: string | null;
 };
 
 type FacultyRow = {
@@ -37,20 +31,12 @@ type FacultyRow = {
   name: string;
 };
 
-type DepartmentRow = {
+export type DepartmentRow = {
   id: string;
   name: string;
   code: string | null;
   faculty_id: string | null;
 };
-
-function resolveFacultyName(row: StaffListRow): string {
-  return resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name) ?? "—";
-}
-
-function resolveDepartmentNames(row: StaffListRow): string[] {
-  return (row.department_names ?? []).filter((name) => name.trim().length > 0);
-}
 
 async function getStaffList(): Promise<StaffListRow[]> {
   if (!pool) return [];
@@ -67,12 +53,18 @@ async function getStaffList(): Promise<StaffListRow[]> {
        COALESCE(
          ARRAY_AGG(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL),
          ARRAY[]::text[]
-       ) AS department_names
+       ) AS department_names,
+       COALESCE(
+         ARRAY_AGG(DISTINCT d.id) FILTER (WHERE d.id IS NOT NULL),
+         ARRAY[]::varchar[]
+       ) AS department_ids,
+       s.login_count,
+       s.last_login_at::text AS last_login_at
      FROM staff s
      LEFT JOIN faculties f ON f.id = s.faculty_id
      LEFT JOIN staff_departments sd ON sd.staff_id = s.id
      LEFT JOIN departments d ON d.id = sd.department_id
-     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name
+     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name, s.login_count, s.last_login_at
      ORDER BY s.role ASC, s.name ASC`
   );
   return res.rows;
@@ -182,6 +174,126 @@ async function createStaffAction(formData: FormData) {
   redirect("/dashboard/superadmin/staff?success=created");
 }
 
+async function updateStaffAction(formData: FormData) {
+  "use server";
+  if (!pool) {
+    redirect("/dashboard/superadmin/staff?error=db_not_configured");
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const pernr = String(formData.get("pernr") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim() as
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing-head"
+    | "wellbeing-counseller";
+  const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
+  const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
+  const password = String(formData.get("password") ?? "").trim();
+
+  if (!id || !name || !email || !pernr || !role) {
+    redirect("/dashboard/superadmin/staff?error=missing_required");
+  }
+
+  if (
+    ![
+      "superadmin",
+      "dean",
+      "hod",
+      "instructor",
+      "wellbeing-head",
+      "wellbeing-counseller",
+    ].includes(role)
+  ) {
+    redirect("/dashboard/superadmin/staff?error=invalid_role");
+  }
+
+  if ((role === "dean" || role === "instructor") && !facultyId) {
+    redirect("/dashboard/superadmin/staff?error=faculty_required");
+  }
+
+  const departmentIds = formData
+    .getAll("department_ids")
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (password) {
+      const passwordHash = await hash(password, 10);
+      await client.query(
+        `UPDATE staff
+         SET name = $1, email = $2, pernr = $3, role = $4, faculty_id = $5, password_hash = $6, updated_at = NOW()
+         WHERE id = $7`,
+        [name, email, pernr, role, facultyId, passwordHash, id]
+      );
+    } else {
+      await client.query(
+        `UPDATE staff
+         SET name = $1, email = $2, pernr = $3, role = $4, faculty_id = $5, updated_at = NOW()
+         WHERE id = $6`,
+        [name, email, pernr, role, facultyId, id]
+      );
+    }
+
+    await client.query(`DELETE FROM staff_departments WHERE staff_id = $1`, [id]);
+    if (role === "hod" && departmentIds.length > 0) {
+      for (const departmentId of departmentIds) {
+        await client.query(
+          `INSERT INTO staff_departments (staff_id, department_id)
+           VALUES ($1, $2)
+           ON CONFLICT (staff_id, department_id) DO NOTHING`,
+          [id, departmentId]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+  } catch (error: unknown) {
+    await client.query("ROLLBACK");
+    const code =
+      typeof error === "object" && error != null && "code" in error
+        ? String((error as { code?: string }).code ?? "")
+        : "";
+    if (code === "23505") {
+      redirect("/dashboard/superadmin/staff?error=duplicate");
+    }
+    redirect("/dashboard/superadmin/staff?error=update_failed");
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/superadmin/staff");
+  redirect("/dashboard/superadmin/staff?success=updated");
+}
+
+async function deleteStaffAction(formData: FormData) {
+  "use server";
+  if (!pool) {
+    redirect("/dashboard/superadmin/staff?error=db_not_configured");
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) {
+    redirect("/dashboard/superadmin/staff?error=delete_failed");
+  }
+
+  try {
+    await pool.query(`DELETE FROM staff WHERE id = $1`, [id]);
+  } catch {
+    redirect("/dashboard/superadmin/staff?error=delete_failed");
+  }
+
+  revalidatePath("/dashboard/superadmin/staff");
+  redirect("/dashboard/superadmin/staff?success=deleted");
+}
+
 export default async function SuperadminStaffPage(props: {
   searchParams?: Promise<{ success?: string; error?: string }>;
 }) {
@@ -190,7 +302,13 @@ export default async function SuperadminStaffPage(props: {
   const faculties = await getFaculties();
   const departments = await getDepartments();
   const successMessage =
-    searchParams.success === "created" ? "Staff added successfully." : null;
+    searchParams.success === "created"
+      ? "Staff added successfully."
+      : searchParams.success === "updated"
+      ? "Staff updated successfully."
+      : searchParams.success === "deleted"
+      ? "Staff deleted successfully."
+      : null;
   const errorMessage =
     searchParams.error === "missing_required"
       ? "Please fill all required fields."
@@ -204,6 +322,10 @@ export default async function SuperadminStaffPage(props: {
       ? "Database is not configured."
       : searchParams.error === "create_failed"
       ? "Unable to add staff. Please verify field values."
+      : searchParams.error === "update_failed"
+      ? "Unable to update staff. Please verify field values."
+      : searchParams.error === "delete_failed"
+      ? "Unable to delete staff."
       : null;
 
   return (
@@ -246,68 +368,13 @@ export default async function SuperadminStaffPage(props: {
         />
       </div>
 
-      <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
-        {staff.length === 0 ? (
-          <p className="text-sm text-dark-5 dark:text-dark-6">
-            No staff records found.
-          </p>
-        ) : (
-          <div className="mt-4">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
-                <TableRow className="border-none uppercase [&>th]:!text-left [&>th]:bg-white [&>th]:dark:bg-gray-dark">
-                  <TableHead className="min-w-[180px]">Name</TableHead>
-                  <TableHead className="min-w-[220px]">Email</TableHead>
-                  <TableHead className="min-w-[120px]">Role</TableHead>
-                  <TableHead className="min-w-[120px]">Pernr</TableHead>
-                  <TableHead className="min-w-[220px]">Faculty</TableHead>
-                  <TableHead className="min-w-[240px]">Departments</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {staff.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className="text-base font-medium text-dark dark:text-white"
-                  >
-                    <TableCell className="!text-left font-medium text-dark dark:text-white">
-                      <StaffDetailsDialog
-                        staff={{
-                          name: row.name || "—",
-                          img: row.img,
-                          email: row.email,
-                          role: row.role,
-                          pernr: row.pernr || "—",
-                          facultyName: resolveFacultyName(row),
-                          departments: resolveDepartmentNames(row),
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell className="!text-left text-dark-6">
-                      {row.email}
-                    </TableCell>
-                    <TableCell className="!text-left text-dark dark:text-white">
-                      {row.role}
-                    </TableCell>
-                    <TableCell className="!text-left text-dark-6">
-                      {row.pernr || "—"}
-                    </TableCell>
-                    <TableCell className="!text-left text-dark-6">
-                      {resolveFacultyName(row)}
-                    </TableCell>
-                    <TableCell className="!text-left text-dark-6">
-                      {(row.role === "hod" || row.role === "instructor") &&
-                      resolveDepartmentNames(row).length
-                        ? resolveDepartmentNames(row).join(", ")
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
+      <StaffDirectoryTableClient
+        staff={staff}
+        faculties={faculties}
+        departments={departments}
+        updateStaffAction={updateStaffAction}
+        deleteStaffAction={deleteStaffAction}
+      />
     </div>
   );
 }

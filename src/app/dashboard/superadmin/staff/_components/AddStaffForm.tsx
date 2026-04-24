@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 
 type FacultyOption = {
   id: string;
@@ -101,7 +102,9 @@ export function AddStaffForm({
           <option value="">Select faculty (optional)</option>
           {faculties.map((faculty) => (
             <option key={faculty.id} value={faculty.id}>
-              {faculty.name}
+              {resolveFacultyNameFromIdOrName(faculty.id, faculty.name) ??
+                faculty.name ??
+                faculty.id}
             </option>
           ))}
         </select>
