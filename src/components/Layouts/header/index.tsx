@@ -35,10 +35,11 @@ function formatLastUpdatedLabel(value?: string | null): string | null {
 }
 
 export function Header({ user, screenHeading, totalStudents, lastUpdated }: HeaderProps) {
+  
   const { toggleSidebar, isMobile } = useSidebarContext();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const hideUserInfo = pathname === "/auth/sign-in";
+  const hideUserInfo = pathname === "/auth/sign-in" || pathname === "/auth/forgot-password";
   const [emulatedHeading, setEmulatedHeading] = useState<string | null>(null);
   const [emulatedTotalStudents, setEmulatedTotalStudents] = useState<
     number | undefined
@@ -133,6 +134,7 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
       user?.role === "instructor");
 
   return (
+    
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stroke bg-white px-4 py-5 shadow-1 dark:border-stroke-dark dark:bg-gray-dark md:px-5 2xl:px-10">
       <button
         onClick={toggleSidebar}
@@ -158,9 +160,9 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
         <h1 className="mb-0.5 text-heading-5 font-bold text-dark dark:text-white">
           Student Early Alert System
         </h1>
-        {(resolvedHeading || formattedLastUpdated) && (
+        {(resolvedHeading || formattedLastUpdated && !hideUserInfo) && (
           <div className="flex items-center gap-2">
-            <p className="text-lg font-medium text-green-600 dark:text-dark-5">
+            <p className="text-lg font-medium text-green-600 dark:text-white">
               {resolvedHeading} {resolvedHeading && shouldShowTotalStudents && (
                 <span className="font-semibold  dark:text-white">
                   {resolvedTotalStudents.toLocaleString()}
@@ -192,6 +194,6 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
           </div>
         )}
       </div>
-    </header>
-  );
+    </header>) 
+   
 }

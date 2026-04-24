@@ -256,7 +256,7 @@ export async function TopChannelsTableView({
                         <StudentProfileLink
                           sapId={row.SapNo}
                           returnToUrl={returnToUrl}
-                          className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
+                          className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
                           title="View profile"
                         >
                           {row.Name ?? "—"}
@@ -473,7 +473,7 @@ export async function NestedStudentsTable({
                       <span className="font-bold text-primary">{deptName}</span>
                     </span>
                   </div>
-                  <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                  <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                     ▼
                   </span>
                 </summary>
@@ -502,7 +502,7 @@ export async function NestedStudentsTable({
                                 </span>
                               </span>
                             </div>
-                            <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                            <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                               ▼
                             </span>
                           </summary>
@@ -529,19 +529,19 @@ export async function NestedStudentsTable({
                                             {course.code}
                                           </span>
                                           {course.title && (
-                                            <span className="ml-2 text-xs text-dark-6 dark:text-dark-5">
+                                            <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                               ({course.title})
                                             </span>
                                           )}
                                         </span>
-                                        <span className="text-xs text-dark-6 dark:text-dark-5">
+                                        <span className="text-xs text-dark-6 dark:text-white">
                                           Instructor(s):{" "}
                                           <span className="font-semibold text-dark dark:text-white">
                                             {instructorNames || "—"}
                                           </span>
                                         </span>
                                       </div>
-                                      <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                                      <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                                         ▼
                                       </span>
                                     </summary>
@@ -651,7 +651,7 @@ export async function NestedStudentsTable({
                         Department:{" "}
                         <span className="font-bold text-primary">{department.name}</span>
                       </span>
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                         <span>
                           Students:{" "}
                           <span className="font-semibold text-dark dark:text-white">
@@ -674,7 +674,7 @@ export async function NestedStudentsTable({
                     </div>
                     <span
                       className={cn(
-                        "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                        "ml-auto text-xs text-dark-6 transition-transform dark:text-white",
                         deptIsOpen && "rotate-180",
                       )}
                     >
@@ -705,7 +705,7 @@ export async function NestedStudentsTable({
                                   Program:{" "}
                                   <span className="font-bold text-primary">{programId}</span>
                                 </span>
-                                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                                   <span>
                                     Students:{" "}
                                     <span className="font-semibold text-dark dark:text-white">
@@ -737,7 +737,7 @@ export async function NestedStudentsTable({
                               </div>
                               <span
                                 className={cn(
-                                  "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                                  "ml-auto text-xs text-dark-6 transition-transform dark:text-white",
                                   progIsOpen && "rotate-180",
                                 )}
                               >
@@ -774,18 +774,18 @@ export async function NestedStudentsTable({
                                               {courseId}
                                             </span>
                                             {course && (
-                                              <span className="ml-2 text-xs text-dark-6 dark:text-dark-5">
+                                              <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                                 ({course.name})
                                               </span>
                                             )}
                                             {courseIdToInstructorNames.get(courseId) && (
-                                              <span className="ml-2 text-xs text-dark-6 dark:text-dark-5">
+                                              <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                                 – Instructor:{" "}
                                                 {courseIdToInstructorNames.get(courseId)}
                                               </span>
                                             )}
                                           </span>
-                                          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                                          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                                             <span>
                                               Classes held:{" "}
                                               <span className="font-semibold text-dark dark:text-white">
@@ -823,7 +823,7 @@ export async function NestedStudentsTable({
                                         </div>
                                         <span
                                           className={cn(
-                                            "ml-auto text-xs text-dark-6 transition-transform dark:text-dark-5",
+                                            "ml-auto text-xs text-dark-6 transition-transform dark:text-white",
                                             courseIsOpen && "rotate-180",
                                           )}
                                         >
@@ -889,7 +889,7 @@ export async function NestedStudentsTable({
                                                     <StudentProfileLink
                                                       sapId={student.sap_id}
                                                       returnToUrl={returnToUrl}
-                                                      className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
+                                                      className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
                                                       title="View profile"
                                                     >
                                                       <svg
@@ -1037,7 +1037,7 @@ export async function NestedStudentsTable({
                         Program:{" "}
                         <span className="font-bold text-primary">{programId}</span>
                       </span>
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                         <span>
                           Total students:{" "}
                           <span className="font-semibold text-dark dark:text-white">
@@ -1066,7 +1066,7 @@ export async function NestedStudentsTable({
                         </span>
                       </div>
                     </div>
-                    <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                    <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                       ▼
                     </span>
                   </summary>
@@ -1097,7 +1097,7 @@ export async function NestedStudentsTable({
                                     {getInstructorName(instructorId)}
                                   </span>
                                 </span>
-                                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                                   <span>
                                     Students:{" "}
                                     <span className="font-semibold text-dark dark:text-white">
@@ -1126,7 +1126,7 @@ export async function NestedStudentsTable({
                                   </span>
                                 </div>
                               </div>
-                              <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                              <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                                 ▼
                               </span>
                             </summary>
@@ -1163,15 +1163,15 @@ export async function NestedStudentsTable({
                                               {courseId}
                                             </span>
                                             {course && (
-                                              <span className="ml-2 text-xs text-dark-6 dark:text-dark-5">
+                                              <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                                 ({course.name})
                                               </span>
                                             )}
-                                            <span className="ml-2 text-xs text-dark-6 dark:text-dark-5">
+                                            <span className="ml-2 text-xs text-dark-6 dark:text-white">
                                               – Instructor: {getInstructorName(instructorId)}
                                             </span>
                                           </span>
-                                          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                                          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                                             <span>
                                               Classes held:{" "}
                                               <span className="font-semibold text-dark dark:text-white">
@@ -1206,7 +1206,7 @@ export async function NestedStudentsTable({
                                             </span>
                                           </div>
                                         </div>
-                                        <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                                        <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                                           ▼
                                         </span>
                                       </summary>
@@ -1269,7 +1269,7 @@ export async function NestedStudentsTable({
                                                     <StudentProfileLink
                                                       sapId={student.sap_id}
                                                       returnToUrl={returnToUrl}
-                                                      className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
+                                                      className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
                                                       title="View profile"
                                                     >
                                                       {student.name}
@@ -1405,7 +1405,7 @@ export async function NestedStudentsTable({
                         </span>
                       )}
                     </span>
-                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-dark-5">
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-dark-6 dark:text-white">
                       <span>
                         Classes held:{" "}
                         <span className="font-semibold text-dark dark:text-white">
@@ -1440,7 +1440,7 @@ export async function NestedStudentsTable({
                       </span>
                     </div>
                   </div>
-                  <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-dark-5">
+                  <span className="ml-auto text-xs text-dark-6 transition-transform group-open:rotate-180 dark:text-white">
                     ▼
                   </span>
                 </summary>
@@ -1503,7 +1503,7 @@ export async function NestedStudentsTable({
                               <StudentProfileLink
                                 sapId={student.sap_id}
                                 returnToUrl={returnToUrl}
-                                className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
+                                className="inline-flex items-center gap-2 text-green-500 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white rounded-md p-2 -m-2"
                                 title="View profile"
                               >
                                 {student.name}

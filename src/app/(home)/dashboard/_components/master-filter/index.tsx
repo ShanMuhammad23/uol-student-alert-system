@@ -165,7 +165,7 @@ function FilterMultiSelect({
           role="listbox"
           className="absolute left-0 top-full z-50 mt-1 max-h-[280px] w-full min-w-[200px] overflow-y-auto rounded-lg border border-stroke bg-white py-1 shadow-lg dark:border-stroke-dark dark:bg-gray-dark"
         >
-          <div className="flex items-center justify-end px-3 pb-1 text-[11px] text-dark-6 dark:text-dark-5">
+          <div className="flex items-center justify-end px-3 pb-1 text-[11px] text-dark-6 dark:text-white">
             
             <button
               type="button"
@@ -555,7 +555,7 @@ export function MasterFilter({
           "focus-visible:ring-2 focus-visible:ring-primary",
           hasActiveFilter
             ? "border-stroke bg-red-600 text-white hover:bg-red-700 dark:border-dark-3 dark:bg-red-600 dark:hover:bg-red-700"
-            : "cursor-not-allowed border-stroke/50 bg-red-600/60 text-white/80 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5"
+            : "cursor-not-allowed border-stroke/50 bg-red-600/60 text-white/80 dark:border-dark-3 dark:bg-dark-2 dark:text-white"
         )}
       >
         Clear All

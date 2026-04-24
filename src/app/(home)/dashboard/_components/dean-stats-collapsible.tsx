@@ -38,7 +38,7 @@ function CollapsibleSection({
           <span>
             {title}
             {typeof count === "number" && (
-              <span className="ml-1 text-base font-normal dark:text-dark-5">
+              <span className="ml-1 text-base font-normal dark:text-white">
                 ({count})
               </span>
             )}
@@ -65,7 +65,7 @@ function CollapsibleSection({
         </span>
         <span
           className={cn(
-            "text-dark-6 dark:text-dark-5 transition-transform",
+            "text-dark-6 dark:text-white transition-transform",
             open && "rotate-180"
           )}
           aria-hidden

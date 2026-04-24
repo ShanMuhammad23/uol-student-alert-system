@@ -84,7 +84,7 @@ export function UserInfo({ user }: UserInfoProps) {
               {isSignedIn ? displayEmail : "Not signed in"}
             </div>
             {user?.role && (
-              <div className="text-body-sm text-dark-6 dark:text-dark-5">
+              <div className="text-body-sm text-dark-6 dark:text-white">
                 {user.role.toUpperCase()}
               </div>
             )}

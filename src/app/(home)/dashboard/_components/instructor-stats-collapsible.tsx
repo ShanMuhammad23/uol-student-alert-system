@@ -27,14 +27,14 @@ export function InstructorStatsCollapsible({ courseContent, courseCount }: Props
           <span>
             Courses
             {typeof courseCount === "number" && (
-              <span className="ml-1 text-xs font-normal text-dark-6 dark:text-dark-5">
+              <span className="ml-1 text-xs font-normal text-dark-6 dark:text-white">
                 ({courseCount})
               </span>
             )}
           </span>
           <span
             className={cn(
-              "text-dark-6 dark:text-dark-5 transition-transform",
+              "text-dark-6 dark:text-white transition-transform",
               open && "rotate-180"
             )}
             aria-hidden

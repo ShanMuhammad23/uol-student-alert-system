@@ -134,7 +134,7 @@ export function WellbeingResolutionFormWithAction({
   if (isDirect) {
     return (
       <form onSubmit={handleSubmitDirect} className="space-y-4">
-        <p className="text-xs text-dark-6 dark:text-dark-5">
+        <p className="text-xs text-dark-6 dark:text-white">
           Direct case — no course focus. Enrollment context is taken from the student&apos;s
           record.
         </p>
@@ -264,7 +264,7 @@ export function WellbeingResolutionFormWithAction({
         </select>
       </div>
 
-      <p className="text-xs text-dark-6 dark:text-dark-5">
+      <p className="text-xs text-dark-6 dark:text-white">
         Counselling/Monitoring entries are mirrored into Intervention History. Flex (Academic/Financial)
         entries remain in Resolution Recommendations. Each save creates a new row.
       </p>

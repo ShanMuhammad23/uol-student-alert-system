@@ -28,7 +28,7 @@ export function StudentsViewTabs({ className }: Props) {
           "rounded-md px-4 py-2 text-sm font-medium transition-colors",
           viewMode === "table"
             ? "bg-white text-primary shadow-sm dark:bg-gray-dark dark:text-primary"
-            : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
+            : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white",
         )}
       >
         Table view
@@ -42,7 +42,7 @@ export function StudentsViewTabs({ className }: Props) {
           "rounded-md px-4 py-2 text-sm font-medium transition-colors",
           viewMode === "nested"
             ? "bg-white text-primary shadow-sm dark:bg-gray-dark dark:text-primary"
-            : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
+            : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white",
         )}
       >
         Nested view
@@ -56,7 +56,7 @@ export function StudentsViewTabs({ className }: Props) {
           "rounded-md px-4 py-2 text-sm font-medium transition-colors",
           viewMode === "attendance-missing"
             ? "bg-white text-primary shadow-sm dark:bg-gray-dark dark:text-primary"
-            : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
+            : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white",
         )}
       >
         <span className="inline-flex items-center gap-2">
@@ -85,7 +85,7 @@ export function StudentsViewTabs({ className }: Props) {
           "rounded-md px-4 py-2 text-sm font-medium transition-colors",
           viewMode === "intervention-search"
             ? "bg-white text-primary shadow-sm dark:bg-gray-dark dark:text-primary"
-            : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white",
+            : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white",
         )}
       >
         Search Intervention By Student Number

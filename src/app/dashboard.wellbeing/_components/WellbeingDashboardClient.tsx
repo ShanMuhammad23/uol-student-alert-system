@@ -114,7 +114,7 @@ export function WellbeingDashboardClient({
             className={`rounded-md px-4 py-2 text-sm font-medium transition ${
               activeTab === "caseload"
                 ? "bg-primary text-white"
-                : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white"
+                : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white"
             }`}
           >
             Referred
@@ -125,7 +125,7 @@ export function WellbeingDashboardClient({
             className={`rounded-md px-4 py-2 text-sm font-medium transition ${
               activeTab === "direct"
                 ? "bg-primary text-white"
-                : "text-dark-6 hover:text-dark dark:text-dark-5 dark:hover:text-white"
+                : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white"
             }`}
           >
             Direct

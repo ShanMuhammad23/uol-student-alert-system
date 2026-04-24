@@ -46,7 +46,7 @@ export async function ChatsCard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
-                      "truncate text-sm font-medium dark:text-dark-5 xl:max-w-[8rem]",
+                      "truncate text-sm font-medium dark:text-white xl:max-w-[8rem]",
                       chat.unreadCount && "text-dark-4 dark:text-dark-6",
                     )}
                   >

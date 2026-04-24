@@ -27,7 +27,7 @@ export function ClearSortButton() {
       <button
         type="button"
         onClick={handleClick}
-        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
         aria-label="Clear sort and restore default order"
       >
         Clear

@@ -164,7 +164,7 @@ export function TopChannelsTableClient({
     const direction = sortConfig?.direction ?? "asc";
 
     return (
-      <span className="ml-1 inline-flex flex-col justify-center text-[10px] text-dark-6 dark:text-dark-5">
+      <span className="ml-1 inline-flex flex-col justify-center text-[10px] text-dark-6 dark:text-white">
         <ArrowUpIcon
           className={cn(
             "h-2 w-2",
@@ -456,13 +456,13 @@ export function TopChannelsTableClient({
       ) : (
         <div className="mt-4">
           {isWellbeingScreen && (
-            <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-5">
+            <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-white">
               Referred interventions, direct internal/external cases, or a case closed by wellbeing
               (wellbeing_cases). Case type and assignee reflect the latest intervention row.
               {uniqueStudents ? " One row per student." : ""}
             </div>
           )}
-          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-dark-5">
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-white">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <span className="font-medium">
                 Total Students:{" "}
@@ -471,7 +471,7 @@ export function TopChannelsTableClient({
                 </span>
               </span>
               <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-                <span className="text-dark-6 dark:text-dark-5">Rows per page:</span>
+                <span className="text-dark-6 dark:text-white">Rows per page:</span>
                 <select
                   value={rowsPerPage === "all" ? "all" : rowsPerPage.toString()}
                   onChange={(e) => {
@@ -490,7 +490,7 @@ export function TopChannelsTableClient({
                   <option value="500">500</option>
                   <option value="all">All</option>
                 </select>
-                <span className="text-dark-6 dark:text-dark-5">
+                <span className="text-dark-6 dark:text-white">
                   Showing{" "}
                   <span className="font-semibold text-dark dark:text-white">
                     {startItem.toLocaleString()}-{endItem.toLocaleString()}
@@ -595,7 +595,7 @@ export function TopChannelsTableClient({
                   <div className="flex items-center gap-1">
                     <span className="whitespace-normal leading-tight">
                       Attendance %{" "}
-                      <span className="block text-[10px] font-normal normal-case text-dark-6 dark:text-dark-5">
+                      <span className="block text-[10px] font-normal normal-case text-dark-6 dark:text-white">
                         attended / posted
                       </span>
                     </span>
@@ -684,7 +684,7 @@ export function TopChannelsTableClient({
                       ? "text-yellow-600 dark:text-yellow-500"
                       : hasTrend
                         ? "text-dark dark:text-white"
-                        : "text-dark-6 dark:text-dark-5";
+                        : "text-dark-6 dark:text-white";
 
                 return (
                   <TableRow
@@ -824,7 +824,7 @@ export function TopChannelsTableClient({
                             <span>
                               {row.assigneeName}
                               {row.assigneePernr ? (
-                                <span className="ml-1 text-xs text-dark-6 dark:text-dark-5">
+                                <span className="ml-1 text-xs text-dark-6 dark:text-white">
                                   ({row.assigneePernr})
                                 </span>
                               ) : null}
@@ -860,7 +860,7 @@ export function TopChannelsTableClient({
             </TableBody>
           </Table>
           {totalResults > 0 && rowsPerPage !== "all" && (
-            <div className="mt-4 flex flex-col items-center justify-between gap-3 text-xs text-dark-6 dark:text-dark-5 sm:flex-row sm:text-sm">
+            <div className="mt-4 flex flex-col items-center justify-between gap-3 text-xs text-dark-6 dark:text-white sm:flex-row sm:text-sm">
               <div>
                 Page{" "}
                 <span className="font-semibold text-dark dark:text-white">

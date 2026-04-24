@@ -189,7 +189,7 @@ export function AttendanceOverviewCardClient({
       </div>
       </div>
    
-      <p className="mt-3 text-base  text-dark-6 dark:text-dark-5">
+      <p className="mt-3 text-base  text-dark-6 dark:text-white">
         <div className="flex items-center justify-between">
         <span className=" text-dark dark:text-white">
           Attendance Missing:

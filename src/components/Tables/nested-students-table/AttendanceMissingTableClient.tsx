@@ -497,7 +497,7 @@ export function AttendanceMissingTableClient({
                   <span
                     className={cn(
                       "text-sm",
-                      deptIsOpen ? "text-white" : "text-dark-6 dark:text-dark-5"
+                      deptIsOpen ? "text-white" : "text-dark-6 dark:text-white"
                     )}
                   >
                     Missing attendance records:{" "}
@@ -510,7 +510,7 @@ export function AttendanceMissingTableClient({
                 <span
                   className={cn(
                     "ml-auto text-xs transition-transform duration-200 ease-in-out",
-                    deptIsOpen ? "rotate-180 text-white" : "text-dark-6 dark:text-dark-5"
+                    deptIsOpen ? "rotate-180 text-white" : "text-dark-6 dark:text-white"
                   )}
                 >
                   ▼
@@ -554,7 +554,7 @@ export function AttendanceMissingTableClient({
                             <span
                               className={cn(
                                 "text-sm",
-                                progIsOpen ? "text-white" : "text-dark-6 dark:text-dark-5"
+                                progIsOpen ? "text-white" : "text-dark-6 dark:text-white"
                               )}
                             >
                               Missing attendance records:{" "}
@@ -571,7 +571,7 @@ export function AttendanceMissingTableClient({
                               "ml-auto text-xs transition-transform duration-200 ease-in-out",
                               progIsOpen
                                 ? "rotate-180 text-white"
-                                : "text-dark-6 dark:text-dark-5"
+                                : "text-dark-6 dark:text-white"
                             )}
                           >
                             ▼
@@ -592,18 +592,18 @@ export function AttendanceMissingTableClient({
                                       {course.courseId}
                                     </span>
                                     {course.sectionCode && (
-                                      <span className="ml-2 text-xs font-normal text-dark-6 dark:text-dark-5">
+                                      <span className="ml-2 text-xs font-normal text-dark-6 dark:text-white">
                                         [Section: {course.sectionCode}]
                                       </span>
                                     )}
                                     {course.courseTitle &&
                                       course.courseTitle !== course.courseId && (
-                                        <span className="ml-2 text-xs font-normal text-dark-6 dark:text-dark-5">
+                                        <span className="ml-2 text-xs font-normal text-dark-6 dark:text-white">
                                           ({course.courseTitle})
                                         </span>
                                       )}
                                   </div>
-                                  <div className="text-xs text-dark-6 dark:text-dark-5">
+                                  <div className="text-xs text-dark-6 dark:text-white">
                                     Instructor(s):{" "}
                                     <span className="font-semibold text-dark dark:text-white">
                                       {Array.from(course.instructors).join(", ")}
@@ -612,25 +612,25 @@ export function AttendanceMissingTableClient({
                                 </div>
 
                                 <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-                                  <span className="text-dark-6 dark:text-dark-5">
+                                  <span className="text-dark-6 dark:text-white">
                                     Held:{" "}
                                     <span className="font-semibold text-dark dark:text-white">
                                       {course.held}
                                     </span>
                                   </span>
-                                  <span className="text-dark-6 dark:text-dark-5">
+                                  <span className="text-dark-6 dark:text-white">
                                     Posted:{" "}
                                     <span className="font-semibold text-dark dark:text-white">
                                       {course.posted}
                                     </span>
                                   </span>
-                                  <span className="text-dark-6 dark:text-dark-5">
+                                  <span className="text-dark-6 dark:text-white">
                                     Missing:{" "}
                                     <span className="font-semibold text-red-600">
                                       {course.missing}
                                     </span>
                                   </span>
-                                  <span className="text-dark-6 dark:text-dark-5">
+                                  <span className="text-dark-6 dark:text-white">
                                     Students:{" "}
                                     <span className="font-semibold text-dark dark:text-white">
                                       {course.students.size}

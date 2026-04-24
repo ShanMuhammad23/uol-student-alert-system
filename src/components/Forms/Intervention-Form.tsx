@@ -431,7 +431,7 @@ const InterventionForm = ({
           ))}
         </div>
         {mode === "wellbeing" && (
-          <p className="text-xs text-dark-6 dark:text-dark-5">
+          <p className="text-xs text-dark-6 dark:text-white">
             In wellbeing mode, selected type maps to wellbeing category.
           </p>
         )}
@@ -460,7 +460,7 @@ const InterventionForm = ({
           required
         />
       ) : (
-        <div className="rounded-lg border border-stroke p-3 text-sm text-dark-6 dark:border-dark-3 dark:text-dark-5">
+        <div className="rounded-lg border border-stroke p-3 text-sm text-dark-6 dark:border-dark-3 dark:text-white">
           Wellbeing case will be stored in wellbeing resolution records.
         </div>
       )}

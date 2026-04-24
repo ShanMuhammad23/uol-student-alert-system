@@ -36,7 +36,7 @@ export function TablePagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-stroke px-1 pt-4 dark:border-stroke-dark">
-      <p className="text-sm text-dark-6 dark:text-dark-5">
+      <p className="text-sm text-dark-6 dark:text-white">
         Showing <span className="font-medium text-dark dark:text-white">{start}</span>
         {" – "}
         <span className="font-medium text-dark dark:text-white">{end}</span>
@@ -49,7 +49,7 @@ export function TablePagination({
           className={cn(
             "inline-flex h-9 min-w-9 items-center justify-center rounded border border-stroke px-3 text-sm font-medium transition-colors dark:border-stroke-dark",
             currentPage <= 1
-              ? "pointer-events-none border-stroke bg-gray-2 text-dark-6 dark:bg-gray-dark-2 dark:text-dark-5"
+              ? "pointer-events-none border-stroke bg-gray-2 text-dark-6 dark:bg-gray-dark-2 dark:text-white"
               : "bg-white text-dark hover:bg-gray-2 dark:bg-gray-dark dark:text-white dark:hover:bg-gray-dark-2"
           )}
           aria-disabled={currentPage <= 1}
@@ -91,7 +91,7 @@ export function TablePagination({
           className={cn(
             "inline-flex h-9 min-w-9 items-center justify-center rounded border border-stroke px-3 text-sm font-medium transition-colors dark:border-stroke-dark",
             currentPage >= totalPages
-              ? "pointer-events-none border-stroke bg-gray-2 text-dark-6 dark:bg-gray-dark-2 dark:text-dark-5"
+              ? "pointer-events-none border-stroke bg-gray-2 text-dark-6 dark:bg-gray-dark-2 dark:text-white"
               : "bg-white text-dark hover:bg-gray-2 dark:bg-gray-dark dark:text-white dark:hover:bg-gray-dark-2"
           )}
           aria-disabled={currentPage >= totalPages}

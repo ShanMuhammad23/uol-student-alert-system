@@ -125,7 +125,7 @@ export function InterventionStudentSearchTab() {
 
       {rows.length > 0 && (
         <div className="mt-4">
-          <div className="mb-3 text-sm text-dark-6 dark:text-dark-5">
+          <div className="mb-3 text-sm text-dark-6 dark:text-white">
             Total Intervention Rows:{" "}
             <span className="font-semibold text-dark dark:text-white">
               {rows.length.toLocaleString()}
@@ -150,10 +150,10 @@ export function InterventionStudentSearchTab() {
                   key={`${row.courseId}-${row.sectionCode ?? ""}-${row.eventPackageId ?? ""}`}
                   className="text-base font-medium text-dark dark:text-white"
                 >
-                  <TableCell className="!text-left text-sm text-dark-6 dark:text-dark-5">
+                  <TableCell className="!text-left text-sm text-dark-6 dark:text-white">
                     {row.facultyName || "—"}
                   </TableCell>
-                  <TableCell className="!text-left text-sm text-dark-6 dark:text-dark-5">
+                  <TableCell className="!text-left text-sm text-dark-6 dark:text-white">
                     {row.departmentName || "—"}
                   </TableCell>
                   <TableCell className="!text-left text-sm">

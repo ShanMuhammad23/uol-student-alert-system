@@ -78,7 +78,7 @@ export function HodProgramStats({
               "rounded-md border px-2 py-1 font-medium",
               sortMetric === metric
                 ? "border-primary text-primary"
-                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-dark-5"
+                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
             )}
           >
             {metric === "attendance"
@@ -117,9 +117,9 @@ export function HodProgramStats({
           >
             <span className="text-body-sm font-semibold text-dark dark:text-white">
               {p.programTitle ?? p.programId}{" "}
-              <span className="text-body-base dark:text-dark-5">({p.total})</span>
+              <span className="text-body-base dark:text-white">({p.total})</span>
             </span>
-            <span className="text-body-base text-dark-6 space-x-2 dark:text-dark-5">
+            <span className="text-body-base text-dark-6 space-x-2 dark:text-white">
               Att: <span className={cn("text-amber-500 dark:text-amber-500 font-bold", p.yellowAttendance > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>{p.yellowAttendance}</span>
               {" | "}
               <span className={cn("text-red-500 font-bold", p.redAttendance > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{p.redAttendance}</span>

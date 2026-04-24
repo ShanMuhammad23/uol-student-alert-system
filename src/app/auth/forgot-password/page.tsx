@@ -1,38 +1,31 @@
-import Signin from "@/components/Auth/Signin";
-import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
+import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
+import ForgotPasswordStepper from "@/components/Auth/ForgotPasswordStepper";
 import { authOptions } from "@/lib/auth-config";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "Forgot Password",
 };
 
-export default async function SignIn() {
-  // If user is already authenticated, skip sign-in UI and go straight to dashboard.
+export default async function ForgotPasswordPage() {
   const session = await getServerSession(authOptions);
   if (session?.user) {
-    redirect(
-      session.user.role === "superadmin"
-        ? "/dashboard/superadmin"
-        : "/dashboard"
-    );
+    redirect(session.user.role === "superadmin" ? "/dashboard/superadmin" : "/dashboard");
   }
 
   return (
     <>
-      <Breadcrumb pageName="Sign In" />
+      <Breadcrumb pageName="Forgot Password" />
 
       <div className="rounded-[10px] bg-white shadow-1 dark:bg-gray-dark dark:shadow-card">
         <div className="flex flex-wrap items-center justify-center">
-          <div className="w-full border xl:w-1/2 mx-auto">
+          <div className="mx-auto w-full border xl:w-1/2">
             <div className="w-full p-4 sm:p-12.5 xl:p-15">
-              <Signin />
+              <ForgotPasswordStepper />
             </div>
           </div>
-
-          
         </div>
       </div>
     </>

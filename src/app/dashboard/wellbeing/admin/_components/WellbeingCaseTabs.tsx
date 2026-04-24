@@ -129,7 +129,7 @@ export function WellbeingCaseTabs({ referredCases, directCases, assignees }: Pro
       ) : null}
 
       {tabRows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-stroke py-6 text-center text-sm text-dark-6 dark:border-dark-3 dark:text-dark-5">
+        <div className="rounded-lg border border-dashed border-stroke py-6 text-center text-sm text-dark-6 dark:border-dark-3 dark:text-white">
           No {activeTab} cases available.
         </div>
       ) : (

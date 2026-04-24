@@ -39,6 +39,8 @@ export type StaffRow = {
   created_at: Date;
   updated_at: Date;
   img: string | null;
+  reset_otp_hash?: string | null;
+  reset_otp_expires_at?: Date | null;
 };
 
 /** Get staff by primary key. Returns null if not found or DB not configured. */
@@ -169,4 +171,56 @@ export async function updateStaffImg(staffId: string, imgRelativePath: string): 
     [imgRelativePath, staffId]
   );
   return res.rowCount === 1;
+}
+
+export async function setStaffResetOtpByEmail(
+  email: string,
+  otpHash: string,
+  expiresAt: Date
+): Promise<boolean> {
+  if (!pool) return false;
+  const res = await pool.query(
+    `UPDATE staff
+     SET reset_otp_hash = $1, reset_otp_expires_at = $2, updated_at = NOW()
+     WHERE LOWER(TRIM(email)) = LOWER(TRIM($3))`,
+    [otpHash, expiresAt, email]
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function clearStaffResetOtpById(staffId: string): Promise<boolean> {
+  if (!pool) return false;
+  const res = await pool.query(
+    `UPDATE staff
+     SET reset_otp_hash = NULL, reset_otp_expires_at = NULL, updated_at = NOW()
+     WHERE id = $1`,
+    [staffId]
+  );
+  return res.rowCount === 1;
+}
+
+export async function getStaffResetOtpInfoByEmail(email: string): Promise<{
+  id: string;
+  email: string;
+  name: string;
+  password_hash: string | null;
+  reset_otp_hash: string | null;
+  reset_otp_expires_at: Date | null;
+} | null> {
+  if (!pool) return null;
+  const res = await pool.query<{
+    id: string;
+    email: string;
+    name: string;
+    password_hash: string | null;
+    reset_otp_hash: string | null;
+    reset_otp_expires_at: Date | null;
+  }>(
+    `SELECT id, email, name, password_hash, reset_otp_hash, reset_otp_expires_at
+     FROM staff
+     WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+     LIMIT 1`,
+    [email]
+  );
+  return res.rows[0] ?? null;
 }

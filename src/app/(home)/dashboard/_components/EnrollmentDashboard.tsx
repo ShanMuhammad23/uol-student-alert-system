@@ -650,7 +650,7 @@ function EnrollmentDashboardInner({
         />
       </div>
 
-      <div className="col-span-12 mb-12">
+      <div className="col-span-12 mb-12 min-h-[520px]">
         <div className="mb-4">
           <StudentsViewTabs />
         </div>

@@ -493,7 +493,7 @@ export function InterventionHistorySection({
                             <>
                               {int.assignee_name}
                               {int.assignee_pernr ? (
-                                <span className="ml-1 text-xs text-dark-6 dark:text-dark-5">
+                                <span className="ml-1 text-xs text-dark-6 dark:text-white">
                                   ({int.assignee_pernr})
                                 </span>
                               ) : null}
@@ -513,7 +513,7 @@ export function InterventionHistorySection({
                             {statusStyle.label}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-[280px] text-dark-6 dark:text-dark-5">
+                        <TableCell className="max-w-[280px] text-dark-6 dark:text-white">
                           {int.remarks || "—"}
                         </TableCell>
                       </TableRow>
@@ -576,7 +576,7 @@ export function InterventionHistorySection({
                             })
                           : "—"}
                       </TableCell>
-                      <TableCell className="text-dark-6 dark:text-dark-5">
+                      <TableCell className="text-dark-6 dark:text-white">
                         {wb.remarks || "—"}
                       </TableCell>
                       <TableCell>
@@ -592,7 +592,7 @@ export function InterventionHistorySection({
                       <TableCell className="text-dark dark:text-white">
                         {wb.staffName ?? "—"}
                         {wb.staffPernr ? (
-                          <span className="ml-1 text-xs text-dark-6 dark:text-dark-5">
+                          <span className="ml-1 text-xs text-dark-6 dark:text-white">
                             ({wb.staffPernr})
                           </span>
                         ) : null}
@@ -629,7 +629,7 @@ export function InterventionHistorySection({
                       {formatOutreachMode(int.outreach_mode)}
                     </TableCell>
                    
-                    <TableCell className="max-w-[280px] text-dark-6 dark:text-dark-5">
+                    <TableCell className="max-w-[280px] text-dark-6 dark:text-white">
                       {int.remarks || "—"}
                     </TableCell>
                     <TableCell>
@@ -643,7 +643,7 @@ export function InterventionHistorySection({
                     <TableCell className="text-dark dark:text-white">
                       <div className="flex flex-col">
                         <span>{int.uploader_name} - {int.uploader_pernr || "—"}</span>
-                        <span className="text-xs text-dark-6 dark:text-dark-5">
+                        <span className="text-xs text-dark-6 dark:text-white">
                           {int.uploader_email || "—"}
                         </span>
                       </div>
@@ -655,10 +655,10 @@ export function InterventionHistorySection({
                             <span className="text-sm font-medium">
                               {sentEmails.length} sent
                             </span>
-                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                            <span className="text-xs text-dark-6 dark:text-white">
                               {latestEmail.subject}
                             </span>
-                            <span className="text-xs text-dark-6 dark:text-dark-5">
+                            <span className="text-xs text-dark-6 dark:text-white">
                               {new Date(latestEmail.sent_at).toLocaleString()}
                             </span>
                             <details className="rounded-md border border-stroke p-2 dark:border-dark-3">
@@ -674,13 +674,13 @@ export function InterventionHistorySection({
                                     <p className="font-semibold text-dark dark:text-white">
                                       {email.subject}
                                     </p>
-                                    <p className="mt-1 text-dark-6 dark:text-dark-5">
+                                    <p className="mt-1 text-dark-6 dark:text-white">
                                       To: {email.recipient_email || "—"}
                                     </p>
-                                    <p className="text-dark-6 dark:text-dark-5">
+                                    <p className="text-dark-6 dark:text-white">
                                       From: {email.sender_email || "—"}
                                     </p>
-                                    <p className="text-dark-6 dark:text-dark-5">
+                                    <p className="text-dark-6 dark:text-white">
                                       Sent: {new Date(email.sent_at).toLocaleString()}
                                     </p>
                                     {email.body_html ? (
@@ -695,10 +695,10 @@ export function InterventionHistorySection({
                             </details>
                           </div>
                         ) : (
-                          <span className="text-xs text-dark-6 dark:text-dark-5">No emails</span>
+                          <span className="text-xs text-dark-6 dark:text-white">No emails</span>
                         )
                       ) : (
-                        <span className="text-xs text-dark-6 dark:text-dark-5">—</span>
+                        <span className="text-xs text-dark-6 dark:text-white">—</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -749,7 +749,7 @@ export function InterventionHistorySection({
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+            className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
             aria-label="Close"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -808,7 +808,7 @@ export function InterventionHistorySection({
             <button
               type="button"
               onClick={() => setOpenDirectCaseDialog(false)}
-              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
               aria-label="Close"
             >
               ×
@@ -817,7 +817,7 @@ export function InterventionHistorySection({
           <div className="px-6 py-4">
             <Suspense
               fallback={
-                <p className="text-sm text-dark-6 dark:text-dark-5">Loading form…</p>
+                <p className="text-sm text-dark-6 dark:text-white">Loading form…</p>
               }
             >
               <WellbeingResolutionFormWithAction
@@ -847,7 +847,7 @@ export function InterventionHistorySection({
             <button
               type="button"
               onClick={() => setEditingId(null)}
-              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
               aria-label="Close"
             >
               ×
@@ -969,7 +969,7 @@ export function InterventionHistorySection({
             <button
               type="button"
               onClick={() => setEditingWellbeingId(null)}
-              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-dark-5 dark:hover:bg-dark-3 dark:hover:text-white"
+              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
               aria-label="Close"
             >
               ×
@@ -1102,7 +1102,7 @@ export function InterventionHistorySection({
                         {wb.wellbeingStatus === "closed" ? "Closed" : "Open"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-dark-6 dark:text-dark-5">
+                    <TableCell className="text-dark-6 dark:text-white">
                       {wb.remarks || "—"}
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">

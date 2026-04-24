@@ -88,7 +88,7 @@ export function DeanProgramStats({
               "rounded-md border px-2 py-1 font-medium",
               sortMetric === metric
                 ? "border-primary text-primary"
-                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-dark-5"
+                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
             )}
           >
             {metric === "attendance"
@@ -128,11 +128,11 @@ export function DeanProgramStats({
           >
             <span className="text-body-sm font-semibold text-dark dark:text-white">
               {p.programTitle ?? p.programId}{" "}
-              <span className="text-body-base dark:text-dark-5">
+              <span className="text-body-base dark:text-white">
                 ({p.total})
               </span>
             </span>
-            <span className="text-body-base text-dark-6 space-x-2 dark:text-dark-5">
+            <span className="text-body-base text-dark-6 space-x-2 dark:text-white">
               Att:{" "}
               <span
                 className={cn(

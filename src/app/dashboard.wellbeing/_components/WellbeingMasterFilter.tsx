@@ -63,7 +63,7 @@ function FilterMultiSelect({
       </button>
       {isOpen && (
         <div className="absolute left-0 top-full z-50 mt-1 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-stroke bg-white py-1 shadow-lg dark:border-stroke-dark dark:bg-gray-dark">
-          <div className="flex justify-end px-3 pb-1 text-[11px] text-dark-6 dark:text-dark-5">
+          <div className="flex justify-end px-3 pb-1 text-[11px] text-dark-6 dark:text-white">
             <button type="button" className="underline hover:text-primary" onClick={() => onChange([])}>
               Clear all
             </button>

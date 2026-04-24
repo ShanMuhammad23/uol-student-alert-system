@@ -200,30 +200,30 @@ export function ProfileView({ initialProfile }: Props) {
         <ShowcaseSection title="Account details" className="!p-6 sm:!p-8">
           <dl className="grid gap-4 sm:grid-cols-2">
             <div>
-              <dt className="text-body-sm text-dark-6 dark:text-dark-5">Name</dt>
+              <dt className="text-body-sm text-dark-6 dark:text-white">Name</dt>
               <dd className="font-medium text-dark dark:text-white">{name}</dd>
             </div>
             <div>
-              <dt className="text-body-sm text-dark-6 dark:text-dark-5">Email</dt>
+              <dt className="text-body-sm text-dark-6 dark:text-white">Email</dt>
               <dd className="font-medium text-dark dark:text-white">{email}</dd>
             </div>
             <div>
-              <dt className="text-body-sm text-dark-6 dark:text-dark-5">Personnel number</dt>
+              <dt className="text-body-sm text-dark-6 dark:text-white">Personnel number</dt>
               <dd className="font-medium text-dark dark:text-white">{pernr}</dd>
             </div>
             <div>
-              <dt className="text-body-sm text-dark-6 dark:text-dark-5">Role</dt>
+              <dt className="text-body-sm text-dark-6 dark:text-white">Role</dt>
               <dd className="font-medium uppercase tracking-wide text-primary">{roleLabel}</dd>
             </div>
             {p?.faculty_name && (
               <div className="sm:col-span-2">
-                <dt className="text-body-sm text-dark-6 dark:text-dark-5">Faculty</dt>
+                <dt className="text-body-sm text-dark-6 dark:text-white">Faculty</dt>
                 <dd className="font-medium text-dark dark:text-white">{p.faculty_name}</dd>
               </div>
             )}
             {p?.department_names && p.department_names.length > 0 && (
               <div className="sm:col-span-2">
-                <dt className="text-body-sm text-dark-6 dark:text-dark-5">Departments</dt>
+                <dt className="text-body-sm text-dark-6 dark:text-white">Departments</dt>
                 <dd className="font-medium text-dark dark:text-white">
                   {p.department_names.join(", ")}
                 </dd>
@@ -231,7 +231,7 @@ export function ProfileView({ initialProfile }: Props) {
             )}
             {p?.created_at && (
               <div>
-                <dt className="text-body-sm text-dark-6 dark:text-dark-5">Record created</dt>
+                <dt className="text-body-sm text-dark-6 dark:text-white">Record created</dt>
                 <dd className="font-medium text-dark dark:text-white">
                   {new Date(p.created_at).toLocaleString()}
                 </dd>
@@ -242,13 +242,13 @@ export function ProfileView({ initialProfile }: Props) {
 
         <ShowcaseSection title="Change password" className="!p-6 sm:!p-8">
           {!profileReady ? (
-            <p className="text-body-sm text-dark-6 dark:text-dark-5">Loading…</p>
+            <p className="text-body-sm text-dark-6 dark:text-white">Loading…</p>
           ) : !p ? (
-            <p className="text-body-sm text-dark-6 dark:text-dark-5">
+            <p className="text-body-sm text-dark-6 dark:text-white">
               Profile could not be loaded. Ensure the database is configured and try again.
             </p>
           ) : !p.has_password ? (
-            <p className="text-body-sm text-dark-6 dark:text-dark-5">
+            <p className="text-body-sm text-dark-6 dark:text-white">
               No password is stored for this account (for example, you may use Google sign-in).
               Password change is not available here.
             </p>

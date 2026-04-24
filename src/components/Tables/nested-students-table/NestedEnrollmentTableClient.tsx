@@ -692,7 +692,7 @@ export function NestedEnrollmentTableClient({
                 </div>
                 <span
                   className={cn(
-                    "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-dark-5",
+                    "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-white",
                     deptIsOpen && "rotate-180"
                   )}
                 >
@@ -778,7 +778,7 @@ export function NestedEnrollmentTableClient({
                           </div>
                           <span
                             className={cn(
-                              "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-dark-5",
+                              "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-white",
                               progIsOpen && "rotate-180"
                             )}
                           >
@@ -901,7 +901,7 @@ export function NestedEnrollmentTableClient({
                                     </div>
                                     <span
                                       className={cn(
-                                        "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-dark-5",
+                                        "ml-auto text-xs rotate-0 text-dark-6 transition-transform duration-200 ease-in-out dark:text-white",
                                         courseIsOpen && "rotate-180"
                                       )}
                                     >
@@ -929,7 +929,7 @@ export function NestedEnrollmentTableClient({
                                           >
                                             <span className="inline-flex items-center gap-1">
                                               Attendance Stats
-                                              <span className="inline-flex flex-col justify-center text-[10px] text-dark-6 dark:text-dark-5">
+                                              <span className="inline-flex flex-col justify-center text-[10px] text-dark-6 dark:text-white">
                                                 <ArrowUpIcon
                                                   className={cn(
                                                     "h-2 w-2",
@@ -1048,7 +1048,7 @@ export function NestedEnrollmentTableClient({
                                                 ? "text-yellow-600 dark:text-yellow-500"
                                                 : hasGpaTrend
                                                   ? "text-dark dark:text-white"
-                                                  : "text-dark-6 dark:text-dark-5";
+                                                  : "text-dark-6 dark:text-white";
                                           const hasGpaAlert =
                                             gpaLevel === "critical" ||
                                             gpaLevel === "warning";
@@ -1134,7 +1134,7 @@ export function NestedEnrollmentTableClient({
                                                   "—"
                                                 ) : (
                                                   <div className="flex flex-col gap-0.5">
-                                                    <span className="text-xs text-dark-6 dark:text-dark-5">
+                                                    <span className="text-xs text-dark-6 dark:text-white">
                                                       Posted: {attendancePosted}
                                                     </span>
                                                     {notUpdatedVsHeld === 0 ? (

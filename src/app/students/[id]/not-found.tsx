@@ -6,7 +6,7 @@ export default function StudentNotFound() {
       <h2 className="text-heading-6 font-bold text-dark dark:text-white">
         Student not found
       </h2>
-      <p className="text-dark-6 dark:text-dark-5">
+      <p className="text-dark-6 dark:text-white">
         The student you’re looking for doesn’t exist or has been removed.
       </p>
       <Link
