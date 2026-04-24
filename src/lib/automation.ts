@@ -100,25 +100,10 @@ export async function readAutomationLogs(lineLimit = 400): Promise<string[]> {
 
 export async function getLastAlertSnapshotUpdateAt(): Promise<string | null> {
   if (!pool) return null;
-  const colRes = await pool.query<{ column_name: string }>(
-    `SELECT column_name
-     FROM information_schema.columns
-     WHERE table_schema = 'public'
-       AND table_name = 'alert_counts_by_dimension'
-       AND column_name IN ('updated_at', 'created_at')`
-  );
-  const columns = new Set(colRes.rows.map((row) => row.column_name));
-  const hasUpdatedAt = columns.has("updated_at");
-  const hasCreatedAt = columns.has("created_at");
-  if (!hasUpdatedAt && !hasCreatedAt) return null;
-
-  const tsExpr = hasUpdatedAt
-    ? hasCreatedAt
-      ? "COALESCE(updated_at, created_at)"
-      : "updated_at"
-    : "created_at";
+  // Prefer updated_at so reruns on existing snapshot_date still move the "last update" clock.
+  // Fall back to created_at for compatibility with older schema/data.
   const res = await pool.query<{ last_update_at: string | null }>(
-    `SELECT MAX(${tsExpr})::text AS last_update_at
+    `SELECT MAX(COALESCE(updated_at, created_at))::text AS last_update_at
      FROM alert_counts_by_dimension`
   );
   return res.rows[0]?.last_update_at ?? null;
