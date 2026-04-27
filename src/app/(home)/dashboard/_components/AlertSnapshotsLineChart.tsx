@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ApexOptions } from "apexcharts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AlertSnapshotTrendPoint } from "../fetch";
 import { cn } from "@/lib/utils";
 
@@ -105,23 +105,8 @@ export function AlertSnapshotsLineChart({ points }: Props) {
     [chartPoints, showYearInLabels]
   );
 
-  const applyLast10Days = useCallback(() => {
-    if (!sortedAsc.length) return;
-    const to = sortedAsc[sortedAsc.length - 1].snapshotDate;
-    if (sortedAsc.length <= DEFAULT_VISIBLE_DAYS) {
-      setRangeFrom(sortedAsc[0].snapshotDate);
-      setRangeTo(to);
-      return;
-    }
-    setRangeFrom(sortedAsc[sortedAsc.length - DEFAULT_VISIBLE_DAYS].snapshotDate);
-    setRangeTo(to);
-  }, [sortedAsc]);
-
-  const applyFullRange = useCallback(() => {
-    if (!bounds.min || !bounds.max) return;
-    setRangeFrom(bounds.min);
-    setRangeTo(bounds.max);
-  }, [bounds.min, bounds.max]);
+  const hasCustomRangeSelection =
+    effectiveFrom !== defaultRange.from || effectiveTo !== defaultRange.to;
 
   const latestStudentCount =
     chartPoints[chartPoints.length - 1]?.totalStudents ?? 0;
@@ -261,6 +246,22 @@ export function AlertSnapshotsLineChart({ points }: Props) {
                 onChange={(e) => setRangeTo(e.target.value)}
               />
             </label>
+            <button
+              type="button"
+              className={cn(
+                "rounded-md border border-stroke px-3 py-1.5 text-xs font-medium text-dark transition-colors dark:border-dark-3 dark:text-white",
+                hasCustomRangeSelection
+                  ? "hover:bg-gray-2 dark:hover:bg-dark-2"
+                  : "cursor-not-allowed opacity-50"
+              )}
+              onClick={() => {
+                setRangeFrom("");
+                setRangeTo("");
+              }}
+              disabled={!hasCustomRangeSelection}
+            >
+              Clear
+            </button>
           </div>
         ) : null}
       </div>

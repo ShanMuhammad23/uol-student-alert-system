@@ -33,7 +33,7 @@ export function UserInfo({ user }: UserInfoProps) {
         <figure className="flex items-center gap-3">
           <Image
             src={img}
-            className="size-12 rounded-full"
+            className="size-12 rounded-full object-cover object-top"
             alt={`Avatar of ${displayName}`}
             role="presentation"
             width={200}
@@ -68,7 +68,7 @@ export function UserInfo({ user }: UserInfoProps) {
         <figure className="flex items-center gap-2.5 px-5 py-3.5 w-max">
           <Image
             src={img}
-            className="size-12 rounded-full"
+            className="size-12 rounded-full object-cover object-top"
             alt={`Avatar for ${displayName}`}
             role="presentation"
             width={200}
