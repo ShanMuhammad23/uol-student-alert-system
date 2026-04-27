@@ -187,6 +187,31 @@ export async function upsertAlertCountRows(rows: AlertCountsRow[]): Promise<numb
 
   await pool.query("BEGIN");
   try {
+    const { rows: columnRows } = await pool.query<{ has_updated_at: boolean }>(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'alert_counts_by_dimension'
+            AND column_name = 'updated_at'
+        ) AS has_updated_at
+      `
+    );
+    const hasUpdatedAt = Boolean(columnRows[0]?.has_updated_at);
+
+    const updateSetClauses = [
+      "dimension_name = EXCLUDED.dimension_name",
+      "total_students = EXCLUDED.total_students",
+      "yellow_gpa = EXCLUDED.yellow_gpa",
+      "red_gpa = EXCLUDED.red_gpa",
+      "yellow_attendance = EXCLUDED.yellow_attendance",
+      "red_attendance = EXCLUDED.red_attendance",
+    ];
+    if (hasUpdatedAt) {
+      updateSetClauses.push("updated_at = NOW()");
+    }
+
     const sql = `
       INSERT INTO alert_counts_by_dimension (
         snapshot_date,
@@ -202,13 +227,7 @@ export async function upsertAlertCountRows(rows: AlertCountsRow[]): Promise<numb
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       ON CONFLICT (snapshot_date, dimension_type, dimension_id)
       DO UPDATE SET
-        dimension_name = EXCLUDED.dimension_name,
-        total_students = EXCLUDED.total_students,
-        yellow_gpa = EXCLUDED.yellow_gpa,
-        red_gpa = EXCLUDED.red_gpa,
-        yellow_attendance = EXCLUDED.yellow_attendance,
-        red_attendance = EXCLUDED.red_attendance,
-        updated_at = NOW()
+        ${updateSetClauses.join(",\n        ")}
     `;
 
     for (const row of rows) {
