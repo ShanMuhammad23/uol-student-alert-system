@@ -4,7 +4,14 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { motion, AnimatePresence, useScroll, useTransform, useSpring } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  useScroll,
+  useTransform,
+  useSpring,
+  type Variants,
+} from "framer-motion";
 import { 
   Camera, 
   Upload, 
@@ -55,16 +62,16 @@ type Props = {
 };
 
 // ─── Animation Variants ────────────────────────────────────────────
-const fadeInUp = {
+const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+    transition: { delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
   })
 };
 
-const staggerContainer = {
+const staggerContainer: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -72,9 +79,13 @@ const staggerContainer = {
   }
 };
 
-const scaleIn = {
+const scaleIn: Variants = {
   hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } }
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as const },
+  },
 };
 
 // ─── Components ────────────────────────────────────────────────────
@@ -477,7 +488,7 @@ export function ProfileView({ initialProfile }: Props) {
             <StatCard 
               icon={GraduationCap} 
               label="Faculty" 
-              value={resolveFacultyNameFromIdOrName(facultyName)} 
+              value={resolveFacultyNameFromIdOrName(facultyName) ?? "—"}
               color="bg-cyan-500" 
               delay={1} 
             />
