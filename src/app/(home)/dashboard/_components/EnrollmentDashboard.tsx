@@ -32,6 +32,7 @@ import { TopChannelsTableClient } from "@/components/Tables/nested-students-tabl
 import { NestedEnrollmentTableClient } from "@/components/Tables/nested-students-table/NestedEnrollmentTableClient";
 import { AttendanceMissingTableClient } from "@/components/Tables/nested-students-table/AttendanceMissingTableClient";
 import { InterventionStudentSearchTab } from "./InterventionStudentSearchTab";
+import { InterventionTeacherSearchTab } from "./InterventionTeacherSearchTab";
 import { ExpandableListUrlSync } from "./ExpandableListUrlSync";
 import { StudentsViewTabs } from "./StudentsViewTabs";
 import { DashboardUiStateProvider, useDashboardUiState } from "./DashboardUiStateContext";
@@ -64,7 +65,12 @@ type Props = {
   departmentIds: string[];
   programIds: string[];
   instructorIds: string[];
-  viewMode: "table" | "nested" | "attendance-missing" | "intervention-search";
+  viewMode:
+    | "table"
+    | "nested"
+    | "attendance-missing"
+    | "intervention-search"
+    | "intervention-teacher-search";
   /** Section IDs to expand in nested view (e.g. from URL ?expanded=). */
   expandedIds?: string[];
   /** Superadmin preview: scope filter-counts APIs to emulated role/faculty. */
@@ -343,6 +349,8 @@ function EnrollmentDashboardInner({
       params.set("view", "attendance-missing");
     else if (viewMode === "intervention-search")
       params.set("view", "intervention-search");
+    else if (viewMode === "intervention-teacher-search")
+      params.set("view", "intervention-teacher-search");
     else params.delete("view");
 
     if (expandedIds.length) params.set("expanded", expandedIds.join(","));
@@ -693,8 +701,10 @@ function EnrollmentDashboardInner({
               resolutionFilters={localResolutionFilters}
             />
           </ExpandableListUrlSync>
-        ) : (
+        ) : viewMode === "intervention-search" ? (
           <InterventionStudentSearchTab />
+        ) : (
+          <InterventionTeacherSearchTab />
         )}
       </div>
     </>

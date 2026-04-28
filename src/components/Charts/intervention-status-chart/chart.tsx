@@ -11,6 +11,7 @@ type PropsType = {
   data: DataPoint[];
   statusColors?: Record<string, string>;
   defaultColor?: string;
+  onStatusClick?: (status: string) => void;
 };
 const Chart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
@@ -23,6 +24,7 @@ export function InterventionStatusChart({
   data,
   statusColors,
   defaultColor = DEFAULT_BAR_COLOR,
+  onStatusClick,
 }: PropsType) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -48,6 +50,16 @@ export function InterventionStatusChart({
       height: 200,
       toolbar: {
         show: false,
+      },
+      events: {
+        dataPointSelection: (_event, _chartContext, config) => {
+          if (typeof config.dataPointIndex !== "number" || config.dataPointIndex < 0) {
+            return;
+          }
+          const selected = data[config.dataPointIndex];
+          if (!selected?.x) return;
+          onStatusClick?.(selected.x);
+        },
       },
     },
     plotOptions: {

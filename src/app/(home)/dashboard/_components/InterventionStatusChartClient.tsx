@@ -67,6 +67,7 @@ export function InterventionStatusChartClient({
 
   const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
   const setGpaFilters = dashboardFilter?.setGpaFilters;
+  const setInterventionFilters = dashboardFilter?.setInterventionFilters;
 
   const chartMode = useMemo<ChartMode>(() => {
     // If the user explicitly filtered alert dimensions, prioritize that.
@@ -232,6 +233,23 @@ export function InterventionStatusChartClient({
   const clearSegmentFilters = () => {
     setAttendanceFilters?.([]);
     setGpaFilters?.([]);
+    setInterventionFilters?.([]);
+  };
+
+  const statusToFilterValue = (status: string): string | null => {
+    if (status === "Not Started") return "not_started";
+    if (status === "Not Required") return "no_action_required";
+    if (status === "Initiated") return "initiated";
+    if (status === "In-Progress") return "in_progress";
+    if (status === "Resolved") return "resolved";
+    if (status === "Referred") return "referred";
+    return null;
+  };
+
+  const handleStatusColumnClick = (status: string) => {
+    const filterValue = statusToFilterValue(status);
+    if (!filterValue) return;
+    setInterventionFilters?.([filterValue]);
   };
 
   const facultyIdForRequest =
@@ -426,6 +444,7 @@ export function InterventionStatusChartClient({
           title={title}
           data={data}
           statusColors={statusColors}
+          onStatusClick={handleStatusColumnClick}
         />
       )}
      

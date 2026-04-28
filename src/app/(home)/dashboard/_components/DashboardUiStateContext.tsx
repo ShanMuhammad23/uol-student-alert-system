@@ -13,7 +13,8 @@ type ViewMode =
   | "table"
   | "nested"
   | "attendance-missing"
-  | "intervention-search";
+  | "intervention-search"
+  | "intervention-teacher-search";
 
 type DashboardUiState = {
   viewMode: ViewMode;
