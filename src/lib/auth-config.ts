@@ -132,7 +132,7 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name ?? "";
         session.user.email = token.email ?? "";
         session.user.role = token.role;
-        session.user.img = token.img;
+        session.user.img = token.img ?? null;
         session.user.faculty_id = token.faculty_id ?? null;
         session.user.department_ids = token.department_ids ?? [];
       }
