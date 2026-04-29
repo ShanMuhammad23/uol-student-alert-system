@@ -38,7 +38,7 @@ export function StudentsViewTabs({ className }: Props) {
       },
       {
         id: "intervention-teacher-search",
-        label: "Search Intervention By Teacher Name or Pernr",
+        label: "Search Intervention By Instructor Name or Pernr",
         viewMode: "intervention-teacher-search",
       },
     ],

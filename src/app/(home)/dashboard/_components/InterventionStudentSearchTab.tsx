@@ -27,8 +27,16 @@ type Row = {
   sectionCode: string | null;
   eventPackageId: string | null;
   classType: string;
+  alertType: "attendance" | "gpa" | "both" | null;
   latestStatus: string | null;
   latestInterventionAt: string | null;
+  totalClassesHeld: number;
+  attendanceMarkedClasses: number;
+  classesAttended: number;
+  attendancePercentage: number | null;
+  classAverageAttendance: number | null;
+  attendanceAlertLevel: "warning" | "critical" | null;
+  gpaAlertLevel: "warning" | "critical" | null;
 };
 
 /* ──────────────────────────────────────────────
@@ -243,6 +251,36 @@ export function InterventionStudentSearchTab() {
     }
   };
 
+  const statusCounts = rows.reduce(
+    (acc, row) => {
+      const status = String(row.latestStatus ?? "").trim().toLowerCase();
+      const hasAlert = row.attendanceAlertLevel != null || row.gpaAlertLevel != null;
+      if (!status) {
+        // "Not Started" means alert exists but no intervention recorded yet.
+        if (hasAlert) acc.notStarted += 1;
+      } else if (status === "initiated") {
+        acc.initiated += 1;
+      } else if (status === "in-progress") {
+        acc.inProgress += 1;
+      } else if (status === "referred") {
+        acc.referred += 1;
+      } else if (status === "resolved") {
+        acc.resolved += 1;
+      } else {
+        acc.other += 1;
+      }
+      return acc;
+    },
+    {
+      notStarted: 0,
+      initiated: 0,
+      inProgress: 0,
+      referred: 0,
+      resolved: 0,
+      other: 0,
+    }
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 font-sans text-slate-800 antialiased selection:bg-indigo-500/30 dark:bg-slate-950 dark:text-slate-200">
       {/* Background ambient gradients */}
@@ -251,7 +289,7 @@ export function InterventionStudentSearchTab() {
         <div className="absolute bottom-0 right-1/4 h-[600px] w-[600px] rounded-full bg-violet-500/5 blur-[120px]" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-7xl space-y-6">
+      <div className="relative z-10 mx-auto  space-y-6">
         {/* ── Header ── */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -383,6 +421,40 @@ export function InterventionStudentSearchTab() {
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Not Started</p>
+                  <p className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-200">
+                    {statusCounts.notStarted}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Initiated</p>
+                  <p className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-200">
+                    {statusCounts.initiated}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">In-Progress</p>
+                  <p className="mt-1 text-lg font-bold text-amber-600 dark:text-amber-400">
+                    {statusCounts.inProgress}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Referred</p>
+                  <p className="mt-1 text-lg font-bold text-violet-600 dark:text-violet-400">
+                    {statusCounts.referred}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Resolved</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                    {statusCounts.resolved}
+                  </p>
+                </div>
+              
+              </div>
+
               <BentoCard delay={0.1} className="overflow-hidden p-0">
                 <div className="border-b border-slate-200 px-6 py-4 dark:border-white/5">
                   <div className="flex items-center justify-between">
@@ -412,10 +484,15 @@ export function InterventionStudentSearchTab() {
                           Course
                         </TableHead>
                         <TableHead className="py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-500">
-                          Class Type
+                          Alert Type
+                        </TableHead>
+                       
+                     
+                        <TableHead className="py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-500">
+                          Classes Held
                         </TableHead>
                         <TableHead className="py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-500">
-                          Section
+                          Attendance %
                         </TableHead>
                         <TableHead className="py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-500">
                           Status
@@ -459,13 +536,56 @@ export function InterventionStudentSearchTab() {
                               </div>
                               {row.courseTitle && (
                                 <div className="text-xs text-slate-500 dark:text-slate-500">{row.courseTitle}</div>
+                              )} {row.classType && row.classType !== "N/A" ? (
+                                <span className="rounded-md bg-[#1f4a3d] p-1 text-xs font-medium text-white">
+                                  {row.classType}
+                                </span>
+                              ) : (
+                                "N/A"
                               )}
                             </TableCell>
-                            <TableCell className="py-4 text-left text-sm text-slate-600 dark:text-slate-400">
-                              {row.classType || "N/A"}
+                            <TableCell className="py-4 text-left text-sm text-slate-700 dark:text-slate-300">
+                              {row.alertType === "gpa"
+                                ? "GPA"
+                                : row.alertType === "both"
+                                ? "Both"
+                                : row.alertType === "attendance"
+                                ? "Attendance"
+                                : "—"}
                             </TableCell>
+                           
+                           
                             <TableCell className="py-4 text-left text-sm text-slate-600 dark:text-slate-400">
-                              {row.sectionCode || "—"}
+                              {row.totalClassesHeld === 0 ? "—" : row.totalClassesHeld}
+                            </TableCell>
+                            <TableCell className="py-4 text-left">
+                              {row.attendancePercentage != null ? (
+                                <div className="flex flex-col">
+                                  <span
+                                    className={cn(
+                                      row.attendanceAlertLevel === "critical"
+                                        ? "text-red-600 dark:text-red-500"
+                                        : row.attendanceAlertLevel === "warning"
+                                        ? "text-yellow-600 dark:text-yellow-500"
+                                        : "text-slate-700 dark:text-slate-300"
+                                    )}
+                                  >
+                                    {row.attendancePercentage.toFixed(1)}%
+                                    <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">
+                                      ({row.classesAttended}/{row.attendanceMarkedClasses})
+                                    </span>
+                                  </span>
+                                  {row.classAverageAttendance != null && (
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                      Class Avg: {row.classAverageAttendance.toFixed(1)}%
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  Not Posted
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="py-4 text-left">
                               <InterventionStatusBadge status={row.latestStatus} goodStanding={false} />

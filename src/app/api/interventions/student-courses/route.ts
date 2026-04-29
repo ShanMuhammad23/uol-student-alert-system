@@ -48,22 +48,31 @@ export async function GET(req: Request) {
       degree_title: string | null;
       section_code: string | null;
       event_package_id: string | null;
+      intervention_type: "attendance" | "gpa" | "both" | null;
       status: string | null;
       performed_at: string | null;
+      total_classes_held: number | null;
+      attendance_marked_classes: number | null;
+      classes_attended: number | null;
+      attendance_percentage: number | null;
+      class_average_attendance: number | null;
+      attendance_alert_level: "warning" | "critical" | null;
+      gpa_alert_level: "warning" | "critical" | null;
     }>(
       `WITH latest AS (
          SELECT DISTINCT ON (
            student_sap_id,
            COALESCE(course_id, ''),
-           COALESCE(section_code, ''),
-           COALESCE(event_package_id, '')
+            TRIM(COALESCE(section_code, '')),
+            TRIM(COALESCE(event_package_id, ''))
          )
            student_sap_id,
            COALESCE(course_id, '') AS course_id,
            COALESCE(faculty_id, '') AS faculty_id,
            COALESCE(department_id, '') AS department_id,
-           NULLIF(COALESCE(section_code, ''), '') AS section_code,
-           NULLIF(COALESCE(event_package_id, ''), '') AS event_package_id,
+           NULLIF(TRIM(COALESCE(section_code, '')), '') AS section_code,
+           NULLIF(TRIM(COALESCE(event_package_id, '')), '') AS event_package_id,
+           intervention_type,
            status,
            performed_at
          FROM interventions
@@ -71,42 +80,68 @@ export async function GET(req: Request) {
          ORDER BY
            student_sap_id,
            COALESCE(course_id, ''),
-           COALESCE(section_code, ''),
-           COALESCE(event_package_id, ''),
+           TRIM(COALESCE(section_code, '')),
+           TRIM(COALESCE(event_package_id, '')),
            performed_at DESC
        )
        SELECT
-         l.course_id,
+         ec.course_id,
          c.title AS course_title,
-         COALESCE(NULLIF(TRIM(f.name), ''), l.faculty_id) AS faculty_name,
-         COALESCE(NULLIF(TRIM(d.name), ''), l.department_id) AS department_name,
+         COALESCE(NULLIF(TRIM(f.name), ''), ec.faculty_id) AS faculty_name,
+         COALESCE(NULLIF(TRIM(d.name), ''), ec.department_id) AS department_name,
          COALESCE(NULLIF(TRIM(p.title), ''), ec.program_id) AS degree_title,
-         l.section_code,
-         l.event_package_id,
+         NULLIF(TRIM(ec.section_code), '') AS section_code,
+         NULLIF(TRIM(ec.event_package_id), '') AS event_package_id,
+         l.intervention_type,
          l.status,
-         l.performed_at::text
-       FROM latest l
-       LEFT JOIN courses c ON c.id = l.course_id
-       LEFT JOIN student_enrollment_current ec
-         ON ec.sap_id = l.student_sap_id
-        AND ec.course_id = l.course_id
-        AND ec.section_code = COALESCE(l.section_code, '')
-        AND ec.event_package_id = COALESCE(l.event_package_id, '')
-        AND ec.is_active = TRUE
+         l.performed_at::text,
+         a.total_classes_held,
+         a.attendance_marked_classes,
+         a.classes_attended,
+         a.attendance_percentage,
+         a.class_average_attendance,
+         a.attendance_alert_level,
+         a.gpa_alert_level
+       FROM student_enrollment_current ec
+       LEFT JOIN latest l
+         ON l.student_sap_id = ec.sap_id
+        AND l.course_id = COALESCE(ec.course_id, '')
+        AND COALESCE(TRIM(l.section_code), '') = COALESCE(TRIM(ec.section_code), '')
+        AND COALESCE(TRIM(l.event_package_id), '') = COALESCE(TRIM(ec.event_package_id), '')
+       LEFT JOIN courses c ON c.id = ec.course_id
        LEFT JOIN faculties f
-         ON f.id = COALESCE(ec.faculty_id, l.faculty_id)
+         ON f.id = ec.faculty_id
        LEFT JOIN departments d
-         ON d.id = COALESCE(ec.department_id, l.department_id)
+         ON d.id = ec.department_id
        LEFT JOIN programs p
          ON p.id = ec.program_id
-       WHERE l.course_id <> ''
-       ORDER BY l.course_id ASC, l.section_code ASC, l.event_package_id ASC`,
+       LEFT JOIN student_alert_current a
+         ON a.sap_id = ec.sap_id
+        AND a.course_id = ec.course_id
+        AND COALESCE(TRIM(a.section_code), '') = COALESCE(TRIM(ec.section_code), '')
+        AND COALESCE(TRIM(a.event_package_id), '') = COALESCE(TRIM(ec.event_package_id), '')
+       WHERE ec.sap_id = $1
+         AND ec.is_active = TRUE
+         AND (
+           l.status IS NOT NULL
+           OR a.attendance_alert_level IS NOT NULL
+           OR a.gpa_alert_level IS NOT NULL
+         )
+       ORDER BY ec.course_id ASC, ec.section_code ASC, ec.event_package_id ASC`,
       [sapId]
     );
 
     return NextResponse.json(
       {
         rows: res.rows.map((r) => ({
+          alertType:
+            r.attendance_alert_level && r.gpa_alert_level
+              ? "both"
+              : r.attendance_alert_level
+              ? "attendance"
+              : r.gpa_alert_level
+              ? "gpa"
+              : r.intervention_type ?? null,
           courseId: r.course_id,
           courseTitle: r.course_title ?? null,
           facultyName: r.faculty_name ?? null,
@@ -117,6 +152,17 @@ export async function GET(req: Request) {
           classType: classTypeFromEventPackage(r.event_package_id ?? null),
           latestStatus: r.status ?? null,
           latestInterventionAt: r.performed_at ?? null,
+          totalClassesHeld: Number(r.total_classes_held ?? 0),
+          attendanceMarkedClasses: Number(r.attendance_marked_classes ?? 0),
+          classesAttended: Number(r.classes_attended ?? 0),
+          attendancePercentage:
+            r.attendance_percentage == null ? null : Number(r.attendance_percentage),
+          classAverageAttendance:
+            r.class_average_attendance == null
+              ? null
+              : Number(r.class_average_attendance),
+          attendanceAlertLevel: r.attendance_alert_level ?? null,
+          gpaAlertLevel: r.gpa_alert_level ?? null,
         })),
       },
       { status: 200 }
