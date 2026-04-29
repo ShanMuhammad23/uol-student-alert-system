@@ -5,6 +5,8 @@ const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000178": "Faculty of Pharmacy",
   "50000168": "Faculty of Management Sciences",
   "50000169": "Faculty of Arts & Architecture",
+  "50000170": "Faculty of Law",
+  "50000171": "Faculty of Language & Literature",
 
 };
 
