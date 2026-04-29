@@ -758,7 +758,17 @@ export async function getFilterDropdownCounts(
     });
     const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       SELECT
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql})::int AS int_all,
+        COUNT(DISTINCT sap_id) FILTER (
+          WHERE (
+            (${eligibleSql} AND (
+              latest_intervention_status IS NULL
+              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
+            ))
+            OR latest_intervention_status = ANY(
+              ARRAY['initiated', 'in-progress', 'referred', 'resolved', 'no-action-required']::text[]
+            )
+          )
+        )::int AS int_all,
         COUNT(DISTINCT sap_id) FILTER (
           WHERE ${eligibleSql}
             AND (

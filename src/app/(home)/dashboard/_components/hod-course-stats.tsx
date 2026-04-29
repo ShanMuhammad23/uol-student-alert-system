@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { AppUser, CourseStats } from "../fetch";
 import { cn } from "@/lib/utils";
+import { ChipSectionExpand } from "./ChipSectionExpand";
 
 type PropsType = {
   user: AppUser | null;
@@ -58,43 +59,50 @@ export function HodCourseStats({
   if (!list.length) return null;
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        {(["attendance", "sgpa", "attendance-missing"] as const).map((metric) => (
-          <button
-            key={metric}
-            type="button"
-            onClick={() => {
-              if (sortMetric === metric) {
-                setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-              } else {
-                setSortMetric(metric);
-                setSortDir("desc");
-              }
-            }}
+    <ChipSectionExpand title="Course Stats">
+      {(isExpanded) => (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {(["attendance", "sgpa", "attendance-missing"] as const).map((metric) => (
+              <button
+                key={metric}
+                type="button"
+                onClick={() => {
+                  if (sortMetric === metric) {
+                    setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+                  } else {
+                    setSortMetric(metric);
+                    setSortDir("desc");
+                  }
+                }}
+                className={cn(
+                  "rounded-md border px-2 py-1 font-medium",
+                  sortMetric === metric
+                    ? "border-primary text-primary"
+                    : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
+                )}
+              >
+                {metric === "attendance"
+                  ? `${metricCounts.attendance} `
+                  : metric === "sgpa"
+                    ? `${metricCounts.sgpa} `
+                    : `${metricCounts.missing} `}
+                {metric === "attendance"
+                  ? "Alert (Att.)"
+                  : metric === "sgpa"
+                  ? "Alert (SGPA)"
+                  : "Missing Attendance"}{" "}
+                {sortMetric === metric ? (sortDir === "desc" ? "▼" : "▲") : ""}
+              </button>
+            ))}
+          </div>
+          <div
             className={cn(
-              "rounded-md border px-2 py-1 font-medium",
-              sortMetric === metric
-                ? "border-primary text-primary"
-                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
+              "custom-scrollbar flex flex-wrap gap-2 overflow-y-auto",
+              isExpanded ? "max-h-none" : "max-h-[240px]"
             )}
           >
-            {metric === "attendance"
-              ? `${metricCounts.attendance} `
-              : metric === "sgpa"
-                ? `${metricCounts.sgpa} `
-                : `${metricCounts.missing} `}
-            {metric === "attendance"
-              ? "Alert (Att.)"
-              : metric === "sgpa"
-              ? "Alert (SGPA)"
-              : "Missing Attendance"}{" "}
-            {sortMetric === metric ? (sortDir === "desc" ? "▼" : "▲") : ""}
-          </button>
-        ))}
-      </div>
-      <div className="max-h-[240px] overflow-y-auto custom-scrollbar flex flex-wrap gap-2">
-      {list.map((c) => {
+          {list.map((c) => {
         const attendanceMissing = c.attendanceMissing ?? 0;
         const attendanceClassesHeld = c.attendanceClassesHeld ?? 0;
         return (
@@ -132,7 +140,9 @@ export function HodCourseStats({
           </span>
         </button>
       )})}
-      </div>
-    </div>
+          </div>
+        </>
+      )}
+    </ChipSectionExpand>
   );
 }

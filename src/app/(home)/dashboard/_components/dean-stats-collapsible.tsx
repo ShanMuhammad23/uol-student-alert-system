@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type ReactNode, MouseEvent } from "react";
+import { useRef, useState, type ReactNode, MouseEvent } from "react";
 import { cn } from "@/lib/utils";
+import { Maximize2 } from "lucide-react";
 
 type CollapsibleSectionProps = {
   title: string;
@@ -21,6 +22,16 @@ function CollapsibleSection({
   children,
 }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const openFullscreen = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (!open) setOpen(true);
+    const trigger = contentRef.current?.querySelector<HTMLButtonElement>(
+      "[data-chip-expand-trigger]"
+    );
+    trigger?.click();
+  };
 
   return (
     <div className="rounded-lg border border-stroke dark:border-stroke-dark bg-white dark:bg-gray-dark overflow-hidden">
@@ -62,6 +73,14 @@ function CollapsibleSection({
               Clear
             </button>
           )}
+          <button
+            type="button"
+            onClick={openFullscreen}
+            className="inline-flex items-center gap-1 rounded-full border border-stroke px-2 py-0.5 text-[11px] font-medium text-dark-6 hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white"
+          >
+            <Maximize2 className="h-3 w-3" />
+            Maximize
+          </button>
         </span>
         <span
           className={cn(
@@ -74,7 +93,7 @@ function CollapsibleSection({
         </span>
       </button>
       {open && (
-        <div className="border-t border-stroke dark:border-stroke-dark px-4 py-3">
+        <div ref={contentRef} className="border-t border-stroke dark:border-stroke-dark px-4 py-3">
           {children}
         </div>
       )}
