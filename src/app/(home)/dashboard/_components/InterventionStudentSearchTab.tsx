@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import {
   Table,
   TableBody,
@@ -11,7 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, AlertCircle, GraduationCap, CalendarDays, ChevronDown, Sparkles } from "lucide-react";
+import { Search, AlertCircle, GraduationCap, Sparkles } from "lucide-react";
+import { toShortFacultyName } from "@/lib/faculty-name";
+import { InterventionStatusBadge } from "./intervention-status-badge";
 
 /* ──────────────────────────────────────────────
    Types
@@ -28,35 +30,6 @@ type Row = {
   latestStatus: string | null;
   latestInterventionAt: string | null;
 };
-
-/* ──────────────────────────────────────────────
-   Utilities
-   ────────────────────────────────────────────── */
-function humanizeStatus(status: string | null): string {
-  if (!status) return "—";
-  if (status === "in-progress") return "In-Progress";
-  if (status === "no-action-required") return "No Action Required";
-  return status
-    .split("-")
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-    .join(" ");
-}
-
-function getStatusColor(status: string | null): string {
-  if (!status) return "text-slate-500 dark:text-slate-400";
-  if (status === "in-progress") return "text-amber-700 dark:text-amber-400";
-  if (status === "no-action-required") return "text-emerald-700 dark:text-emerald-400";
-  if (status === "resolved") return "text-emerald-700 dark:text-emerald-400";
-  return "text-slate-700 dark:text-slate-300";
-}
-
-function getStatusBg(status: string | null): string {
-  if (!status) return "bg-slate-200 dark:bg-slate-500/10";
-  if (status === "in-progress") return "bg-amber-100 dark:bg-amber-500/10";
-  if (status === "no-action-required") return "bg-emerald-100 dark:bg-emerald-500/10";
-  if (status === "resolved") return "bg-emerald-100 dark:bg-emerald-500/10";
-  return "bg-slate-200 dark:bg-slate-500/10";
-}
 
 /* ──────────────────────────────────────────────
    Magnetic Button Component
@@ -229,33 +202,6 @@ function BentoCard({
 }
 
 /* ──────────────────────────────────────────────
-   Animated Counter
-   ────────────────────────────────────────────── */
-function AnimatedCounter({ value }: { value: number }) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    let start = 0;
-    const end = value;
-    const duration = 800;
-    const startTime = performance.now();
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(Math.floor(start + (end - start) * eased));
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-
-    requestAnimationFrame(animate);
-  }, [value]);
-
-  return <span>{displayValue.toLocaleString()}</span>;
-}
-
-/* ──────────────────────────────────────────────
    Main Component
    ────────────────────────────────────────────── */
 export function InterventionStudentSearchTab() {
@@ -264,7 +210,6 @@ export function InterventionStudentSearchTab() {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [searchedFor, setSearchedFor] = useState<string | null>(null);
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const runSearch = async () => {
     const trimmed = sapId.trim();
@@ -297,13 +242,6 @@ export function InterventionStudentSearchTab() {
       setIsLoading(false);
     }
   };
-
-  // Stats for bento grid
-  const uniqueFaculties = new Set(rows.map((r) => r.facultyName).filter(Boolean)).size;
-  const inProgressCount = rows.filter((r) => r.latestStatus === "in-progress").length;
-  const latestIntervention = rows
-    .filter((r) => r.latestInterventionAt)
-    .sort((a, b) => new Date(b.latestInterventionAt!).getTime() - new Date(a.latestInterventionAt!).getTime())[0];
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 font-sans text-slate-800 antialiased selection:bg-indigo-500/30 dark:bg-slate-950 dark:text-slate-200">
@@ -400,18 +338,6 @@ export function InterventionStudentSearchTab() {
               exit={{ opacity: 0 }}
               className="space-y-4"
             >
-              {/* Skeleton bento stats */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {[0, 1, 2].map((i) => (
-                  <BentoCard key={i} delay={i * 0.1} className="p-6">
-                    <div className="space-y-3">
-                      <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-800/50" />
-                      <div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800/50" />
-                    </div>
-                  </BentoCard>
-                ))}
-              </div>
-              {/* Skeleton table */}
               <BentoCard className="p-0">
                 <Table>
                   <TableHeader className="border-b border-slate-200/80 bg-slate-50/90 dark:border-white/5 dark:bg-white/[0.02]">
@@ -457,77 +383,7 @@ export function InterventionStudentSearchTab() {
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              {/* ── Bento Stats Grid ── */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <BentoCard delay={0} className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                        Total Courses
-                      </p>
-                      <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                        <AnimatedCounter value={rows.length} />
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-indigo-500/10 p-3">
-                      <GraduationCap className="h-5 w-5 text-indigo-400" />
-                    </div>
-                  </div>
-                </BentoCard>
-
-                <BentoCard delay={0.1} className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                        Active Interventions
-                      </p>
-                      <p className="mt-1 text-3xl font-bold tracking-tight text-amber-400">
-                        <AnimatedCounter value={inProgressCount} />
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-amber-500/10 p-3">
-                      <AlertCircle className="h-5 w-5 text-amber-400" />
-                    </div>
-                  </div>
-                </BentoCard>
-
-                <BentoCard delay={0.2} className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                        Faculties
-                      </p>
-                      <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                        <AnimatedCounter value={uniqueFaculties} />
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-violet-500/10 p-3">
-                      <Sparkles className="h-5 w-5 text-violet-400" />
-                    </div>
-                  </div>
-                </BentoCard>
-
-                <BentoCard delay={0.3} className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                        Latest Update
-                      </p>
-                      <p className="mt-1 truncate text-sm font-medium text-slate-700 dark:text-slate-300">
-                        {latestIntervention?.latestInterventionAt
-                          ? new Date(latestIntervention.latestInterventionAt).toLocaleDateString()
-                          : "—"}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-emerald-500/10 p-3">
-                      <CalendarDays className="h-5 w-5 text-emerald-400" />
-                    </div>
-                  </div>
-                </BentoCard>
-              </div>
-
-              {/* ── Data Table ── */}
-              <BentoCard delay={0.4} className="overflow-hidden p-0">
+              <BentoCard delay={0.1} className="overflow-hidden p-0">
                 <div className="border-b border-slate-200 px-6 py-4 dark:border-white/5">
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
@@ -572,7 +428,6 @@ export function InterventionStudentSearchTab() {
                     <TableBody>
                       {rows.map((row, index) => {
                         const rowId = `${row.courseId}-${row.sectionCode ?? ""}-${row.eventPackageId ?? ""}`;
-                        const isExpanded = expandedRow === rowId;
 
                         return (
                           <motion.tr
@@ -585,14 +440,12 @@ export function InterventionStudentSearchTab() {
                               ease: [0.23, 1, 0.32, 1],
                             }}
                             className={cn(
-                              "group cursor-pointer border-b border-slate-100 transition-colors duration-200 dark:border-white/[0.03]",
+                              "group border-b border-slate-100 transition-colors duration-200 dark:border-white/[0.03]",
                               "hover:bg-slate-50 dark:hover:bg-white/[0.03]",
-                              isExpanded && "bg-slate-50 dark:bg-white/[0.03]",
                             )}
-                            onClick={() => setExpandedRow(isExpanded ? null : rowId)}
                           >
                             <TableCell className="py-4 text-left text-sm text-slate-700 dark:text-slate-300">
-                              {row.facultyName || "—"}
+                              {toShortFacultyName(row.facultyName) ?? "—"}
                             </TableCell>
                             <TableCell className="py-4 text-left text-sm text-slate-700 dark:text-slate-300">
                               {row.departmentName || "—"}
@@ -615,28 +468,12 @@ export function InterventionStudentSearchTab() {
                               {row.sectionCode || "—"}
                             </TableCell>
                             <TableCell className="py-4 text-left">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                                  getStatusBg(row.latestStatus),
-                                  getStatusColor(row.latestStatus),
-                                )}
-                              >
-                                {humanizeStatus(row.latestStatus)}
-                              </span>
+                              <InterventionStatusBadge status={row.latestStatus} goodStanding={false} />
                             </TableCell>
                             <TableCell className="py-4 text-left text-sm text-slate-600 dark:text-slate-400">
-                              <div className="flex items-center gap-2">
-                                {row.latestInterventionAt
-                                  ? new Date(row.latestInterventionAt).toLocaleString()
-                                  : "—"}
-                                <motion.div
-                                  animate={{ rotate: isExpanded ? 180 : 0 }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  <ChevronDown className="h-3 w-3 text-slate-500 dark:text-slate-600" />
-                                </motion.div>
-                              </div>
+                              {row.latestInterventionAt
+                                ? new Date(row.latestInterventionAt).toLocaleString()
+                                : "—"}
                             </TableCell>
                           </motion.tr>
                         );
@@ -644,54 +481,6 @@ export function InterventionStudentSearchTab() {
                     </TableBody>
                   </Table>
                 </div>
-
-                {/* Expanded row details (Progressive Disclosure) */}
-                <AnimatePresence>
-                  {expandedRow && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-                      className="overflow-hidden border-t border-slate-200 bg-slate-50/80 dark:border-white/5 dark:bg-white/[0.02]"
-                    >
-                      {(() => {
-                        const row = rows.find(
-                          (r) =>
-                            `${r.courseId}-${r.sectionCode ?? ""}-${r.eventPackageId ?? ""}` ===
-                            expandedRow,
-                        );
-                        if (!row) return null;
-                        return (
-                          <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                                Event Package ID
-                              </p>
-                              <p className="text-sm font-mono text-slate-700 dark:text-slate-300">
-                                {row.eventPackageId || "—"}
-                              </p>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                                Raw Status
-                              </p>
-                              <p className="text-sm font-mono text-slate-700 dark:text-slate-300">
-                                {row.latestStatus || "—"}
-                              </p>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-500">
-                                Course Identifier
-                              </p>
-                              <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{row.courseId}</p>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </BentoCard>
             </motion.div>
           ) : null}

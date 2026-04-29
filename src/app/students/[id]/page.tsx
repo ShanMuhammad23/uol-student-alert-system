@@ -216,10 +216,8 @@ async function getStudentProfileMetricRows(
 
 export async function generateMetadata({ params }: PropsType): Promise<Metadata> {
   const { id } = await params;
-  const enrollment = await getEnrollmentForStudentSapId(id);
-  const studentName = enrollment[0]?.Name?.trim();
   return {
-    title: studentName ? `${studentName} | Student Profile` : `Student ${id} | Profile`,
+    title: `Student ${id} | Profile`,
   };
 }
 
@@ -245,7 +243,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     ? undefined
     : resolvedSearchParams.event_package;
   const classAverageParam = Number(resolvedSearchParams.class_avg);
-  let selectedClassAverage =
+  const selectedClassAverageFromUrl =
     Number.isFinite(classAverageParam) && classAverageParam > 0
       ? classAverageParam
       : null;
@@ -296,48 +294,29 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       notFound();
     }
   }
-  const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
-  const wellbeingCases = await getWellbeingCasesByStudentSapId(sapIdFromUrl);
-  const interventionEmails = await getInterventionEmailsByStudentSapId(sapIdFromUrl);
-  const wellbeingCounsellorEmailOptions = await getWellbeingCounsellorEmailOptions();
-  const gpaProfile = await getStudentGpaProfileBySapId(sapIdFromUrl);
-
-  const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
-  const dbMetricRows = await getStudentProfileMetricRows(sapIdFromUrl);
+  const [
+    interventionHistory,
+    wellbeingCases,
+    interventionEmails,
+    wellbeingCounsellorEmailOptions,
+    gpaProfile,
+    enrollmentRecords,
+    dbMetricRows,
+  ] = await Promise.all([
+    getInterventionsByStudentSapId(sapIdFromUrl),
+    getWellbeingCasesByStudentSapId(sapIdFromUrl),
+    getInterventionEmailsByStudentSapId(sapIdFromUrl),
+    getWellbeingCounsellorEmailOptions(),
+    getStudentGpaProfileBySapId(sapIdFromUrl),
+    getEnrollmentForStudentSapId(sapIdFromUrl),
+    getStudentProfileMetricRows(sapIdFromUrl),
+  ]);
   if (!enrollmentRecords.length) notFound();
   const primaryEnrollment = enrollmentRecords[0] ?? null;
   const admissionLabel = formatAdmissionLabel(
     String(primaryEnrollment?.AdmSession ?? ""),
     String(primaryEnrollment?.AdmAyear ?? "")
   );
-
-  if (!selectedClassAverage && pool && !suppressCourseFocus) {
-    try {
-      const selectedCourse = selectedCourseCode
-        ? enrollmentRecords.find((r) => String(r.CrCode ?? "").trim() === selectedCourseCode)
-        : enrollmentRecords[0];
-      if (selectedCourse?.CrCode) {
-        const sectionCode = selectedSection ?? selectedCourse.Section ?? "";
-        const eventPackageId = selectedEventPackageId ?? "";
-        const alertRes = await pool.query<{ class_average_attendance: number | null }>(
-          `SELECT class_average_attendance
-           FROM student_alert_current
-           WHERE sap_id = $1
-             AND course_id = $2
-             AND section_code = $3
-             AND event_package_id = $4
-           LIMIT 1`,
-          [sapIdFromUrl, String(selectedCourse.CrCode), sectionCode, eventPackageId]
-        );
-        const avg = Number(alertRes.rows[0]?.class_average_attendance ?? NaN);
-        if (Number.isFinite(avg) && avg > 0) {
-          selectedClassAverage = avg;
-        }
-      }
-    } catch {
-      // Keep URL/default class average when lookup fails.
-    }
-  }
 
   let facultyName: string | null = null;
   const facultyId = primaryEnrollment?.FacId;
@@ -390,6 +369,13 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         return courseMatch && sectionMatch;
       }) ??
       null;
+  const selectedClassAverage =
+    selectedClassAverageFromUrl ??
+    focusedMetricRow?.classAverageAttendance ??
+    (suppressCourseFocus
+      ? dbMetricRows.find((r) => r.classAverageAttendance != null)
+          ?.classAverageAttendance ?? null
+      : null);
   const attendanceForEmail =
     focusedMetricRow?.attendancePercentage ??
     (suppressCourseFocus

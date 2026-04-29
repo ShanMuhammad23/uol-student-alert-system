@@ -252,21 +252,13 @@ function readStore(): InterventionRecord[] {
   }
 }
 
-/** All interventions for a student, newest first. Uses DB when available, else file. */
+/** All interventions for a student, newest first (DB only). */
 export async function getInterventionsByStudentSapId(
   sapId: string
 ): Promise<InterventionRecord[]> {
-  if (pool) {
-    const rows = await getInterventionsByStudentSapIdFromDb(sapId);
-    return rows as InterventionRecord[];
-  }
-  const stored = readStore();
-  return stored
-    .filter((r) => r.student_sap_id === sapId)
-    .sort(
-      (a, b) =>
-        new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime()
-    );
+  if (!pool) return [];
+  const rows = await getInterventionsByStudentSapIdFromDb(sapId);
+  return rows as InterventionRecord[];
 }
 
 /** Latest intervention status for this student (for badge). Returns null when no intervention. */

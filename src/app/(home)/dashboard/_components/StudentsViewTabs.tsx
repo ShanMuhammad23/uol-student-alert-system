@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { useDashboardUiState } from "./DashboardUiStateContext";
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 
 type Props = {
   className?: string;
@@ -21,26 +21,29 @@ export function StudentsViewTabs({ className }: Props) {
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const tabs: TabConfig[] = [
-    { id: "table", label: "Table view", viewMode: "table" },
-    { id: "nested", label: "Nested view", viewMode: "nested" },
-    {
-      id: "attendance-missing",
-      label: "Attendance Missing",
-      viewMode: "attendance-missing",
-      badge: attendanceMissingTotal,
-    },
-    {
-      id: "intervention-search",
-      label: "Search Intervention By Student Number",
-      viewMode: "intervention-search",
-    },
-    {
-      id: "intervention-teacher-search",
-      label: "Search Intervention By Teacher Name or Pernr",
-      viewMode: "intervention-teacher-search",
-    },
-  ];
+  const tabs: TabConfig[] = useMemo(
+    () => [
+      { id: "table", label: "Table view", viewMode: "table" },
+      { id: "nested", label: "Nested view", viewMode: "nested" },
+      {
+        id: "attendance-missing",
+        label: "Attendance Missing",
+        viewMode: "attendance-missing",
+        badge: attendanceMissingTotal,
+      },
+      {
+        id: "intervention-search",
+        label: "Search Intervention By Student Number",
+        viewMode: "intervention-search",
+      },
+      {
+        id: "intervention-teacher-search",
+        label: "Search Intervention By Teacher Name or Pernr",
+        viewMode: "intervention-teacher-search",
+      },
+    ],
+    [attendanceMissingTotal]
+  );
 
   const updateIndicator = useCallback(() => {
     const container = containerRef.current;
@@ -50,12 +53,17 @@ export function StudentsViewTabs({ className }: Props) {
     const tabButtons = container.querySelectorAll<HTMLButtonElement>('button[role="tab"]');
     const activeButton = tabButtons[activeIndex];
     
-    if (activeButton) {
-      setIndicatorStyle({
-        left: activeButton.offsetLeft,
-        width: activeButton.offsetWidth,
-      });
-    }
+    if (!activeButton) return;
+
+    const nextStyle = {
+      left: activeButton.offsetLeft,
+      width: activeButton.offsetWidth,
+    };
+    setIndicatorStyle((prev) =>
+      prev.left === nextStyle.left && prev.width === nextStyle.width
+        ? prev
+        : nextStyle
+    );
   }, [viewMode, tabs]);
 
   useEffect(() => {

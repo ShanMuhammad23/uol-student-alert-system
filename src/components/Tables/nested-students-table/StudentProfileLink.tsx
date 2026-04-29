@@ -35,10 +35,22 @@ export function StudentProfileLink({
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentUrl =
+  const rawCurrentUrl =
     pathname === "/"
       ? pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "")
       : returnToUrl;
+  const currentUrl = (() => {
+    try {
+      const parsed = new URL(rawCurrentUrl, "http://localhost");
+      // Prevent recursive growth when links are generated from nested "from" URLs.
+      parsed.searchParams.delete("from");
+      const normalized = `${parsed.pathname}${parsed.search}`;
+      // Keep query payload bounded to avoid oversized navigation URLs.
+      return normalized.length > 1800 ? parsed.pathname : normalized;
+    } catch {
+      return "/";
+    }
+  })();
   const params = new URLSearchParams();
   params.set("from", currentUrl);
   if (courseCode) params.set("course", courseCode);
