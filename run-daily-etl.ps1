@@ -14,7 +14,10 @@ $endpoints = @(
 )
 
 $facultyConfigs = @(
-  @{ FacultyId = "50000175"; EnrollmentFacultyId = "1120" }
+  @{ FacultyId = "50000168"; EnrollmentFacultyId = "1113" },
+  @{ FacultyId = "50000172"; EnrollmentFacultyId = "1117" },
+  @{ FacultyId = "50000178"; EnrollmentFacultyId = "1123" },
+  @{ FacultyId = "50000169"; EnrollmentFacultyId = "1114" }
 )
 
 function Invoke-EtlEndpoint {

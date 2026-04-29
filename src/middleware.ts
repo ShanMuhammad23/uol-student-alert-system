@@ -9,8 +9,21 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+function hasValidCronSecret(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const auth = req.headers.get("authorization");
+  if (auth === `Bearer ${secret}`) return true;
+  const cronHeader = req.headers.get("x-cron-secret");
+  return cronHeader === secret;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+
+  if (pathname.startsWith("/api/cron/") && hasValidCronSecret(req)) {
+    return NextResponse.next();
+  }
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();

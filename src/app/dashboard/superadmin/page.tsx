@@ -81,7 +81,7 @@ function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSupera
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 flex gap-2 items-center">
           <h3 className="truncate text-sm font-semibold text-slate-900 group-hover:text-emerald-600 dark:text-white dark:group-hover:text-emerald-400">
             {resolveFacultyNameFromIdOrName(faculty.facultyId, faculty.facultyName) ?? faculty.facultyId}
           </h3>
@@ -136,35 +136,7 @@ function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSupera
         </div>
       </div>
 
-      {/* Mini Progress Bar */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500">
-          <span>Alert Distribution</span>
-          <span>{totalAlerts} alerts</span>
-        </div>
-        <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-          {faculty.total > 0 && (
-            <>
-              <div 
-                className="bg-amber-400 dark:bg-amber-500" 
-                style={{ width: `${(faculty.yellowAttendance / faculty.total) * 100}%` }} 
-              />
-              <div 
-                className="bg-red-500" 
-                style={{ width: `${(faculty.redAttendance / faculty.total) * 100}%` }} 
-              />
-              <div 
-                className="bg-amber-300 dark:bg-amber-400" 
-                style={{ width: `${(faculty.yellowGpa / faculty.total) * 100}%` }} 
-              />
-              <div 
-                className="bg-red-400" 
-                style={{ width: `${(faculty.redGpa / faculty.total) * 100}%` }} 
-              />
-            </>
-          )}
-        </div>
-      </div>
+   
     </Link>
   );
 }
@@ -315,7 +287,7 @@ export default async function SuperadminDashboardPage({
       {/* ─── Faculties Grid ──────────────────────────────────────── */}
       <section>
         <SectionHeader title="Faculty Overview" />
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {facultyStats.map((f) => (
             <FacultyCard key={f.facultyId} faculty={f} />
           ))}
