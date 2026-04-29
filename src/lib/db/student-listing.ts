@@ -442,12 +442,14 @@ function buildWhere(
         const notStartedParamIndex = params.length;
         where.push(
           `(
-            ${INTERVENTION_ELIGIBLE_SQL}
-            AND (
-              latest.latest_intervention_status IS NULL
-              OR latest.latest_intervention_status = ANY($${notStartedParamIndex}::text[])
-              OR latest.latest_intervention_status = ANY($${statusesParamIndex}::text[])
+            (
+              ${INTERVENTION_ELIGIBLE_SQL}
+              AND (
+                latest.latest_intervention_status IS NULL
+                OR latest.latest_intervention_status = ANY($${notStartedParamIndex}::text[])
+              )
             )
+            OR latest.latest_intervention_status = ANY($${statusesParamIndex}::text[])
           )`
         );
       } else if (wantsNotStarted) {
@@ -463,9 +465,7 @@ function buildWhere(
         );
       } else {
         params.push(statuses);
-        where.push(
-          `(${INTERVENTION_ELIGIBLE_SQL} AND latest.latest_intervention_status = ANY($${params.length}::text[]))`
-        );
+        where.push(`latest.latest_intervention_status = ANY($${params.length}::text[])`);
       }
     }
   }

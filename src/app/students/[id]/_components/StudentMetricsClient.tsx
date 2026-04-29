@@ -119,10 +119,23 @@ export function StudentMetricsClient({
   }, [studentRows, selectedCourseCode, selectedSection, noFocusedCourse]);
 
   const worstGpaLevel = useMemo(() => {
+    const derivedChange =
+      typeof gpaChange === "number"
+        ? gpaChange
+        : typeof currentCgpa === "number" && typeof gpaPrevious === "number"
+        ? currentCgpa - gpaPrevious
+        : null;
+    const drop = derivedChange != null && Number.isFinite(derivedChange) ? -derivedChange : null;
+
+    // SGPA hero badge thresholds:
+    // Red when drop >= 1.5, Yellow when 1.0 <= drop < 1.5
+    if (drop != null && drop >= 1.5) return "critical";
+    if (drop != null && drop >= 1.0) return "warning";
+
     if (gpaTrendLevel === "critical") return "critical";
     if (gpaTrendLevel === "warning") return "warning";
     return getWorstLevel(studentRows.map((r) => r.gpaAlertLevel));
-  }, [studentRows, gpaTrendLevel]);
+  }, [studentRows, gpaTrendLevel, gpaChange, currentCgpa, gpaPrevious]);
   const selectedCourseAttendanceLevel = useMemo(() => {
     const levels = focusedCourseRows
       .map((r) =>
@@ -178,7 +191,7 @@ export function StudentMetricsClient({
       return (
         <div className="flex gap-3">
           <AlertBadge level="none" label="Attendance: Loading" />
-          <AlertBadge level="none" label="GPA: Loading" />
+          <AlertBadge level="none" label="SGPA: Loading" />
         </div>
       );
     }
@@ -237,6 +250,9 @@ export function StudentMetricsClient({
     typeof gpaChange === "number"
       ? Number(gpaChange.toFixed(2))
       : Number((currentGpaValue - previousGpaValue).toFixed(2));
+  const gpaDrop = changeValue < 0 ? Math.abs(changeValue) : 0;
+  const changeCardTone =
+    gpaDrop >= 1.5 ? "critical" : gpaDrop >= 1.0 ? "warning" : changeValue > 0 ? "improved" : "normal";
   const sgpaSeries = gpaTrendSeries
     .map((p) => {
       const x = p.label ?? p.x ?? p.key ?? "";
@@ -333,12 +349,47 @@ export function StudentMetricsClient({
               <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{currentGpaValue.toFixed(2)}</p>
               <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600/70">Current</p>
             </div>
-            <div className={cn("rounded-xl bg-emerald-50 p-3 text-center dark:bg-emerald-900/20", changeValue > 0 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400")}>
-              <p className={cn("text-xl font-bold", changeValue > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
+            <div
+              className={cn(
+                "rounded-xl p-3 text-center",
+                changeCardTone === "critical"
+                  ? "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+                  : changeCardTone === "warning"
+                  ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"
+                  : changeCardTone === "improved"
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
+                  : "bg-slate-50 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-xl font-bold",
+                  changeCardTone === "critical"
+                    ? "text-red-700 dark:text-red-400"
+                    : changeCardTone === "warning"
+                    ? "text-amber-700 dark:text-amber-400"
+                    : changeCardTone === "improved"
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-slate-700 dark:text-slate-300"
+                )}
+              >
                 {changeValue > 0 ? "+" : ""}
                 {changeValue.toFixed(2)}
               </p>
-              <p className={cn("text-[10px] font-medium uppercase tracking-wide", changeValue > 0 ? "text-emerald-600/70" : "text-red-600/70")}>Change</p>
+              <p
+                className={cn(
+                  "text-[10px] font-medium uppercase tracking-wide",
+                  changeCardTone === "critical"
+                    ? "text-red-600/70"
+                    : changeCardTone === "warning"
+                    ? "text-amber-600/70"
+                    : changeCardTone === "improved"
+                    ? "text-emerald-600/70"
+                    : "text-slate-500"
+                )}
+              >
+                Change
+              </p>
             </div>
           </div>
 
