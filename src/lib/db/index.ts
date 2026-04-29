@@ -239,3 +239,23 @@ export async function bumpStaffLoginStats(staffId: string): Promise<boolean> {
   );
   return res.rowCount === 1;
 }
+
+export type WellbeingCounsellorEmailOption = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export async function getWellbeingCounsellorEmailOptions(): Promise<
+  WellbeingCounsellorEmailOption[]
+> {
+  if (!pool) return [];
+  const res = await pool.query<WellbeingCounsellorEmailOption>(
+    `SELECT id::text, name, email
+     FROM staff
+     WHERE role = 'wellbeing-counseller'
+       AND TRIM(COALESCE(email, '')) <> ''
+     ORDER BY name ASC`
+  );
+  return res.rows;
+}

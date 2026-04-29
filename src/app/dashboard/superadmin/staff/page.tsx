@@ -427,8 +427,8 @@ export default async function SuperadminStaffPage(props: {
         <StatCard label="Deans" value={deanCount} tone="violet" />
         <StatCard label="HoDs" value={hodCount} tone="emerald" />
         <StatCard label="Instructors" value={instructorCount} tone="blue" />
-        <StatCard label="Counsellor Heads" value={counsellorHeadCount} tone="emerald" />
-        <StatCard label="Counsellors" value={counsellorCount} tone="blue" />
+        <StatCard label="Wellbeing Heads" value={counsellorHeadCount} tone="emerald" />
+        <StatCard label="Wellbeing Counsellors" value={counsellorCount} tone="blue" />
       </div>
 
       <StaffToastFeedback successMessage={successMessage} errorMessage={errorMessage} />

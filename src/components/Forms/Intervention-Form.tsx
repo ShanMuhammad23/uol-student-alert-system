@@ -72,6 +72,7 @@ type InterventionFormProps = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  wellbeingCounsellorEmailOptions?: { id: string; name: string; email: string }[];
   focusedCourseTitle?: string | null;
   focusedClassType?: string | null;
   mode?: "intervention" | "wellbeing";
@@ -149,6 +150,7 @@ const InterventionForm = ({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  wellbeingCounsellorEmailOptions = [],
   focusedCourseTitle,
   focusedClassType,
   mode = "intervention",
@@ -330,6 +332,8 @@ const InterventionForm = ({
     setEmailSubject(t.subject);
     setEmailBodyHtml(t.body);
   };
+
+  const showReferralRecipientDropdown = emailTemplateKey === "student_referral";
 
   const resetForm = () => {
     setDate("");
@@ -534,13 +538,28 @@ const InterventionForm = ({
               <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
                 Recipient Email
               </label>
-              <input
-                type="email"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-                placeholder="recipient@example.com"
-                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-              />
+              {showReferralRecipientDropdown ? (
+                <select
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                >
+                  <option value="">Select wellbeing counsellor email</option>
+                  {wellbeingCounsellorEmailOptions.map((option) => (
+                    <option key={option.id} value={option.email}>
+                      {option.name} ({option.email})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="email"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  placeholder="recipient@example.com"
+                  className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                />
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-dark dark:text-white">

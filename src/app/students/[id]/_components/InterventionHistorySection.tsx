@@ -91,6 +91,7 @@ type Props = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  wellbeingCounsellorEmailOptions?: { id: string; name: string; email: string }[];
   focusedCourseId?: string | null;
   focusedSectionCode?: string | null;
   focusedEventPackageId?: string | null;
@@ -146,6 +147,7 @@ export function InterventionHistorySection({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  wellbeingCounsellorEmailOptions = [],
   focusedCourseId,
   focusedSectionCode,
   focusedEventPackageId,
@@ -781,6 +783,7 @@ export function InterventionHistorySection({
               senderDepartment={senderDepartment}
               senderFaculty={senderFaculty}
               senderEmail={senderEmail}
+              wellbeingCounsellorEmailOptions={wellbeingCounsellorEmailOptions}
               focusedCourseId={focusedCourseId}
               focusedSectionCode={focusedSectionCode}
               focusedEventPackageId={focusedEventPackageId}

@@ -9,6 +9,7 @@ import {
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentMetricsClient } from "./_components/StudentMetricsClient";
 import { pool } from "@/lib/db";
+import { getWellbeingCounsellorEmailOptions } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getStudentGpaProfileBySapId } from "@/lib/db/gpa";
@@ -298,6 +299,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const interventionHistory = await getInterventionsByStudentSapId(sapIdFromUrl);
   const wellbeingCases = await getWellbeingCasesByStudentSapId(sapIdFromUrl);
   const interventionEmails = await getInterventionEmailsByStudentSapId(sapIdFromUrl);
+  const wellbeingCounsellorEmailOptions = await getWellbeingCounsellorEmailOptions();
   const gpaProfile = await getStudentGpaProfileBySapId(sapIdFromUrl);
 
   const enrollmentRecords = await getEnrollmentForStudentSapId(sapIdFromUrl);
@@ -592,6 +594,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         senderDepartment={senderDepartmentName}
         senderFaculty={senderFacultyName}
         senderEmail={senderEmailForTemplate}
+        wellbeingCounsellorEmailOptions={wellbeingCounsellorEmailOptions}
         focusedCourseId={selectedCourseCode ?? null}
         focusedSectionCode={selectedSection ?? null}
         focusedEventPackageId={selectedEventPackageId ?? null}
