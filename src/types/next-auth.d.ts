@@ -27,11 +27,11 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id: string;
-    pernr: string;
+    id?: string;
+    pernr?: string;
     name?: string;
     email?: string;
-    role:
+    role?:
       | "superadmin"
       | "dean"
       | "hod"
@@ -39,8 +39,10 @@ declare module "next-auth/jwt" {
       | "wellbeing"
       | "wellbeing-head"
       | "wellbeing-counseller";
-    img: string | null;
-    faculty_id: string | null;
-    department_ids: string[];
+    img?: string | null;
+    faculty_id?: string | null;
+    department_ids?: string[];
+    login_at?: number;
+    exp?: number;
   }
 }

@@ -4,6 +4,9 @@ import GoogleProvider from "next-auth/providers/google";
 import { compare } from "bcryptjs";
 import { bumpStaffLoginStats, getStaffByEmailWithDepartments } from "@/lib/db";
 
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24; // 24 hours
+const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_SECONDS * 1000;
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -48,10 +51,10 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 24, // 24 hours
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   jwt: {
-    maxAge: 60 * 60 * 24, // 24 hours
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   callbacks: {
     async signIn({ user, account }) {
@@ -99,7 +102,17 @@ export const authOptions: NextAuthOptions = {
         token.img = user.img;
         token.faculty_id = user.faculty_id;
         token.department_ids = user.department_ids ?? [];
+        token.login_at = Date.now();
       }
+      if (!token.login_at) token.login_at = Date.now();
+
+      const hardExpiryMs = token.login_at + SESSION_MAX_AGE_MS;
+      if (Date.now() >= hardExpiryMs) {
+        return {};
+      }
+
+      token.exp = Math.floor(hardExpiryMs / 1000);
+
       if (trigger === "update" && session) {
         const s = session as { img?: string | null; name?: string | null };
         if (s.img !== undefined) token.img = s.img;
@@ -108,6 +121,11 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      if (!token.id || !token.pernr || !token.role || !token.login_at) {
+        session.expires = new Date(0).toISOString();
+        return session;
+      }
+
       if (session.user) {
         session.user.id = token.id;
         session.user.pernr = token.pernr;
@@ -118,6 +136,7 @@ export const authOptions: NextAuthOptions = {
         session.user.faculty_id = token.faculty_id ?? null;
         session.user.department_ids = token.department_ids ?? [];
       }
+      session.expires = new Date(token.login_at + SESSION_MAX_AGE_MS).toISOString();
       return session;
     },
   },

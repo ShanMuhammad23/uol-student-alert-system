@@ -331,6 +331,22 @@ const InterventionForm = ({
     setEmailBodyHtml(t.body);
   };
 
+  const resetForm = () => {
+    setDate("");
+    setOutreachMode("");
+    setInterventionType("attendance");
+    setRemarks("");
+    setStatus("");
+    setEmailTemplateKey("");
+    setRecipientEmail("");
+    setReplyToEmail(senderEmail?.trim() ?? "");
+    setEmailSubject("");
+    setEmailBodyHtml("");
+    setSubmitMessage(null);
+    setIsAdding(false);
+    setIsSendingEmail(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onSubmit) return;
@@ -580,7 +596,10 @@ const InterventionForm = ({
         {onCancel && (
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              resetForm();
+              onCancel();
+            }}
             className="inline-flex items-center justify-center gap-2.5 rounded-[5px] border border-dark py-3.5 px-10 text-center font-medium text-dark transition hover:bg-dark/10 focus:outline-none dark:border-white/25 dark:text-white dark:hover:bg-white/10 lg:px-8 xl:px-10"
           >
             Cancel

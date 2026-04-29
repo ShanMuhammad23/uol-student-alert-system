@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { StaffDirectoryTableClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryTableClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
+import { StaffToastFeedback } from "./_components/StaffToastFeedback";
 import { cn } from "@/lib/utils";
-
 type StaffListRow = {
   id: string;
   pernr: string;
@@ -68,7 +68,9 @@ async function getStaffList(): Promise<StaffListRow[]> {
      GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name, s.login_count, s.last_login_at
      ORDER BY s.role ASC, s.name ASC`
   );
+
   return res.rows;
+  
 }
 
 async function getFaculties(): Promise<FacultyRow[]> {
@@ -361,6 +363,9 @@ export default async function SuperadminStaffPage(props: {
   const deanCount = byRole.dean || 0;
   const hodCount = byRole.hod || 0;
   const instructorCount = byRole.instructor || 0;
+  const superadminCount = byRole.superadmin || 0;
+  const counsellorHeadCount = byRole["wellbeing-head"] || 0;
+  const counsellorCount = byRole["wellbeing-counseller"] || 0;
 
   const successMessage =
     searchParams.success === "created"
@@ -416,12 +421,17 @@ export default async function SuperadminStaffPage(props: {
       </div>
 
       {/* ─── Stats Row ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         <StatCard label="Total Staff" value={totalStaff} tone="neutral" />
+        <StatCard label="Superadmins" value={superadminCount} tone="violet" />
         <StatCard label="Deans" value={deanCount} tone="violet" />
         <StatCard label="HoDs" value={hodCount} tone="emerald" />
         <StatCard label="Instructors" value={instructorCount} tone="blue" />
+        <StatCard label="Counsellor Heads" value={counsellorHeadCount} tone="emerald" />
+        <StatCard label="Counsellors" value={counsellorCount} tone="blue" />
       </div>
+
+      <StaffToastFeedback successMessage={successMessage} errorMessage={errorMessage} />
 
       {/* ─── Tab Navigation ──────────────────────────────────────── */}
       <div className="border-b border-slate-200 dark:border-slate-700">
@@ -456,18 +466,6 @@ export default async function SuperadminStaffPage(props: {
           </a>
         </nav>
       </div>
-
-      {/* ─── Alerts ──────────────────────────────────────────────── */}
-      {successMessage && (
-        <div className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
-          {successMessage}
-        </div>
-      )}
-      {errorMessage && (
-        <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
-          {errorMessage}
-        </div>
-      )}
 
       {/* ─── Tab Content ─────────────────────────────────────────── */}
       {activeTab === "add" ? (

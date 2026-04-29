@@ -5,6 +5,7 @@ import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SidebarProvider } from "@/components/Layouts/sidebar/sidebar-context";
 import { ThemeProvider } from "next-themes";
+import { AppToastContainer } from "@/components/ui-elements/toast-client";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -22,7 +23,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="light" attribute="class">
-          <SidebarProvider>{children}</SidebarProvider>
+          <SidebarProvider>
+            {children}
+            <AppToastContainer />
+          </SidebarProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </SessionProvider>
