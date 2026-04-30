@@ -58,6 +58,7 @@ export function StudentCourseAttendanceDetails({
   const {
     selectedSummary,
     selectedLabel,
+    selectedInstructorName,
     selectedAttendanceKey,
     selectedDbRow,
   } = useMemo(() => {
@@ -80,6 +81,7 @@ export function StudentCourseAttendanceDetails({
           absences: marked - attended,
         },
         selectedLabel: null,
+        selectedInstructorName: null,
         selectedAttendanceKey: null,
         selectedDbRow: null,
       };
@@ -99,6 +101,7 @@ export function StudentCourseAttendanceDetails({
           absences: posted - att,
         },
         selectedLabel: null,
+        selectedInstructorName: null,
         selectedAttendanceKey: null,
         selectedDbRow: null,
       };
@@ -132,6 +135,7 @@ export function StudentCourseAttendanceDetails({
               selected.sectionCode ? ` (${selected.sectionCode})` : ""
             }`
           : null,
+        selectedInstructorName: selected?.instructorName ?? null,
         selectedAttendanceKey: null,
         selectedDbRow: selected,
       };
@@ -141,6 +145,7 @@ export function StudentCourseAttendanceDetails({
       return {
         selectedSummary: null,
         selectedLabel: null,
+        selectedInstructorName: null,
         selectedAttendanceKey: null,
         selectedDbRow: null,
       };
@@ -167,6 +172,7 @@ export function StudentCourseAttendanceDetails({
       return {
         selectedSummary: null,
         selectedLabel: null,
+        selectedInstructorName: null,
         selectedAttendanceKey: null,
         selectedDbRow: null,
       };
@@ -181,6 +187,7 @@ export function StudentCourseAttendanceDetails({
     return {
       selectedSummary: summary,
       selectedLabel: label,
+      selectedInstructorName: target.Teacher ?? null,
       selectedAttendanceKey: key,
       selectedDbRow: null,
     };
@@ -236,6 +243,14 @@ export function StudentCourseAttendanceDetails({
             <span className="font-semibold text-gray-900 dark:text-white">
               {selectedLabel}
             </span>
+            {selectedInstructorName ? (
+              <>
+                {" "}
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  - ( Instructor: {selectedInstructorName} )
+                </span>
+              </>
+            ) : null}
           </p>
         )}
         <div className="space-y-2">
