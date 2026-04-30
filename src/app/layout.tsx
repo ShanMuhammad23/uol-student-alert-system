@@ -78,23 +78,13 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (user.role === "teacher" || user.role === "instructor") {
-        if (user.role === "instructor" && user.department_ids?.length) {
-          const names = await pool.query<{ name: string }>(
-            "SELECT name FROM departments WHERE id = ANY($1::varchar[]) ORDER BY name ASC",
-            [user.department_ids]
-          );
-          const departmentHeading = names.rows.map((r) => r.name).join(", ");
-          screenHeading = departmentHeading || user.name;
-        } else {
-          screenHeading = user.name;
-        }
+        screenHeading = user.name;
         const total = await pool.query<{ total_students: number | string | null }>(
-          `SELECT COALESCE(SUM(total_students), 0) AS total_students
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date = $1
-             AND dimension_type = 'instructor'
-             AND dimension_id = $2`,
-          [latestSnapshotDate, user.sap_id]
+          `SELECT COUNT(DISTINCT sap_id)::int AS total_students
+           FROM student_enrollment_current
+           WHERE is_active = TRUE
+             AND instructor_pernr = $1`,
+          [user.sap_id]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (

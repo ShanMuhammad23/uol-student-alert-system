@@ -142,10 +142,15 @@ export default async function Home({ searchParams }: PropsType) {
       }),
       getDeanInstructorStats(deanFacultyId, {
         ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
+        ...(programs.length ? { programIds: programs } : {}),
+        ...(courseIds.length ? { courseIds } : {}),
+        ...(instructorIds.length ? { instructorIds } : {}),
       }),
       getDeanCourseStats(deanFacultyId, {
         ...(effectiveDeptIds.length ? { departmentIds: effectiveDeptIds } : {}),
         ...(programs.length ? { programIds: programs } : {}),
+        ...(courseIds.length ? { courseIds } : {}),
+        ...(instructorIds.length ? { instructorIds } : {}),
       }),
     ]);
   }
@@ -157,6 +162,7 @@ export default async function Home({ searchParams }: PropsType) {
       getHodProgramStats(effectiveUser.department_ids),
       getHodCourseStats(effectiveUser.department_ids, {
         ...(programs[0] ? { programIds: [programs[0]] } : {}),
+        ...(instructorIds[0] ? { instructorIds: [instructorIds[0]] } : {}),
       }),
       getHodInstructorStats(effectiveUser.department_ids, {
         ...(programs[0] ? { programIds: [programs[0]] } : {}),

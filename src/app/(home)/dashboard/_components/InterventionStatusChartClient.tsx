@@ -264,6 +264,16 @@ export function InterventionStatusChartClient({
       : null;
   const departmentIdsForRequest =
     user?.role === "hod" ? user.department_ids ?? null : null;
+  const scopedDepartmentIdsForRequest =
+    masterFilter.department_ids?.length
+      ? masterFilter.department_ids
+      : departmentIdsForRequest;
+  const scopedCourseIdsForRequest =
+    masterFilter.course_ids?.length
+      ? masterFilter.course_ids
+      : courseIdsForRequest;
+  const scopedInstructorIdsForRequest =
+    masterFilter.instructor_ids?.length ? masterFilter.instructor_ids : null;
 
   const departmentIdsKey = useMemo(() => {
     if (user?.role !== "hod") return "";
@@ -299,8 +309,9 @@ export function InterventionStatusChartClient({
             interventionType,
             alertLevel: alertLevelForRequest,
             facultyId: facultyIdForRequest,
-            departmentIds: departmentIdsForRequest,
-            courseIds: courseIdsForRequest,
+            departmentIds: scopedDepartmentIdsForRequest,
+            courseIds: scopedCourseIdsForRequest,
+            instructorIds: scopedInstructorIdsForRequest,
             staffId: staffIdForRequest,
           }),
           signal: controller.signal,
@@ -361,6 +372,7 @@ export function InterventionStatusChartClient({
     staffIdForRequest,
     interventionTypesKey,
     alertLevelForRequest,
+    masterFilterKey,
   ]);
 
   useEffect(() => {

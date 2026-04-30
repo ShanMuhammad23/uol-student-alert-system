@@ -121,6 +121,8 @@ export function DeanInstructorStats({
           className={cn(
             "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
             "min-w-[160px]",
+            selectedInstructorId === i.instructorId &&
+              "border-2 border-primary dark:border-primary"
           )}
         >
           <span className="text-body-sm font-semibold text-dark dark:text-white">

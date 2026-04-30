@@ -721,6 +721,7 @@ export type InterventionRoleScope = {
   facultyId?: string | null;
   departmentIds?: string[] | null;
   courseIds?: string[] | null;
+  instructorIds?: string[] | null; // instructor_pernr values from enrollment
   staffId?: string | null; // staff.id (UUID) for instructors
 };
 
@@ -829,9 +830,8 @@ export async function getInterventionStatsForRoleScopeFromDb(
     return { ...countsSuper, totalInterventionStudents: totalSuper };
   }
 
-  let whereSql = "";
+  const whereParts: string[] = [];
   let args: any[] = usesTypeParam ? [params.interventionType] : [];
-  const scopePlaceholder = usesTypeParam ? "$2" : "$1";
   const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
     FAC_ENG: "50000172",
     FAC_MGT: "50000172",
@@ -850,8 +850,8 @@ export async function getInterventionStatsForRoleScopeFromDb(
     }
     const mappedFacultyId =
       FACULTY_ID_TO_ENROLLMENT_FAC_ID[params.facultyId] ?? params.facultyId;
-    whereSql = `faculty_id = ${scopePlaceholder}`;
     args = [...args, mappedFacultyId];
+    whereParts.push(`faculty_id = $${args.length}`);
   } else if (params.role === "hod") {
     const deptIds = params.departmentIds ?? [];
     if (!deptIds.length) {
@@ -864,14 +864,14 @@ export async function getInterventionStatsForRoleScopeFromDb(
         totalInterventionStudents: 0,
       };
     }
-    whereSql = `department_id = ANY(${scopePlaceholder})`;
     args = [...args, deptIds];
+    whereParts.push(`department_id = ANY($${args.length})`);
   } else {
     // teacher
     const courseIds = (params.courseIds ?? []).filter(Boolean);
     if (courseIds.length) {
-      whereSql = `course_id = ANY(${scopePlaceholder})`;
       args = [...args, courseIds];
+      whereParts.push(`course_id = ANY($${args.length})`);
     } else if (!params.staffId) {
       return {
         initiated: 0,
@@ -883,10 +883,39 @@ export async function getInterventionStatsForRoleScopeFromDb(
       };
     } else {
       // Backward-compatible fallback if course IDs are unavailable.
-      whereSql = `staff_id = ${scopePlaceholder}`;
       args = [...args, params.staffId];
+      whereParts.push(`staff_id = $${args.length}`);
     }
   }
+
+  const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+  if (departmentIds.length && params.role !== "hod") {
+    args = [...args, departmentIds];
+    whereParts.push(`department_id = ANY($${args.length})`);
+  }
+
+  const courseIds = (params.courseIds ?? []).filter(Boolean);
+  if (courseIds.length && params.role !== "teacher") {
+    args = [...args, courseIds];
+    whereParts.push(`course_id = ANY($${args.length})`);
+  }
+
+  const instructorIds = (params.instructorIds ?? []).filter(Boolean);
+  if (instructorIds.length) {
+    args = [...args, instructorIds];
+    whereParts.push(
+      `EXISTS (
+        SELECT 1
+        FROM student_enrollment_current e
+        WHERE e.is_active = TRUE
+          AND e.sap_id = interventions.student_sap_id
+          AND e.course_id = interventions.course_id
+          AND e.instructor_pernr = ANY($${args.length}::text[])
+      )`
+    );
+  }
+
+  const whereSql = whereParts.length ? whereParts.join(" AND ") : "TRUE";
 
   // Include `intervention_type = 'both'` (from Intervention-Form) in attendance and GPA buckets.
   const interventionTypeFilterSql = usesTypeParam

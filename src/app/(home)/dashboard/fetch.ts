@@ -1258,6 +1258,10 @@ export async function getMasterFilterOptions(
   user?: AppUser | null,
   current?: MasterFilterParams
 ): Promise<MasterFilterOptions> {
+  const withStudentCount = (label: string, count: number): string => {
+    const base = label.replace(/\s*\(\d[\d,]*\)\s*$/, "").trim();
+    return `${base} (${count.toLocaleString()})`;
+  };
   if (pool) {
     try {
       const dims = await pool.query<{
@@ -1302,12 +1306,13 @@ export async function getMasterFilterOptions(
         const enrollmentFacultyId =
           FACULTY_ID_TO_ENROLLMENT_FAC_ID[user.faculty_id] ?? user.faculty_id;
         const scopedRowsRes = await pool.query<{
+          sap_id: string;
           department_id: string | null;
           course_id: string;
           program_id: string | null;
           instructor_pernr: string | null;
         }>(
-          `SELECT DISTINCT department_id, course_id, program_id, instructor_pernr
+          `SELECT DISTINCT sap_id, department_id, course_id, program_id, instructor_pernr
            FROM student_enrollment_current
            WHERE is_active = TRUE
              AND faculty_id = $1`,
@@ -1373,9 +1378,25 @@ export async function getMasterFilterOptions(
             )
             .map((r) => String(r.instructor_pernr))
         );
-        const instructorsScoped = instructors.filter((i) =>
-          instructorIdsInScope.has(i.value)
-        );
+        const instructorStudentSets = new Map<string, Set<string>>();
+        for (const row of scopedRowsRes.rows) {
+          const instructorPernr = String(row.instructor_pernr ?? "").trim();
+          if (!instructorPernr || !courseIdsForInstructorFilter.has(row.course_id)) continue;
+          const sapId = String(row.sap_id ?? "").trim();
+          if (!sapId) continue;
+          const existing = instructorStudentSets.get(instructorPernr) ?? new Set<string>();
+          existing.add(sapId);
+          instructorStudentSets.set(instructorPernr, existing);
+        }
+        const instructorsScoped = instructors
+          .filter((i) => instructorIdsInScope.has(i.value))
+          .map((i) => ({
+            ...i,
+            label: withStudentCount(
+              i.label,
+              instructorStudentSets.get(i.value)?.size ?? 0
+            ),
+          }));
 
         return {
           departments: departmentsScoped,
@@ -1388,11 +1409,12 @@ export async function getMasterFilterOptions(
       if (user?.role === "hod" && user.department_ids?.length) {
         const deptSet = new Set(user.department_ids);
         const scopedCoursesRes = await pool.query<{
+          sap_id: string;
           course_id: string;
           program_id: string | null;
           instructor_pernr: string | null;
         }>(
-          `SELECT DISTINCT course_id, program_id, instructor_pernr
+          `SELECT DISTINCT sap_id, course_id, program_id, instructor_pernr
            FROM student_enrollment_current
            WHERE is_active = TRUE
              AND department_id = ANY($1::text[])`,
@@ -1447,9 +1469,25 @@ export async function getMasterFilterOptions(
             .filter((r) => r.instructor_pernr && courseIdsForInstructorFilter.has(r.course_id))
             .map((r) => String(r.instructor_pernr))
         );
-        const instructorsScoped = instructors.filter((i) =>
-          instructorIdsInScope.has(i.value)
-        );
+        const instructorStudentSets = new Map<string, Set<string>>();
+        for (const row of scopedCoursesRes.rows) {
+          const instructorPernr = String(row.instructor_pernr ?? "").trim();
+          if (!instructorPernr || !courseIdsForInstructorFilter.has(row.course_id)) continue;
+          const sapId = String(row.sap_id ?? "").trim();
+          if (!sapId) continue;
+          const existing = instructorStudentSets.get(instructorPernr) ?? new Set<string>();
+          existing.add(sapId);
+          instructorStudentSets.set(instructorPernr, existing);
+        }
+        const instructorsScoped = instructors
+          .filter((i) => instructorIdsInScope.has(i.value))
+          .map((i) => ({
+            ...i,
+            label: withStudentCount(
+              i.label,
+              instructorStudentSets.get(i.value)?.size ?? 0
+            ),
+          }));
 
         return {
           departments: departmentsScoped,
@@ -1841,7 +1879,12 @@ export async function getInstructorStatsFromEnrollment(
 /** Stats per instructor for a faculty (dean view). Returns instructors in departments under the given faculty. */
 export async function getDeanInstructorStats(
   facultyId: string | null,
-  options?: { departmentIds?: string[]; instructorIds?: string[] }
+  options?: {
+    departmentIds?: string[];
+    instructorIds?: string[];
+    programIds?: string[];
+    courseIds?: string[];
+  }
 ): Promise<InstructorStats[]> {
   if (pool) {
     try {
@@ -1850,6 +1893,8 @@ export async function getDeanInstructorStats(
       const rows = await getScopedDimensionCountsFromLive("instructor", {
         facultyIds: facultyScopeIds,
         departmentIds: options?.departmentIds,
+        programIds: options?.programIds,
+        courseIds: options?.courseIds,
         instructorIds: options?.instructorIds,
       });
       const missingByInstructor = await getAttendanceMissingByDimension(
@@ -1858,6 +1903,8 @@ export async function getDeanInstructorStats(
         {
           facultyIds: facultyScopeIds,
           departmentIds: options?.departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
           instructorIds: options?.instructorIds,
         }
       );
@@ -2288,7 +2335,12 @@ export type CourseStats = {
 /** Course stats for Dean scoped to faculty and optional department/program/course filters. */
 export async function getDeanCourseStats(
   facultyId: string | null,
-  options?: { departmentIds?: string[]; programIds?: string[]; courseIds?: string[] }
+  options?: {
+    departmentIds?: string[];
+    programIds?: string[];
+    courseIds?: string[];
+    instructorIds?: string[];
+  }
 ): Promise<CourseStats[]> {
   if (!facultyId) return [];
   if (!pool) return [];
@@ -2299,6 +2351,7 @@ export async function getDeanCourseStats(
       departmentIds: options?.departmentIds,
       programIds: options?.programIds,
       courseIds: options?.courseIds,
+      instructorIds: options?.instructorIds,
     });
     const missingByCourse = await getAttendanceMissingByDimension(
       "course",
@@ -2308,6 +2361,7 @@ export async function getDeanCourseStats(
         departmentIds: options?.departmentIds,
         programIds: options?.programIds,
         courseIds: options?.courseIds,
+        instructorIds: options?.instructorIds,
       }
     );
     return rows.map((row) => ({
@@ -2542,7 +2596,7 @@ export async function getHodInstructorStats(
 /** Course stats for HoD scoped to departments and optionally programs/courses. */
 export async function getHodCourseStats(
   departmentIds: string[],
-  options?: { programIds?: string[]; courseIds?: string[] }
+  options?: { programIds?: string[]; courseIds?: string[]; instructorIds?: string[] }
 ): Promise<CourseStats[]> {
   if (!departmentIds.length) return [];
   if (pool) {
@@ -2559,6 +2613,10 @@ export async function getHodCourseStats(
       if (options?.courseIds?.length) {
         params.push(options.courseIds);
         where.push(`e.course_id = ANY($${params.length}::text[])`);
+      }
+      if (options?.instructorIds?.length) {
+        params.push(options.instructorIds);
+        where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
       }
       const res = await pool.query<{ course_id: string; course_name: string }>(
         `SELECT DISTINCT
@@ -2609,6 +2667,7 @@ export async function getHodCourseStats(
           departmentIds,
           programIds: options?.programIds,
           courseIds: options?.courseIds,
+          instructorIds: options?.instructorIds,
         }
       );
       return sortedCourseIds.map((courseId) => {
@@ -2684,6 +2743,7 @@ export async function getHodCourseStats(
           departmentIds,
           programIds: options?.programIds,
           courseIds: options?.courseIds,
+          instructorIds: options?.instructorIds,
         }
       );
       return sortedCourseIds.map((courseId) => {

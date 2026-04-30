@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       facultyId?: string | null;
       departmentIds?: string[] | null;
       courseIds?: string[] | null;
+      instructorIds?: string[] | null;
       staffId?: string | null;
     };
 
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
         facultyId: roleScope.facultyId ?? null,
         departmentIds: roleScope.departmentIds ?? null,
         courseIds: roleScope.courseIds ?? null,
+        instructorIds: roleScope.instructorIds ?? null,
         staffId: roleScope.staffId ?? null,
       });
       return NextResponse.json(stats, { status: 200 });
