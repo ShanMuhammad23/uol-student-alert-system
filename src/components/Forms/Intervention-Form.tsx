@@ -178,10 +178,37 @@ const InterventionForm = ({
     text: string;
   } | null>(null);
   const shouldShowEmailSection =
-    mode === "intervention" &&
-    (status === "initiated" || status === "in-progress" || status === "referred");
-  const canUseSosTemplate = status === "initiated" || status === "in-progress";
+    mode === "intervention" && outreachMode === "email";
+  const canUseSosTemplate = status === "initiated" && outreachMode === "email";
   const canUseReferralTemplate = status === "referred";
+
+  const getSosSubjectByType = (
+    type: "attendance" | "gpa" | "both"
+  ): string => {
+    if (type === "attendance") {
+      return "SOS Check-In - Academic Progress(Attendance)";
+    }
+    if (type === "gpa") {
+      return "SOS Check-In - Academic Progress (SGPA)";
+    }
+    return "SOS Check-In - Attendance and Academic Progress";
+  };
+
+  const getSosSubtitleByType = (
+    type: "attendance" | "gpa" | "both"
+  ): string => {
+    if (type === "attendance") return "Academic Progress (Attendance)";
+    if (type === "gpa") return "Academic Progress (SGPA)";
+    return "Attendance and Academic Progress";
+  };
+
+  useEffect(() => {
+    if (!shouldShowEmailSection && emailTemplateKey) {
+      setEmailTemplateKey("");
+      setEmailSubject("");
+      setEmailBodyHtml("");
+    }
+  }, [shouldShowEmailSection, emailTemplateKey]);
 
   useEffect(() => {
     if (emailTemplateKey === "student_referral" && !canUseReferralTemplate) {
@@ -202,7 +229,25 @@ const InterventionForm = ({
     }
   }, [senderEmail, replyToEmail]);
 
+  useEffect(() => {
+    if (!shouldShowEmailSection) return;
+    if (emailTemplateKey) return;
+    if (canUseSosTemplate) {
+      handleSelectTemplate("sos_check_in");
+      return;
+    }
+    if (canUseReferralTemplate) {
+      handleSelectTemplate("student_referral");
+    }
+  }, [
+    shouldShowEmailSection,
+    emailTemplateKey,
+    canUseSosTemplate,
+    canUseReferralTemplate,
+  ]);
+
   const fillTemplateWithData = (
+    templateKey: InterventionEmailTemplateKey,
     subject: string,
     body: string
   ): { subject: string; body: string } => {
@@ -268,26 +313,36 @@ const InterventionForm = ({
     const senderEmailText = senderEmail?.trim() || "N/A";
     const focusedCourseTitleText = focusedCourseTitle?.trim() || "N/A";
     const focusedClassTypeText = focusedClassType?.trim() || "N/A";
-    const nextSubject = subject.replace(
+    const referenceLines: string[] = [];
+    if (interventionType === "attendance" || interventionType === "both") {
+      referenceLines.push(
+        `<p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">Attendance: ${attendanceHtml}</p>`
+      );
+      referenceLines.push(
+        `<p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">Course: ${focusedCourseTitleText} (${focusedClassTypeText})</p>`
+      );
+    }
+    if (interventionType === "gpa" || interventionType === "both") {
+      referenceLines.push(
+        `<p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">Previous SGPA: ${gpaPrevText}; Current SGPA: ${gpaCurrentText}; ${sgpaTrendHtml}</p>`
+      );
+      referenceLines.push(
+        `<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">Previous CGPA: ${cgpaPrevText}; Current CGPA: ${cgpaCurrentText}; ${cgpaTrendHtml}</p>`
+      );
+    }
+
+    const subjectBase =
+      templateKey === "sos_check_in"
+        ? getSosSubjectByType(interventionType)
+        : subject;
+    const nextSubject = subjectBase.replace(
       "(SAP ID -----------)",
       `(SAP ID ${sap})`
     );
-    const nextBody = body
+
+    const nextBodyRaw = body
       .replace("[Student Name]", studentDisplay)
       .replace("SAP ID ------", `SAP ID ${sap}`)
-      .replace("Attendance: ___%", `Attendance: ${attendanceHtml}`)
-      .replace(
-        "Previous SGPA: ___; Current SGPA: ___; Drop ____",
-        `Previous SGPA: ${gpaPrevText}; Current SGPA: ${gpaCurrentText}; ${sgpaTrendHtml}`
-      )
-      .replace(
-        "Previous GPA: ___; Current GPA: ___; Drop ____",
-        `Previous GPA: ${gpaPrevText}; Current GPA: ${gpaCurrentText}; ${sgpaTrendHtml}`
-      )
-      .replace(
-        "Previous CGPA: ___; Current CGPA: ___; Drop ____",
-        `Previous CGPA: ${cgpaPrevText}; Current CGPA: ${cgpaCurrentText}; ${cgpaTrendHtml}`
-      )
       .replace("[Sender Name]", senderNameText)
       .replace("[Designation]", senderDesignationText)
       .replace("[Department]", senderDepartmentText)
@@ -304,6 +359,17 @@ const InterventionForm = ({
       .replace(/\[student email\]/gi, `${sap}@student.uol.edu.pk`)
       .replace(/___%/g, attendanceText)
       .replace(/____/g, gpaDropText);
+
+    const nextBody =
+      templateKey === "sos_check_in"
+        ? nextBodyRaw
+            .replace(
+              "Attendance and Academic Progress",
+              getSosSubtitleByType(interventionType)
+            )
+            .replace("[REFERENCE_BLOCK]", referenceLines.join(""))
+        : nextBodyRaw;
+
     return { subject: nextSubject, body: nextBody };
   };
 
@@ -316,6 +382,7 @@ const InterventionForm = ({
       }
       setReplyToEmail(senderEmail?.trim() ?? "");
       const t = fillTemplateWithData(
+        "sos_check_in",
         SOS_CHECK_IN_EMAIL_SUBJECT,
         SOS_CHECK_IN_EMAIL_TEMPLATE
       );
@@ -326,6 +393,7 @@ const InterventionForm = ({
     setRecipientEmail("");
     setReplyToEmail(senderEmail?.trim() ?? "");
     const t = fillTemplateWithData(
+      "student_referral",
       STUDENT_REFERRAL_EMAIL_SUBJECT,
       STUDENT_REFERRAL_EMAIL_TEMPLATE
     );
@@ -334,6 +402,17 @@ const InterventionForm = ({
   };
 
   const showReferralRecipientDropdown = emailTemplateKey === "student_referral";
+
+  useEffect(() => {
+    if (emailTemplateKey !== "sos_check_in") return;
+    const t = fillTemplateWithData(
+      "sos_check_in",
+      SOS_CHECK_IN_EMAIL_SUBJECT,
+      SOS_CHECK_IN_EMAIL_TEMPLATE
+    );
+    setEmailSubject(t.subject);
+    setEmailBodyHtml(t.body);
+  }, [interventionType]);
 
   const resetForm = () => {
     setDate("");
@@ -499,110 +578,116 @@ const InterventionForm = ({
         />
       </div>
 
-      {/* 6. Email Section (only for initiated / referred) */}
-      {shouldShowEmailSection ? (
-      <div className="space-y-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
-        <h4 className="text-body-sm font-semibold text-dark dark:text-white">Email Section</h4>
-        <div className="flex flex-wrap items-center gap-4">
-          {canUseSosTemplate ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
-              <input
-                type="radio"
-                name="emailTemplate"
-                value="sos_check_in"
-                checked={emailTemplateKey === "sos_check_in"}
-                onChange={() => handleSelectTemplate("sos_check_in")}
-                className="h-4 w-4 accent-primary"
-              />
-              SOS Check-In Template
-            </label>
-          ) : null}
-          {canUseReferralTemplate ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
-              <input
-                type="radio"
-                name="emailTemplate"
-                value="student_referral"
-                checked={emailTemplateKey === "student_referral"}
-                onChange={() => handleSelectTemplate("student_referral")}
-                className="h-4 w-4 accent-primary"
-              />
-              Student Referral Template
-            </label>
-          ) : null}
-        </div>
+      {/* 6. Email Section (reserved space to avoid layout shift) */}
+      <div className="min-h-[620px]">
+        {shouldShowEmailSection ? (
+          <div className="space-y-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
+            <h4 className="text-body-sm font-semibold text-dark dark:text-white">Email Section</h4>
+            <div className="flex flex-wrap items-center gap-4">
+              {canUseSosTemplate ? (
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+                  <input
+                    type="radio"
+                    name="emailTemplate"
+                    value="sos_check_in"
+                    checked={emailTemplateKey === "sos_check_in"}
+                    onChange={() => handleSelectTemplate("sos_check_in")}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  SOS Check-In Template
+                </label>
+              ) : null}
+              {canUseReferralTemplate ? (
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+                  <input
+                    type="radio"
+                    name="emailTemplate"
+                    value="student_referral"
+                    checked={emailTemplateKey === "student_referral"}
+                    onChange={() => handleSelectTemplate("student_referral")}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  Student Referral Template
+                </label>
+              ) : null}
+            </div>
 
-        {emailTemplateKey ? (
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
-                Recipient Email
-              </label>
-              {showReferralRecipientDropdown ? (
-                <select
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-                >
-                  <option value="">Select wellbeing counsellor email</option>
-                  {wellbeingCounsellorEmailOptions.map((option) => (
-                    <option key={option.id} value={option.email}>
-                      {option.name} ({option.email})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="email"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="recipient@example.com"
-                  className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-                />
-              )}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
-                Reply-To Email
-              </label>
-              <input
-                type="email"
-                value={replyToEmail}
-                onChange={(e) => setReplyToEmail(e.target.value)}
-                placeholder="reply-to@example.com"
-                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
-                Subject
-              </label>
-              <input
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value)}
-                className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
-                HTML View (Editable)
-              </label>
-              <div className=" dark:border-dark-3 dark:bg-dark-2">
-                <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) =>
-                    setEmailBodyHtml((e.currentTarget as HTMLDivElement).innerHTML)
-                  }
-                  className="h-[420px] w-full overflow-auto  bg-white text-sm text-dark outline-none focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-                  dangerouslySetInnerHTML={{ __html: emailBodyHtml }}
-                />
+            {emailTemplateKey ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                    Recipient Email
+                  </label>
+                  {showReferralRecipientDropdown ? (
+                    <select
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                    >
+                      <option value="">Select wellbeing counsellor email</option>
+                      {wellbeingCounsellorEmailOptions.map((option) => (
+                        <option key={option.id} value={option.email}>
+                          {option.name} ({option.email})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="email"
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      placeholder="recipient@example.com"
+                      className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                    Reply-To Email
+                  </label>
+                  <input
+                    type="email"
+                    value={replyToEmail}
+                    onChange={(e) => setReplyToEmail(e.target.value)}
+                    placeholder="reply-to@example.com"
+                    className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                    Subject
+                  </label>
+                  <input
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full rounded-lg border border-stroke bg-transparent px-3 py-2 text-dark outline-none dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-dark dark:text-white">
+                    HTML View (Editable)
+                  </label>
+                  <div className=" dark:border-dark-3 dark:bg-dark-2">
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) =>
+                        setEmailBodyHtml((e.currentTarget as HTMLDivElement).innerHTML)
+                      }
+                      className="h-[420px] w-full overflow-auto  bg-white text-sm text-dark outline-none focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                      dangerouslySetInnerHTML={{ __html: emailBodyHtml }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-lg border border-dashed border-stroke p-4 text-sm text-dark-6 dark:border-dark-3 dark:text-white">
+            Email section appears only when status is <span className="font-semibold">Initiated</span> and mode is <span className="font-semibold">Email</span>.
+          </div>
+        )}
       </div>
-      ) : null}
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button

@@ -33,18 +33,7 @@ export const SOS_CHECK_IN_EMAIL_TEMPLATE = `
                   <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;font-weight:700;color:#1f4a3d;">
                     For your reference:
                   </p>
-                  <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
-                    Attendance: ___%
-                  </p>
-                  <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
-                    Course: [Focused Course Title] ([Focused Class Type])
-                  </p>
-                  <p style="margin:0 0 4px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
-                    Previous SGPA: ___; Current SGPA: ___; Drop ____
-                  </p>
-                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">
-                    Previous CGPA: ___; Current CGPA: ___; Drop ____
-                  </p>
+                  [REFERENCE_BLOCK]
                 </td>
               </tr>
             </table>
