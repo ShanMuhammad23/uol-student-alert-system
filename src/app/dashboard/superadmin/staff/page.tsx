@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { StaffDirectoryTableClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryTableClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
+import { createStaffMember } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
 import { cn } from "@/lib/utils";
 type StaffListRow = {
@@ -91,92 +92,6 @@ async function getDepartments(): Promise<DepartmentRow[]> {
   return res.rows;
 }
 
-async function createStaffAction(formData: FormData) {
-  "use server";
-  if (!pool) {
-    redirect("/dashboard/superadmin/staff?error=db_not_configured");
-  }
-
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const pernr = String(formData.get("pernr") ?? "").trim();
-  const password = String(formData.get("password") ?? "").trim();
-  const role = String(formData.get("role") ?? "").trim() as
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing-head"
-    | "wellbeing-counseller";
-  const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
-  const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
-
-  if (!name || !email || !pernr || !password || !role) {
-    redirect("/dashboard/superadmin/staff?error=missing_required");
-  }
-  if (
-    ![
-      "superadmin",
-      "dean",
-      "hod",
-      "instructor",
-      "wellbeing-head",
-      "wellbeing-counseller",
-    ].includes(role)
-  ) {
-    redirect("/dashboard/superadmin/staff?error=invalid_role");
-  }
-  if ((role === "dean" || role === "instructor") && !facultyId) {
-    redirect("/dashboard/superadmin/staff?error=faculty_required");
-  }
-
-  const passwordHash = await hash(password, 10);
-  const departmentIds = formData
-    .getAll("department_ids")
-    .map((v) => String(v).trim())
-    .filter(Boolean);
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const insertStaff = await client.query<{ id: string }>(
-      `INSERT INTO staff (pernr, name, email, password_hash, role, faculty_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
-      [pernr, name, email, passwordHash, role, facultyId]
-    );
-    const staffId = insertStaff.rows[0]?.id;
-
-    if (role === "hod" && staffId && departmentIds.length) {
-      for (const departmentId of departmentIds) {
-        await client.query(
-          `INSERT INTO staff_departments (staff_id, department_id)
-           VALUES ($1, $2)
-           ON CONFLICT (staff_id, department_id) DO NOTHING`,
-          [staffId, departmentId]
-        );
-      }
-    }
-
-    await client.query("COMMIT");
-  } catch (error: unknown) {
-    await client.query("ROLLBACK");
-    const code =
-      typeof error === "object" && error != null && "code" in error
-        ? String((error as { code?: string }).code ?? "")
-        : "";
-    if (code === "23505") {
-      redirect("/dashboard/superadmin/staff?error=duplicate");
-    }
-    redirect("/dashboard/superadmin/staff?error=create_failed");
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/dashboard/superadmin/staff");
-  redirect("/dashboard/superadmin/staff?success=created");
-}
-
 async function updateStaffAction(formData: FormData) {
   "use server";
   if (!pool) {
@@ -215,7 +130,7 @@ async function updateStaffAction(formData: FormData) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
 
-  if ((role === "dean" || role === "instructor") && !facultyId) {
+  if (!facultyId) {
     redirect("/dashboard/superadmin/staff?error=faculty_required");
   }
 
@@ -328,18 +243,32 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 // ─── Stats Card ────────────────────────────────────────────────────
-function StatCard({ label, value, tone }: { label: string; value: number; tone: "neutral" | "violet" | "emerald" | "blue" }) {
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "neutral" | "violet" | "emerald" | "blue";
+}) {
   const tones = {
-    neutral: "bg-slate-50 border-slate-200 text-slate-900 dark:bg-slate-800/50 dark:border-slate-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-900 dark:bg-violet-900/20 dark:border-violet-800",
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-900/20 dark:border-emerald-800",
-    blue: "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800",
+    neutral:
+      "border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50",
+    violet:
+      "border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-600 dark:bg-violet-950/60 dark:text-violet-50",
+    emerald:
+      "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-50",
+    blue:
+      "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-700 dark:bg-blue-950/55 dark:text-blue-50",
   };
 
   return (
-    <div className={cn("rounded-xl border p-4", tones[tone])}>
-      <p className="text-xs font-medium uppercase tracking-wider opacity-70">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums">{value.toLocaleString()}</p>
+    <div className={cn("rounded-xl border p-4 shadow-sm dark:shadow-none", tones[tone])}>
+      <p className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-300">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold tabular-nums text-inherit">{value.toLocaleString()}</p>
     </div>
   );
 }
@@ -368,9 +297,7 @@ export default async function SuperadminStaffPage(props: {
   const counsellorCount = byRole["wellbeing-counseller"] || 0;
 
   const successMessage =
-    searchParams.success === "created"
-      ? "Staff added successfully."
-      : searchParams.success === "updated"
+    searchParams.success === "updated"
       ? "Staff updated successfully."
       : searchParams.success === "deleted"
       ? "Staff deleted successfully."
@@ -381,9 +308,11 @@ export default async function SuperadminStaffPage(props: {
       : searchParams.error === "invalid_role"
       ? "Selected role is invalid."
       : searchParams.error === "faculty_required"
-      ? "Faculty is required for Dean and Instructor."
+      ? "Parent faculty is required."
       : searchParams.error === "duplicate"
       ? "Email or Pernr already exists."
+      : searchParams.error === "not_in_enrollment"
+      ? "Staff not found in enrollment: this PERNR does not appear as an instructor in current enrollment data."
       : searchParams.error === "db_not_configured"
       ? "Database is not configured."
       : searchParams.error === "create_failed"
@@ -477,7 +406,7 @@ export default async function SuperadminStaffPage(props: {
             </p>
           </div>
           <AddStaffForm
-            action={createStaffAction}
+            createStaff={createStaffMember}
             faculties={faculties}
             departments={departments.map((department) => ({
               id: department.id,

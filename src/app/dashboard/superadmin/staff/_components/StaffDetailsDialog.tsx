@@ -109,7 +109,7 @@ export function StaffDetailsDialog({ staff }: Props) {
                     {staff.role}
                   </p>
                   <p>
-                    <span className="text-dark-5 dark:text-dark-6">Faculty: </span>
+                    <span className="text-dark-5 dark:text-dark-6">Parent Faculty: </span>
                     {staff.facultyName || "—"}
                   </p>
                   <p>

@@ -169,7 +169,7 @@ export function StaffDirectoryTableClient({
                 <TableHead className="min-w-[280px]">Staff</TableHead>
                 <TableHead className="min-w-[80px]">Role</TableHead>
                 <TableHead className="min-w-[120px]">Pernr</TableHead>
-                <TableHead className="min-w-[160px]">Faculty</TableHead>
+                <TableHead className="min-w-[160px]">Parent Faculty</TableHead>
                 <TableHead className="min-w-[240px]">Departments</TableHead>
                 <TableHead className="min-w-[60px]">Login Count</TableHead>
                 <TableHead className="min-w-[180px]">Last Login</TableHead>
@@ -364,13 +364,16 @@ function EditStaffModal({
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-dark dark:text-white">Faculty</label>
+            <label className="text-sm font-medium text-dark dark:text-white">
+              Parent Faculty *
+            </label>
             <select
               name="faculty_id"
+              required
               defaultValue={staff.faculty_id ?? ""}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
-              <option value="">Select faculty (optional)</option>
+              <option value="">Select parent faculty</option>
               {faculties.map((faculty) => (
                 <option key={faculty.id} value={faculty.id}>
                   {resolveFacultyNameFromIdOrName(faculty.id, faculty.name) ??
