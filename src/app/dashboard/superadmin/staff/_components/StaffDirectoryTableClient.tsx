@@ -398,8 +398,15 @@ function EditStaffModal({
               defaultValue={staff.actual_role ?? "admin"}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
-              <option value="admin">Admin</option>
-              <option value="coordinator">Coordinator</option>
+              <option value="superadmin">superadmin</option>
+              <option value="dean">dean</option>
+              <option value="hod">hod</option>
+              <option value="instructor">instructor</option>
+              <option value="wellbeing">wellbeing</option>
+              <option value="wellbeing-head">wellbeing-head</option>
+              <option value="wellbeing-counseller">wellbeing-counseller</option>
+              <option value="admin">admin</option>
+              <option value="coordinator">coordinator</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
