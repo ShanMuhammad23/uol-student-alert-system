@@ -230,6 +230,8 @@ export function MasterFilter({
       programs: current.programs,
       instructor_ids: current.instructor_ids,
       course_ids: current.course_ids,
+      selected_alert:
+        selectedAlert && selectedAlert !== "all" ? selectedAlert : undefined,
       attendanceFilters: normalizeDimFiltersForApi(attendanceFilters),
       gpaFilters: normalizeDimFiltersForApi(gpaFilters),
       interventionFilters:
@@ -267,6 +269,7 @@ export function MasterFilter({
     current.programs?.join(","),
     current.instructor_ids?.join(","),
     current.course_ids?.join(","),
+    selectedAlert,
     attendanceFilters?.join(","),
     gpaFilters?.join(","),
     interventionFilters?.join(","),
