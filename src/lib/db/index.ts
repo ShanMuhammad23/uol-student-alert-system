@@ -35,6 +35,16 @@ export type StaffRow = {
     | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
+  actual_role: "coordinator" | "admin" | null;
+  pseudo_role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | null;
   faculty_id: string | null;
   created_at: Date;
   updated_at: Date;
@@ -49,7 +59,7 @@ export type StaffRow = {
 export async function getStaffById(staffId: string): Promise<StaffRow | null> {
   if (!pool) return null;
   const res = await pool.query<StaffRow>(
-    `SELECT id, pernr, name, email, password_hash, role, faculty_id, created_at, updated_at, img
+    `SELECT id, pernr, name, email, password_hash, role, actual_role, pseudo_role, faculty_id, created_at, updated_at, img
      FROM staff
      WHERE id = $1
      LIMIT 1`,
@@ -62,7 +72,7 @@ export async function getStaffById(staffId: string): Promise<StaffRow | null> {
 export async function getStaffByEmail(email: string): Promise<StaffRow | null> {
   if (!pool) return null;
   const res = await pool.query<StaffRow>(
-    `SELECT id, pernr, name, email, password_hash, role, faculty_id, created_at, updated_at, img
+    `SELECT id, pernr, name, email, password_hash, role, actual_role, pseudo_role, faculty_id, created_at, updated_at, img
      FROM staff
      WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
      LIMIT 1`,
@@ -98,6 +108,8 @@ export type StaffProfileView = {
   name: string;
   email: string;
   role: StaffRow["role"];
+  actual_role: StaffRow["actual_role"];
+  pseudo_role: StaffRow["pseudo_role"];
   faculty_id: string | null;
   faculty_name: string | null;
   department_ids: string[];
@@ -110,7 +122,7 @@ export type StaffProfileView = {
 export async function getStaffProfileById(staffId: string): Promise<StaffProfileView | null> {
   if (!pool) return null;
   const staffRes = await pool.query<StaffRow>(
-    `SELECT id, pernr, name, email, password_hash, role, faculty_id, created_at, updated_at, img
+    `SELECT id, pernr, name, email, password_hash, role, actual_role, pseudo_role, faculty_id, created_at, updated_at, img
      FROM staff WHERE id = $1 LIMIT 1`,
     [staffId]
   );
@@ -144,6 +156,8 @@ export async function getStaffProfileById(staffId: string): Promise<StaffProfile
     name: row.name,
     email: row.email,
     role: row.role,
+    actual_role: row.actual_role,
+    pseudo_role: row.pseudo_role,
     faculty_id: row.faculty_id,
     faculty_name,
     department_ids,

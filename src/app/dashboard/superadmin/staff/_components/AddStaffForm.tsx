@@ -18,10 +18,15 @@ type DepartmentOption = {
 };
 
 type StaffRole =
+  | "coordinator"
+  | "admin";
+
+type PseudoAccessRole =
   | "superadmin"
   | "dean"
   | "hod"
   | "instructor"
+  | "wellbeing"
   | "wellbeing-head"
   | "wellbeing-counseller";
 
@@ -37,9 +42,10 @@ export function AddStaffForm({
   departments,
 }: AddStaffFormProps) {
   const router = useRouter();
-  const [role, setRole] = useState<StaffRole>("instructor");
+  const [actualRole, setActualRole] = useState<StaffRole>("admin");
+  const [pseudoRole, setPseudoRole] = useState<PseudoAccessRole>("instructor");
   const [pending, setPending] = useState(false);
-  const showDepartments = role === "hod";
+  const showDepartments = pseudoRole === "hod";
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -112,18 +118,32 @@ export function AddStaffForm({
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-dark dark:text-white">Role *</label>
+        <label className="text-sm font-medium text-dark dark:text-white">Actual Role *</label>
         <select
-          name="role"
+          name="actual_role"
           required
-          value={role}
-          onChange={(ev) => setRole(ev.target.value as StaffRole)}
+          value={actualRole}
+          onChange={(ev) => setActualRole(ev.target.value as StaffRole)}
+          className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+        >
+          <option value="admin">admin</option>
+          <option value="coordinator">coordinator</option>
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-dark dark:text-white">Pseudo Role *</label>
+        <select
+          name="pseudo_role"
+          required
+          value={pseudoRole}
+          onChange={(ev) => setPseudoRole(ev.target.value as PseudoAccessRole)}
           className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
         >
           <option value="superadmin">superadmin</option>
           <option value="dean">dean</option>
           <option value="hod">hod</option>
           <option value="instructor">instructor</option>
+          <option value="wellbeing">wellbeing</option>
           <option value="wellbeing-head">wellbeing-head</option>
           <option value="wellbeing-counseller">wellbeing-counseller</option>
         </select>

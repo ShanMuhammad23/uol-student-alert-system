@@ -89,6 +89,7 @@ const ROLE_LABELS: Record<string, string> = {
   dean: "Dean",
   hod: "Head of Department",
   instructor: "Instructor",
+  wellbeing: "Wellbeing",
   "wellbeing-head": "Wellbeing Head",
   "wellbeing-counseller": "Wellbeing Counsellor",
 };

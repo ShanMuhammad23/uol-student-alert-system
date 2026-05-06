@@ -18,8 +18,19 @@ type StaffListRow = {
     | "dean"
     | "hod"
     | "instructor"
+    | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
+  actual_role: "coordinator" | "admin" | null;
+  pseudo_role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | null;
   faculty_id: string | null;
   faculty_name: string | null;
   department_names: string[] | null;
@@ -50,6 +61,8 @@ async function getStaffList(): Promise<StaffListRow[]> {
        s.img,
        s.email,
        s.role,
+       s.actual_role,
+       s.pseudo_role,
        s.faculty_id,
        f.name AS faculty_name,
        COALESCE(
@@ -66,7 +79,7 @@ async function getStaffList(): Promise<StaffListRow[]> {
      LEFT JOIN faculties f ON f.id = s.faculty_id
      LEFT JOIN staff_departments sd ON sd.staff_id = s.id
      LEFT JOIN departments d ON d.id = sd.department_id
-     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.faculty_id, f.name, s.login_count, s.last_login_at
+     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.actual_role, s.pseudo_role, s.faculty_id, f.name, s.login_count, s.last_login_at
      ORDER BY s.role ASC, s.name ASC`
   );
 
@@ -102,30 +115,38 @@ async function updateStaffAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
-  const role = String(formData.get("role") ?? "").trim() as
+  const actualRole = String(formData.get("actual_role") ?? "").trim().toLowerCase() as
+    | "coordinator"
+    | "admin";
+  const pseudoRole = String(formData.get("pseudo_role") ?? "").trim() as
     | "superadmin"
     | "dean"
     | "hod"
     | "instructor"
+    | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
   const password = String(formData.get("password") ?? "").trim();
 
-  if (!id || !name || !email || !pernr || !role) {
+  if (!id || !name || !email || !pernr || !actualRole || !pseudoRole) {
     redirect("/dashboard/superadmin/staff?error=missing_required");
   }
 
+  if (!["coordinator", "admin"].includes(actualRole)) {
+    redirect("/dashboard/superadmin/staff?error=invalid_role");
+  }
   if (
     ![
       "superadmin",
       "dean",
       "hod",
       "instructor",
+      "wellbeing",
       "wellbeing-head",
       "wellbeing-counseller",
-    ].includes(role)
+    ].includes(pseudoRole)
   ) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
@@ -147,21 +168,21 @@ async function updateStaffAction(formData: FormData) {
       const passwordHash = await hash(password, 10);
       await client.query(
         `UPDATE staff
-         SET name = $1, email = $2, pernr = $3, role = $4, faculty_id = $5, password_hash = $6, updated_at = NOW()
-         WHERE id = $7`,
-        [name, email, pernr, role, facultyId, passwordHash, id]
+         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, password_hash = $8, updated_at = NOW()
+         WHERE id = $9`,
+        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, passwordHash, id]
       );
     } else {
       await client.query(
         `UPDATE staff
-         SET name = $1, email = $2, pernr = $3, role = $4, faculty_id = $5, updated_at = NOW()
-         WHERE id = $6`,
-        [name, email, pernr, role, facultyId, id]
+         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, updated_at = NOW()
+         WHERE id = $8`,
+        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, id]
       );
     }
 
     await client.query(`DELETE FROM staff_departments WHERE staff_id = $1`, [id]);
-    if (role === "hod" && departmentIds.length > 0) {
+    if (pseudoRole === "hod" && departmentIds.length > 0) {
       for (const departmentId of departmentIds) {
         await client.query(
           `INSERT INTO staff_departments (staff_id, department_id)

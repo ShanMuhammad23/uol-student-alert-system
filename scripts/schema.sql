@@ -61,12 +61,51 @@ CREATE TABLE IF NOT EXISTS staff (
   email         VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255),
   role          VARCHAR(32) NOT NULL CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller')),
+  actual_role   VARCHAR(32) NOT NULL DEFAULT 'admin' CHECK (actual_role IN ('coordinator', 'admin')),
+  pseudo_role   VARCHAR(32) CHECK (pseudo_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller')),
   faculty_id    VARCHAR(32) REFERENCES faculties(id),
   img           TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE staff
+  ADD COLUMN IF NOT EXISTS actual_role VARCHAR(32) NOT NULL DEFAULT 'admin';
+ALTER TABLE staff
+  ADD COLUMN IF NOT EXISTS pseudo_role VARCHAR(32);
+ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_actual_role_check;
+ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_pseudo_role_check;
+UPDATE staff
+SET pseudo_role = role
+WHERE pseudo_role IS NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'staff_actual_role_check'
+  ) THEN
+    ALTER TABLE staff
+      ADD CONSTRAINT staff_actual_role_check
+      CHECK (actual_role IN ('coordinator', 'admin'));
+  END IF;
+END
+$$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'staff_pseudo_role_check'
+  ) THEN
+    ALTER TABLE staff
+      ADD CONSTRAINT staff_pseudo_role_check
+      CHECK (pseudo_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller'));
+  END IF;
+END
+$$;
 CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
+CREATE INDEX IF NOT EXISTS idx_staff_actual_role ON staff(actual_role);
+CREATE INDEX IF NOT EXISTS idx_staff_pseudo_role ON staff(pseudo_role);
 CREATE INDEX IF NOT EXISTS idx_staff_faculty_id ON staff(faculty_id);
 CREATE INDEX IF NOT EXISTS idx_staff_pernr ON staff(pernr);
 CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email);

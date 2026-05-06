@@ -23,8 +23,19 @@ type StaffListRow = {
     | "dean"
     | "hod"
     | "instructor"
+    | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
+  actual_role: "coordinator" | "admin" | null;
+  pseudo_role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | null;
   faculty_id: string | null;
   faculty_name: string | null;
   department_names: string[] | null;
@@ -50,6 +61,7 @@ const ROLE_OPTIONS: StaffListRow["role"][] = [
   "dean",
   "hod",
   "instructor",
+  "wellbeing",
   "wellbeing-head",
   "wellbeing-counseller",
 ];
@@ -94,7 +106,7 @@ export function StaffDirectoryTableClient({
       const rowDepartmentIds = row.department_ids ?? [];
       const matchDepartment =
         selectedDepartment === "all" || rowDepartmentIds.includes(selectedDepartment);
-      const matchRole = selectedRole === "all" || row.role === selectedRole;
+  const matchRole = selectedRole === "all" || row.pseudo_role === selectedRole;
       const matchSearch =
         term.length === 0 ||
         row.name.toLowerCase().includes(term) ||
@@ -167,7 +179,8 @@ export function StaffDirectoryTableClient({
             <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
               <TableRow className="border-none uppercase [&>th]:!text-left [&>th]:bg-white [&>th]:dark:bg-gray-dark">
                 <TableHead className="min-w-[280px]">Staff</TableHead>
-                <TableHead className="min-w-[80px]">Role</TableHead>
+                <TableHead className="min-w-[100px]">Pseudo Role</TableHead>
+                <TableHead className="min-w-[110px]">Actual Role</TableHead>
                 <TableHead className="min-w-[120px]">Pernr</TableHead>
                 <TableHead className="min-w-[160px]">Parent Faculty</TableHead>
                 <TableHead className="min-w-[240px]">Departments</TableHead>
@@ -188,7 +201,8 @@ export function StaffDirectoryTableClient({
                         name: row.name || "—",
                         img: row.img,
                         email: row.email,
-                        role: row.role,
+                        role: row.pseudo_role ?? row.role,
+                        pseudoRole: row.actual_role,
                         pernr: row.pernr || "—",
                         facultyName: resolveFacultyName(row),
                         departments: resolveDepartmentNames(row),
@@ -196,7 +210,10 @@ export function StaffDirectoryTableClient({
                     />
                   </TableCell>
                   <TableCell className="!text-left text-dark dark:text-white">
-                    {row.role.toUpperCase()}
+                    {(row.pseudo_role ?? row.role).toUpperCase()}
+                  </TableCell>
+                  <TableCell className="!text-left text-dark-6">
+                    {row.actual_role ? row.actual_role.toUpperCase() : "—"}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
                     {row.pernr || "—"}
@@ -205,7 +222,7 @@ export function StaffDirectoryTableClient({
                     {resolveFacultyName(row).replace("Faculty of", "")}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
-                    {(row.role === "hod" || row.role === "instructor") &&
+                    {((row.pseudo_role ?? row.role) === "hod" || (row.pseudo_role ?? row.role) === "instructor") &&
                     resolveDepartmentNames(row).length
                       ? resolveDepartmentNames(row).join(", ")
                       : "—"}
@@ -279,8 +296,8 @@ function EditStaffModal({
   onClose: () => void;
   action: (formData: FormData) => void | Promise<void>;
 }) {
-  const [role, setRole] = useState<StaffListRow["role"]>(staff.role);
-  const showDepartments = role === "hod";
+  const [pseudoRole, setPseudoRole] = useState<StaffListRow["role"]>(staff.pseudo_role ?? staff.role);
+  const showDepartments = pseudoRole === "hod";
 
   return (
     <div
@@ -348,12 +365,12 @@ function EditStaffModal({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-dark dark:text-white">Role *</label>
+            <label className="text-sm font-medium text-dark dark:text-white">Pseudo Role *</label>
             <select
-              name="role"
+              name="pseudo_role"
               required
-              value={role}
-              onChange={(e) => setRole(e.target.value as StaffListRow["role"])}
+              value={pseudoRole}
+              onChange={(e) => setPseudoRole(e.target.value as StaffListRow["role"])}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
               {ROLE_OPTIONS.map((option) => (
@@ -361,6 +378,18 @@ function EditStaffModal({
                   {option}
                 </option>
               ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Actual Role *</label>
+            <select
+              name="actual_role"
+              required
+              defaultValue={staff.actual_role ?? "admin"}
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            >
+              <option value="admin">Admin</option>
+              <option value="coordinator">Coordinator</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">

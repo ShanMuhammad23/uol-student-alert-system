@@ -12,8 +12,10 @@ type StaffDetails = {
     | "dean"
     | "hod"
     | "instructor"
+    | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
+  pseudoRole: "coordinator" | "admin" | null;
   pernr: string;
   facultyName: string;
   departments: string[];
@@ -105,8 +107,12 @@ export function StaffDetailsDialog({ staff }: Props) {
                 </p>
                 <div className="mt-2 space-y-1 text-sm text-dark dark:text-white">
                   <p>
-                    <span className="text-dark-5 dark:text-dark-6">Role: </span>
+                    <span className="text-dark-5 dark:text-dark-6">Pseudo Role: </span>
                     {staff.role}
+                  </p>
+                  <p>
+                    <span className="text-dark-5 dark:text-dark-6">Actual Role: </span>
+                    {staff.pseudoRole ?? "—"}
                   </p>
                   <p>
                     <span className="text-dark-5 dark:text-dark-6">Parent Faculty: </span>

@@ -22,18 +22,25 @@ export async function createStaffMember(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
   const password = String(formData.get("password") ?? "").trim();
-  const role = String(formData.get("role") ?? "").trim() as
+  const actualRole = String(formData.get("actual_role") ?? "").trim().toLowerCase() as
+    | "coordinator"
+    | "admin";
+  const pseudoRole = String(formData.get("pseudo_role") ?? "").trim() as
     | "superadmin"
     | "dean"
     | "hod"
     | "instructor"
+    | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
 
-  if (!name || !email || !pernr || !password || !role) {
+  if (!name || !email || !pernr || !password || !actualRole || !pseudoRole) {
     return { ok: false, message: "Please fill all required fields." };
+  }
+  if (!["coordinator", "admin"].includes(actualRole)) {
+    return { ok: false, message: "Selected actual role is invalid." };
   }
   if (
     ![
@@ -41,11 +48,12 @@ export async function createStaffMember(
       "dean",
       "hod",
       "instructor",
+      "wellbeing",
       "wellbeing-head",
       "wellbeing-counseller",
-    ].includes(role)
+    ].includes(pseudoRole)
   ) {
-    return { ok: false, message: "Selected role is invalid." };
+    return { ok: false, message: "Selected pseudo role is invalid." };
   }
   if (!facultyId) {
     return { ok: false, message: "Parent faculty is required." };
@@ -70,14 +78,14 @@ export async function createStaffMember(
   try {
     await client.query("BEGIN");
     const insertStaff = await client.query<{ id: string }>(
-      `INSERT INTO staff (pernr, name, email, password_hash, role, faculty_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO staff (pernr, name, email, password_hash, role, actual_role, pseudo_role, faculty_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
-      [pernr, name, email, passwordHash, role, facultyId]
+      [pernr, name, email, passwordHash, pseudoRole, actualRole, pseudoRole, facultyId]
     );
     const staffId = insertStaff.rows[0]?.id;
 
-    if (role === "hod" && staffId && departmentIds.length) {
+    if (pseudoRole === "hod" && staffId && departmentIds.length) {
       for (const departmentId of departmentIds) {
         await client.query(
           `INSERT INTO staff_departments (staff_id, department_id)
@@ -95,12 +103,31 @@ export async function createStaffMember(
       typeof error === "object" && error != null && "code" in error
         ? String((error as { code?: string }).code ?? "")
         : "";
+    const detail =
+      typeof error === "object" && error != null && "detail" in error
+        ? String((error as { detail?: string }).detail ?? "")
+        : "";
     if (code === "23505") {
       return { ok: false, message: "Email or Pernr already exists." };
     }
+    if (code === "42703" || code === "42P01") {
+      return {
+        ok: false,
+        message:
+          "Database schema is missing required fields for roles. Please run the latest ALTER TABLE migration (actual_role/pseudo_role).",
+      };
+    }
+    if (code === "23514") {
+      return {
+        ok: false,
+        message: detail
+          ? `Role validation failed in database: ${detail}`
+          : "Role validation failed in database. Please verify actual role and pseudo role values.",
+      };
+    }
     return {
       ok: false,
-      message: "Unable to add staff. Please verify field values.",
+      message: "Unable to add staff. Please verify field values and latest DB migration.",
     };
   } finally {
     client.release();
@@ -122,7 +149,7 @@ export async function createStaffMember(
       name,
       parentFaculty,
       registeredEmail: email,
-      roleKey: role,
+      roleKey: pseudoRole,
     });
   } catch (err) {
     console.error("[staff] Role-assigned welcome email failed:", err);

@@ -24,6 +24,8 @@ export function UserInfo({ user }: UserInfoProps) {
   const displayEmail = user?.email ?? "";
   const img = `/images/${user?.img ?? "user/user-placeholder.jpg"}`;
   const isSignedIn = !!user;
+  const actualRoleLabel = user?.actual_role ?? null;
+  const pseudoRoleLabel = user?.pseudo_role ?? user?.role ?? null;
 
   return (
     <Dropdown isOpen={isOpen} setIsOpen={setIsOpen} >
@@ -41,9 +43,9 @@ export function UserInfo({ user }: UserInfoProps) {
           />
           <figcaption className="relative flex flex-col items-start gap-1 pr-5 font-medium text-dark dark:text-dark-6 max-[1024px]:sr-only">
             <span className="leading-none">{displayName}</span>
-            {user?.role && (
+            {pseudoRoleLabel && (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary dark:bg-primary/20 dark:text-primary">
-                {user.role}
+                {pseudoRoleLabel}
               </span>
             )}
 
@@ -83,9 +85,14 @@ export function UserInfo({ user }: UserInfoProps) {
             <div className="leading-none text-gray-6 flex-1">
               {isSignedIn ? displayEmail : "Not signed in"}
             </div>
-            {user?.role && (
+            {pseudoRoleLabel && (
               <div className="text-body-sm text-dark-6 dark:text-white">
-                {user.role.toUpperCase()}
+                Pseudo Role: {pseudoRoleLabel.toUpperCase()}
+              </div>
+            )}
+            {actualRoleLabel && (
+              <div className="text-body-sm text-dark-6 dark:text-white">
+                Actual Role: {actualRoleLabel.toUpperCase()}
               </div>
             )}
           </figcaption>

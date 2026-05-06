@@ -352,6 +352,17 @@ export type AppUser = {
     | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
+  actual_role?: "coordinator" | "admin" | null;
+  pseudo_role?:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "teacher"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | null;
   faculty_id: string | null;
   department_id: string | null;
   department_ids: string[] | null;
@@ -3036,6 +3047,16 @@ export function mapSessionToAppUser(session: {
       | "wellbeing"
       | "wellbeing-head"
       | "wellbeing-counseller";
+    actual_role?: "coordinator" | "admin" | null;
+    pseudo_role?:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller"
+      | null;
     faculty_id: string | null;
     department_ids: string[];
     img: string | null;
@@ -3049,6 +3070,9 @@ export function mapSessionToAppUser(session: {
     name: u.name,
     email: u.email,
     role: u.role === "instructor" ? "instructor" : u.role,
+    actual_role: u.actual_role ?? null,
+    pseudo_role:
+      (u.pseudo_role === "instructor" ? "instructor" : u.pseudo_role) ?? null,
     faculty_id: u.faculty_id,
     department_id: u.department_ids?.[0] ?? null,
     department_ids: u.department_ids?.length ? u.department_ids : null,

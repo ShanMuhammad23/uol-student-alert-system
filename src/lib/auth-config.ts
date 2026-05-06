@@ -42,6 +42,8 @@ export const authOptions: NextAuthOptions = {
           name: staff.name,
           email: staff.email,
           role: staff.role,
+          actual_role: staff.actual_role,
+          pseudo_role: staff.pseudo_role,
           img: staff.img,
           faculty_id: staff.faculty_id,
           department_ids: departmentIds,
@@ -77,6 +79,19 @@ export const authOptions: NextAuthOptions = {
           | "wellbeing"
           | "wellbeing-head"
           | "wellbeing-counseller";
+        actual_role:
+          | "coordinator"
+          | "admin"
+          | null;
+        pseudo_role:
+          | "superadmin"
+          | "dean"
+          | "hod"
+          | "instructor"
+          | "wellbeing"
+          | "wellbeing-head"
+          | "wellbeing-counseller"
+          | null;
         img: string | null;
         faculty_id: string | null;
         department_ids: string[];
@@ -86,6 +101,8 @@ export const authOptions: NextAuthOptions = {
       mutableUser.name = staff.name;
       mutableUser.email = staff.email;
       mutableUser.role = staff.role;
+      mutableUser.actual_role = staff.actual_role;
+      mutableUser.pseudo_role = staff.pseudo_role;
       mutableUser.img = staff.img;
       mutableUser.faculty_id = staff.faculty_id;
       mutableUser.department_ids = departmentIds;
@@ -99,6 +116,8 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
         token.email = user.email;
         token.role = user.role;
+        token.actual_role = user.actual_role;
+        token.pseudo_role = user.pseudo_role;
         token.img = user.img;
         token.faculty_id = user.faculty_id;
         token.department_ids = user.department_ids ?? [];
@@ -132,6 +151,8 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name ?? "";
         session.user.email = token.email ?? "";
         session.user.role = token.role;
+        session.user.actual_role = token.actual_role ?? null;
+        session.user.pseudo_role = token.pseudo_role ?? token.role;
         session.user.img = token.img ?? null;
         session.user.faculty_id = token.faculty_id ?? null;
         session.user.department_ids = token.department_ids ?? [];

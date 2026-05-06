@@ -14,6 +14,16 @@ declare module "next-auth" {
       | "wellbeing"
       | "wellbeing-head"
       | "wellbeing-counseller";
+    actual_role: "coordinator" | "admin" | null;
+    pseudo_role:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller"
+      | null;
     img: string | null;
     faculty_id: string | null;
     department_ids: string[];
@@ -39,6 +49,16 @@ declare module "next-auth/jwt" {
       | "wellbeing"
       | "wellbeing-head"
       | "wellbeing-counseller";
+    actual_role?: "coordinator" | "admin" | null;
+    pseudo_role?:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller"
+      | null;
     img?: string | null;
     faculty_id?: string | null;
     department_ids?: string[];
