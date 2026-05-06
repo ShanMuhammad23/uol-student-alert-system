@@ -29,6 +29,7 @@ type Props = {
   senderDepartment?: string | null;
   senderFaculty?: string | null;
   senderEmail?: string | null;
+  currentUserRole?: "superadmin" | "dean" | "hod" | "instructor" | "wellbeing" | "wellbeing-head" | "wellbeing-counseller" | null;
   wellbeingCounsellorEmailOptions?: { id: string; name: string; email: string }[];
   focusedCourseId?: string | null;
   focusedSectionCode?: string | null;
@@ -54,6 +55,7 @@ export function InterventionFormWithAction({
   senderDepartment,
   senderFaculty,
   senderEmail,
+  currentUserRole,
   wellbeingCounsellorEmailOptions = [],
   focusedCourseId,
   focusedSectionCode,
@@ -153,6 +155,11 @@ export function InterventionFormWithAction({
         focusedCourseTitle={focusedCourseTitle}
         focusedClassType={focusedClassType}
         mode={mode}
+        allowedInterventionTypes={
+          mode === "intervention" && currentUserRole === "instructor"
+            ? ["attendance"]
+            : undefined
+        }
       />
     </div>
   );

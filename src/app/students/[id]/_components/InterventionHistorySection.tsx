@@ -783,6 +783,7 @@ export function InterventionHistorySection({
               senderDepartment={senderDepartment}
               senderFaculty={senderFaculty}
               senderEmail={senderEmail}
+              currentUserRole={currentUserRole}
               wellbeingCounsellorEmailOptions={wellbeingCounsellorEmailOptions}
               focusedCourseId={focusedCourseId}
               focusedSectionCode={focusedSectionCode}

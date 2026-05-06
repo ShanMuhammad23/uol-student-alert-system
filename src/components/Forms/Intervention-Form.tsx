@@ -76,6 +76,8 @@ type InterventionFormProps = {
   focusedCourseTitle?: string | null;
   focusedClassType?: string | null;
   mode?: "intervention" | "wellbeing";
+  /** Restrict visible/selectable intervention types (e.g. instructors only). */
+  allowedInterventionTypes?: Array<"attendance" | "gpa" | "both">;
 };
 
 function SelectField({
@@ -154,6 +156,7 @@ const InterventionForm = ({
   focusedCourseTitle,
   focusedClassType,
   mode = "intervention",
+  allowedInterventionTypes,
 }: InterventionFormProps) => {
   const dateId = useId();
   const outreachId = useId();
@@ -181,6 +184,18 @@ const InterventionForm = ({
     mode === "intervention" && outreachMode === "email";
   const canUseSosTemplate = status === "initiated" && outreachMode === "email";
   const canUseReferralTemplate = status === "referred";
+
+  const effectiveTypeOptions = (allowedInterventionTypes?.length
+    ? TYPE_OPTIONS.filter((o) =>
+        allowedInterventionTypes.includes(o.value)
+      )
+    : TYPE_OPTIONS) as typeof TYPE_OPTIONS;
+
+  useEffect(() => {
+    if (!allowedInterventionTypes?.length) return;
+    if (allowedInterventionTypes.includes(interventionType)) return;
+    setInterventionType(allowedInterventionTypes[0] ?? "attendance");
+  }, [allowedInterventionTypes, interventionType]);
 
   const getSosSubjectByType = (
     type: "attendance" | "gpa" | "both"
@@ -512,7 +527,7 @@ const InterventionForm = ({
           Type
         </label>
         <div id={typeId} className="flex flex-wrap items-center gap-4">
-          {TYPE_OPTIONS.map((t) => (
+          {effectiveTypeOptions.map((t) => (
             <label
               key={t.value}
               className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white"
