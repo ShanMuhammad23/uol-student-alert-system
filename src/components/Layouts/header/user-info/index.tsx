@@ -45,7 +45,7 @@ export function UserInfo({ user }: UserInfoProps) {
             <span className="leading-none">{displayName}</span>
             {pseudoRoleLabel && (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary dark:bg-primary/20 dark:text-primary">
-                Pseudo: {pseudoRoleLabel}
+                 {pseudoRoleLabel}
               </span>
             )}
 
@@ -87,7 +87,7 @@ export function UserInfo({ user }: UserInfoProps) {
             </div>
             {pseudoRoleLabel && (
               <div className="text-body-sm text-dark-6 dark:text-white">
-                Pseudo Role: {pseudoRoleLabel.toUpperCase()}
+             {pseudoRoleLabel.toUpperCase()}
               </div>
             )}
             {actualRoleLabel && (
