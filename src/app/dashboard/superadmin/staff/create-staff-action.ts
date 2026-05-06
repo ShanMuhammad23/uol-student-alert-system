@@ -9,7 +9,11 @@ import { sendStaffRoleAssignedEmail } from "@/lib/staff-role-assigned-email";
 
 export type CreateStaffResult =
   | { ok: true }
-  | { ok: false; message: string };
+  | {
+      ok: false;
+      message: string;
+      code?: "enrollment_mismatch";
+    };
 
 export async function createStaffMember(
   formData: FormData
@@ -42,6 +46,7 @@ export async function createStaffMember(
     | "wellbeing-counseller";
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
+  const skipEnrollmentCheck = String(formData.get("skip_enrollment_check") ?? "").trim() === "1";
 
   if (!name || !email || !pernr || !password || !actualRole || !pseudoRole) {
     return { ok: false, message: "Please fill all required fields." };
@@ -79,9 +84,10 @@ export async function createStaffMember(
   }
 
   const enrollmentOk = await isInstructorPernrInEnrollment(pernr);
-  if (!enrollmentOk) {
+  if (!enrollmentOk && !skipEnrollmentCheck) {
     return {
       ok: false,
+      code: "enrollment_mismatch",
       message:
         "Staff not found in enrollment: this PERNR does not appear as an instructor in current enrollment data.",
     };

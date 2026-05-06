@@ -60,19 +60,34 @@ export function AddStaffForm({
     setPending(true);
     try {
       const formData = new FormData(form);
-      const result = await createStaff(formData);
-      if (result.ok) {
-        appToast.success("Staff added successfully.", {
-          toastId: "staff-add-success",
-        });
-        router.refresh();
-        const pwd = form.querySelector<HTMLInputElement>('input[name="password"]');
-        if (pwd) pwd.value = "";
-      } else {
+      let result = await createStaff(formData);
+
+      if (!result.ok && result.code === "enrollment_mismatch") {
+        const confirmed = window.confirm(
+          `${result.message}\n\nDo you want to add this staff member anyway?`
+        );
+        if (confirmed) {
+          formData.set("skip_enrollment_check", "1");
+          result = await createStaff(formData);
+        } else {
+          setPending(false);
+          return;
+        }
+      }
+
+      if (!result.ok) {
         appToast.error(result.message, {
           toastId: `staff-add-error-${result.message}`,
         });
+        return;
       }
+
+      appToast.success("Staff added successfully.", {
+        toastId: "staff-add-success",
+      });
+      router.refresh();
+      const pwd = form.querySelector<HTMLInputElement>('input[name="password"]');
+      if (pwd) pwd.value = "";
     } finally {
       setPending(false);
     }
