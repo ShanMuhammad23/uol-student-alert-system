@@ -9,7 +9,7 @@ const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000171": "Faculty of Language & Literature",
   "50000173": "Faculty of Engineering & Technology",
   "50000174": "Faculty of Science",
-
+  "50000175": "Faculty of Information Technology",
 };
 
 function getFallbackFacultyName(raw: string): string | null {
