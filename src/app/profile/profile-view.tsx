@@ -5,6 +5,14 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   motion,
   AnimatePresence,
   useScroll,
@@ -59,6 +67,20 @@ type StaffProfileView = {
 
 type Props = {
   initialProfile: StaffProfileView | null;
+  initialInterventions: InterventionRecord[];
+};
+
+type InterventionRecord = {
+  id: string;
+  student_sap_id: string;
+  date: string;
+  intervention_type: "attendance" | "gpa" | "both";
+  outreach_mode: string;
+  remarks: string;
+  status: string;
+  uploader_name?: string | null;
+  uploader_email?: string | null;
+  uploader_pernr?: string | null;
 };
 
 // ─── Animation Variants ────────────────────────────────────────────
@@ -87,6 +109,27 @@ const scaleIn: Variants = {
     transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as const },
   },
 };
+
+const STATUS_STYLES: Record<string, { label: string; bg: string }> = {
+  initiated: { label: "Initiated", bg: "#B5B126" },
+  "in-progress": { label: "In-Progress", bg: "#DBBE0F" },
+  referred: { label: "Referred", bg: "#9C5A99" },
+  resolved: { label: "Resolved", bg: "#477061" },
+  "no-action-required": { label: "No Action Required", bg: "#64748B" },
+};
+
+function formatOutreachMode(mode: string): string {
+  return mode
+    .split("-")
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(" ");
+}
+
+function formatInterventionType(type: InterventionRecord["intervention_type"]): string {
+  if (type === "gpa") return "GPA";
+  if (type === "both") return "Both";
+  return "Attendance";
+}
 
 // ─── Components ────────────────────────────────────────────────────
 
@@ -193,12 +236,13 @@ function AnimatedCounter({ value }: { value: string }) {
 
 // ─── Main Component ────────────────────────────────────────────────
 
-export function ProfileView({ initialProfile }: Props) {
+export function ProfileView({ initialProfile, initialInterventions }: Props) {
   const router = useRouter();
   const { data: session, update } = useSession();
   
   // State
   const [profile, setProfile] = useState<StaffProfileView | null>(initialProfile);
+  const [interventions] = useState<InterventionRecord[]>(initialInterventions ?? []);
   const [profileReady, setProfileReady] = useState(!!initialProfile);
   const [isEditing, setIsEditing] = useState(false);
   
@@ -534,12 +578,71 @@ export function ProfileView({ initialProfile }: Props) {
                 <p className="text-sm text-slate-500 dark:text-slate-400">No departments assigned.</p>
               )}
             </SectionCard>
+
+            <SectionCard title="My Intervention History" icon={Calendar} delay={6}>
+              {interventions.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  No interventions recorded yet.
+                </p>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-stroke dark:border-dark-3">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-stroke dark:border-dark-3">
+                        <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
+                        <TableHead className="font-semibold text-dark dark:text-white">Student SAP</TableHead>
+                        <TableHead className="font-semibold text-dark dark:text-white">Type</TableHead>
+                        <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
+                        <TableHead className="font-semibold text-dark dark:text-white">Remarks</TableHead>
+                        <TableHead className="font-semibold text-dark dark:text-white">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {interventions.map((int) => {
+                        const statusStyle = STATUS_STYLES[int.status] ?? {
+                          label: int.status,
+                          bg: "#94A3B8",
+                        };
+                        return (
+                          <TableRow key={int.id} className="border-stroke dark:border-dark-3">
+                            <TableCell className="text-dark dark:text-white">
+                              <time dateTime={int.date}>
+                                {new Date(int.date).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                              </time>
+                            </TableCell>
+                            <TableCell className="text-dark dark:text-white">{int.student_sap_id}</TableCell>
+                            <TableCell className="text-dark dark:text-white">
+                              {formatInterventionType(int.intervention_type)}
+                            </TableCell>
+                            <TableCell className="text-dark dark:text-white">
+                              {formatOutreachMode(int.outreach_mode)}
+                            </TableCell>
+                            <TableCell className="max-w-[280px] text-dark-6 dark:text-white">
+                              {int.remarks || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <span
+                                className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+                                style={{ backgroundColor: statusStyle.bg }}
+                              >
+                                {statusStyle.label}
+                              </span>
+                            </TableCell>
+                           
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </SectionCard>
           </div>
 
           {/* Right Column */}
           <div className="space-y-6">
             {/* Security */}
-            <SectionCard title="Security" icon={Lock} delay={6}>
+            <SectionCard title="Security" icon={Lock} delay={7}>
               {!profile?.has_password ? (
                 <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
                   <div className="flex items-start gap-3">

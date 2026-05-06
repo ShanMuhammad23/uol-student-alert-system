@@ -66,6 +66,18 @@ type DepartmentRow = {
   faculty_id: string | null;
 };
 
+type SortKey =
+  | "staff"
+  | "pseudo_role"
+  | "actual_role"
+  | "pernr"
+  | "faculty"
+  | "departments"
+  | "login_count"
+  | "last_login"
+  | "actions";
+type SortDirection = "asc" | "desc";
+
 const ROLE_OPTIONS: StaffListRow["role"][] = [
   "superadmin",
   "dean",
@@ -76,12 +88,42 @@ const ROLE_OPTIONS: StaffListRow["role"][] = [
   "wellbeing-counseller",
 ];
 
+const ROLE_BADGE_STYLES: Record<string, string> = {
+  superadmin:
+    "bg-violet-100 text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/40",
+  dean: "bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-200 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-400/40",
+  hod: "bg-green-100 text-green-700 ring-1 ring-inset ring-green-200 dark:bg-green-500/20 dark:text-green-200 dark:ring-green-400/40",
+  instructor:
+    "bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/40",
+  wellbeing:
+    "bg-teal-100 text-teal-700 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/20 dark:text-teal-200 dark:ring-teal-400/40",
+  "wellbeing-head":
+    "bg-cyan-100 text-cyan-700 ring-1 ring-inset ring-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-200 dark:ring-cyan-400/40",
+  "wellbeing-counseller":
+    "bg-pink-100 text-pink-700 ring-1 ring-inset ring-pink-200 dark:bg-pink-500/20 dark:text-pink-200 dark:ring-pink-400/40",
+  coordinator:
+    "bg-indigo-100 text-indigo-700 ring-1 ring-inset ring-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-400/40",
+  admin:
+    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:ring-slate-400/40",
+};
+
 function resolveFacultyName(row: StaffListRow): string {
   return resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name) ?? "—";
 }
 
 function resolveDepartmentNames(row: StaffListRow): string[] {
   return (row.department_names ?? []).filter((name) => name.trim().length > 0);
+}
+
+function formatRoleLabel(role: string): string {
+  return role.replaceAll("-", " ").toUpperCase();
+}
+
+function getRoleBadgeClassName(role: string): string {
+  return (
+    ROLE_BADGE_STYLES[role] ??
+    "bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200 dark:bg-gray-500/20 dark:text-gray-200 dark:ring-gray-400/40"
+  );
 }
 
 export function StaffDirectoryTableClient({
@@ -102,6 +144,8 @@ export function StaffDirectoryTableClient({
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [editingStaff, setEditingStaff] = useState<StaffListRow | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("staff");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const filteredDepartments = useMemo(() => {
     if (selectedFaculty === "all") return departments;
@@ -116,7 +160,7 @@ export function StaffDirectoryTableClient({
       const rowDepartmentIds = row.department_ids ?? [];
       const matchDepartment =
         selectedDepartment === "all" || rowDepartmentIds.includes(selectedDepartment);
-  const matchRole = selectedRole === "all" || row.pseudo_role === selectedRole;
+      const matchRole = selectedRole === "all" || row.pseudo_role === selectedRole;
       const matchSearch =
         term.length === 0 ||
         row.name.toLowerCase().includes(term) ||
@@ -125,6 +169,62 @@ export function StaffDirectoryTableClient({
       return matchFaculty && matchDepartment && matchRole && matchSearch;
     });
   }, [staff, selectedFaculty, selectedDepartment, selectedRole, search]);
+
+  const sortedStaff = useMemo(() => {
+    const getValue = (row: StaffListRow): string | number => {
+      switch (sortKey) {
+        case "staff":
+          return row.name || row.email || row.pernr || "—";
+        case "pseudo_role":
+          return row.pseudo_role ?? row.role ?? "";
+        case "actual_role":
+          return row.actual_role ?? "";
+        case "pernr":
+          return row.pernr ?? "";
+        case "faculty":
+          return resolveFacultyName(row).replace("Faculty of", "").trim();
+        case "departments":
+          return resolveDepartmentNames(row).join(", ");
+        case "login_count":
+          return row.login_count ?? 0;
+        case "last_login":
+          return row.last_login_at ? new Date(row.last_login_at).getTime() : 0;
+        case "actions":
+          return row.name || "";
+        default:
+          return "";
+      }
+    };
+
+    return [...filteredStaff].sort((a, b) => {
+      const aValue = getValue(a);
+      const bValue = getValue(b);
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
+      }
+
+      const result = String(aValue).localeCompare(String(bValue), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [filteredStaff, sortKey, sortDirection]);
+
+  const toggleSort = (nextKey: SortKey) => {
+    if (sortKey === nextKey) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(nextKey);
+    setSortDirection("asc");
+  };
+
+  const sortIndicator = (key: SortKey): string => {
+    if (sortKey !== key) return "↕";
+    return sortDirection === "asc" ? "↑" : "↓";
+  };
 
   return (
     <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
@@ -188,19 +288,55 @@ export function StaffDirectoryTableClient({
           <Table>
             <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
               <TableRow className="border-none uppercase [&>th]:!text-left [&>th]:bg-white [&>th]:dark:bg-gray-dark">
-                <TableHead className="min-w-[280px]">Staff</TableHead>
-                <TableHead className="min-w-[100px]">Pseudo Role</TableHead>
-                <TableHead className="min-w-[110px]">Actual Role</TableHead>
-                <TableHead className="min-w-[120px]">Pernr</TableHead>
-                <TableHead className="min-w-[160px]">Parent Faculty</TableHead>
-                <TableHead className="min-w-[240px]">Departments</TableHead>
-                <TableHead className="min-w-[60px]">Login Count</TableHead>
-                <TableHead className="min-w-[180px]">Last Login</TableHead>
-                <TableHead className="min-w-[200px]">Actions</TableHead>
+                <TableHead className="min-w-[280px]">
+                  <button type="button" onClick={() => toggleSort("staff")} className="inline-flex items-center gap-1">
+                    Staff <span className="text-xs">{sortIndicator("staff")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[100px]">
+                  <button type="button" onClick={() => toggleSort("pseudo_role")} className="inline-flex items-center gap-1">
+                    Pseudo Role <span className="text-xs">{sortIndicator("pseudo_role")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[110px]">
+                  <button type="button" onClick={() => toggleSort("actual_role")} className="inline-flex items-center gap-1">
+                    Actual Role <span className="text-xs">{sortIndicator("actual_role")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[120px]">
+                  <button type="button" onClick={() => toggleSort("pernr")} className="inline-flex items-center gap-1">
+                    Pernr <span className="text-xs">{sortIndicator("pernr")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[160px]">
+                  <button type="button" onClick={() => toggleSort("faculty")} className="inline-flex items-center gap-1">
+                    Parent Faculty <span className="text-xs">{sortIndicator("faculty")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[240px]">
+                  <button type="button" onClick={() => toggleSort("departments")} className="inline-flex items-center gap-1">
+                    Departments <span className="text-xs">{sortIndicator("departments")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[60px]">
+                  <button type="button" onClick={() => toggleSort("login_count")} className="inline-flex items-center gap-1">
+                    Login Count <span className="text-xs">{sortIndicator("login_count")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[180px]">
+                  <button type="button" onClick={() => toggleSort("last_login")} className="inline-flex items-center gap-1">
+                    Last Login <span className="text-xs">{sortIndicator("last_login")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[200px]">
+                  <button type="button" onClick={() => toggleSort("actions")} className="inline-flex items-center gap-1">
+                    Actions <span className="text-xs">{sortIndicator("actions")}</span>
+                  </button>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStaff.map((row) => (
+              {sortedStaff.map((row) => (
                 <TableRow
                   key={row.id}
                   className="text-base font-medium text-dark dark:text-white"
@@ -219,11 +355,27 @@ export function StaffDirectoryTableClient({
                       }}
                     />
                   </TableCell>
-                  <TableCell className="!text-left text-dark dark:text-white">
-                    {(row.pseudo_role ?? row.role).toUpperCase()}
+                  <TableCell className="!text-left text-dark dark:text-white ">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
+                        row.pseudo_role ?? row.role
+                      )}`}
+                    >
+                      {formatRoleLabel(row.pseudo_role ?? row.role)}
+                    </span>
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
-                    {row.actual_role ? row.actual_role.toUpperCase() : "—"}
+                    {row.actual_role ? (
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
+                          row.actual_role
+                        )}`}
+                      >
+                        {formatRoleLabel(row.actual_role)}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
                     {row.pernr || "—"}

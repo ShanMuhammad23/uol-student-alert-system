@@ -1,16 +1,16 @@
 const FACULTY_NAME_FALLBACK: Record<string, string> = {
   FAC_ENG: "Faculty of Social Sciences",
   FAC_MGT: "Faculty of Social Sciences",
-  "50000172": "Faculty of Social Sciences",
-  "50000178": "Faculty of Pharmacy",
-  "50000168": "Faculty of Management Sciences",
-  "50000169": "Faculty of Arts & Architecture",
-  "50000170": "Faculty of Law",
-  "50000171": "Faculty of Language & Literature",
-  "50000173": "Faculty of Engineering & Technology",
-  "50000174": "Faculty of Science",
-  "50000175": "Faculty of Information Technology",
-  "50000177": "Faculty of Allied Health Sciences",
+  "50000172": "Social Sciences",
+  "50000178": "Pharmacy",
+  "50000168": " Management Sciences",
+  "50000169": "Arts & Architecture",
+  "50000170": "Law",
+  "50000171": "Language & Literature",
+  "50000173": "Engineering & Technology",
+  "50000174": "Science",
+  "50000175": "Information Technology",
+  "50000177": "Allied Health Sciences",
 };
 
 function getFallbackFacultyName(raw: string): string | null {

@@ -77,20 +77,20 @@ function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSupera
   return (
     <Link
       href={`/dashboard?as=dean&faculty=${encodeURIComponent(faculty.facultyId)}`}
-      className="group block rounded-xl border border-slate-200 bg-white p-5 transition-all hover:border-emerald-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700"
+      className="group relative block rounded-xl border border-slate-200 bg-white p-5 transition-all hover:border-emerald-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 flex gap-2 items-center">
           <h3 className="truncate text-sm font-semibold text-slate-900 group-hover:text-emerald-600 dark:text-white dark:group-hover:text-emerald-400">
-            {resolveFacultyNameFromIdOrName(faculty.facultyId, faculty.facultyName) ?? faculty.facultyId}
+            {resolveFacultyNameFromIdOrName(faculty.facultyId, faculty.facultyName.replace("Faculty of ", "")) ?? faculty.facultyId}
           </h3>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {faculty.total.toLocaleString()} students
+            ({faculty.total.toLocaleString()})
           </p>
         </div>
         <span className={cn(
-          "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tabular-nums",
+          "shrink-0 rounded-tr-xl px-2.5 py-1 text-xs font-bold tabular-nums absolute top-0 right-0",
           alertRate > 10
             ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
             : alertRate > 5
@@ -241,7 +241,7 @@ export default async function SuperadminDashboardPage({
                   <option value="">All Faculties</option>
                   {facultyStats.map((f) => (
                     <option key={f.facultyId} value={f.facultyId}>
-                      {resolveFacultyNameFromIdOrName(f.facultyId, f.facultyName) ?? f.facultyId}
+                      {resolveFacultyNameFromIdOrName(f.facultyId, f.facultyName.replace("Faculty of ", "")) ?? f.facultyId}
                     </option>
                   ))}
                 </select>
