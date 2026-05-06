@@ -122,7 +122,7 @@ function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSupera
         {/* GPA */}
         <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/50">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            GPA
+            SGPA
           </p>
           <div className="mt-1.5 flex items-baseline gap-2">
             <span className="text-lg font-bold text-amber-500 dark:text-amber-400">
@@ -211,13 +211,13 @@ export default async function SuperadminDashboardPage({
             subtitle="≤60%"
           />
           <MetricCard
-            label="GPA Yellow"
+            label="SGPA Yellow"
             value={overview.yellowGpa?.value ?? 0}
             tone="yellow"
             subtitle="1.0 Drop"
           />
           <MetricCard
-            label="GPA Red"
+            label="SGPA Red"
             value={overview.redGpa?.value ?? 0}
             tone="red"
             subtitle="1.5 Drop"

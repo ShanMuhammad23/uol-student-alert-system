@@ -30,7 +30,7 @@ const STATUS_OPTIONS = [
 
 const TYPE_OPTIONS = [
   { value: "attendance", label: "Attendance" },
-  { value: "gpa", label: "GPA" },
+  { value: "gpa", label: "SGPA" },
   { value: "both", label: "Both" }
 ] as const;
 

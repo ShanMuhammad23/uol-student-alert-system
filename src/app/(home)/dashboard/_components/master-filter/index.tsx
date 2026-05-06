@@ -513,7 +513,7 @@ export function MasterFilter({
         data-testid="filter-attendance"
       />
       <FilterMultiSelect
-        label="GPA"
+        label="SGPA"
         selected={gpaFilters ?? []}
         items={gpaItemsWithCounts}
         onChange={handleGpaFilters}

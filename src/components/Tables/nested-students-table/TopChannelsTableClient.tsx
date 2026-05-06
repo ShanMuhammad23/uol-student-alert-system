@@ -607,7 +607,7 @@ export function TopChannelsTableClient({
                   onClick={() => handleSort("gpa")}
                 >
                   <div className="flex items-center gap-1">
-                    <span>GPA</span>
+                    <span>SGPA</span>
                     {renderSortIcon("gpa")}
                   </div>
                 </TableHead>

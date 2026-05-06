@@ -105,8 +105,8 @@ export function AlertSnapshotsLineChart({ points }: Props) {
   const getLineStyle = (seriesIndex: number) =>
     seriesIndex < 2 ? "dashed" : "solid";
   const series = [
-    { name: "GPA Yellow", data: chartPoints.map((p) => p.yellowGpa) },
-    { name: "GPA Red", data: chartPoints.map((p) => p.redGpa) },
+    { name: "SGPA Yellow", data: chartPoints.map((p) => p.yellowGpa) },
+    { name: "SGPA Red", data: chartPoints.map((p) => p.redGpa) },
     {
       name: "Attendance Yellow",
       data: chartPoints.map((p) => p.yellowAttendance),

@@ -130,7 +130,7 @@ export function HodInstructorStats({
             {" | "}
             <span className={cn("text-red-500 font-bold", i.redAttendance > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{i.redAttendance}</span>
             {" · "}
-            GPA:{" "}
+            SGPA:{" "}
             <span className={cn("text-amber-500 dark:text-amber-500 font-bold", i.yellowGpa > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>
               {i.yellowGpa}
             </span>

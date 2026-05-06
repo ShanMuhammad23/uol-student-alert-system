@@ -160,7 +160,7 @@ export function DeanDepartmentStats({
                 {d.redAttendance}
               </span>
               {" · "}
-              GPA:{" "}
+              SGPA:{" "}
               <span
                 className={cn(
                   "text-amber-500 dark:text-amber-500 font-bold",

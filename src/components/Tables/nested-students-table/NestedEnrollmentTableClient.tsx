@@ -677,7 +677,7 @@ export function NestedEnrollmentTableClient({
                   </span>
 
                   <span className={cn("text-sm ", deptIsOpen ? "text-white" : "text-dark-6")}>
-                    GPA:{" "}
+                    SGPA:{" "}
                     <span className="font-semibold text-yellow-600">
                       {displayDeptGpaAlerts.yellow}
                     </span>
@@ -764,7 +764,7 @@ export function NestedEnrollmentTableClient({
                             </span>
 
                             <span className={cn("text-sm", progIsOpen ? "text-white" : "text-dark-6")}>
-                              GPA:{" "}
+                              SGPA:{" "}
                               <span className="font-semibold text-yellow-600">
                                 {displayProgramGpaAlerts.yellow}
                               </span>
@@ -887,7 +887,7 @@ export function NestedEnrollmentTableClient({
                                       </span>
 
                                       <span className={cn("text-sm", courseIsOpen ? "text-white" : "text-dark-6")}>
-                                        GPA:{" "}
+                                        SGPA:{" "}
                                         <span className="font-semibold text-yellow-600">
                                           {displayCourseGpaAlerts.yellow}
                                         </span>
@@ -953,7 +953,7 @@ export function NestedEnrollmentTableClient({
                                             Attendance %
                                           </TableHead>
                                           <TableHead className="!text-left">
-                                            GPA
+                                            SGPA
                                           </TableHead>
                                           <TableHead className="!text-left">
                                             Intervention Status
