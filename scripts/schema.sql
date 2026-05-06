@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS staff (
   email         VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255),
   role          VARCHAR(32) NOT NULL CHECK (role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller')),
-  actual_role   VARCHAR(32) NOT NULL DEFAULT 'admin' CHECK (actual_role IN ('coordinator', 'admin')),
+  actual_role   VARCHAR(32) NOT NULL DEFAULT 'instructor' CHECK (actual_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller', 'coordinator', 'admin')),
   pseudo_role   VARCHAR(32) CHECK (pseudo_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller')),
   faculty_id    VARCHAR(32) REFERENCES faculties(id),
   img           TEXT,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS staff (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE staff
-  ADD COLUMN IF NOT EXISTS actual_role VARCHAR(32) NOT NULL DEFAULT 'admin';
+  ADD COLUMN IF NOT EXISTS actual_role VARCHAR(32) NOT NULL DEFAULT 'instructor';
 ALTER TABLE staff
   ADD COLUMN IF NOT EXISTS pseudo_role VARCHAR(32);
 ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_actual_role_check;
@@ -86,7 +86,7 @@ BEGIN
   ) THEN
     ALTER TABLE staff
       ADD CONSTRAINT staff_actual_role_check
-      CHECK (actual_role IN ('coordinator', 'admin'));
+      CHECK (actual_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller', 'coordinator', 'admin'));
   END IF;
 END
 $$;

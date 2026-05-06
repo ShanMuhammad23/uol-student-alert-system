@@ -21,7 +21,17 @@ type StaffListRow = {
     | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
-  actual_role: "coordinator" | "admin" | null;
+  actual_role:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | "coordinator"
+    | "admin"
+    | null;
   pseudo_role:
     | "superadmin"
     | "dean"
@@ -115,7 +125,14 @@ async function updateStaffAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
-  const actualRole = String(formData.get("actual_role") ?? "").trim().toLowerCase() as
+  const actualRole = String(formData.get("actual_role") ?? "").trim() as
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
     | "coordinator"
     | "admin";
   const pseudoRole = String(formData.get("pseudo_role") ?? "").trim() as
@@ -134,7 +151,19 @@ async function updateStaffAction(formData: FormData) {
     redirect("/dashboard/superadmin/staff?error=missing_required");
   }
 
-  if (!["coordinator", "admin"].includes(actualRole)) {
+  if (
+    ![
+      "superadmin",
+      "dean",
+      "hod",
+      "instructor",
+      "wellbeing",
+      "wellbeing-head",
+      "wellbeing-counseller",
+      "coordinator",
+      "admin",
+    ].includes(actualRole)
+  ) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
   if (

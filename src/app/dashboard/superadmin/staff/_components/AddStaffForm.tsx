@@ -18,6 +18,13 @@ type DepartmentOption = {
 };
 
 type StaffRole =
+  | "superadmin"
+  | "dean"
+  | "hod"
+  | "instructor"
+  | "wellbeing"
+  | "wellbeing-head"
+  | "wellbeing-counseller"
   | "coordinator"
   | "admin";
 
@@ -42,7 +49,7 @@ export function AddStaffForm({
   departments,
 }: AddStaffFormProps) {
   const router = useRouter();
-  const [actualRole, setActualRole] = useState<StaffRole>("admin");
+  const [actualRole, setActualRole] = useState<StaffRole>("instructor");
   const [pseudoRole, setPseudoRole] = useState<PseudoAccessRole>("instructor");
   const [pending, setPending] = useState(false);
   const showDepartments = pseudoRole === "hod";
@@ -126,6 +133,13 @@ export function AddStaffForm({
           onChange={(ev) => setActualRole(ev.target.value as StaffRole)}
           className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
         >
+          <option value="superadmin">superadmin</option>
+          <option value="dean">dean</option>
+          <option value="hod">hod</option>
+          <option value="instructor">instructor</option>
+          <option value="wellbeing">wellbeing</option>
+          <option value="wellbeing-head">wellbeing-head</option>
+          <option value="wellbeing-counseller">wellbeing-counseller</option>
           <option value="admin">admin</option>
           <option value="coordinator">coordinator</option>
         </select>

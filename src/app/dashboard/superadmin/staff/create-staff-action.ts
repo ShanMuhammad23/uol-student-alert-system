@@ -22,7 +22,14 @@ export async function createStaffMember(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
   const password = String(formData.get("password") ?? "").trim();
-  const actualRole = String(formData.get("actual_role") ?? "").trim().toLowerCase() as
+  const actualRole = String(formData.get("actual_role") ?? "").trim() as
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
     | "coordinator"
     | "admin";
   const pseudoRole = String(formData.get("pseudo_role") ?? "").trim() as
@@ -39,7 +46,19 @@ export async function createStaffMember(
   if (!name || !email || !pernr || !password || !actualRole || !pseudoRole) {
     return { ok: false, message: "Please fill all required fields." };
   }
-  if (!["coordinator", "admin"].includes(actualRole)) {
+  if (
+    ![
+      "superadmin",
+      "dean",
+      "hod",
+      "instructor",
+      "wellbeing",
+      "wellbeing-head",
+      "wellbeing-counseller",
+      "coordinator",
+      "admin",
+    ].includes(actualRole)
+  ) {
     return { ok: false, message: "Selected actual role is invalid." };
   }
   if (

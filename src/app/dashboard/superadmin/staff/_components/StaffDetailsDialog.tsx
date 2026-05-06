@@ -15,7 +15,17 @@ type StaffDetails = {
     | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
-  pseudoRole: "coordinator" | "admin" | null;
+  pseudoRole:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | "coordinator"
+    | "admin"
+    | null;
   pernr: string;
   facultyName: string;
   departments: string[];

@@ -352,7 +352,18 @@ export type AppUser = {
     | "wellbeing"
     | "wellbeing-head"
     | "wellbeing-counseller";
-  actual_role?: "coordinator" | "admin" | null;
+  actual_role?:
+    | "superadmin"
+    | "dean"
+    | "hod"
+    | "teacher"
+    | "instructor"
+    | "wellbeing"
+    | "wellbeing-head"
+    | "wellbeing-counseller"
+    | "coordinator"
+    | "admin"
+    | null;
   pseudo_role?:
     | "superadmin"
     | "dean"
@@ -3047,7 +3058,17 @@ export function mapSessionToAppUser(session: {
       | "wellbeing"
       | "wellbeing-head"
       | "wellbeing-counseller";
-    actual_role?: "coordinator" | "admin" | null;
+    actual_role?:
+      | "superadmin"
+      | "dean"
+      | "hod"
+      | "instructor"
+      | "wellbeing"
+      | "wellbeing-head"
+      | "wellbeing-counseller"
+      | "coordinator"
+      | "admin"
+      | null;
     pseudo_role?:
       | "superadmin"
       | "dean"
