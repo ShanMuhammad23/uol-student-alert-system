@@ -97,6 +97,7 @@ function FilterMultiSelect({
   onChange,
   isOpen,
   onOpenChange,
+  searchable = false,
   "data-testid": testId,
 }: {
   label: string;
@@ -105,8 +106,10 @@ function FilterMultiSelect({
   onChange: (values: string[]) => void;
   isOpen: boolean;
   onOpenChange: () => void;
+  searchable?: boolean;
   "data-testid"?: string;
 }) {
+  const [searchTerm, setSearchTerm] = useState("");
   const toggle = (value: string) => {
     const next = selected.includes(value)
       ? selected.filter((v) => v !== value)
@@ -133,6 +136,17 @@ function FilterMultiSelect({
   const totalOptions = items.length;
   const selectedCount = selected.length;
   const labelWithCount = `${label} (${selectedCount}/${totalOptions})`;
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredItems = useMemo(() => {
+    if (!searchable || !normalizedSearch) return items;
+    return items.filter((item) =>
+      item.label.toLowerCase().includes(normalizedSearch)
+    );
+  }, [items, normalizedSearch, searchable]);
+
+  useEffect(() => {
+    if (!isOpen) setSearchTerm("");
+  }, [isOpen]);
 
   return (
     <div className="flex flex-col gap-1.5 relative mb-8" data-testid={testId}>
@@ -165,6 +179,17 @@ function FilterMultiSelect({
           role="listbox"
           className="absolute left-0 top-full z-50 mt-1 max-h-[280px] w-full min-w-[200px] overflow-y-auto rounded-lg border border-stroke bg-white py-1 shadow-lg dark:border-stroke-dark dark:bg-gray-dark"
         >
+          {searchable && (
+            <div className="px-3 pb-2">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={`Search ${label.toLowerCase()}...`}
+                className="w-full rounded-md border border-stroke bg-white px-2.5 py-1.5 text-xs text-dark outline-none focus:border-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white"
+              />
+            </div>
+          )}
           <div className="flex items-center justify-end px-3 pb-1 text-[11px] text-dark-6 dark:text-white">
             
             <button
@@ -175,7 +200,7 @@ function FilterMultiSelect({
               Clear all
             </button>
           </div>
-          {items.map((item, itemIdx) => (
+          {filteredItems.map((item, itemIdx) => (
             <label
               key={`${item.value}-${itemIdx}`}
               className={cn(
@@ -192,6 +217,11 @@ function FilterMultiSelect({
               <span className="text-dark dark:text-white">{item.label}</span>
             </label>
           ))}
+          {filteredItems.length === 0 && (
+            <div className="px-3 py-2 text-xs text-dark-6 dark:text-white">
+              No options found.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -466,6 +496,7 @@ export function MasterFilter({
           onChange={handleDepartment}
           isOpen={openFilter === "department"}
           onOpenChange={toggleFilter("department")}
+          searchable
           data-testid="filter-department"
         />
       )}
@@ -477,6 +508,7 @@ export function MasterFilter({
           onChange={handleProgram}
           isOpen={openFilter === "program"}
           onOpenChange={toggleFilter("program")}
+          searchable
           data-testid="filter-program"
         />
       )}
@@ -488,6 +520,7 @@ export function MasterFilter({
           onChange={handleCourse}
           isOpen={openFilter === "course"}
           onOpenChange={toggleFilter("course")}
+          searchable
           data-testid="filter-course"
         />
       )}
@@ -499,6 +532,7 @@ export function MasterFilter({
           onChange={handleInstructor}
           isOpen={openFilter === "instructor"}
           onOpenChange={toggleFilter("instructor")}
+          searchable
           data-testid="filter-instructor"
         />
       )}

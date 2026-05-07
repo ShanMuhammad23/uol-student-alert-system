@@ -9,7 +9,9 @@ export default function GoogleSigninButton({ text }: { text: string }) {
 
   const onGoogleSignIn = async () => {
     setLoading(true);
-    await signIn("google", { callbackUrl: "/dashboard" });
+    // Route through sign-in page so role-based server redirect sends
+    // superadmin users to /dashboard/superadmin reliably.
+    await signIn("google", { callbackUrl: "/auth/sign-in" });
   };
 
   return (
