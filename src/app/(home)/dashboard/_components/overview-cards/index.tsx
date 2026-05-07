@@ -10,7 +10,7 @@ import {
   useInterventionCohortStats,
 } from "../InterventionCohortStatsContext";
 import { useMergeDashboardHref } from "../useDashboardHref";
-
+import { useSession } from "next-auth/react";
 type PropsType = {
   selectedAlert: AlertFilter | string;
   user?: AppUser | null;
@@ -32,7 +32,7 @@ export function OverviewCardsGroup({
 }: PropsType) {
   const filter = useDashboardFilter();
   const mergeHref = useMergeDashboardHref();
-
+  const session = useSession();
   const attendanceFilters = filter?.attendanceFilters ?? [];
   const gpaFilters = filter?.gpaFilters ?? [];
   const setAttendanceFilters = filter?.setAttendanceFilters;
@@ -260,7 +260,7 @@ export function OverviewCardsGroup({
   return (
     <div className="flex h-full flex-col gap-2">
       <div
-        className="rounded-[10px] bg-white dark:bg-gray-dark p-4 shadow-xl transition-shadow md:min-w-[240px] flex-1 border border-gray-200 data-[active=true]:ring-2 data-[active=true]:ring-primary data-[active=true]:shadow-md dark:border-dark-3"
+        className="rounded-[10px] bg-white dark:bg-gray-dark  p-4 shadow-xl transition-shadow md:min-w-[240px] flex-1 border border-gray-200 data-[active=true]:ring-2 data-[active=true]:ring-primary data-[active=true]:shadow-md dark:border-dark-3"
         data-active={active === "attendance"}
       >
         <AttendanceOverviewCardClient
@@ -284,10 +284,12 @@ export function OverviewCardsGroup({
           onRedClick={toggleAttendanceRed}
         />
       </div>
+      {session?.data?.user?.role !== 'instructor' &&  (
       <div
         className="rounded-[10px] bg-white dark:bg-gray-dark p-4 shadow-xl transition-shadow md:min-w-[240px] flex-1 border border-gray-200 data-[active=true]:ring-2 data-[active=true]:ring-primary data-[active=true]:shadow-md dark:border-dark-3"
         data-active={active === "gpa"}
       >
+     
         <OverviewCard
           label="SGPA"
           titleHref={gpaHref}
@@ -305,10 +307,12 @@ export function OverviewCardsGroup({
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={gpaYellowActive}
           redActive={gpaRedActive}
-          onYellowClick={toggleGpaYellow}
-          onRedClick={toggleGpaRed}
-        />
+            onYellowClick={toggleGpaYellow}
+            onRedClick={toggleGpaRed}
+          />
+      
       </div>
+        )}
     </div>
   );
 }

@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default async function SignIn() {
-  // If user is already authenticated, skip sign-in UI and go straight to dashboard.
+  // Only redirect when a valid authenticated identity is present.
   const session = await getServerSession(authOptions);
-  if (session?.user) {
+  if (session?.user?.id && session.user.role) {
     redirect(
       session.user.role === "superadmin"
         ? "/dashboard/superadmin"

@@ -13,7 +13,7 @@ import type {
   MasterFilterOptions,
   AlertDimensionFilter,
 } from "../../fetch";
-
+import { useSession } from "next-auth/react";
 const GPA_ATTENDANCE_OPTIONS: { value: AlertDimensionFilter; label: string }[] = [
   { value: "red", label: "Red alert" },
   { value: "yellow", label: "Yellow alert" },
@@ -222,7 +222,7 @@ export function MasterFilter({
   const router = useRouter();
   const mergeHref = useMergeDashboardHref();
   const filterPanelRef = useClickOutside<HTMLDivElement>(() => setOpenFilter(null));
-
+  const session = useSession();
   useEffect(() => {
     const controller = new AbortController();
     const filters = {
@@ -512,6 +512,7 @@ export function MasterFilter({
         onOpenChange={toggleFilter("attendance")}
         data-testid="filter-attendance"
       />
+      {session?.data?.user?.role !== 'instructor' && (
       <FilterMultiSelect
         label="SGPA"
         selected={gpaFilters ?? []}
@@ -521,6 +522,7 @@ export function MasterFilter({
         onOpenChange={toggleFilter("gpa")}
         data-testid="filter-gpa"
       />
+      )}
       <FilterMultiSelect
         label="Class Status"
         selected={classStatusFilters ?? []}

@@ -518,7 +518,7 @@ export function ProfileView({ initialProfile, initialInterventions }: Props) {
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
-          className="grid gap-6 lg:grid-cols-3"
+          className="flex flex-col gap-6"
         >
           {/* Stats Cards */}
           <div className="lg:col-span-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -553,7 +553,7 @@ export function ProfileView({ initialProfile, initialInterventions }: Props) {
           </div>
 
           {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className=" space-y-6">
             {/* Personal Information */}
      
 
@@ -639,89 +639,7 @@ export function ProfileView({ initialProfile, initialInterventions }: Props) {
             </SectionCard>
           </div>
 
-          {/* Right Column */}
-          <div className="space-y-6">
-            {/* Security */}
-            <SectionCard title="Security" icon={Lock} delay={7}>
-              {!profile?.has_password ? (
-                <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">External Authentication</p>
-                      <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                        You use external login (Google/LDAP). Password change is not available.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={onPasswordSubmit} className="space-y-4">
-                  <AnimatePresence>
-                    {pwMessage && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium",
-                          pwMessage.type === "ok" 
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300" 
-                            : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                        )}
-                      >
-                        {pwMessage.type === "ok" ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}
-                        {pwMessage.text}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {[
-                    { label: "Current Password", value: pwCurrent, setter: setPwCurrent, key: "current", autoComplete: "current-password" },
-                    { label: "New Password", value: pwNew, setter: setPwNew, key: "new", autoComplete: "new-password" },
-                    { label: "Confirm Password", value: pwConfirm, setter: setPwConfirm, key: "confirm", autoComplete: "new-password" },
-                  ].map((field) => (
-                    <div key={field.key} className="relative">
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        {field.label}
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showPw[field.key as keyof typeof showPw] ? "text" : "password"}
-                          autoComplete={field.autoComplete}
-                          value={field.value}
-                          onChange={(e) => field.setter(e.target.value)}
-                          required
-                          minLength={8}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm text-slate-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPw(prev => ({ ...prev, [field.key]: !prev[field.key as keyof typeof prev] }))}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                        >
-                          {showPw[field.key as keyof typeof showPw] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    disabled={pwBusy}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {pwBusy ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-                    {pwBusy ? "Updating..." : "Update Password"}
-                  </motion.button>
-                </form>
-              )}
-            </SectionCard>
-
-          
-          </div>
+       
         </motion.div>
       </div>
     </div>

@@ -869,7 +869,11 @@ export async function getInterventionStatsForRoleScopeFromDb(
   const wantsAlertFilterGlobal =
     hasAlertLevel && params.alertLevel != null ? true : false;
 
-  /** Count latest status per student across all rows (no faculty/dept/course scope). */
+  /**
+   * Superadmin counts across latest intervention status per student.
+   * Unlike legacy behavior, optional master-filter scope params (department/course/instructor/faculty)
+   * are applied so dashboard instructor/course filters stay consistent with overview cards.
+   */
   if (params.role === "superadmin") {
     const typeWhereSql = usesTypeParam
       ? params.interventionType === "gpa"
@@ -877,6 +881,41 @@ export async function getInterventionStatsForRoleScopeFromDb(
         : "(COALESCE(intervention_type, 'attendance') = $1 OR intervention_type = 'both')"
       : "TRUE";
     const argsSuper: any[] = usesTypeParam ? [params.interventionType] : [];
+    const wherePartsSuper: string[] = [];
+
+    const facultyId = String(params.facultyId ?? "").trim();
+    if (facultyId) {
+      argsSuper.push(facultyId);
+      wherePartsSuper.push(`faculty_id = $${argsSuper.length}`);
+    }
+    const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+    if (departmentIds.length) {
+      argsSuper.push(departmentIds);
+      wherePartsSuper.push(`department_id = ANY($${argsSuper.length}::text[])`);
+    }
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      argsSuper.push(courseIds);
+      wherePartsSuper.push(`course_id = ANY($${argsSuper.length}::text[])`);
+    }
+    const instructorIds = (params.instructorIds ?? []).filter(Boolean);
+    if (instructorIds.length) {
+      argsSuper.push(instructorIds);
+      wherePartsSuper.push(
+        `EXISTS (
+          SELECT 1
+          FROM student_enrollment_current e
+          WHERE e.is_active = TRUE
+            AND e.sap_id = interventions.student_sap_id
+            AND e.course_id = interventions.course_id
+            AND e.instructor_pernr = ANY($${argsSuper.length}::text[])
+        )`
+      );
+    }
+
+    const scopedWhereSuper = wherePartsSuper.length
+      ? `${typeWhereSql} AND ${wherePartsSuper.join(" AND ")}`
+      : typeWhereSql;
     const outerIdx = argsSuper.length + 1;
 
     const resSuper = await pool.query<{
@@ -889,7 +928,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
           student_sap_id,
           status${wantsAlertFilterGlobal ? ", alert_level" : ""}
         FROM interventions
-        WHERE ${typeWhereSql}
+        WHERE ${scopedWhereSuper}
         ORDER BY student_sap_id, performed_at DESC
       )
       SELECT status, COUNT(*)::int AS cnt

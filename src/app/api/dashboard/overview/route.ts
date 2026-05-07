@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { calculateMissingAttendance } from "@/lib/attendance-missing";
-import {
-  getOverviewData,
-  mapSessionToAppUser,
-} from "@/app/(home)/dashboard/fetch";
+import { mapSessionToAppUser } from "@/app/(home)/dashboard/fetch";
 import type {
   AlertDimensionFilter,
   MasterFilterParams,
@@ -126,13 +123,32 @@ export async function POST(req: Request) {
     }
   ).then((listing) => {
     const byClass = new Map<string, { held: number; marked: number }>();
-    let attendanceCaseYellow = 0;
-    let attendanceCaseRed = 0;
+    const attendanceYellowSapIds = new Set<string>();
+    const attendanceRedSapIds = new Set<string>();
+    const attendanceYellowStudentCourseCases = new Set<string>();
+    const attendanceRedStudentCourseCases = new Set<string>();
+    const gpaYellowSapIds = new Set<string>();
+    const gpaRedSapIds = new Set<string>();
+    const totalSapIds = new Set<string>();
     for (const row of listing.rows) {
       if (row.isActive === false) continue;
-      if (row.attendanceAlertLevel === "warning") attendanceCaseYellow += 1;
-      if (row.attendanceAlertLevel === "critical") attendanceCaseRed += 1;
+      if (row.sapId) totalSapIds.add(row.sapId);
       const classKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
+      const studentCourseCaseKey = `${row.sapId}__${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}`;
+      if (row.attendanceAlertLevel === "warning" && row.sapId) {
+        attendanceYellowSapIds.add(row.sapId);
+        attendanceYellowStudentCourseCases.add(studentCourseCaseKey);
+      }
+      if (row.attendanceAlertLevel === "critical" && row.sapId) {
+        attendanceRedSapIds.add(row.sapId);
+        attendanceRedStudentCourseCases.add(studentCourseCaseKey);
+      }
+      if (row.gpaAlertLevel === "warning" && row.sapId) {
+        gpaYellowSapIds.add(row.sapId);
+      }
+      if (row.gpaAlertLevel === "critical" && row.sapId) {
+        gpaRedSapIds.add(row.sapId);
+      }
       const held = Number(row.totalClassesHeld ?? 0);
       const marked = Number(row.attendanceMarkedClasses ?? 0);
       const existing = byClass.get(classKey);
@@ -153,34 +169,27 @@ export async function POST(req: Request) {
       missingCount += calculateMissingAttendance(value.held, value.marked);
     }
     return {
+      totalStudents: totalSapIds.size,
+      grossAttendanceYellow: attendanceYellowSapIds.size,
+      grossAttendanceRed: attendanceRedSapIds.size,
+      grossGpaYellow: gpaYellowSapIds.size,
+      grossGpaRed: gpaRedSapIds.size,
       updatedAttendance,
       totalClassesHeld,
       missingCount,
-      attendanceCaseYellow,
-      attendanceCaseRed,
+      // "Cases" means student-course instances carrying that alert.
+      attendanceCaseYellow: attendanceYellowStudentCourseCases.size,
+      attendanceCaseRed: attendanceRedStudentCourseCases.size,
     };
   });
 
-  const [overview, attendanceCoverage] = await Promise.all([
-    getOverviewData(
-      user,
-      body.masterFilter,
-      body.gpaFilters,
-      body.attendanceFilters,
-    ),
-    attendanceCoveragePromise,
-  ]);
-
-  const grossAttendanceYellow = overview.yellowAttendance?.value ?? 0;
-  const grossAttendanceRed = overview.redAttendance?.value ?? 0;
-  const grossGpaYellow = overview.yellowGpa?.value ?? 0;
-  const grossGpaRed = overview.redGpa?.value ?? 0;
+  const attendanceCoverage = await attendanceCoveragePromise;
 
   return NextResponse.json({
-    totalStudents: overview.totalStudents ?? 0,
+    totalStudents: attendanceCoverage.totalStudents,
     attendance: {
-      grossYellow: grossAttendanceYellow,
-      grossRed: grossAttendanceRed,
+      grossYellow: attendanceCoverage.grossAttendanceYellow,
+      grossRed: attendanceCoverage.grossAttendanceRed,
       caseYellow: attendanceCoverage.attendanceCaseYellow,
       caseRed: attendanceCoverage.attendanceCaseRed,
       updatedAttendance: attendanceCoverage.updatedAttendance,
@@ -188,8 +197,8 @@ export async function POST(req: Request) {
       missingCount: attendanceCoverage.missingCount,
     },
     gpa: {
-      grossYellow: grossGpaYellow,
-      grossRed: grossGpaRed,
+      grossYellow: attendanceCoverage.grossGpaYellow,
+      grossRed: attendanceCoverage.grossGpaRed,
     },
   });
 }
