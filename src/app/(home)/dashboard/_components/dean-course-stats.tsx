@@ -142,7 +142,7 @@ export function DeanCourseStats({
               >
                 {c.yellowAttendance}
               </span>
-              {" | "}
+              {" |"}
               <span
                 className={cn(
                   "text-red-500 font-bold",
@@ -153,30 +153,8 @@ export function DeanCourseStats({
               >
                 {c.redAttendance}
               </span>
-              {" · "}
-              SGPA:{" "}
-              <span
-                className={cn(
-                  "text-amber-500 dark:text-amber-500 font-bold",
-                  c.yellowGpa > 0
-                    ? "text-amber-500 dark:text-amber-500"
-                    : "text-gray-600 dark:text-gray-400",
-                )}
-              >
-                {c.yellowGpa}
-              </span>
+              
               {" | "}
-              <span
-                className={cn(
-                  "text-red-500 font-bold",
-                  c.redGpa > 0
-                    ? "text-red-500"
-                    : "text-gray-600 dark:text-gray-400",
-                )}
-              >
-                {c.redGpa}
-              </span>
-              {" · "}
               Att Missing{" "}
               <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
               of{" "}

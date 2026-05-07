@@ -129,14 +129,8 @@ export function HodInstructorStats({
             </span>
             {" | "}
             <span className={cn("text-red-500 font-bold", i.redAttendance > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{i.redAttendance}</span>
-            {" · "}
-            SGPA:{" "}
-            <span className={cn("text-amber-500 dark:text-amber-500 font-bold", i.yellowGpa > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>
-              {i.yellowGpa}
-            </span>
-            {" | "}
-            <span className={cn("text-red-500 font-bold", i.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{i.redGpa}</span>
-            {" · "}
+           
+            {" |"}
             Att Missing <span className="text-red-500 font-bold">{attendanceMissing}</span> of{" "}
             <span className="text-red-500 font-bold">{attendanceClassesHeld}</span> 
           </span>
