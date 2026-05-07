@@ -28,10 +28,15 @@ export type InterventionRecord = {
   date: string; // YYYY-MM-DD
   intervention_type: "attendance" | "gpa" | "both";
   alert_level?: "warning" | "critical" | null;
+  /** Focus context (when captured). Used to scope history to a course/class. */
+  course_id?: string | null;
+  section_code?: string | null;
+  event_package_id?: string | null;
   outreach_mode: string; // email | phone-call | meeting
   remarks: string;
   status: string; // initiated | in-progress | referred | resolved | no-action-required
   performed_at: string; // ISO date
+  created_at?: string; // DB row created_at (ISO)
   staff_id?: string;
   uploader_name?: string | null;
   uploader_email?: string | null;

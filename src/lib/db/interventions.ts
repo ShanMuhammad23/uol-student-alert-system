@@ -164,10 +164,14 @@ export type InterventionRow = {
   student_sap_id: string;
   date: string;
   intervention_type: "attendance" | "gpa" | "both";
+  course_id?: string | null;
+  section_code?: string | null;
+  event_package_id?: string | null;
   outreach_mode: string;
   remarks: string;
   status: string;
   performed_at: string;
+  created_at?: string | null;
   staff_id?: string | null;
   uploader_name?: string | null;
   uploader_email?: string | null;
@@ -417,11 +421,17 @@ export async function getInterventionsByStudentSapIdFromDb(
   const hasType = await hasInterventionTypeColumn();
   const hasCT = await hasCaseTypeColumn();
   const hasA = await hasAssigneeStaffIdColumn();
+  const hasSectionCode = await hasSectionCodeColumn();
+  const hasEventPackageId = await hasEventPackageIdColumn();
   const selectParts: string[] = [
     "i.id",
     "i.student_sap_id",
     "i.date",
+    "i.course_id",
+    "i.created_at",
   ];
+  if (hasSectionCode) selectParts.push("i.section_code");
+  if (hasEventPackageId) selectParts.push("i.event_package_id");
   if (hasType) selectParts.push("i.intervention_type");
   if (hasCT) selectParts.push("i.case_type");
   selectParts.push(
@@ -452,6 +462,10 @@ export async function getInterventionsByStudentSapIdFromDb(
     id: string;
     student_sap_id: string;
     date: string;
+    course_id: string | null;
+    created_at: Date | string | null;
+    section_code?: string | null;
+    event_package_id?: string | null;
     intervention_type?: "attendance" | "gpa" | "both" | null;
     case_type?: string | null;
     outreach_mode: string;
@@ -483,6 +497,9 @@ export async function getInterventionsByStudentSapIdFromDb(
           : r.intervention_type === "both"
             ? "both"
             : "attendance",
+      course_id: r.course_id ?? null,
+      section_code: hasSectionCode ? (r.section_code ?? null) : null,
+      event_package_id: hasEventPackageId ? (r.event_package_id ?? null) : null,
       outreach_mode: r.outreach_mode,
       remarks: r.remarks,
       status: r.status,
@@ -490,6 +507,12 @@ export async function getInterventionsByStudentSapIdFromDb(
         typeof r.date === "string"
           ? r.date
           : (r.date as unknown as Date).toISOString().slice(0, 10),
+      created_at:
+        r.created_at == null
+          ? null
+          : typeof r.created_at === "string"
+            ? r.created_at
+            : (r.created_at as Date).toISOString(),
       performed_at:
         typeof r.performed_at === "string"
           ? r.performed_at

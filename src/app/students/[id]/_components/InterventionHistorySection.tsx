@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -17,10 +17,14 @@ type InterventionRecord = {
   id: string;
   date: string;
   intervention_type: "attendance" | "gpa" | "both";
+  course_id?: string | null;
+  section_code?: string | null;
+  event_package_id?: string | null;
   outreach_mode: string;
   remarks: string;
   status: string;
   performed_at?: string;
+  created_at?: string | null;
   uploader_name?: string | null;
   uploader_email?: string | null;
   uploader_pernr?: string | null;
@@ -179,6 +183,10 @@ export function InterventionHistorySection({
     remarks: "",
   });
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailModalIntervention, setEmailModalIntervention] =
+    useState<InterventionRecord | null>(null);
+  const emailDialogRef = useRef<HTMLDialogElement>(null);
   const [editForm, setEditForm] = useState({
     date: "",
     intervention_type: "attendance" as "attendance" | "gpa" | "both",
@@ -195,6 +203,14 @@ export function InterventionHistorySection({
       dialogRef.current?.close();
     }
   }, [open]);
+
+  useEffect(() => {
+    if (emailModalOpen) {
+      emailDialogRef.current?.showModal();
+    } else {
+      emailDialogRef.current?.close();
+    }
+  }, [emailModalOpen]);
 
   useEffect(() => {
     setRows(interventions);
@@ -399,6 +415,54 @@ export function InterventionHistorySection({
     (wb) => wb.category === "Flex (Academic)" || wb.category === "Flex (Financial)"
   );
 
+  type InterventionTab = "focused" | "other";
+  const hasFocus = Boolean(String(focusedCourseId ?? "").trim());
+  const [interventionTab, setInterventionTab] = useState<InterventionTab>(
+    hasFocus ? "focused" : "other"
+  );
+  useEffect(() => {
+    // If focus changes (navigation between courses), default back to focused view.
+    setInterventionTab(hasFocus ? "focused" : "other");
+  }, [hasFocus, focusedCourseId, focusedSectionCode, focusedEventPackageId]);
+
+  const focusedMetaLabel = useMemo(() => {
+    if (!hasFocus) return null;
+    const title = String(focusedCourseTitle ?? "").trim();
+    if (title) return title;
+    return String(focusedCourseId ?? "").trim() || null;
+  }, [hasFocus, focusedCourseId, focusedCourseTitle]);
+
+  const matchesFocus = (int: InterventionRecord): boolean => {
+    if (!hasFocus) return true;
+    const targetCourse = String(focusedCourseId ?? "").trim();
+    const targetSection = String(focusedSectionCode ?? "").trim();
+    const targetPkg = String(focusedEventPackageId ?? "").trim();
+    const courseMatch = String(int.course_id ?? "").trim() === targetCourse;
+    if (!courseMatch) return false;
+    if (targetSection) {
+      if (String(int.section_code ?? "").trim() !== targetSection) return false;
+    }
+    if (targetPkg) {
+      if (String(int.event_package_id ?? "").trim() !== targetPkg) return false;
+    }
+    return true;
+  };
+
+  const focusedInterventions = useMemo(
+    () => (hasFocus ? rows.filter(matchesFocus) : rows),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, hasFocus, focusedCourseId, focusedSectionCode, focusedEventPackageId]
+  );
+  const otherInterventions = useMemo(() => {
+    if (!hasFocus) return rows;
+    return rows.filter((r) => !matchesFocus(r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, hasFocus, focusedCourseId, focusedSectionCode, focusedEventPackageId]);
+  const visibleInterventions = useMemo(() => {
+    if (!hasFocus) return rows;
+    return interventionTab === "focused" ? focusedInterventions : otherInterventions;
+  }, [rows, hasFocus, interventionTab, focusedInterventions, otherInterventions]);
+
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
@@ -453,6 +517,36 @@ export function InterventionHistorySection({
           <h4 className="mb-2 text-sm font-semibold text-dark dark:text-white">
             Intervention History
           </h4>
+          {hasFocus && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setInterventionTab("focused")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                  interventionTab === "focused"
+                    ? "bg-primary text-white"
+                    : "bg-gray-100 text-dark hover:bg-gray-200 dark:bg-dark-2 dark:text-white dark:hover:bg-dark-3"
+                )}
+              >
+                Focused course
+                {focusedMetaLabel ? `: ${focusedMetaLabel}` : ""}
+                {" "}({focusedInterventions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInterventionTab("other")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                  interventionTab === "other"
+                    ? "bg-primary text-white"
+                    : "bg-gray-100 text-dark hover:bg-gray-200 dark:bg-dark-2 dark:text-white dark:hover:bg-dark-3"
+                )}
+              >
+                Other interventions ({otherInterventions.length})
+              </button>
+            </div>
+          )}
           {rows.length === 0 ? (
             <p className="rounded-lg border border-dashed border-stroke py-4 text-center text-sm text-gray-500 dark:border-dark-3 dark:text-gray-400">
               No interventions recorded yet.
@@ -472,7 +566,7 @@ export function InterventionHistorySection({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((int) => {
+                  {visibleInterventions.map((int) => {
                     const statusStyle = STATUS_STYLES[int.status] ?? {
                       label: int.status,
                       bg: "#94A3B8",
@@ -480,9 +574,18 @@ export function InterventionHistorySection({
                     return (
                       <TableRow key={`wb-int-${int.id}`} className="border-stroke dark:border-dark-3">
                         <TableCell className="text-dark dark:text-white">
-                          <time dateTime={int.date}>
-                            {new Date(int.date).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                          </time>
+                          <div className="flex flex-col">
+                            <time dateTime={int.date}>
+                              {new Date(int.date).toLocaleDateString(undefined, {
+                                dateStyle: "medium",
+                              })}
+                            </time>
+                            {int.created_at ? (
+                              <span className="mt-0.5 text-[11px] text-dark-6 dark:text-white">
+                                Uploaded: {new Date(int.created_at).toLocaleString()}
+                              </span>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell className="text-dark dark:text-white">
                           {formatInterventionType(int.intervention_type)}
@@ -536,6 +639,38 @@ export function InterventionHistorySection({
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-stroke dark:border-dark-3">
+          {!isWellbeingView && hasFocus && (
+            <div className="border-b border-stroke px-4 py-3 dark:border-dark-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInterventionTab("focused")}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                    interventionTab === "focused"
+                      ? "bg-primary text-white"
+                      : "bg-gray-100 text-dark hover:bg-gray-200 dark:bg-dark-2 dark:text-white dark:hover:bg-dark-3"
+                  )}
+                >
+                  Focused course
+                  {focusedMetaLabel ? `: ${focusedMetaLabel}` : ""}
+                  {" "}({focusedInterventions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInterventionTab("other")}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                    interventionTab === "other"
+                      ? "bg-primary text-white"
+                      : "bg-gray-100 text-dark hover:bg-gray-200 dark:bg-dark-2 dark:text-white dark:hover:bg-dark-3"
+                  )}
+                >
+                  Other interventions ({otherInterventions.length})
+                </button>
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow className="border-stroke dark:border-dark-3">
@@ -558,7 +693,7 @@ export function InterventionHistorySection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(isWellbeingView ? resolutionRows : rows).map((rowItem, idx) => {
+              {(isWellbeingView ? resolutionRows : visibleInterventions).map((rowItem, idx) => {
                 if (isWellbeingView) {
                   const wb = rowItem as WellbeingCaseRecord;
                   return (
@@ -616,13 +751,21 @@ export function InterventionHistorySection({
                 }
                 const int = rowItem as InterventionRecord;
                 const statusStyle = STATUS_STYLES[int.status] ?? { label: int.status, bg: "#94A3B8" };
-                const latestEmail = sentEmails[0];
                 return (
                   <TableRow key={int.id} className="border-stroke dark:border-dark-3">
                     <TableCell className="text-dark dark:text-white">
-                      <time dateTime={int.date}>
-                        {new Date(int.date).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                      </time>
+                      <div className="flex flex-col">
+                        <time dateTime={int.date}>
+                          {new Date(int.date).toLocaleDateString(undefined, {
+                            dateStyle: "medium",
+                          })}
+                        </time>
+                        {int.created_at ? (
+                          <span className="mt-0.5 text-[11px] text-dark-6 dark:text-white">
+                            Uploaded: {new Date(int.created_at).toLocaleString()}
+                          </span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
                       {formatInterventionType(int.intervention_type)}
@@ -651,54 +794,17 @@ export function InterventionHistorySection({
                       </div>
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
-                      {idx === 0 ? (
-                        sentEmails.length > 0 ? (
-                          <div className="flex flex-col gap-2">
-                            <span className="text-sm font-medium">
-                              {sentEmails.length} sent
-                            </span>
-                            <span className="text-xs text-dark-6 dark:text-white">
-                              {latestEmail.subject}
-                            </span>
-                            <span className="text-xs text-dark-6 dark:text-white">
-                              {new Date(latestEmail.sent_at).toLocaleString()}
-                            </span>
-                            <details className="rounded-md border border-stroke p-2 dark:border-dark-3">
-                              <summary className="cursor-pointer text-xs font-medium text-primary">
-                                View full sent emails
-                              </summary>
-                              <div className="mt-2 max-h-72 space-y-3 overflow-y-auto">
-                                {sentEmails.map((email) => (
-                                  <div
-                                    key={email.id}
-                                    className="rounded border border-stroke p-2 text-xs dark:border-dark-3"
-                                  >
-                                    <p className="font-semibold text-dark dark:text-white">
-                                      {email.subject}
-                                    </p>
-                                    <p className="mt-1 text-dark-6 dark:text-white">
-                                      To: {email.recipient_email || "—"}
-                                    </p>
-                                    <p className="text-dark-6 dark:text-white">
-                                      From: {email.sender_email || "—"}
-                                    </p>
-                                    <p className="text-dark-6 dark:text-white">
-                                      Sent: {new Date(email.sent_at).toLocaleString()}
-                                    </p>
-                                    {email.body_html ? (
-                                      <div
-                                        className="mt-2 max-h-40 overflow-auto rounded border border-stroke bg-gray-50 p-2 text-dark dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-                                        dangerouslySetInnerHTML={{ __html: email.body_html }}
-                                      />
-                                    ) : null}
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-dark-6 dark:text-white">No emails</span>
-                        )
+                      {sentEmails.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmailModalIntervention(int);
+                            setEmailModalOpen(true);
+                          }}
+                          className="inline-flex items-center rounded-md border border-stroke px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 dark:border-dark-3"
+                        >
+                          View {sentEmails.length} email{sentEmails.length === 1 ? "" : "s"}
+                        </button>
                       ) : (
                         <span className="text-xs text-dark-6 dark:text-white">—</span>
                       )}
@@ -1057,6 +1163,121 @@ export function InterventionHistorySection({
                 {editSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* Email modal (prevents layout shift from inline expanders) */}
+      {emailModalOpen && (
+        <dialog
+          ref={emailDialogRef}
+          onCancel={() => setEmailModalOpen(false)}
+          className={cn(
+            "fixed inset-0 z-[80] m-0 h-[100dvh] w-[100dvw] border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
+            "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
+            "[&::backdrop]:bg-black/50"
+          )}
+        >
+          <div className="flex items-center justify-between border-b border-stroke px-6 py-4 dark:border-dark-3">
+            <div className="min-w-0">
+              <h4 className="truncate text-lg font-semibold text-dark dark:text-white">
+                Sent emails
+              </h4>
+              {emailModalIntervention ? (
+                <p className="mt-0.5 text-xs text-dark-6 dark:text-white">
+                  {formatInterventionType(emailModalIntervention.intervention_type)} •{" "}
+                  {new Date(emailModalIntervention.date).toLocaleDateString(undefined, {
+                    dateStyle: "medium",
+                  })}{" "}
+                  • {STATUS_STYLES[emailModalIntervention.status]?.label ?? emailModalIntervention.status}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setEmailModalOpen(false)}
+              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
+              aria-label="Close"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {emailModalIntervention ? (
+            <div className="border-b border-stroke px-6 py-4 text-sm dark:border-dark-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                <div className="text-dark dark:text-white">
+                  <span className="font-medium">Intervention:</span>{" "}
+                  {formatInterventionType(emailModalIntervention.intervention_type)}
+                </div>
+                <div className="text-dark dark:text-white">
+                  <span className="font-medium">Date:</span>{" "}
+                  {new Date(emailModalIntervention.date).toLocaleDateString(undefined, {
+                    dateStyle: "medium",
+                  })}
+                  {emailModalIntervention.created_at ? (
+                    <span className="ml-2 text-xs text-dark-6 dark:text-white">
+                      (Uploaded:{" "}
+                      {new Date(emailModalIntervention.created_at).toLocaleString()})
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-dark dark:text-white">
+                  <span className="font-medium">Status:</span>{" "}
+                  {STATUS_STYLES[emailModalIntervention.status]?.label ?? emailModalIntervention.status}
+                </div>
+                <div className="text-dark dark:text-white">
+                  <span className="font-medium">Mode:</span>{" "}
+                  {formatOutreachMode(emailModalIntervention.outreach_mode)}
+                </div>
+              </div>
+              {emailModalIntervention.remarks ? (
+                <div className="mt-3 text-dark dark:text-white">
+                  <span className="font-medium">Remarks:</span>{" "}
+                  <span className="text-dark-6 dark:text-white">
+                    {emailModalIntervention.remarks}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="max-h-[calc(100dvh-64px-1px-160px)] overflow-y-auto px-6 py-4">
+            {sentEmails.length === 0 ? (
+              <p className="text-sm text-dark-6 dark:text-white">No emails.</p>
+            ) : (
+              <div className="space-y-3">
+                {sentEmails.map((email) => (
+                  <div
+                    key={email.id}
+                    className="rounded-lg border border-stroke p-3 text-sm dark:border-dark-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-dark dark:text-white">
+                          {email.subject}
+                        </p>
+                        <p className="mt-1 text-xs text-dark-6 dark:text-white">
+                          To: {email.recipient_email || "—"} • From:{" "}
+                          {email.sender_email || "—"}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-xs text-dark-6 dark:text-white">
+                        {new Date(email.sent_at).toLocaleString()}
+                      </p>
+                    </div>
+                    {email.body_html ? (
+                      <div
+                        className="mt-3  overflow-auto rounded border border-stroke bg-gray-50 p-3 text-sm text-dark dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+                        dangerouslySetInnerHTML={{ __html: email.body_html }}
+                      />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </dialog>
       )}
