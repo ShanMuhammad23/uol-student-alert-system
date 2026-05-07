@@ -558,15 +558,6 @@ export function MasterFilter({
       />
       )}
       <FilterMultiSelect
-        label="Class Status"
-        selected={classStatusFilters ?? []}
-        items={CLASS_STATUS_OPTIONS}
-        onChange={handleClassStatusFilters}
-        isOpen={openFilter === "classStatus"}
-        onOpenChange={toggleFilter("classStatus")}
-        data-testid="filter-class-status"
-      />
-      <FilterMultiSelect
         label="Intervention"
         selected={interventionFilters ?? []}
         items={interventionItemsWithCounts}
