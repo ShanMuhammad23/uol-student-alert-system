@@ -18,6 +18,7 @@ type InterventionRecord = {
   date: string;
   intervention_type: "attendance" | "gpa" | "both";
   course_id?: string | null;
+  course_title?: string | null;
   section_code?: string | null;
   event_package_id?: string | null;
   outreach_mode: string;
@@ -74,6 +75,15 @@ function formatInterventionType(type: InterventionRecord["intervention_type"]): 
   if (type === "gpa") return "GPA";
   if (type === "both") return "Both";
   return "Attendance";
+}
+
+function formatCourseLabel(intervention: InterventionRecord): string {
+  const courseId = String(intervention.course_id ?? "").trim();
+  const courseTitle = String(intervention.course_title ?? "").trim();
+  if (courseId && courseTitle) return `${courseId} - ${courseTitle}`;
+  if (courseId) return courseId;
+  if (courseTitle) return courseTitle;
+  return "—";
 }
 
 type Props = {
@@ -529,7 +539,7 @@ export function InterventionHistorySection({
                     : "bg-gray-100 text-dark hover:bg-gray-200 dark:bg-dark-2 dark:text-white dark:hover:bg-dark-3"
                 )}
               >
-                Focused course
+                Course
                 {focusedMetaLabel ? `: ${focusedMetaLabel}` : ""}
                 {" "}({focusedInterventions.length})
               </button>
@@ -558,6 +568,7 @@ export function InterventionHistorySection({
                   <TableRow className="border-stroke dark:border-dark-3">
                     <TableHead className="font-semibold text-dark dark:text-white">Date</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Alert Type</TableHead>
+                    <TableHead className="font-semibold text-dark dark:text-white">Course</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Case type</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Assignee</TableHead>
                     <TableHead className="font-semibold text-dark dark:text-white">Mode</TableHead>
@@ -589,6 +600,9 @@ export function InterventionHistorySection({
                         </TableCell>
                         <TableCell className="text-dark dark:text-white">
                           {formatInterventionType(int.intervention_type)}
+                        </TableCell>
+                        <TableCell className="text-dark dark:text-white">
+                          {formatCourseLabel(int)}
                         </TableCell>
                         <TableCell className="text-dark dark:text-white capitalize">
                           {int.case_type?.replace("external", "direct") ?? "—"}
@@ -680,6 +694,9 @@ export function InterventionHistorySection({
                 <TableHead className="font-semibold text-dark dark:text-white">
                   {isWellbeingView ? "Category" : "Type"}
                 </TableHead>
+                {!isWellbeingView && (
+                  <TableHead className="font-semibold text-dark dark:text-white">Course</TableHead>
+                )}
                 <TableHead className="font-semibold text-dark dark:text-white">
                   {isWellbeingView ? "Resolved At" : "Mode"}
                 </TableHead>
@@ -769,6 +786,9 @@ export function InterventionHistorySection({
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
                       {formatInterventionType(int.intervention_type)}
+                    </TableCell>
+                    <TableCell className="text-dark dark:text-white">
+                      {formatCourseLabel(int)}
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
                       {formatOutreachMode(int.outreach_mode)}

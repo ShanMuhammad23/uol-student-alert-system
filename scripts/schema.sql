@@ -74,6 +74,7 @@ ALTER TABLE staff
   ADD COLUMN IF NOT EXISTS pseudo_role VARCHAR(32);
 ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_actual_role_check;
 ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_pseudo_role_check;
+ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_pseudo_actual_role_consistency_check;
 UPDATE staff
 SET pseudo_role = role
 WHERE pseudo_role IS NULL;
@@ -100,6 +101,23 @@ BEGIN
     ALTER TABLE staff
       ADD CONSTRAINT staff_pseudo_role_check
       CHECK (pseudo_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller'));
+  END IF;
+END
+$$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'staff_pseudo_actual_role_consistency_check'
+  ) THEN
+    ALTER TABLE staff
+      ADD CONSTRAINT staff_pseudo_actual_role_consistency_check
+      CHECK (
+        pseudo_role IS NULL
+        OR pseudo_role NOT IN ('dean', 'hod')
+        OR actual_role IN ('admin', 'coordinator')
+      );
   END IF;
 END
 $$;

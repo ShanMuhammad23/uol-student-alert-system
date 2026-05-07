@@ -165,6 +165,7 @@ export type InterventionRow = {
   date: string;
   intervention_type: "attendance" | "gpa" | "both";
   course_id?: string | null;
+  course_title?: string | null;
   section_code?: string | null;
   event_package_id?: string | null;
   outreach_mode: string;
@@ -428,6 +429,7 @@ export async function getInterventionsByStudentSapIdFromDb(
     "i.student_sap_id",
     "i.date",
     "i.course_id",
+    "c.title AS course_title",
     "i.created_at",
   ];
   if (hasSectionCode) selectParts.push("i.section_code");
@@ -454,6 +456,7 @@ export async function getInterventionsByStudentSapIdFromDb(
   const sql = `
     SELECT ${selectParts.join(", ")}
     FROM interventions i
+    LEFT JOIN courses c ON c.id = i.course_id
     LEFT JOIN staff s ON s.id = i.staff_id
     ${hasA ? "LEFT JOIN staff asn ON asn.id = i.assignee_staff_id" : ""}
     WHERE i.student_sap_id = $1
@@ -463,6 +466,7 @@ export async function getInterventionsByStudentSapIdFromDb(
     student_sap_id: string;
     date: string;
     course_id: string | null;
+    course_title: string | null;
     created_at: Date | string | null;
     section_code?: string | null;
     event_package_id?: string | null;
@@ -498,6 +502,7 @@ export async function getInterventionsByStudentSapIdFromDb(
             ? "both"
             : "attendance",
       course_id: r.course_id ?? null,
+      course_title: r.course_title ?? null,
       section_code: hasSectionCode ? (r.section_code ?? null) : null,
       event_package_id: hasEventPackageId ? (r.event_package_id ?? null) : null,
       outreach_mode: r.outreach_mode,

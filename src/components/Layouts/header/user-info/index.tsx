@@ -87,7 +87,7 @@ export function UserInfo({ user }: UserInfoProps) {
             </div>
             {pseudoRoleLabel && (
               <div className="text-body-sm text-dark-6 dark:text-white">
-             {pseudoRoleLabel.toUpperCase()}
+             Pseudo Role: {pseudoRoleLabel.toUpperCase()}
               </div>
             )}
             {actualRoleLabel && (
@@ -128,7 +128,7 @@ export function UserInfo({ user }: UserInfoProps) {
               className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[9px] hover:bg-gray-2 hover:text-dark dark:hover:bg-dark-3 dark:hover:text-white"
             >
               <ProfileIcon />
-              <span className="mr-auto text-base font-medium">Profile</span>
+              <span className="mr-auto text-base font-medium">Profile & Interventions</span>
             </Link>
           )}
         </div>

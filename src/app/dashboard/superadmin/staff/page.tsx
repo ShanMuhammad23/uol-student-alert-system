@@ -300,7 +300,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  tone: "neutral" | "violet" | "emerald" | "blue";
+  tone: "neutral" | "violet" | "emerald" | "blue" | "amber";
 }) {
   const tones = {
     neutral:
@@ -311,6 +311,8 @@ function StatCard({
       "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-50",
     blue:
       "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-700 dark:bg-blue-950/55 dark:text-blue-50",
+    amber:
+      "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/55 dark:text-amber-50",
   };
 
   return (
@@ -335,16 +337,35 @@ export default async function SuperadminStaffPage(props: {
 
   // Calculate stats
   const totalStaff = staff.length;
-  const byRole = staff.reduce((acc, s) => {
-    acc[s.role] = (acc[s.role] || 0) + 1;
+  const byActualRole = staff.reduce((acc, s) => {
+    const key = s.actual_role ?? "unknown";
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  const deanCount = byRole.dean || 0;
-  const hodCount = byRole.hod || 0;
-  const instructorCount = byRole.instructor || 0;
-  const superadminCount = byRole.superadmin || 0;
-  const counsellorHeadCount = byRole["wellbeing-head"] || 0;
-  const counsellorCount = byRole["wellbeing-counseller"] || 0;
+  const byPseudoRole = staff.reduce((acc, s) => {
+    const key = s.pseudo_role ?? "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const superadminCount = byActualRole.superadmin || 0;
+  const deanCount = byActualRole.dean || 0;
+  const hodCount = byActualRole.hod || 0;
+  const instructorCount = byActualRole.instructor || 0;
+  const counsellorHeadCount = byActualRole["wellbeing-head"] || 0;
+  const counsellorCount = byActualRole["wellbeing-counseller"] || 0;
+  const adminCoordinatorCount = (byActualRole.admin || 0) + (byActualRole.coordinator || 0);
+
+  // Pseudo leadership = pseudo dean/hod, but actual admin/coordinator
+  const pseudoDeanCount = staff.filter(
+    (s) =>
+      s.pseudo_role === "dean" &&
+      (s.actual_role === "admin" || s.actual_role === "coordinator")
+  ).length;
+  const pseudoHodCount = staff.filter(
+    (s) =>
+      s.pseudo_role === "hod" &&
+      (s.actual_role === "admin" || s.actual_role === "coordinator")
+  ).length;
 
   const successMessage =
     searchParams.success === "updated"
@@ -400,11 +421,14 @@ export default async function SuperadminStaffPage(props: {
       </div>
 
       {/* ─── Stats Row ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10">
         <StatCard label="Total Staff" value={totalStaff} tone="neutral" />
         <StatCard label="Superadmins" value={superadminCount} tone="violet" />
         <StatCard label="Deans" value={deanCount} tone="violet" />
         <StatCard label="HoDs" value={hodCount} tone="emerald" />
+        <StatCard label="Pseudo Deans" value={pseudoDeanCount} tone="amber" />
+        <StatCard label="Pseudo HoDs" value={pseudoHodCount} tone="amber" />
+        <StatCard label="Admin/Coordinator" value={adminCoordinatorCount} tone="neutral" />
         <StatCard label="Instructors" value={instructorCount} tone="blue" />
         <StatCard label="Wellbeing Heads" value={counsellorHeadCount} tone="emerald" />
         <StatCard label="Wellbeing Counsellors" value={counsellorCount} tone="blue" />
