@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { StaffDirectoryTableClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryTableClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
-import { createStaffMember } from "./create-staff-action";
+import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
 import { cn } from "@/lib/utils";
 import {
@@ -453,6 +453,7 @@ export default async function SuperadminStaffPage(props: {
           </div>
           <AddStaffForm
             createStaff={createStaffMember}
+            validateStaffFields={validateStaffFields}
             faculties={faculties}
             departments={departments.map((department) => ({
               id: department.id,

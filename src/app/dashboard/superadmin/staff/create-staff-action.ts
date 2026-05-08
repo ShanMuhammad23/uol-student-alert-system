@@ -22,6 +22,45 @@ export type CreateStaffResult =
       code?: "enrollment_mismatch";
     };
 
+export type StaffFieldValidationResult = {
+  emailDuplicate: boolean;
+  pernrDuplicate: boolean;
+  pernrInEnrollment: boolean | null;
+};
+
+export async function validateStaffFields(
+  emailRaw: string,
+  pernrRaw: string
+): Promise<StaffFieldValidationResult> {
+  const email = String(emailRaw ?? "").trim().toLowerCase();
+  const pernr = String(pernrRaw ?? "").trim();
+
+  let emailDuplicate = false;
+  let pernrDuplicate = false;
+  let pernrInEnrollment: boolean | null = null;
+
+  if (pool) {
+    if (email) {
+      const emailRes = await pool.query<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM staff WHERE LOWER(email) = $1) AS exists`,
+        [email]
+      );
+      emailDuplicate = Boolean(emailRes.rows[0]?.exists);
+    }
+
+    if (pernr) {
+      const pernrRes = await pool.query<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM staff WHERE pernr = $1) AS exists`,
+        [pernr]
+      );
+      pernrDuplicate = Boolean(pernrRes.rows[0]?.exists);
+      pernrInEnrollment = await isInstructorPernrInEnrollment(pernr);
+    }
+  }
+
+  return { emailDuplicate, pernrDuplicate, pernrInEnrollment };
+}
+
 export async function createStaffMember(
   formData: FormData
 ): Promise<CreateStaffResult> {
