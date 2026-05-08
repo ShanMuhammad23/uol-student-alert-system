@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronUpIcon } from "@/assets/icons";
 import { cn } from "@/lib/utils";
 import {
@@ -20,12 +20,9 @@ const OUTREACH_MODES = [
   { value: "not-applicable", label: "Not Applicable" }
 ] as const;
 
-const STATUS_OPTIONS = [
-  { value: "initiated", label: "Initiated" },
-  { value: "in-progress", label: "In-Progress" },
+const MANUAL_STATUS_OPTIONS = [
   { value: "referred", label: "Referred" },
   { value: "resolved", label: "Resolved" },
-  { value: "no-action-required", label: "No Action Required" },
 ] as const;
 
 const TYPE_OPTIONS = [
@@ -45,6 +42,8 @@ export type InterventionFormData = {
 export type InterventionEmailTemplateKey = "sos_check_in" | "student_referral";
 
 export type InterventionEmailData = {
+  /** Present when email was sent together with a newly created intervention row. */
+  interventionId?: string | null;
   templateKey: InterventionEmailTemplateKey;
   recipientEmail: string;
   replyToEmail: string;
@@ -53,7 +52,13 @@ export type InterventionEmailData = {
 };
 
 type InterventionFormProps = {
-  onSubmit?: (data: InterventionFormData) => Promise<void> | void;
+  onSubmit?: (
+    data: InterventionFormData
+  ) =>
+    | Promise<{ interventionId?: string | null } | void>
+    | Promise<void>
+    | { interventionId?: string | null }
+    | void;
   onSendEmail?: (data: InterventionEmailData) => Promise<void> | void;
   onCancel?: () => void;
   className?: string;
@@ -165,9 +170,11 @@ const InterventionForm = ({
 
   const [date, setDate] = useState("");
   const [outreachMode, setOutreachMode] = useState("");
+  const outreachModeRef = useRef(outreachMode);
   const [interventionType, setInterventionType] = useState<"attendance" | "gpa" | "both">("attendance");
   const [remarks, setRemarks] = useState("");
   const [status, setStatus] = useState("");
+  const [isEmailSectionOpen, setIsEmailSectionOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailTemplateKey, setEmailTemplateKey] =
@@ -180,10 +187,14 @@ const InterventionForm = ({
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const shouldShowEmailSection =
-    mode === "intervention" && outreachMode === "email";
-  const canUseSosTemplate = status === "initiated" && outreachMode === "email";
+  const shouldShowEmailSection = mode === "intervention" && outreachMode === "email";
+  const effectiveStatus = useMemo(() => {
+    if (status) return status;
+    return "initiated";
+  }, [status]);
+  const canUseSosTemplate = effectiveStatus === "initiated" && outreachMode === "email";
   const canUseReferralTemplate = status === "referred";
+  const isNoActionRequiredSelected = status === "no-action-required";
 
   const effectiveTypeOptions = (allowedInterventionTypes?.length
     ? TYPE_OPTIONS.filter((o) =>
@@ -196,6 +207,22 @@ const InterventionForm = ({
     if (allowedInterventionTypes.includes(interventionType)) return;
     setInterventionType(allowedInterventionTypes[0] ?? "attendance");
   }, [allowedInterventionTypes, interventionType]);
+
+  useEffect(() => {
+    outreachModeRef.current = outreachMode;
+  }, [outreachMode]);
+
+  const handleOutreachModeChange = (value: string) => {
+    outreachModeRef.current = value;
+    setOutreachMode(value);
+    if (mode === "intervention" && value !== "email") {
+      setEmailTemplateKey("");
+      setEmailSubject("");
+      setEmailBodyHtml("");
+      setRecipientEmail("");
+      setIsEmailSectionOpen(false);
+    }
+  };
 
   const getSosSubjectByType = (
     type: "attendance" | "gpa" | "both"
@@ -218,6 +245,9 @@ const InterventionForm = ({
   };
 
   useEffect(() => {
+    if (!shouldShowEmailSection) {
+      setIsEmailSectionOpen(false);
+    }
     if (!shouldShowEmailSection && emailTemplateKey) {
       setEmailTemplateKey("");
       setEmailSubject("");
@@ -260,6 +290,12 @@ const InterventionForm = ({
     canUseSosTemplate,
     canUseReferralTemplate,
   ]);
+
+  useEffect(() => {
+    if (shouldShowEmailSection) {
+      setIsEmailSectionOpen(true);
+    }
+  }, [shouldShowEmailSection]);
 
   const fillTemplateWithData = (
     templateKey: InterventionEmailTemplateKey,
@@ -432,6 +468,7 @@ const InterventionForm = ({
   const resetForm = () => {
     setDate("");
     setOutreachMode("");
+    outreachModeRef.current = "";
     setInterventionType("attendance");
     setRemarks("");
     setStatus("");
@@ -451,7 +488,10 @@ const InterventionForm = ({
     setSubmitMessage(null);
     setIsAdding(true);
     try {
-      if (shouldShowEmailSection) {
+      const outreachAtSubmit = String(outreachModeRef.current ?? "").trim();
+      const isEmailMode = mode === "intervention" && outreachAtSubmit === "email";
+
+      if (isEmailMode) {
         if (!emailTemplateKey) {
           throw new Error("Select an email template to continue.");
         }
@@ -463,17 +503,25 @@ const InterventionForm = ({
         }
       }
 
-      await onSubmit({
+      const submitResult = await onSubmit({
         date,
         interventionType,
-        outreachMode,
+        outreachMode: outreachAtSubmit,
         remarks,
         status,
       });
+      const interventionId =
+        submitResult &&
+        typeof submitResult === "object" &&
+        "interventionId" in submitResult
+          ? (submitResult as { interventionId?: string | null }).interventionId ??
+            null
+          : null;
 
-      if (shouldShowEmailSection && onSendEmail && emailTemplateKey) {
+      if (isEmailMode && onSendEmail && emailTemplateKey) {
         setIsSendingEmail(true);
         await onSendEmail({
+          interventionId: interventionId ?? undefined,
           templateKey: emailTemplateKey,
           recipientEmail: recipientEmail.trim(),
           replyToEmail: replyToEmail.trim(),
@@ -552,15 +600,27 @@ const InterventionForm = ({
       </div>
 
       {/* 3. Status */}
-      <SelectField
-        id={statusId}
-        label="Status"
-        placeholder="Select status"
-        value={status}
-        onChange={setStatus}
-        items={STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
-        required
-      />
+      <div className="space-y-3">
+        <label
+          htmlFor={statusId}
+          className="block text-body-sm font-medium text-dark dark:text-white"
+        >
+          Status
+        </label>
+        <div id={statusId} className="rounded-lg border border-stroke p-3 dark:border-dark-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
+            <input
+              type="radio"
+              name="status"
+              value="no-action-required"
+              checked={status === "no-action-required"}
+              onChange={() => setStatus("no-action-required")}
+              className="h-4 w-4 accent-primary"
+            />
+            No Action Required
+          </label>
+        </div>
+      </div>
 
       {/* 4. Mode */}
       {mode === "intervention" ? (
@@ -569,7 +629,7 @@ const InterventionForm = ({
           label="Mode"
           placeholder="Select mode"
           value={outreachMode}
-          onChange={setOutreachMode}
+          onChange={handleOutreachModeChange}
           items={OUTREACH_MODES.map((o) => ({ value: o.value, label: o.label }))}
           required
         />
@@ -593,11 +653,23 @@ const InterventionForm = ({
         />
       </div>
 
-      {/* 6. Email Section (reserved space to avoid layout shift) */}
-      <div className="min-h-[620px]">
+      {/* 6. Email Section */}
+      <div>
         {shouldShowEmailSection ? (
           <div className="space-y-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
-            <h4 className="text-body-sm font-semibold text-dark dark:text-white">Email Section</h4>
+            <button
+              type="button"
+              onClick={() => setIsEmailSectionOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between text-left"
+              aria-expanded={isEmailSectionOpen}
+            >
+              <h4 className="text-body-sm font-semibold text-dark dark:text-white">Email Section</h4>
+              <span className="text-xs text-dark-6 dark:text-white">
+                {isEmailSectionOpen ? "Collapse" : "Expand"}
+              </span>
+            </button>
+            {isEmailSectionOpen ? (
+              <>
             <div className="flex flex-wrap items-center gap-4">
               {canUseSosTemplate ? (
                 <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white">
@@ -696,13 +768,43 @@ const InterventionForm = ({
                 </div>
               </div>
             ) : null}
+              </>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-stroke p-4 text-sm text-dark-6 dark:border-dark-3 dark:text-white">
-            Email section appears only when status is <span className="font-semibold">Initiated</span> and mode is <span className="font-semibold">Email</span>.
+            Email section appears when mode is <span className="font-semibold">Email</span>.
           </div>
         )}
       </div>
+
+      {!isNoActionRequiredSelected && (
+        <div className="space-y-3">
+          <label className="block text-body-sm font-medium text-dark dark:text-white">
+            Status
+          </label>
+          <div className="rounded-lg border border-stroke p-3 dark:border-dark-3">
+            <div className="flex flex-wrap items-center gap-4">
+              {MANUAL_STATUS_OPTIONS.map((s) => (
+                <label
+                  key={s.value}
+                  className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white"
+                >
+                  <input
+                    type="radio"
+                    name="status"
+                    value={s.value}
+                    checked={status === s.value}
+                    onChange={() => setStatus(s.value)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button

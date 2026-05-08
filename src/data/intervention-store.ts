@@ -51,6 +51,8 @@ export type InterventionRecord = {
 export type InterventionEmailRecord = {
   id: string;
   student_sap_id: string;
+  /** When set, this email was sent as part of this intervention row. */
+  intervention_id?: string | null;
   template_key: "sos_check_in" | "student_referral";
   recipient_email: string;
   subject: string;
@@ -475,7 +477,37 @@ export async function recordIntervention(
     focused_section_code?: string | null;
     focused_event_package_id?: string | null;
   }
-): Promise<void> {
+): Promise<string> {
+  const resolveAutoStatus = async (courseIdForStatus: string): Promise<string> => {
+    const normalizedCourseId = String(courseIdForStatus ?? "").trim();
+    if (!normalizedCourseId || normalizedCourseId === "unknown") {
+      return "initiated";
+    }
+    if (pool) {
+      const res = await pool.query<{ status: string }>(
+        `
+        SELECT status
+        FROM interventions
+        WHERE student_sap_id = $1
+          AND course_id = $2
+        ORDER BY performed_at DESC
+        `,
+        [studentSapId, normalizedCourseId]
+      );
+      if (!res.rows.length) return "initiated";
+      const hasOnlyInitiated = res.rows.every((row) => row.status === "initiated");
+      return hasOnlyInitiated ? "in-progress" : "initiated";
+    }
+    const stored = readStore().filter(
+      (row) =>
+        String(row.student_sap_id ?? "").trim() === String(studentSapId).trim() &&
+        String(row.course_id ?? "").trim() === normalizedCourseId
+    );
+    if (!stored.length) return "initiated";
+    const hasOnlyInitiated = stored.every((row) => row.status === "initiated");
+    return hasOnlyInitiated ? "in-progress" : "initiated";
+  };
+
   if (pool) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -523,16 +555,24 @@ export async function recordIntervention(
       departmentId,
       facultyId,
     });
+    const selectedStatus = String(data.status ?? "").trim();
+    const finalStatus =
+      selectedStatus === "no-action-required" ||
+      selectedStatus === "referred" ||
+      selectedStatus === "resolved"
+        ? selectedStatus
+        : await resolveAutoStatus(finalCourseId);
     const performedAt = new Date().toISOString();
+    const interventionId = `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     await insertIntervention({
-      id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: interventionId,
       student_sap_id: studentSapId,
       date: data.date,
       intervention_type: data.intervention_type,
       alert_level: alertLevel,
       outreach_mode: data.outreach_mode,
       remarks: data.remarks ?? "",
-      status: data.status,
+      status: finalStatus,
       performed_at: performedAt,
       staff_id: session.user.id,
       department_id: departmentId,
@@ -544,7 +584,7 @@ export async function recordIntervention(
     revalidatePath("/");
     revalidatePath("/dashboard");
     revalidatePath(`/students/${studentSapId}`);
-    return;
+    return interventionId;
   }
   const student = await getStudentBySapId(studentSapId);
   const alertLevel =
@@ -560,15 +600,24 @@ export async function recordIntervention(
             ? "warning"
             : null;
   const stored = readStore();
+  const fallbackCourseId = String(data.focused_course_id ?? "").trim() || "unknown";
+  const selectedStatus = String(data.status ?? "").trim();
+  const finalStatus =
+    selectedStatus === "no-action-required" ||
+    selectedStatus === "referred" ||
+    selectedStatus === "resolved"
+      ? selectedStatus
+      : await resolveAutoStatus(fallbackCourseId);
+  const interventionId = `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const record: InterventionRecord = {
-    id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    id: interventionId,
     student_sap_id: studentSapId,
     date: data.date,
     intervention_type: data.intervention_type,
     alert_level: alertLevel,
     outreach_mode: data.outreach_mode,
     remarks: data.remarks,
-    status: data.status,
+    status: finalStatus,
     performed_at: new Date().toISOString(),
   };
   stored.push(record);
@@ -580,6 +629,7 @@ export async function recordIntervention(
   writeFileSync(storePath, JSON.stringify(stored, null, 2), "utf-8");
   revalidatePath("/");
   revalidatePath(`/students/${studentSapId}`);
+  return interventionId;
 }
 
 /** Wellbeing-initiated external direct case. Creates intervention + wellbeing_direct_cases row. */
@@ -762,6 +812,7 @@ export async function updateInterventionById(
 export async function saveInterventionEmail(
   studentSapId: string,
   data: {
+    intervention_id?: string | null;
     template_key: "sos_check_in" | "student_referral";
     recipient_email: string;
     reply_to_email?: string;
@@ -815,9 +866,13 @@ export async function saveInterventionEmail(
     replyTo,
   });
 
+  const interventionId =
+    String(data.intervention_id ?? "").trim() || null;
+
   await pool.query(
     `INSERT INTO intervention_emails (
       student_sap_id,
+      intervention_id,
       template_key,
       recipient_email,
       subject,
@@ -828,9 +883,10 @@ export async function saveInterventionEmail(
       sender_pernr,
       received_at,
       sent_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
     [
       studentSapId,
+      interventionId,
       data.template_key,
       recipient,
       data.subject,
@@ -853,6 +909,7 @@ export async function getInterventionEmailsByStudentSapId(
     `SELECT
       id,
       student_sap_id,
+      intervention_id,
       template_key,
       recipient_email,
       subject,

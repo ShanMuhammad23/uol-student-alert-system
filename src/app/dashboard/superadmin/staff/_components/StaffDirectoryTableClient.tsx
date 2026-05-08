@@ -3,6 +3,15 @@
 import { useMemo, useState } from "react";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import {
+  FORM_PSEUDO_ROLE_OPTIONS,
+  clampActualFormValueToPseudo,
+  formatActualRoleDisplay,
+  getActualRoleFormOptionsForPseudo,
+  isStoredPseudoRole,
+  storedActualRoleToFormValue,
+  type StoredPseudoRole,
+} from "@/lib/staff-role-rules";
+import {
   Table,
   TableBody,
   TableCell,
@@ -102,7 +111,7 @@ const ROLE_BADGE_STYLES: Record<string, string> = {
   "wellbeing-counseller":
     "bg-pink-100 text-pink-700 ring-1 ring-inset ring-pink-200 dark:bg-pink-500/20 dark:text-pink-200 dark:ring-pink-400/40",
   coordinator:
-    "bg-indigo-100 text-indigo-700 ring-1 ring-inset ring-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-400/40",
+    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:ring-slate-400/40",
   admin:
     "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:ring-slate-400/40",
 };
@@ -368,10 +377,12 @@ export function StaffDirectoryTableClient({
                     {row.actual_role ? (
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
-                          row.actual_role
+                          row.actual_role === "admin" || row.actual_role === "coordinator"
+                            ? "admin"
+                            : row.actual_role
                         )}`}
                       >
-                        {formatRoleLabel(row.actual_role)}
+                        {formatActualRoleDisplay(row.actual_role)}
                       </span>
                     ) : (
                       "—"
@@ -458,7 +469,24 @@ function EditStaffModal({
   onClose: () => void;
   action: (formData: FormData) => void | Promise<void>;
 }) {
-  const [pseudoRole, setPseudoRole] = useState<StaffListRow["role"]>(staff.pseudo_role ?? staff.role);
+  const initialPseudo: StoredPseudoRole =
+    staff.pseudo_role && isStoredPseudoRole(staff.pseudo_role)
+      ? staff.pseudo_role
+      : "instructor";
+
+  const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole>(initialPseudo);
+
+  const [actualRoleForm, setActualRoleForm] = useState(() => {
+    const raw = storedActualRoleToFormValue(staff.actual_role);
+    const fallback = getActualRoleFormOptionsForPseudo(initialPseudo)[0]?.value ?? "";
+    return clampActualFormValueToPseudo(initialPseudo, raw || fallback);
+  });
+
+  const actualOptionsForPseudo = useMemo(
+    () => getActualRoleFormOptionsForPseudo(pseudoRole),
+    [pseudoRole]
+  );
+
   const showDepartments = pseudoRole === "hod";
 
   return (
@@ -532,12 +560,18 @@ function EditStaffModal({
               name="pseudo_role"
               required
               value={pseudoRole}
-              onChange={(e) => setPseudoRole(e.target.value as StaffListRow["role"])}
+              onChange={(e) => {
+                const next = e.target.value as StoredPseudoRole;
+                setPseudoRole(next);
+                setActualRoleForm((prev) =>
+                  clampActualFormValueToPseudo(next, prev)
+                );
+              }}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
-              {ROLE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {FORM_PSEUDO_ROLE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </select>
@@ -547,18 +581,15 @@ function EditStaffModal({
             <select
               name="actual_role"
               required
-              defaultValue={staff.actual_role ?? "admin"}
+              value={actualRoleForm}
+              onChange={(e) => setActualRoleForm(e.target.value)}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
-              <option value="superadmin">superadmin</option>
-              <option value="dean">dean</option>
-              <option value="hod">hod</option>
-              <option value="instructor">instructor</option>
-              <option value="wellbeing">wellbeing</option>
-              <option value="wellbeing-head">wellbeing-head</option>
-              <option value="wellbeing-counseller">wellbeing-counseller</option>
-              <option value="admin">admin</option>
-              <option value="coordinator">coordinator</option>
+              {actualOptionsForPseudo.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div className="flex flex-col gap-1">

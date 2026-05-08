@@ -36,6 +36,7 @@ type InterventionRecord = {
 
 type SentEmailRecord = {
   id: string;
+  intervention_id?: string | null;
   template_key: "sos_check_in" | "student_referral";
   subject: string;
   body_html?: string | null;
@@ -84,6 +85,48 @@ function formatCourseLabel(intervention: InterventionRecord): string {
   if (courseId) return courseId;
   if (courseTitle) return courseTitle;
   return "—";
+}
+
+/** Route each sent email to a single intervention row for display (FK when present; else nearest performed_at). */
+function emailsByInterventionId<
+  T extends {
+    id: string;
+    intervention_id?: string | null;
+    sent_at: string;
+  },
+  I extends { id: string; performed_at?: string; date: string },
+>(interventions: I[], emails: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const int of interventions) {
+    map.set(int.id, []);
+  }
+  const unlinked: T[] = [];
+  for (const e of emails) {
+    const fk = String(e.intervention_id ?? "").trim();
+    if (fk && map.has(fk)) {
+      map.get(fk)!.push(e);
+    } else {
+      unlinked.push(e);
+    }
+  }
+  if (!interventions.length) return map;
+  for (const e of unlinked) {
+    const t = new Date(e.sent_at).getTime();
+    if (!Number.isFinite(t)) continue;
+    let bestId: string | null = null;
+    let bestD = Infinity;
+    for (const int of interventions) {
+      const pt = new Date(int.performed_at ?? int.date).getTime();
+      if (!Number.isFinite(pt)) continue;
+      const d = Math.abs(t - pt);
+      if (d < bestD) {
+        bestD = d;
+        bestId = int.id;
+      }
+    }
+    if (bestId) map.get(bestId)!.push(e);
+  }
+  return map;
 }
 
 type Props = {
@@ -473,6 +516,15 @@ export function InterventionHistorySection({
     return interventionTab === "focused" ? focusedInterventions : otherInterventions;
   }, [rows, hasFocus, interventionTab, focusedInterventions, otherInterventions]);
 
+  const emailsForInterventions = useMemo(
+    () => emailsByInterventionId(rows, sentEmails),
+    [rows, sentEmails]
+  );
+
+  const modalEmails = emailModalIntervention
+    ? emailsForInterventions.get(emailModalIntervention.id) ?? []
+    : [];
+
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-dark">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
@@ -767,6 +819,7 @@ export function InterventionHistorySection({
                   );
                 }
                 const int = rowItem as InterventionRecord;
+                const intEmails = emailsForInterventions.get(int.id) ?? [];
                 const statusStyle = STATUS_STYLES[int.status] ?? { label: int.status, bg: "#94A3B8" };
                 return (
                   <TableRow key={int.id} className="border-stroke dark:border-dark-3">
@@ -814,7 +867,7 @@ export function InterventionHistorySection({
                       </div>
                     </TableCell>
                     <TableCell className="text-dark dark:text-white">
-                      {sentEmails.length > 0 ? (
+                      {intEmails.length > 0 ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -823,7 +876,7 @@ export function InterventionHistorySection({
                           }}
                           className="inline-flex items-center rounded-md border border-stroke px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 dark:border-dark-3"
                         >
-                          View {sentEmails.length} email{sentEmails.length === 1 ? "" : "s"}
+                          View {intEmails.length} email{intEmails.length === 1 ? "" : "s"}
                         </button>
                       ) : (
                         <span className="text-xs text-dark-6 dark:text-white">—</span>
@@ -1265,11 +1318,11 @@ export function InterventionHistorySection({
           ) : null}
 
           <div className="max-h-[calc(100dvh-64px-1px-160px)] overflow-y-auto px-6 py-4">
-            {sentEmails.length === 0 ? (
-              <p className="text-sm text-dark-6 dark:text-white">No emails.</p>
+            {modalEmails.length === 0 ? (
+              <p className="text-sm text-dark-6 dark:text-white">No emails for this intervention.</p>
             ) : (
               <div className="space-y-3">
-                {sentEmails.map((email) => (
+                {modalEmails.map((email) => (
                   <div
                     key={email.id}
                     className="rounded-lg border border-stroke p-3 text-sm dark:border-dark-3"

@@ -7,6 +7,13 @@ import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
 import { cn } from "@/lib/utils";
+import {
+  isStoredPseudoRole,
+  normalizeActualRoleFromForm,
+  staffRolePairErrorMessage,
+  type StoredActualRole,
+  type StoredPseudoRole,
+} from "@/lib/staff-role-rules";
 type StaffListRow = {
   id: string;
   pernr: string;
@@ -125,58 +132,23 @@ async function updateStaffAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
-  const actualRole = String(formData.get("actual_role") ?? "").trim() as
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller"
-    | "coordinator"
-    | "admin";
-  const pseudoRole = String(formData.get("pseudo_role") ?? "").trim() as
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller";
+  const actualRoleRaw = String(formData.get("actual_role") ?? "").trim();
+  const normalizedActual = normalizeActualRoleFromForm(actualRoleRaw);
+  const pseudoRoleRaw = String(formData.get("pseudo_role") ?? "").trim();
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
   const password = String(formData.get("password") ?? "").trim();
 
-  if (!id || !name || !email || !pernr || !actualRole || !pseudoRole) {
+  if (!id || !name || !email || !pernr || !normalizedActual || !pseudoRoleRaw) {
     redirect("/dashboard/superadmin/staff?error=missing_required");
   }
 
-  if (
-    ![
-      "superadmin",
-      "dean",
-      "hod",
-      "instructor",
-      "wellbeing",
-      "wellbeing-head",
-      "wellbeing-counseller",
-      "coordinator",
-      "admin",
-    ].includes(actualRole)
-  ) {
+  const actualRole = normalizedActual as StoredActualRole;
+  if (!isStoredPseudoRole(pseudoRoleRaw)) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
-  if (
-    ![
-      "superadmin",
-      "dean",
-      "hod",
-      "instructor",
-      "wellbeing",
-      "wellbeing-head",
-      "wellbeing-counseller",
-    ].includes(pseudoRole)
-  ) {
+  const pseudoRole = pseudoRoleRaw as StoredPseudoRole;
+  if (staffRolePairErrorMessage(actualRole, pseudoRole)) {
     redirect("/dashboard/superadmin/staff?error=invalid_role");
   }
 
@@ -377,7 +349,7 @@ export default async function SuperadminStaffPage(props: {
     searchParams.error === "missing_required"
       ? "Please fill all required fields."
       : searchParams.error === "invalid_role"
-      ? "Selected role is invalid."
+      ? "Selected roles are invalid for this pseudo role (dean/HoD pseudo → actual admin/coordinator, dean, or HoD only; superadmin pseudo → actual superadmin only; wellbeing-head / wellbeing-counseller pseudo → matching actual only)."
       : searchParams.error === "faculty_required"
       ? "Parent faculty is required."
       : searchParams.error === "duplicate"

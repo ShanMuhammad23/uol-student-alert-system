@@ -69,7 +69,9 @@ export function InterventionFormWithAction({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleSubmit = async (data: InterventionFormData) => {
+  const handleSubmit = async (
+    data: InterventionFormData
+  ): Promise<{ interventionId?: string | null } | void> => {
     setError(null);
     setSuccess(null);
     try {
@@ -89,22 +91,25 @@ export function InterventionFormWithAction({
           remarks: data.remarks,
         });
         setSuccess("Wellbeing case added successfully.");
-      } else {
-        await recordIntervention(studentSapId, {
-          date: data.date,
-          interventionType: data.interventionType,
-          outreachMode: data.outreachMode,
-          remarks: data.remarks,
-          status: data.status,
-          focusedCourseId: focusedCourseId ?? null,
-          focusedSectionCode: focusedSectionCode ?? null,
-          focusedEventPackageId: focusedEventPackageId ?? null,
-        });
-        setSuccess("Intervention added successfully.");
+        router.refresh();
+        return;
       }
+      const interventionId = await recordIntervention(studentSapId, {
+        date: data.date,
+        interventionType: data.interventionType,
+        outreachMode: data.outreachMode,
+        remarks: data.remarks,
+        status: data.status,
+        focusedCourseId: focusedCourseId ?? null,
+        focusedSectionCode: focusedSectionCode ?? null,
+        focusedEventPackageId: focusedEventPackageId ?? null,
+      });
+      setSuccess("Intervention added successfully.");
       router.refresh();
+      return { interventionId };
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save intervention.");
+      throw e;
     }
   };
 

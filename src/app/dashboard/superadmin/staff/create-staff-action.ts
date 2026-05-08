@@ -6,6 +6,13 @@ import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { sendStaffRoleAssignedEmail } from "@/lib/staff-role-assigned-email";
+import {
+  isStoredPseudoRole,
+  normalizeActualRoleFromForm,
+  staffRolePairErrorMessage,
+  type StoredActualRole,
+  type StoredPseudoRole,
+} from "@/lib/staff-role-rules";
 
 export type CreateStaffResult =
   | { ok: true }
@@ -26,58 +33,24 @@ export async function createStaffMember(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
   const password = String(formData.get("password") ?? "").trim();
-  const actualRole = String(formData.get("actual_role") ?? "").trim() as
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller"
-    | "coordinator"
-    | "admin";
-  const pseudoRole = String(formData.get("pseudo_role") ?? "").trim() as
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller";
+  const actualRoleRaw = String(formData.get("actual_role") ?? "").trim();
+  const normalizedActual = normalizeActualRoleFromForm(actualRoleRaw);
+  const pseudoRoleRaw = String(formData.get("pseudo_role") ?? "").trim();
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
   const skipEnrollmentCheck = String(formData.get("skip_enrollment_check") ?? "").trim() === "1";
 
-  if (!name || !email || !pernr || !password || !actualRole || !pseudoRole) {
+  if (!name || !email || !pernr || !password || !normalizedActual || !pseudoRoleRaw) {
     return { ok: false, message: "Please fill all required fields." };
   }
-  if (
-    ![
-      "superadmin",
-      "dean",
-      "hod",
-      "instructor",
-      "wellbeing",
-      "wellbeing-head",
-      "wellbeing-counseller",
-      "coordinator",
-      "admin",
-    ].includes(actualRole)
-  ) {
-    return { ok: false, message: "Selected actual role is invalid." };
-  }
-  if (
-    ![
-      "superadmin",
-      "dean",
-      "hod",
-      "instructor",
-      "wellbeing",
-      "wellbeing-head",
-      "wellbeing-counseller",
-    ].includes(pseudoRole)
-  ) {
+  const actualRole = normalizedActual as StoredActualRole;
+  if (!isStoredPseudoRole(pseudoRoleRaw)) {
     return { ok: false, message: "Selected pseudo role is invalid." };
+  }
+  const pseudoRole = pseudoRoleRaw as StoredPseudoRole;
+  const pairError = staffRolePairErrorMessage(actualRole, pseudoRole);
+  if (pairError) {
+    return { ok: false, message: pairError };
   }
   if (!facultyId) {
     return { ok: false, message: "Parent faculty is required." };

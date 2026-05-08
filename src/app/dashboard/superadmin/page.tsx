@@ -4,6 +4,7 @@ import {
   getSuperadminFacultyStats,
   getSuperadminAlertSnapshotTrend,
   getInterventionChartData,
+  getWellbeingChartData,
 } from "@/app/(home)/dashboard/fetch";
 import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
@@ -164,18 +165,15 @@ type SuperadminPageProps = {
 export default async function SuperadminDashboardPage({
   searchParams,
 }: SuperadminPageProps) {
-  const wellbeingDummyData = {
-    open: [12, 8, 15, 6, 2],
-    closed: [5, 10, 4, 9, 1],
-  };
   const user = await getCurrentUser();
   const resolvedSearchParams = await searchParams;
   const selectedFaculty = resolvedSearchParams.faculty?.trim() || "";
   
-  const [overview, facultyStats, interventionChart] = await Promise.all([
+  const [overview, facultyStats, interventionChart, wellbeingChart] = await Promise.all([
     getOverviewData(user),
     getSuperadminFacultyStats(),
     getInterventionChartData(user),
+    getWellbeingChartData(user),
   ]);
   
   const validSelectedFaculty = facultyStats.some(
@@ -277,7 +275,7 @@ export default async function SuperadminDashboardPage({
             <div className="mt-4">
               <StatusStackedChart
                 title=""
-                data={wellbeingDummyData}
+                data={wellbeingChart}
               />
             </div>
           </div>

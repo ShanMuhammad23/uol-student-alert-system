@@ -22,6 +22,8 @@ export type RecordInterventionInput = {
 };
 
 export type RecordInterventionEmailInput = {
+  /** Intervention row this send belongs to (student profile shows emails per intervention). */
+  interventionId?: string | null;
   templateKey: InterventionEmailTemplateKey;
   recipientEmail: string;
   replyToEmail: string;
@@ -52,8 +54,8 @@ export type RecordDirectWellbeingCaseInput = {
 export async function recordIntervention(
   studentSapId: string,
   data: RecordInterventionInput
-): Promise<void> {
-  await saveIntervention(studentSapId, {
+): Promise<string> {
+  return saveIntervention(studentSapId, {
     date: data.date,
     intervention_type: data.interventionType,
     outreach_mode: data.outreachMode,
@@ -70,6 +72,7 @@ export async function recordInterventionEmail(
   data: RecordInterventionEmailInput
 ): Promise<void> {
   await saveInterventionEmail(studentSapId, {
+    intervention_id: data.interventionId ?? null,
     template_key: data.templateKey,
     recipient_email: data.recipientEmail,
     reply_to_email: data.replyToEmail,
