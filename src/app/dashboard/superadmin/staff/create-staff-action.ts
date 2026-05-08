@@ -26,6 +26,7 @@ export type StaffFieldValidationResult = {
   emailDuplicate: boolean;
   pernrDuplicate: boolean;
   pernrInEnrollment: boolean | null;
+  enrollmentInstructorName: string | null;
 };
 
 export async function validateStaffFields(
@@ -38,6 +39,7 @@ export async function validateStaffFields(
   let emailDuplicate = false;
   let pernrDuplicate = false;
   let pernrInEnrollment: boolean | null = null;
+  let enrollmentInstructorName: string | null = null;
 
   if (pool) {
     if (email) {
@@ -55,10 +57,25 @@ export async function validateStaffFields(
       );
       pernrDuplicate = Boolean(pernrRes.rows[0]?.exists);
       pernrInEnrollment = await isInstructorPernrInEnrollment(pernr);
+      const enrollmentNameRes = await pool.query<{ instructor_name: string | null }>(
+        `SELECT NULLIF(TRIM(MAX(e.instructor_name)), '') AS instructor_name
+         FROM student_enrollment_current e
+         WHERE e.is_active = TRUE
+           AND e.instructor_pernr IS NOT NULL
+           AND TRIM(BOTH FROM e.instructor_pernr) = $1`,
+        [pernr]
+      );
+      enrollmentInstructorName =
+        enrollmentNameRes.rows[0]?.instructor_name?.trim() ?? null;
     }
   }
 
-  return { emailDuplicate, pernrDuplicate, pernrInEnrollment };
+  return {
+    emailDuplicate,
+    pernrDuplicate,
+    pernrInEnrollment,
+    enrollmentInstructorName,
+  };
 }
 
 export async function createStaffMember(

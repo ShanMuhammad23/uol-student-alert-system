@@ -44,6 +44,7 @@ export function AddStaffForm({
   departments,
 }: AddStaffFormProps) {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole | "">("");
   const [actualRole, setActualRole] = useState<string>("");
   const [email, setEmail] = useState("");
@@ -51,6 +52,8 @@ export function AddStaffForm({
   const [emailError, setEmailError] = useState<string | null>(null);
   const [pernrError, setPernrError] = useState<string | null>(null);
   const [pernrWarning, setPernrWarning] = useState<string | null>(null);
+  const [enrollmentName, setEnrollmentName] = useState<string | null>(null);
+  const [nameVariationWarning, setNameVariationWarning] = useState<string | null>(null);
   const [emailChecking, setEmailChecking] = useState(false);
   const [pernrChecking, setPernrChecking] = useState(false);
   const [pending, setPending] = useState(false);
@@ -62,6 +65,10 @@ export function AddStaffForm({
   }, [pseudoRole]);
 
   const showDepartments = pseudoRole === "hod";
+
+  function normalizedName(value: string): string {
+    return value.trim().replace(/\s+/g, " ").toLowerCase();
+  }
 
   async function handleEmailBlur() {
     const value = email.trim().toLowerCase();
@@ -87,6 +94,8 @@ export function AddStaffForm({
     if (!value) {
       setPernrError(null);
       setPernrWarning(null);
+      setEnrollmentName(null);
+      setNameVariationWarning(null);
       return;
     }
     setPernrChecking(true);
@@ -102,6 +111,16 @@ export function AddStaffForm({
           ? "PERNR not found in enrollment data. You can still continue, but this should be reviewed."
           : null
       );
+      setEnrollmentName(result.enrollmentInstructorName);
+      const typedName = normalizedName(name);
+      const dbName = normalizedName(result.enrollmentInstructorName ?? "");
+      if (typedName && dbName && typedName !== dbName) {
+        setNameVariationWarning(
+          `Name variation found: enrollment has "${result.enrollmentInstructorName}".`
+        );
+      } else {
+        setNameVariationWarning(null);
+      }
     } finally {
       setPernrChecking(false);
     }
@@ -178,6 +197,24 @@ export function AddStaffForm({
         <input
           name="name"
           required
+          value={name}
+          onChange={(ev) => {
+            const nextName = ev.target.value;
+            setName(nextName);
+            if (!enrollmentName) {
+              setNameVariationWarning(null);
+              return;
+            }
+            const typed = normalizedName(nextName);
+            const fromEnrollment = normalizedName(enrollmentName);
+            if (typed && fromEnrollment && typed !== fromEnrollment) {
+              setNameVariationWarning(
+                `Name variation found: enrollment has "${enrollmentName}".`
+              );
+            } else {
+              setNameVariationWarning(null);
+            }
+          }}
           className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
           placeholder="Staff full name"
         />
@@ -227,6 +264,16 @@ export function AddStaffForm({
         ) : null}
         {pernrWarning ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">{pernrWarning}</p>
+        ) : null}
+        {enrollmentName ? (
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">
+            Enrollment instructor name: {enrollmentName}
+          </p>
+        ) : null}
+        {nameVariationWarning ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {nameVariationWarning}
+          </p>
         ) : null}
         <p className="text-xs text-dark-5 dark:text-slate-400">
           Must appear as an instructor in current enrollment data (same value as instructor PERNR on enrollments).
