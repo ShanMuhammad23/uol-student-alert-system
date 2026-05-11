@@ -1519,38 +1519,154 @@ export async function getMasterFilterOptions(
         };
       }
 
-      if (user?.role === "instructor") {
+      if (user?.role === "instructor" || user?.role === "teacher") {
         const instructorPernr = String(user.sap_id ?? "").trim();
         if (!instructorPernr) {
           return { departments: [], programs: [], courses: [], instructors: [] };
         }
         const scopedRows = await pool.query<{
+          sap_id: string;
           department_id: string | null;
           course_id: string;
           program_id: string | null;
           instructor_pernr: string | null;
         }>(
-          `SELECT DISTINCT department_id, course_id, program_id, instructor_pernr
+          `SELECT DISTINCT sap_id, department_id, course_id, program_id, instructor_pernr
            FROM student_enrollment_current
            WHERE is_active = TRUE
              AND instructor_pernr = $1`,
           [instructorPernr]
         );
-        const courseIds = new Set(
-          scopedRows.rows.map((r) => r.course_id).filter(Boolean)
-        );
+        const baseRows = scopedRows.rows;
+        const selectedDepartments = current?.department_ids?.length
+          ? new Set(current.department_ids)
+          : null;
+        const selectedPrograms = current?.programs?.length
+          ? new Set(current.programs)
+          : null;
+
+        const rowsFilteredByDept =
+          selectedDepartments && selectedDepartments.size
+            ? baseRows.filter(
+                (r) =>
+                  r.department_id && selectedDepartments.has(r.department_id)
+              )
+            : baseRows;
+
         const departmentIds = new Set(
-          scopedRows.rows.map((r) => r.department_id).filter(Boolean) as string[]
+          baseRows.map((r) => r.department_id).filter(Boolean) as string[]
         );
         const programIds = new Set(
-          scopedRows.rows
-            .map((r) => (r.program_id && r.program_id.trim() ? r.program_id : getProgramFromCourse(r.course_id)))
+          rowsFilteredByDept
+            .map((r) =>
+              r.program_id && r.program_id.trim()
+                ? r.program_id
+                : getProgramFromCourse(r.course_id)
+            )
             .filter(Boolean) as string[]
         );
-        const departmentsScoped = departments.filter((d) => departmentIds.has(d.value));
-        const programsScoped = programs.filter((p) => programIds.has(p.value));
-        const coursesScoped = courses.filter((c) => courseIds.has(c.value));
-        const instructorsScoped = instructors.filter((i) => i.value === instructorPernr);
+
+        const courseToProgramId = new Map<string, string>();
+        for (const row of rowsFilteredByDept) {
+          const programId =
+            row.program_id && row.program_id.trim()
+              ? row.program_id
+              : getProgramFromCourse(row.course_id);
+          if (!courseToProgramId.has(row.course_id)) {
+            courseToProgramId.set(row.course_id, programId);
+          }
+        }
+
+        const courseIds = new Set(
+          rowsFilteredByDept.map((r) => r.course_id).filter(Boolean)
+        );
+
+        const departmentStudentSets = new Map<string, Set<string>>();
+        for (const row of baseRows) {
+          const deptId = row.department_id ? String(row.department_id).trim() : "";
+          if (!deptId) continue;
+          const sapId = String(row.sap_id ?? "").trim();
+          if (!sapId) continue;
+          const existing = departmentStudentSets.get(deptId) ?? new Set<string>();
+          existing.add(sapId);
+          departmentStudentSets.set(deptId, existing);
+        }
+
+        const programStudentSets = new Map<string, Set<string>>();
+        for (const row of rowsFilteredByDept) {
+          const progId =
+            row.program_id && String(row.program_id).trim()
+              ? String(row.program_id).trim()
+              : getProgramFromCourse(row.course_id);
+          if (!progId) continue;
+          const sapId = String(row.sap_id ?? "").trim();
+          if (!sapId) continue;
+          const existing = programStudentSets.get(progId) ?? new Set<string>();
+          existing.add(sapId);
+          programStudentSets.set(progId, existing);
+        }
+
+        const courseStudentSets = new Map<string, Set<string>>();
+        for (const row of rowsFilteredByDept) {
+          const programIdForRow =
+            row.program_id && String(row.program_id).trim()
+              ? String(row.program_id).trim()
+              : getProgramFromCourse(row.course_id);
+          if (selectedPrograms && !selectedPrograms.has(programIdForRow)) continue;
+          const cid = String(row.course_id ?? "").trim();
+          if (!cid) continue;
+          const sapId = String(row.sap_id ?? "").trim();
+          if (!sapId) continue;
+          const existing = courseStudentSets.get(cid) ?? new Set<string>();
+          existing.add(sapId);
+          courseStudentSets.set(cid, existing);
+        }
+
+        const departmentsScoped = departments
+          .filter((d) => departmentIds.has(d.value))
+          .map((d) => ({
+            value: d.value,
+            label: withStudentCount(
+              d.label,
+              departmentStudentSets.get(d.value)?.size ?? 0
+            ),
+          }));
+        const programsScoped = programs
+          .filter((p) => programIds.has(p.value))
+          .map((p) => ({
+            value: p.value,
+            label: withStudentCount(
+              p.label,
+              programStudentSets.get(p.value)?.size ?? 0
+            ),
+          }));
+        const coursesScoped = courses
+          .filter((c) => {
+            if (!courseIds.has(c.value)) return false;
+            const programIdForCourse =
+              courseToProgramId.get(c.value) ?? getProgramFromCourse(c.value);
+            if (selectedPrograms && !selectedPrograms.has(programIdForCourse)) {
+              return false;
+            }
+            return true;
+          })
+          .map((c) => ({
+            value: c.value,
+            label: withStudentCount(
+              c.label,
+              courseStudentSets.get(c.value)?.size ?? 0
+            ),
+          }));
+
+        const totalStudentsForInstructor = new Set(
+          baseRows.map((r) => String(r.sap_id ?? "").trim()).filter(Boolean)
+        ).size;
+        const instructorsScoped = instructors
+          .filter((i) => i.value === instructorPernr)
+          .map((i) => ({
+            ...i,
+            label: withStudentCount(i.label, totalStudentsForInstructor),
+          }));
         return {
           departments: departmentsScoped,
           programs: programsScoped,
@@ -1654,7 +1770,7 @@ export async function getMasterFilterOptions(
           t.course_ids?.some((cid) => courseIdsForInstructors.includes(cid))
       )
       .map((t) => ({ value: t.id, label: t.name }));
-  } else if (user?.role === "instructor") {
+  } else if (user?.role === "instructor" || user?.role === "teacher") {
     instructors = teachers
       .filter(
         (t) =>

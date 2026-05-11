@@ -429,8 +429,8 @@ export function MasterFilter({
 
   if (!role) return null;
 
-  const showDepartment = role === "dean" || role === "hod";
-  const showProgram = role === "dean" || role === "hod";
+  const showDepartment = role === "dean" || role === "hod" || role === "teacher";
+  const showProgram = role === "dean" || role === "hod" || role === "teacher";
   const showInstructor = role === "dean" || role === "hod";
   const showCourse = true;
 
