@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import {
   FORM_PSEUDO_ROLE_OPTIONS,
@@ -139,14 +139,10 @@ export function StaffDirectoryTableClient({
   staff,
   faculties,
   departments,
-  updateStaffAction,
-  deleteStaffAction,
 }: {
   staff: StaffListRow[];
   faculties: FacultyRow[];
   departments: DepartmentRow[];
-  updateStaffAction: (formData: FormData) => void | Promise<void>;
-  deleteStaffAction: (formData: FormData) => void | Promise<void>;
 }) {
   const [selectedFaculty, setSelectedFaculty] = useState<string>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
@@ -155,6 +151,27 @@ export function StaffDirectoryTableClient({
   const [editingStaff, setEditingStaff] = useState<StaffListRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("staff");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const goWithStatus = (query: string) => {
+    window.location.assign(`/dashboard/superadmin/staff?${query}`);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    const ok = window.confirm(`Delete ${name}? This action cannot be undone.`);
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/dashboard/superadmin/staff/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        goWithStatus("error=delete_failed");
+        return;
+      }
+      goWithStatus("success=deleted");
+    } catch {
+      goWithStatus("error=delete_failed");
+    }
+  };
 
   const filteredDepartments = useMemo(() => {
     if (selectedFaculty === "all") return departments;
@@ -417,23 +434,13 @@ export function StaffDirectoryTableClient({
                       >
                         Edit
                       </button>
-                      <form
-                        action={deleteStaffAction}
-                        onSubmit={(e) => {
-                          const ok = window.confirm(
-                            `Delete ${row.name}? This action cannot be undone.`
-                          );
-                          if (!ok) e.preventDefault();
-                        }}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(row.id, row.name)}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
                       >
-                        <input type="hidden" name="id" value={row.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
-                        >
-                          Delete
-                        </button>
-                      </form>
+                        Delete
+                      </button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -449,7 +456,6 @@ export function StaffDirectoryTableClient({
           faculties={faculties}
           departments={departments}
           onClose={() => setEditingStaff(null)}
-          action={updateStaffAction}
         />
       )}
     </div>
@@ -461,13 +467,11 @@ function EditStaffModal({
   faculties,
   departments,
   onClose,
-  action,
 }: {
   staff: StaffListRow;
   faculties: FacultyRow[];
   departments: DepartmentRow[];
   onClose: () => void;
-  action: (formData: FormData) => void | Promise<void>;
 }) {
   const initialPseudo: StoredPseudoRole =
     staff.pseudo_role && isStoredPseudoRole(staff.pseudo_role)
@@ -488,6 +492,42 @@ function EditStaffModal({
   );
 
   const showDepartments = pseudoRole === "hod";
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      name: String(formData.get("name") ?? "").trim(),
+      email: String(formData.get("email") ?? "").trim(),
+      pernr: String(formData.get("pernr") ?? "").trim(),
+      actual_role: String(formData.get("actual_role") ?? "").trim(),
+      pseudo_role: String(formData.get("pseudo_role") ?? "").trim(),
+      faculty_id: String(formData.get("faculty_id") ?? "").trim(),
+      password: String(formData.get("password") ?? "").trim(),
+      department_ids: formData.getAll("department_ids").map((v) => String(v)),
+    };
+
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/dashboard/superadmin/staff/${staff.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        window.location.assign(`/dashboard/superadmin/staff?error=${body.error ?? "update_failed"}`);
+        return;
+      }
+      window.location.assign("/dashboard/superadmin/staff?success=updated");
+    } catch {
+      window.location.assign("/dashboard/superadmin/staff?error=update_failed");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div
@@ -512,7 +552,7 @@ function EditStaffModal({
           </button>
         </div>
 
-        <form action={action} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <input type="hidden" name="id" value={staff.id} />
 
           <div className="flex flex-col gap-1">
@@ -646,9 +686,10 @@ function EditStaffModal({
             </button>
             <button
               type="submit"
+              disabled={isSaving}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
-              Save Changes
+              {isSaving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>

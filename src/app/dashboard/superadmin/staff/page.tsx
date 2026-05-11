@@ -1,19 +1,10 @@
-import { pool } from "@/lib/db";
-import { hash } from "bcryptjs";
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { StaffDirectoryTableClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryTableClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
+import { StaffStatsCards } from "./_components/StaffStatsCards";
 import { cn } from "@/lib/utils";
-import {
-  isStoredPseudoRole,
-  normalizeActualRoleFromForm,
-  staffRolePairErrorMessage,
-  type StoredActualRole,
-  type StoredPseudoRole,
-} from "@/lib/staff-role-rules";
+import { pool } from "@/lib/db";
 type StaffListRow = {
   id: string;
   pernr: string;
@@ -122,181 +113,6 @@ async function getDepartments(): Promise<DepartmentRow[]> {
   return res.rows;
 }
 
-async function updateStaffAction(formData: FormData) {
-  "use server";
-  if (!pool) {
-    redirect("/dashboard/superadmin/staff?error=db_not_configured");
-  }
-
-  const id = String(formData.get("id") ?? "").trim();
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const pernr = String(formData.get("pernr") ?? "").trim();
-  const actualRoleRaw = String(formData.get("actual_role") ?? "").trim();
-  const normalizedActual = normalizeActualRoleFromForm(actualRoleRaw);
-  const pseudoRoleRaw = String(formData.get("pseudo_role") ?? "").trim();
-  const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
-  const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
-  const password = String(formData.get("password") ?? "").trim();
-
-  if (!id || !name || !email || !pernr || !normalizedActual || !pseudoRoleRaw) {
-    redirect("/dashboard/superadmin/staff?error=missing_required");
-  }
-
-  const actualRole = normalizedActual as StoredActualRole;
-  if (!isStoredPseudoRole(pseudoRoleRaw)) {
-    redirect("/dashboard/superadmin/staff?error=invalid_role");
-  }
-  const pseudoRole = pseudoRoleRaw as StoredPseudoRole;
-  if (staffRolePairErrorMessage(actualRole, pseudoRole)) {
-    redirect("/dashboard/superadmin/staff?error=invalid_role");
-  }
-
-  if (!facultyId) {
-    redirect("/dashboard/superadmin/staff?error=faculty_required");
-  }
-
-  const departmentIds = formData
-    .getAll("department_ids")
-    .map((v) => String(v).trim())
-    .filter(Boolean);
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
-    if (password) {
-      const passwordHash = await hash(password, 10);
-      await client.query(
-        `UPDATE staff
-         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, password_hash = $8, updated_at = NOW()
-         WHERE id = $9`,
-        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, passwordHash, id]
-      );
-    } else {
-      await client.query(
-        `UPDATE staff
-         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, updated_at = NOW()
-         WHERE id = $8`,
-        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, id]
-      );
-    }
-
-    await client.query(`DELETE FROM staff_departments WHERE staff_id = $1`, [id]);
-    if (pseudoRole === "hod" && departmentIds.length > 0) {
-      for (const departmentId of departmentIds) {
-        await client.query(
-          `INSERT INTO staff_departments (staff_id, department_id)
-           VALUES ($1, $2)
-           ON CONFLICT (staff_id, department_id) DO NOTHING`,
-          [id, departmentId]
-        );
-      }
-    }
-
-    await client.query("COMMIT");
-  } catch (error: unknown) {
-    await client.query("ROLLBACK");
-    const code =
-      typeof error === "object" && error != null && "code" in error
-        ? String((error as { code?: string }).code ?? "")
-        : "";
-    if (code === "23505") {
-      redirect("/dashboard/superadmin/staff?error=duplicate");
-    }
-    redirect("/dashboard/superadmin/staff?error=update_failed");
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/dashboard/superadmin/staff");
-  redirect("/dashboard/superadmin/staff?success=updated");
-}
-
-async function deleteStaffAction(formData: FormData) {
-  "use server";
-  if (!pool) {
-    redirect("/dashboard/superadmin/staff?error=db_not_configured");
-  }
-
-  const id = String(formData.get("id") ?? "").trim();
-  if (!id) {
-    redirect("/dashboard/superadmin/staff?error=delete_failed");
-  }
-
-  try {
-    await pool.query(`DELETE FROM staff WHERE id = $1`, [id]);
-  } catch {
-    redirect("/dashboard/superadmin/staff?error=delete_failed");
-  }
-
-  revalidatePath("/dashboard/superadmin/staff");
-  redirect("/dashboard/superadmin/staff?success=deleted");
-}
-
-// ─── Role Badge Helper ─────────────────────────────────────────────
-function RoleBadge({ role }: { role: string }) {
-  const styles: Record<string, string> = {
-    superadmin: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
-    dean: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-    hod: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
-    instructor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-    "wellbeing-head": "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
-    "wellbeing-counseller": "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
-  };
-
-  const labels: Record<string, string> = {
-    superadmin: "Superadmin",
-    dean: "Dean",
-    hod: "HOD",
-    instructor: "Instructor",
-    "wellbeing-head": "Wellbeing Head",
-    "wellbeing-counseller": "Counsellor",
-  };
-
-  return (
-    <span className={cn(
-      "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-      styles[role] ?? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-    )}>
-      {labels[role] ?? role}
-    </span>
-  );
-}
-
-// ─── Stats Card ────────────────────────────────────────────────────
-function StatCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "neutral" | "violet" | "emerald" | "blue" | "amber";
-}) {
-  const tones = {
-    neutral:
-      "border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50",
-    violet:
-      "border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-600 dark:bg-violet-950/60 dark:text-violet-50",
-    emerald:
-      "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-50",
-    blue:
-      "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-700 dark:bg-blue-950/55 dark:text-blue-50",
-    amber:
-      "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/55 dark:text-amber-50",
-  };
-
-  return (
-    <div className={cn("rounded-xl border p-4 shadow-sm dark:shadow-none", tones[tone])}>
-      <p className="text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-300">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-inherit">{value.toLocaleString()}</p>
-    </div>
-  );
-}
-
 export default async function SuperadminStaffPage(props: {
   searchParams?: Promise<{ success?: string; error?: string; tab?: string }>;
 }) {
@@ -314,18 +130,13 @@ export default async function SuperadminStaffPage(props: {
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  const byPseudoRole = staff.reduce((acc, s) => {
-    const key = s.pseudo_role ?? "unknown";
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
   const superadminCount = byActualRole.superadmin || 0;
   const deanCount = byActualRole.dean || 0;
   const hodCount = byActualRole.hod || 0;
   const instructorCount = byActualRole.instructor || 0;
   const counsellorHeadCount = byActualRole["wellbeing-head"] || 0;
   const counsellorCount = byActualRole["wellbeing-counseller"] || 0;
-  const adminCoordinatorCount = (byActualRole.admin || 0) + (byActualRole.coordinator || 0);
+  const wellbeingStaffCount = counsellorHeadCount + counsellorCount;
 
   // Pseudo leadership = pseudo dean/hod, but actual admin/coordinator
   const pseudoDeanCount = staff.filter(
@@ -393,18 +204,18 @@ export default async function SuperadminStaffPage(props: {
       </div>
 
       {/* ─── Stats Row ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10">
-        <StatCard label="Total Staff" value={totalStaff} tone="neutral" />
-        <StatCard label="Superadmins" value={superadminCount} tone="violet" />
-        <StatCard label="Deans" value={deanCount} tone="violet" />
-        <StatCard label="HoDs" value={hodCount} tone="emerald" />
-        <StatCard label="Pseudo Deans" value={pseudoDeanCount} tone="amber" />
-        <StatCard label="Pseudo HoDs" value={pseudoHodCount} tone="amber" />
-        <StatCard label="Admin/Coordinator" value={adminCoordinatorCount} tone="neutral" />
-        <StatCard label="Instructors" value={instructorCount} tone="blue" />
-        <StatCard label="Wellbeing Heads" value={counsellorHeadCount} tone="emerald" />
-        <StatCard label="Wellbeing Counsellors" value={counsellorCount} tone="blue" />
-      </div>
+      <StaffStatsCards
+        stats={{
+          totalStaff,
+          superadminCount,
+          deanCount,
+          hodCount,
+          pseudoDeanCount,
+          pseudoHodCount,
+          instructorCount,
+          wellbeingStaffCount,
+        }}
+      />
 
       <StaffToastFeedback successMessage={successMessage} errorMessage={errorMessage} />
 
@@ -466,8 +277,6 @@ export default async function SuperadminStaffPage(props: {
           staff={staff}
           faculties={faculties}
           departments={departments}
-          updateStaffAction={updateStaffAction}
-          deleteStaffAction={deleteStaffAction}
         />
       )}
     </div>
