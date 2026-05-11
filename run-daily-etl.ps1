@@ -14,7 +14,7 @@ $endpoints = @(
 )
 
 $facultyConfigs = @(
-  @{ FacultyId = "50000172"; EnrollmentFacultyId = "1117" }
+  @{ FacultyId = "50000175"; EnrollmentFacultyId = "1120" }
   
 )
 
