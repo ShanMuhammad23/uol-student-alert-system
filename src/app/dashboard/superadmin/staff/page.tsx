@@ -1,8 +1,7 @@
-import { StaffDirectoryTableClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryTableClient";
+import { StaffDirectoryPanelClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryPanelClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
-import { StaffStatsCards } from "./_components/StaffStatsCards";
 import { cn } from "@/lib/utils";
 import { pool } from "@/lib/db";
 type StaffListRow = {
@@ -123,33 +122,6 @@ export default async function SuperadminStaffPage(props: {
   const faculties = await getFaculties();
   const departments = await getDepartments();
 
-  // Calculate stats
-  const totalStaff = staff.length;
-  const byActualRole = staff.reduce((acc, s) => {
-    const key = s.actual_role ?? "unknown";
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const superadminCount = byActualRole.superadmin || 0;
-  const deanCount = byActualRole.dean || 0;
-  const hodCount = byActualRole.hod || 0;
-  const instructorCount = byActualRole.instructor || 0;
-  const counsellorHeadCount = byActualRole["wellbeing-head"] || 0;
-  const counsellorCount = byActualRole["wellbeing-counseller"] || 0;
-  const wellbeingStaffCount = counsellorHeadCount + counsellorCount;
-
-  // Pseudo leadership = pseudo dean/hod, but actual admin/coordinator
-  const pseudoDeanCount = staff.filter(
-    (s) =>
-      s.pseudo_role === "dean" &&
-      (s.actual_role === "admin" || s.actual_role === "coordinator")
-  ).length;
-  const pseudoHodCount = staff.filter(
-    (s) =>
-      s.pseudo_role === "hod" &&
-      (s.actual_role === "admin" || s.actual_role === "coordinator")
-  ).length;
-
   const successMessage =
     searchParams.success === "updated"
       ? "Staff updated successfully."
@@ -202,20 +174,6 @@ export default async function SuperadminStaffPage(props: {
           Add Staff
         </a>
       </div>
-
-      {/* ─── Stats Row ───────────────────────────────────────────── */}
-      <StaffStatsCards
-        stats={{
-          totalStaff,
-          superadminCount,
-          deanCount,
-          hodCount,
-          pseudoDeanCount,
-          pseudoHodCount,
-          instructorCount,
-          wellbeingStaffCount,
-        }}
-      />
 
       <StaffToastFeedback successMessage={successMessage} errorMessage={errorMessage} />
 
@@ -273,7 +231,7 @@ export default async function SuperadminStaffPage(props: {
           />
         </div>
       ) : (
-        <StaffDirectoryTableClient
+        <StaffDirectoryPanelClient
           staff={staff}
           faculties={faculties}
           departments={departments}

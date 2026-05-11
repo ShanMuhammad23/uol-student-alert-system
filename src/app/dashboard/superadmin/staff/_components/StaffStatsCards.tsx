@@ -11,11 +11,23 @@ type Tone =
   | "hod"
   | "instructor"
   | "wellbeingStaff";
+export type RoleFilterValue =
+  | "all"
+  | "superadmin"
+  | "dean"
+  | "pseudo-dean"
+  | "hod"
+  | "pseudo-hod"
+  | "instructor"
+  | "wellbeing-staff";
 
 type StatCardProps = {
   label: string;
   value: number;
   tone: Tone;
+  active?: boolean;
+  roleFilter?: RoleFilterValue;
+  onClickRole?: (role: RoleFilterValue) => void;
   subtitle?: string;
   trend?: { value: number; isPositive: boolean };
   delay?: number;
@@ -180,7 +192,17 @@ function AnimatedValue({ value }: { value: number }) {
   );
 }
 
-function StatCard({ label, value, tone, trend, subtitle, delay = 0 }: StatCardProps) {
+function StatCard({
+  label,
+  value,
+  tone,
+  active = false,
+  roleFilter,
+  onClickRole,
+  trend,
+  subtitle,
+  delay = 0,
+}: StatCardProps) {
   const config = TONE_CONFIG[tone];
 
   return (
@@ -190,14 +212,18 @@ function StatCard({ label, value, tone, trend, subtitle, delay = 0 }: StatCardPr
       transition={{ duration: 0.5, delay, ease: [0.23, 1, 0.32, 1] }}
       whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
       className={cn(
-        "group relative overflow-hidden rounded-2xl p-5 transition-all duration-300 ease-out hover:shadow-lg dark:backdrop-blur-md flex-1",
+        "group relative overflow-hidden rounded-2xl p-5 transition-all duration-300 ease-out hover:shadow-lg dark:backdrop-blur-md flex-1 cursor-pointer",
         config.light.bg,
         `hover:${config.light.glow}`,
         `hover:ring-1 ${config.light.ring}`,
         `dark:${config.dark.bg}`,
         `dark:hover:${config.dark.glow}`,
-        `dark:hover:ring-1 dark:${config.dark.ring}`
+        `dark:hover:ring-1 dark:${config.dark.ring}`,
+        active && "ring-2 ring-white/80 dark:ring-white/70"
       )}
+      onClick={() => {
+        if (roleFilter && onClickRole) onClickRole(roleFilter);
+      }}
     >
       <div className="relative z-10 flex items-start justify-end">
         {trend ? (
@@ -232,17 +258,81 @@ function StatCard({ label, value, tone, trend, subtitle, delay = 0 }: StatCardPr
   );
 }
 
-export function StaffStatsCards({ stats }: { stats: StaffStats }) {
+export function StaffStatsCards({
+  stats,
+  activeRoleFilter = "all",
+  onRoleSelect,
+}: {
+  stats: StaffStats;
+  activeRoleFilter?: RoleFilterValue;
+  onRoleSelect?: (role: RoleFilterValue) => void;
+}) {
   return (
     <div className="flex flex-wrap gap-3">
-      <StatCard label="Total Staff" value={stats.totalStaff} tone="neutral" />
-      <StatCard label="Superadmins" value={stats.superadminCount} tone="superadmin" />
-      <StatCard label="Deans" value={stats.deanCount} tone="dean" />
-      <StatCard label="Pseudo Deans" value={stats.pseudoDeanCount} tone="dean" />
-      <StatCard label="HoDs" value={stats.hodCount} tone="hod" />
-      <StatCard label="Pseudo HoDs" value={stats.pseudoHodCount} tone="hod" />
-      <StatCard label="Instructors" value={stats.instructorCount} tone="instructor" />
-      <StatCard label="Wellbeing Staff" value={stats.wellbeingStaffCount} tone="wellbeingStaff" />
+      <StatCard
+        label="Total Staff"
+        value={stats.totalStaff}
+        tone="neutral"
+        roleFilter="all"
+        active={activeRoleFilter === "all"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="Superadmins"
+        value={stats.superadminCount}
+        tone="superadmin"
+        roleFilter="superadmin"
+        active={activeRoleFilter === "superadmin"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="Deans"
+        value={stats.deanCount}
+        tone="dean"
+        roleFilter="dean"
+        active={activeRoleFilter === "dean"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="Pseudo Deans"
+        value={stats.pseudoDeanCount}
+        tone="dean"
+        roleFilter="pseudo-dean"
+        active={activeRoleFilter === "pseudo-dean"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="HoDs"
+        value={stats.hodCount}
+        tone="hod"
+        roleFilter="hod"
+        active={activeRoleFilter === "hod"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="Pseudo HoDs"
+        value={stats.pseudoHodCount}
+        tone="hod"
+        roleFilter="pseudo-hod"
+        active={activeRoleFilter === "pseudo-hod"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="Instructors"
+        value={stats.instructorCount}
+        tone="instructor"
+        roleFilter="instructor"
+        active={activeRoleFilter === "instructor"}
+        onClickRole={onRoleSelect}
+      />
+      <StatCard
+        label="Wellbeing Staff"
+        value={stats.wellbeingStaffCount}
+        tone="wellbeingStaff"
+        roleFilter="wellbeing-staff"
+        active={activeRoleFilter === "wellbeing-staff"}
+        onClickRole={onRoleSelect}
+      />
     </div>
   );
 }

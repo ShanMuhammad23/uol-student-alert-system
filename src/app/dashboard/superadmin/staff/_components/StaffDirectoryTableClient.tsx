@@ -87,16 +87,6 @@ type SortKey =
   | "actions";
 type SortDirection = "asc" | "desc";
 
-const ROLE_OPTIONS: StaffListRow["role"][] = [
-  "superadmin",
-  "dean",
-  "hod",
-  "instructor",
-  "wellbeing",
-  "wellbeing-head",
-  "wellbeing-counseller",
-];
-
 const ROLE_BADGE_STYLES: Record<string, string> = {
   superadmin:
     "bg-violet-100 text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/40",
@@ -144,10 +134,6 @@ export function StaffDirectoryTableClient({
   faculties: FacultyRow[];
   departments: DepartmentRow[];
 }) {
-  const [selectedFaculty, setSelectedFaculty] = useState<string>("all");
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
-  const [selectedRole, setSelectedRole] = useState<string>("all");
-  const [search, setSearch] = useState<string>("");
   const [editingStaff, setEditingStaff] = useState<StaffListRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("staff");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -172,29 +158,6 @@ export function StaffDirectoryTableClient({
       goWithStatus("error=delete_failed");
     }
   };
-
-  const filteredDepartments = useMemo(() => {
-    if (selectedFaculty === "all") return departments;
-    return departments.filter((d) => d.faculty_id === selectedFaculty);
-  }, [departments, selectedFaculty]);
-
-  const filteredStaff = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return staff.filter((row) => {
-      const matchFaculty =
-        selectedFaculty === "all" || (row.faculty_id ?? "") === selectedFaculty;
-      const rowDepartmentIds = row.department_ids ?? [];
-      const matchDepartment =
-        selectedDepartment === "all" || rowDepartmentIds.includes(selectedDepartment);
-      const matchRole = selectedRole === "all" || row.pseudo_role === selectedRole;
-      const matchSearch =
-        term.length === 0 ||
-        row.name.toLowerCase().includes(term) ||
-        row.email.toLowerCase().includes(term) ||
-        row.pernr.toLowerCase().includes(term);
-      return matchFaculty && matchDepartment && matchRole && matchSearch;
-    });
-  }, [staff, selectedFaculty, selectedDepartment, selectedRole, search]);
 
   const sortedStaff = useMemo(() => {
     const getValue = (row: StaffListRow): string | number => {
@@ -222,7 +185,7 @@ export function StaffDirectoryTableClient({
       }
     };
 
-    return [...filteredStaff].sort((a, b) => {
+    return [...staff].sort((a, b) => {
       const aValue = getValue(a);
       const bValue = getValue(b);
 
@@ -236,7 +199,7 @@ export function StaffDirectoryTableClient({
       });
       return sortDirection === "asc" ? result : -result;
     });
-  }, [filteredStaff, sortKey, sortDirection]);
+  }, [staff, sortKey, sortDirection]);
 
   const toggleSort = (nextKey: SortKey) => {
     if (sortKey === nextKey) {
@@ -254,58 +217,7 @@ export function StaffDirectoryTableClient({
 
   return (
     <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
-      <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <select
-          value={selectedFaculty}
-          onChange={(e) => {
-            setSelectedFaculty(e.target.value);
-            setSelectedDepartment("all");
-          }}
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-        >
-          <option value="all">All Faculties</option>
-          {faculties.map((f) => (
-            <option key={f.id} value={f.id}>
-              {resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={selectedDepartment}
-          onChange={(e) => setSelectedDepartment(e.target.value)}
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-        >
-          <option value="all">All Departments</option>
-          {filteredDepartments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={selectedRole}
-          onChange={(e) => setSelectedRole(e.target.value)}
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-        >
-          <option value="all">All Roles</option>
-          {ROLE_OPTIONS.map((role) => (
-            <option key={role} value={role}>
-              {role}
-            </option>
-          ))}
-        </select>
-
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, email, or pernr"
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-        />
-      </div>
-
-      {filteredStaff.length === 0 ? (
+      {sortedStaff.length === 0 ? (
         <p className="text-sm text-dark-5 dark:text-dark-6">
           No staff records match the selected filters.
         </p>
