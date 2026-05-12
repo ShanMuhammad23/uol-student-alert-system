@@ -83,6 +83,10 @@ type InterventionFormProps = {
   mode?: "intervention" | "wellbeing";
   /** Restrict visible/selectable intervention types (e.g. instructors only). */
   allowedInterventionTypes?: Array<"attendance" | "gpa" | "both">;
+  /** Number of existing interventions for this student in current scope. */
+  existingInterventionCount?: number;
+  /** Latest recorded intervention status for this student in current scope. */
+  latestInterventionStatus?: string | null;
 };
 
 function SelectField({
@@ -162,6 +166,8 @@ const InterventionForm = ({
   focusedClassType,
   mode = "intervention",
   allowedInterventionTypes,
+  existingInterventionCount = 0,
+  latestInterventionStatus,
 }: InterventionFormProps) => {
   const dateId = useId();
   const outreachId = useId();
@@ -195,6 +201,24 @@ const InterventionForm = ({
   const canUseReferralTemplate = status === "referred";
   const isNoActionRequiredSelected = status === "no-action-required";
   const shouldShowModeField = mode === "intervention" && !isNoActionRequiredSelected;
+  const normalizedLatestStatus = String(latestInterventionStatus ?? "")
+    .trim()
+    .toLowerCase();
+  const selectedConcludingStatus = useMemo(() => {
+    if (status === "referred") return "Referred";
+    if (status === "resolved") return "Resolved";
+    if (status === "no-action-required") return "No Action Required";
+    return "";
+  }, [status]);
+  const hasExistingInterventions = existingInterventionCount > 0;
+  const stepperThirdLabel = selectedConcludingStatus || "Concluding Status";
+  const stepperActiveIndex = selectedConcludingStatus
+    ? 2
+    : hasExistingInterventions ||
+      normalizedLatestStatus === "in-progress" ||
+      normalizedLatestStatus === "in_progress"
+    ? 1
+    : 0;
 
   const effectiveTypeOptions = (allowedInterventionTypes?.length
     ? TYPE_OPTIONS.filter((o) =>
@@ -546,8 +570,13 @@ const InterventionForm = ({
         });
       }
 
-      setSubmitMessage({ type: "success", text: "Intervention added successfully." });
-      if (onCancel) onCancel();
+      if (onCancel) {
+        resetForm();
+        onCancel();
+      } else {
+        resetForm();
+        setSubmitMessage({ type: "success", text: "Intervention added successfully." });
+      }
     } catch (err) {
       setSubmitMessage({
         type: "error",
@@ -564,6 +593,59 @@ const InterventionForm = ({
 
   return (
     <form onSubmit={handleSubmit} className={cn("space-y-5", className)}>
+      {mode === "intervention" && (
+        <div className="rounded-xl border border-stroke bg-slate-50/70 p-4 dark:border-dark-3 dark:bg-dark-2/60">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-dark-6 dark:text-slate-300">
+            Intervention Status Path
+          </p>
+          <div className="flex items-center gap-2 text-xs sm:text-sm">
+            {[
+              { label: "Initiated" },
+              { label: "In Progress" },
+              { label: stepperThirdLabel },
+            ].map((step, idx) => {
+              const isDone = idx < stepperActiveIndex;
+              const isActive = idx === stepperActiveIndex;
+              return (
+                <React.Fragment key={step.label}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
+                        isDone || isActive
+                          ? "border-primary bg-primary text-white"
+                          : "border-stroke bg-white text-dark-6 dark:border-dark-3 dark:bg-dark dark:text-slate-300"
+                      )}
+                    >
+                      {idx + 1}
+                    </span>
+                    <span
+                      className={cn(
+                        "truncate font-medium",
+                        isDone || isActive
+                          ? "text-dark dark:text-white"
+                          : "text-dark-6 dark:text-slate-300"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                  </div>
+                  {idx < 2 && (
+                    <div
+                      className={cn(
+                        "h-0.5 w-6 sm:w-10",
+                        idx < stepperActiveIndex
+                          ? "bg-primary"
+                          : "bg-stroke dark:bg-dark-3"
+                      )}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {/* 1. Date */}
       <div>
         <label

@@ -37,6 +37,8 @@ type Props = {
   focusedCourseTitle?: string | null;
   focusedClassType?: string | null;
   mode?: "intervention" | "wellbeing";
+  existingInterventionCount?: number;
+  latestInterventionStatus?: string | null;
 };
 
 export function InterventionFormWithAction({
@@ -63,6 +65,8 @@ export function InterventionFormWithAction({
   focusedCourseTitle,
   focusedClassType,
   mode = "intervention",
+  existingInterventionCount = 0,
+  latestInterventionStatus = null,
   onClose,
 }: Props & { onClose?: () => void }) {
   const router = useRouter();
@@ -160,6 +164,8 @@ export function InterventionFormWithAction({
         focusedCourseTitle={focusedCourseTitle}
         focusedClassType={focusedClassType}
         mode={mode}
+        existingInterventionCount={existingInterventionCount}
+        latestInterventionStatus={latestInterventionStatus}
         allowedInterventionTypes={
           mode === "intervention" && currentUserRole === "instructor"
             ? ["attendance"]

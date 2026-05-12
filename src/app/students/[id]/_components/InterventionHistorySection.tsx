@@ -239,6 +239,15 @@ export function InterventionHistorySection({
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailModalIntervention, setEmailModalIntervention] =
     useState<InterventionRecord | null>(null);
+  const latestInterventionStatus = useMemo(() => {
+    if (!rows.length) return null;
+    const latest = [...rows].sort((a, b) => {
+      const aTime = new Date(a.performed_at ?? a.date).getTime();
+      const bTime = new Date(b.performed_at ?? b.date).getTime();
+      return bTime - aTime;
+    })[0];
+    return latest?.status ?? null;
+  }, [rows]);
   const emailDialogRef = useRef<HTMLDialogElement>(null);
   const [editForm, setEditForm] = useState({
     date: "",
@@ -948,6 +957,8 @@ export function InterventionHistorySection({
             <InterventionFormWithAction
               mode="intervention"
               studentSapId={studentSapId}
+              existingInterventionCount={rows.length}
+              latestInterventionStatus={latestInterventionStatus}
               studentName={studentName}
               attendancePercent={attendancePercent}
               attendanceAlertLevel={attendanceAlertLevel}
@@ -1246,7 +1257,7 @@ export function InterventionHistorySection({
           ref={emailDialogRef}
           onCancel={() => setEmailModalOpen(false)}
           className={cn(
-            "fixed inset-0 z-[80] m-0 h-[100dvh] w-[100dvw] border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
+            "fixed inset-0 z-[80] mx-auto h-[100dvh] w-[100dvw] border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
             "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
             "[&::backdrop]:bg-black/50"
           )}
@@ -1269,9 +1280,10 @@ export function InterventionHistorySection({
             <button
               type="button"
               onClick={() => setEmailModalOpen(false)}
-              className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
+              className="rounded-full p-1.5 text-white bg-red-500 hover:bg-red-600 flex items-center gap-2 px-4"
               aria-label="Close"
             >
+              Close
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
