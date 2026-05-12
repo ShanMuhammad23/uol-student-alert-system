@@ -430,6 +430,7 @@ export function AddStaffForm({
   const [name, setName] = useState("");
   const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole | "">("");
   const [actualRole, setActualRole] = useState<string>("");
+  const [parentFacultyId, setParentFacultyId] = useState("");
   const [email, setEmail] = useState("");
   const [pernr, setPernr] = useState("");
   
@@ -781,9 +782,10 @@ export function AddStaffForm({
               </FormField>
 
               <FormField label="Parent Faculty" required icon={Building2} delay={0.5}>
+                <input type="hidden" name="faculty_id" value={parentFacultyId} />
                 <PremiumSelect
-                  value="" // Controlled by form
-                  onChange={() => {}}
+                  value={parentFacultyId}
+                  onChange={setParentFacultyId}
                   options={faculties.map((f) => ({
                     value: f.id,
                     label: resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id,
