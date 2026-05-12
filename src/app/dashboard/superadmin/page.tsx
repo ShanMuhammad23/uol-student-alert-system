@@ -6,13 +6,12 @@ import {
   getInterventionChartData,
   getWellbeingChartData,
 } from "@/app/(home)/dashboard/fetch";
-import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import Link from "next/link";
-import { AutomationPanel } from "./_components/AutomationPanel";
 import { cn } from "@/lib/utils";
+import { SuperadminAlertTrendsCollapsible } from "./_components/SuperadminAlertTrendsCollapsible";
 
 // ─── Modern Metric Card ────────────────────────────────────────────
 function MetricCard({
@@ -20,11 +19,14 @@ function MetricCard({
   value,
   tone,
   subtitle,
+  percentBadge,
 }: {
   label: string;
   value: number;
   tone: "neutral" | "yellow" | "red" | "emerald";
   subtitle?: string;
+  /** Share of total students, shown as a pill (e.g. "12.4%"). */
+  percentBadge?: string | null;
 }) {
   const toneStyles = {
     neutral: "bg-slate-50 border-slate-200 text-slate-900 dark:bg-slate-800/50 dark:border-slate-700 dark:text-white",
@@ -47,6 +49,16 @@ function MetricCard({
     emerald: "bg-emerald-500 dark:bg-emerald-500",
   };
 
+  const badgeStyles = {
+    neutral:
+      "bg-slate-200/90 text-slate-800 ring-1 ring-slate-300/80 dark:bg-slate-700/90 dark:text-slate-100 dark:ring-slate-600",
+    yellow:
+      "bg-amber-200/90 text-amber-950 ring-1 ring-amber-400/50 dark:bg-amber-950/50 dark:text-amber-100 dark:ring-amber-600/40",
+    red: "bg-red-200/90 text-red-950 ring-1 ring-red-400/50 dark:bg-red-950/50 dark:text-red-100 dark:ring-red-600/40",
+    emerald:
+      "bg-emerald-200/90 text-emerald-950 ring-1 ring-emerald-400/50 dark:bg-emerald-950/50 dark:text-emerald-100 dark:ring-emerald-600/40",
+  };
+
   return (
     <div className={cn(
       "relative overflow-hidden rounded-xl border p-5 transition-all hover:shadow-md",
@@ -54,17 +66,34 @@ function MetricCard({
     )}>
       {/* Subtle top accent bar */}
       <div className={cn("absolute left-0 right-0 top-0 h-1", barColors[tone])} />
-      
+
       <div className="pt-1">
-        <p className="text-xs font-semibold uppercase tracking-wider opacity-70">
-          {label}
-        </p>
-        <p className={cn("mt-2 text-3xl font-bold tabular-nums tracking-tight", valueStyles[tone])}>
+        <div className="flex items-start justify-between gap-2">
+          <p
+            className={cn(
+              "min-w-0 flex-1 text-sm font-bold uppercase leading-snug tracking-wide",
+              tone === "neutral" ? "text-slate-800 dark:text-white" : ""
+            )}
+          >
+            {label}
+          </p>
+          {percentBadge ? (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tabular-nums",
+                badgeStyles[tone]
+              )}
+            >
+              {percentBadge}
+            </span>
+          ) : null}
+        </div>
+        <p className={cn("mt-3 text-3xl font-bold tabular-nums tracking-tight", valueStyles[tone])}>
           {value.toLocaleString()}
         </p>
-        {subtitle && (
-          <p className="mt-1 text-xs opacity-60">{subtitle}</p>
-        )}
+        {subtitle ? (
+          <p className="mt-1.5 text-xs font-medium text-slate-600/90 dark:text-slate-300/90">{subtitle}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -185,6 +214,10 @@ export default async function SuperadminDashboardPage({
     validSelectedFaculty || null
   );
 
+  const totalStudents = overview.totalStudents ?? 0;
+  const shareOfTotal = (count: number) =>
+    totalStudents > 0 ? `${((count / totalStudents) * 100).toFixed(1)}%` : "0.0%";
+
   return (
     <div className="mx-auto  space-y-8 pb-8">
       {/* ─── KPI Stats Row ───────────────────────────────────────── */}
@@ -192,94 +225,73 @@ export default async function SuperadminDashboardPage({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <MetricCard
             label="Total Students"
-            value={overview.totalStudents ?? 0}
+            value={totalStudents}
             tone="neutral"
-            subtitle=""
+            subtitle="Tracked cohort"
+            percentBadge={totalStudents > 0 ? "100%" : null}
           />
           <MetricCard
             label="Att. Yellow"
             value={overview.yellowAttendance?.value ?? 0}
             tone="yellow"
             subtitle="20% < CA"
+            percentBadge={shareOfTotal(overview.yellowAttendance?.value ?? 0)}
           />
           <MetricCard
             label="Att. Red"
             value={overview.redAttendance?.value ?? 0}
             tone="red"
             subtitle="≤60%"
+            percentBadge={shareOfTotal(overview.redAttendance?.value ?? 0)}
           />
           <MetricCard
             label="SGPA Yellow"
             value={overview.yellowGpa?.value ?? 0}
             tone="yellow"
             subtitle="1.0 Drop"
+            percentBadge={shareOfTotal(overview.yellowGpa?.value ?? 0)}
           />
           <MetricCard
             label="SGPA Red"
             value={overview.redGpa?.value ?? 0}
             tone="red"
             subtitle="1.5 Drop"
+            percentBadge={shareOfTotal(overview.redGpa?.value ?? 0)}
           />
         </div>
       </section>
 
-      {/* ─── Charts Row ──────────────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Main Trend Chart - Takes 2 columns */}
-        <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-          <SectionHeader 
-            title="Alert Trends"
-            action={
-              <form method="get" className="flex items-center gap-2">
-                <select
-                  name="faculty"
-                  defaultValue={validSelectedFaculty}
-                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                >
-                  <option value="">All Faculties</option>
-                  {facultyStats.map((f) => (
-                    <option key={f.facultyId} value={f.facultyId}>
-                      {resolveFacultyNameFromIdOrName(f.facultyId, f.facultyName.replace("Faculty of ", "")) ?? f.facultyId}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  className="h-9 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white transition hover:bg-emerald-700"
-                >
-                  Apply
-                </button>
-              </form>
-            }
-          />
+      {/* ─── Intervention + Wellbeing (one row) ───────────────────── */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+          <SectionHeader title="Intervention Status" />
           <div className="mt-4">
-            <AlertSnapshotsLineChart points={snapshotTrend} />
+            <InterventionStatusChart
+              title=""
+              data={interventionChart.data}
+              statusColors={interventionChart.statusColors}
+            />
           </div>
         </div>
 
-        {/* Side Charts Stack */}
-        <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-            <SectionHeader title="Intervention Status" />
-            <div className="mt-4">
-              <InterventionStatusChart
-                title=""
-                data={interventionChart.data}
-                statusColors={interventionChart.statusColors}
-              />
-            </div>
-          </div>
-          
-          <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-            <SectionHeader title="Wellbeing Resolution" />
-            <div className="mt-4">
-              <StatusStackedChart
-                title=""
-                data={wellbeingChart}
-              />
-            </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+          <SectionHeader title="Wellbeing Resolution" />
+          <div className="mt-4">
+            <StatusStackedChart title="" data={wellbeingChart} />
           </div>
         </div>
+      </section>
+
+      {/* ─── Alert snapshot (full width, collapsible, closed by default) ─ */}
+      <section className="w-full">
+        <SuperadminAlertTrendsCollapsible
+          points={snapshotTrend}
+          facultyOptions={facultyStats.map((f) => ({
+            facultyId: f.facultyId,
+            facultyName: f.facultyName,
+          }))}
+          validSelectedFaculty={validSelectedFaculty}
+        />
       </section>
 
       {/* ─── Faculties Grid ──────────────────────────────────────── */}
