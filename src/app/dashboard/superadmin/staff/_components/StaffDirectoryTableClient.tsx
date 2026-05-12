@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
-import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
+import {
+  resolveFacultyNameFromIdOrName,
+  toShortFacultyName,
+} from "@/lib/faculty-name";
 import {
   FORM_PSEUDO_ROLE_OPTIONS,
   clampActualFormValueToPseudo,
@@ -116,8 +119,24 @@ function resolveDepartmentNames(row: StaffListRow): string[] {
   return (row.department_names ?? []).filter((name) => name.trim().length > 0);
 }
 
-function resolveOtherFacultyNames(row: StaffListRow): string[] {
-  return (row.other_faculty_names ?? []).filter((name) => name.trim().length > 0);
+/** Resolved + shortened labels for the Other Faculties column (matches lib fallbacks). */
+function resolveOtherFacultyDisplayParts(row: StaffListRow): string[] {
+  return (row.other_faculty_names ?? [])
+    .filter((name) => name.trim().length > 0)
+    .map((raw) => {
+      const resolved =
+        resolveFacultyNameFromIdOrName(raw, raw)?.trim() ?? raw.trim();
+      return (
+        toShortFacultyName(resolved) ??
+        resolved.replace(/^Faculty of\s+/i, "").trim()
+      );
+    })
+    .filter((s) => s.length > 0);
+}
+
+function formatOtherFacultiesCell(row: StaffListRow): string {
+  const parts = resolveOtherFacultyDisplayParts(row);
+  return parts.length > 0 ? parts.join(", ") : "—";
 }
 
 function formatRoleLabel(role: string): string {
@@ -179,7 +198,7 @@ export function StaffDirectoryTableClient({
         case "faculty":
           return resolveFacultyName(row).replace("Faculty of", "").trim();
         case "other_faculties":
-          return resolveOtherFacultyNames(row).join(", ");
+          return resolveOtherFacultyDisplayParts(row).join(", ");
         case "departments":
           return resolveDepartmentNames(row).join(", ");
         case "login_count":
@@ -337,11 +356,7 @@ export function StaffDirectoryTableClient({
                     {resolveFacultyName(row).replace("Faculty of", "")}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
-                    {resolveOtherFacultyNames(row).length > 0
-                      ? resolveOtherFacultyNames(row)
-                          .map((n) => n.replace(/^Faculty of\s+/i, "").trim())
-                          .join(", ")
-                      : "—"}
+                    {formatOtherFacultiesCell(row)}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
                     {((row.pseudo_role ?? row.role) === "hod" || (row.pseudo_role ?? row.role) === "instructor") &&
