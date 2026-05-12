@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { StaffDirectoryTableClient } from "./StaffDirectoryTableClient";
 import { StaffStatsCards, type RoleFilterValue } from "./StaffStatsCards";
@@ -86,12 +86,24 @@ export function StaffDirectoryPanelClient({
   staff,
   faculties,
   departments,
+  scopedFacultyId,
+  readOnly = false,
 }: {
   staff: StaffListRow[];
   faculties: FacultyRow[];
   departments: DepartmentRow[];
+  /** When set, directory is limited to this parent faculty (faculty filter hidden). */
+  scopedFacultyId?: string | null;
+  /** Hide add/edit/delete (dean view). */
+  readOnly?: boolean;
 }) {
-  const [selectedFaculty, setSelectedFaculty] = useState<string>("all");
+  const [selectedFaculty, setSelectedFaculty] = useState<string>(
+    () => scopedFacultyId ?? "all"
+  );
+
+  useEffect(() => {
+    if (scopedFacultyId) setSelectedFaculty(scopedFacultyId);
+  }, [scopedFacultyId]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedRole, setSelectedRole] = useState<RoleFilterValue>("all");
   const [search, setSearch] = useState<string>("");
@@ -156,24 +168,30 @@ export function StaffDirectoryPanelClient({
     { value: "wellbeing-staff", label: "Wellbeing Staff (Head + Counsellor)" },
   ];
 
+  const showFacultyFilter = !scopedFacultyId;
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <select
-          value={selectedFaculty}
-          onChange={(e) => {
-            setSelectedFaculty(e.target.value);
-            setSelectedDepartment("all");
-          }}
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-        >
-          <option value="all">All Faculties</option>
-          {faculties.map((f) => (
-            <option key={f.id} value={f.id}>
-              {resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id}
-            </option>
-          ))}
-        </select>
+      <div
+        className={`grid gap-3 md:grid-cols-2 ${showFacultyFilter ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}
+      >
+        {showFacultyFilter && (
+          <select
+            value={selectedFaculty}
+            onChange={(e) => {
+              setSelectedFaculty(e.target.value);
+              setSelectedDepartment("all");
+            }}
+            className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+          >
+            <option value="all">All Faculties</option>
+            {faculties.map((f) => (
+              <option key={f.id} value={f.id}>
+                {resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           value={selectedDepartment}
@@ -210,7 +228,12 @@ export function StaffDirectoryPanelClient({
 
       <StaffStatsCards stats={stats} activeRoleFilter={selectedRole} onRoleSelect={setSelectedRole} />
 
-      <StaffDirectoryTableClient staff={filteredStaff} faculties={faculties} departments={departments} />
+      <StaffDirectoryTableClient
+        staff={filteredStaff}
+        faculties={faculties}
+        departments={departments}
+        readOnly={readOnly}
+      />
     </div>
   );
 }

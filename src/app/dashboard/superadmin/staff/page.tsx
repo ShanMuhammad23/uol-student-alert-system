@@ -3,170 +3,51 @@ import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
 import { cn } from "@/lib/utils";
-import { pool } from "@/lib/db";
-type StaffListRow = {
-  id: string;
-  pernr: string;
-  name: string;
-  img: string | null;
-  email: string;
-  role:
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller";
-  actual_role:
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller"
-    | "coordinator"
-    | "admin"
-    | null;
-  pseudo_role:
-    | "superadmin"
-    | "dean"
-    | "hod"
-    | "instructor"
-    | "wellbeing"
-    | "wellbeing-head"
-    | "wellbeing-counseller"
-    | null;
-  faculty_id: string | null;
-  faculty_name: string | null;
-  /** Distinct faculty names from active enrollment where this staff teaches, excluding parent faculty. */
-  other_faculty_names: string[] | null;
-  department_names: string[] | null;
-  department_ids: string[] | null;
-  login_count: number | null;
-  last_login_at: string | null;
-};
+import {
+  queryStaffList,
+  queryFaculties,
+  queryDepartments,
+  type DepartmentRow,
+} from "@/lib/staff-directory-queries";
 
-type FacultyRow = {
-  id: string;
-  name: string;
-};
-
-export type DepartmentRow = {
-  id: string;
-  name: string;
-  code: string | null;
-  faculty_id: string | null;
-};
-
-async function getStaffList(): Promise<StaffListRow[]> {
-  if (!pool) return [];
-  const res = await pool.query<StaffListRow>(
-    `SELECT
-       s.id,
-       s.pernr,
-       s.name,
-       s.img,
-       s.email,
-       s.role,
-       s.actual_role,
-       s.pseudo_role,
-       s.faculty_id,
-       f.name AS faculty_name,
-       COALESCE(
-         (
-           SELECT ARRAY_AGG(sub.faculty_name ORDER BY sub.faculty_name)
-           FROM (
-             SELECT DISTINCT fac.name AS faculty_name
-             FROM student_enrollment_current e
-             INNER JOIN faculties fac ON fac.id = e.faculty_id
-             WHERE e.is_active = TRUE
-               AND e.instructor_pernr IS NOT NULL
-               AND TRIM(e.instructor_pernr) <> ''
-               AND TRIM(e.instructor_pernr) = TRIM(s.pernr)
-               AND e.faculty_id IS NOT NULL
-               AND (s.faculty_id IS NULL OR e.faculty_id IS DISTINCT FROM s.faculty_id)
-           ) AS sub
-         ),
-         ARRAY[]::text[]
-       ) AS other_faculty_names,
-       COALESCE(
-         ARRAY_AGG(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL),
-         ARRAY[]::text[]
-       ) AS department_names,
-       COALESCE(
-         ARRAY_AGG(DISTINCT d.id) FILTER (WHERE d.id IS NOT NULL),
-         ARRAY[]::varchar[]
-       ) AS department_ids,
-       s.login_count,
-       s.last_login_at::text AS last_login_at
-     FROM staff s
-     LEFT JOIN faculties f ON f.id = s.faculty_id
-     LEFT JOIN staff_departments sd ON sd.staff_id = s.id
-     LEFT JOIN departments d ON d.id = sd.department_id
-     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.actual_role, s.pseudo_role, s.faculty_id, f.name, s.login_count, s.last_login_at
-     ORDER BY s.role ASC, s.name ASC`
-  );
-
-  return res.rows;
-  
-}
-
-async function getFaculties(): Promise<FacultyRow[]> {
-  if (!pool) return [];
-  const res = await pool.query<FacultyRow>(
-    `SELECT id, name FROM faculties ORDER BY name ASC`
-  );
-  return res.rows;
-}
-
-async function getDepartments(): Promise<DepartmentRow[]> {
-  if (!pool) return [];
-  const res = await pool.query<DepartmentRow>(
-    `SELECT id, name, code, faculty_id
-     FROM departments
-     ORDER BY name ASC`
-  );
-  return res.rows;
-}
+export type { DepartmentRow };
 
 export default async function SuperadminStaffPage(props: {
   searchParams?: Promise<{ success?: string; error?: string; tab?: string }>;
 }) {
   const searchParams = (await props.searchParams) ?? {};
   const activeTab = searchParams.tab === "add" ? "add" : "directory";
-  
-  const staff = await getStaffList();
-  const faculties = await getFaculties();
-  const departments = await getDepartments();
+
+  const staff = await queryStaffList();
+  const faculties = await queryFaculties();
+  const departments = await queryDepartments();
 
   const successMessage =
     searchParams.success === "updated"
       ? "Staff updated successfully."
       : searchParams.success === "deleted"
-      ? "Staff deleted successfully."
-      : null;
+        ? "Staff deleted successfully."
+        : null;
   const errorMessage =
     searchParams.error === "missing_required"
       ? "Please fill all required fields."
       : searchParams.error === "invalid_role"
-      ? "Selected roles are invalid for this pseudo role (dean/HoD pseudo → actual admin/coordinator, dean, or HoD only; superadmin pseudo → actual superadmin only; wellbeing-head / wellbeing-counseller pseudo → matching actual only)."
-      : searchParams.error === "faculty_required"
-      ? "Parent faculty is required."
-      : searchParams.error === "duplicate"
-      ? "Email or Pernr already exists."
-      : searchParams.error === "not_in_enrollment"
-      ? "Staff not found in enrollment: this PERNR does not appear as an instructor in current enrollment data."
-      : searchParams.error === "db_not_configured"
-      ? "Database is not configured."
-      : searchParams.error === "create_failed"
-      ? "Unable to add staff. Please verify field values."
-      : searchParams.error === "update_failed"
-      ? "Unable to update staff. Please verify field values."
-      : searchParams.error === "delete_failed"
-      ? "Unable to delete staff."
-      : null;
+        ? "Selected roles are invalid for this pseudo role (dean/HoD pseudo → actual admin/coordinator, dean, or HoD only; superadmin pseudo → actual superadmin only; wellbeing-head / wellbeing-counseller pseudo → matching actual only)."
+        : searchParams.error === "faculty_required"
+          ? "Parent faculty is required."
+          : searchParams.error === "duplicate"
+            ? "Email or Pernr already exists."
+            : searchParams.error === "not_in_enrollment"
+              ? "Staff not found in enrollment: this PERNR does not appear as an instructor in current enrollment data."
+              : searchParams.error === "db_not_configured"
+                ? "Database is not configured."
+                : searchParams.error === "create_failed"
+                  ? "Unable to add staff. Please verify field values."
+                  : searchParams.error === "update_failed"
+                    ? "Unable to update staff. Please verify field values."
+                    : searchParams.error === "delete_failed"
+                      ? "Unable to delete staff."
+                      : null;
 
   return (
     <div className="mx-auto  space-y-6 pb-8">

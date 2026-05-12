@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { LogOutIcon, ProfileIcon, UserIcon } from "./icons";
+import { LogOutIcon, ProfileIcon, StaffDirectoryIcon, UserIcon } from "./icons";
 import { signOut } from "@/app/auth/actions";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
 
@@ -26,6 +26,10 @@ export function UserInfo({ user }: UserInfoProps) {
   const isSignedIn = !!user;
   const actualRoleLabel = user?.actual_role ?? null;
   const pseudoRoleLabel = user?.pseudo_role ?? user?.role ?? null;
+  const showDeanStaffDirectory =
+    isSignedIn &&
+    user &&
+    ((user.pseudo_role ?? user.role) === "dean");
 
   return (
     <Dropdown isOpen={isOpen} setIsOpen={setIsOpen} >
@@ -119,6 +123,16 @@ export function UserInfo({ user }: UserInfoProps) {
             >
               <UserIcon />
               <span className="mr-auto text-base font-medium">Superadmin</span>
+            </Link>
+          )}
+          {showDeanStaffDirectory && (
+            <Link
+              href="/dashboard/faculty-staff"
+              onClick={() => setIsOpen(false)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[9px] hover:bg-gray-2 hover:text-dark dark:hover:bg-dark-3 dark:hover:text-white"
+            >
+              <StaffDirectoryIcon />
+              <span className="mr-auto text-base font-medium">Staff Directory</span>
             </Link>
           )}
           {isSignedIn && (

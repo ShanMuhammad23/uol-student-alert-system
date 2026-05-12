@@ -154,10 +154,13 @@ export function StaffDirectoryTableClient({
   staff,
   faculties,
   departments,
+  readOnly = false,
 }: {
   staff: StaffListRow[];
   faculties: FacultyRow[];
   departments: DepartmentRow[];
+  /** Dean directory: no edit/delete/actions column */
+  readOnly?: boolean;
 }) {
   const [editingStaff, setEditingStaff] = useState<StaffListRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("staff");
@@ -298,11 +301,13 @@ export function StaffDirectoryTableClient({
                     Last Login <span className="text-xs">{sortIndicator("last_login")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[200px]">
-                  <button type="button" onClick={() => toggleSort("actions")} className="inline-flex items-center gap-1">
-                    Actions <span className="text-xs">{sortIndicator("actions")}</span>
-                  </button>
-                </TableHead>
+                {!readOnly && (
+                  <TableHead className="min-w-[200px]">
+                    <button type="button" onClick={() => toggleSort("actions")} className="inline-flex items-center gap-1">
+                      Actions <span className="text-xs">{sortIndicator("actions")}</span>
+                    </button>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -372,24 +377,26 @@ export function StaffDirectoryTableClient({
                       ? new Date(row.last_login_at).toLocaleString()
                       : "—"}
                   </TableCell>
-                  <TableCell className="!text-left">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditingStaff(row)}
-                        className="rounded-md border border-stroke px-3 py-1.5 text-xs font-medium text-dark transition hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(row.id, row.name)}
-                        className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell className="!text-left">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingStaff(row)}
+                          className="rounded-md border border-stroke px-3 py-1.5 text-xs font-medium text-dark transition hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(row.id, row.name)}
+                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -397,7 +404,7 @@ export function StaffDirectoryTableClient({
         </div>
       )}
 
-      {editingStaff && (
+      {editingStaff && !readOnly && (
         <EditStaffModal
           staff={editingStaff}
           faculties={faculties}
