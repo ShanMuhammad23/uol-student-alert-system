@@ -40,6 +40,8 @@ type StaffListRow = {
     | null;
   faculty_id: string | null;
   faculty_name: string | null;
+  /** Distinct faculty names from active enrollment where this staff teaches, excluding parent faculty. */
+  other_faculty_names: string[] | null;
   department_names: string[] | null;
   department_ids: string[] | null;
   login_count: number | null;
@@ -72,6 +74,23 @@ async function getStaffList(): Promise<StaffListRow[]> {
        s.pseudo_role,
        s.faculty_id,
        f.name AS faculty_name,
+       COALESCE(
+         (
+           SELECT ARRAY_AGG(sub.faculty_name ORDER BY sub.faculty_name)
+           FROM (
+             SELECT DISTINCT fac.name AS faculty_name
+             FROM student_enrollment_current e
+             INNER JOIN faculties fac ON fac.id = e.faculty_id
+             WHERE e.is_active = TRUE
+               AND e.instructor_pernr IS NOT NULL
+               AND TRIM(e.instructor_pernr) <> ''
+               AND TRIM(e.instructor_pernr) = TRIM(s.pernr)
+               AND e.faculty_id IS NOT NULL
+               AND (s.faculty_id IS NULL OR e.faculty_id IS DISTINCT FROM s.faculty_id)
+           ) AS sub
+         ),
+         ARRAY[]::text[]
+       ) AS other_faculty_names,
        COALESCE(
          ARRAY_AGG(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL),
          ARRAY[]::text[]

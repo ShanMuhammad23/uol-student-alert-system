@@ -57,6 +57,7 @@ type StaffListRow = {
     | null;
   faculty_id: string | null;
   faculty_name: string | null;
+  other_faculty_names: string[] | null;
   department_names: string[] | null;
   department_ids: string[] | null;
   login_count: number | null;
@@ -81,6 +82,7 @@ type SortKey =
   | "actual_role"
   | "pernr"
   | "faculty"
+  | "other_faculties"
   | "departments"
   | "login_count"
   | "last_login"
@@ -112,6 +114,10 @@ function resolveFacultyName(row: StaffListRow): string {
 
 function resolveDepartmentNames(row: StaffListRow): string[] {
   return (row.department_names ?? []).filter((name) => name.trim().length > 0);
+}
+
+function resolveOtherFacultyNames(row: StaffListRow): string[] {
+  return (row.other_faculty_names ?? []).filter((name) => name.trim().length > 0);
 }
 
 function formatRoleLabel(role: string): string {
@@ -172,6 +178,8 @@ export function StaffDirectoryTableClient({
           return row.pernr ?? "";
         case "faculty":
           return resolveFacultyName(row).replace("Faculty of", "").trim();
+        case "other_faculties":
+          return resolveOtherFacultyNames(row).join(", ");
         case "departments":
           return resolveDepartmentNames(row).join(", ");
         case "login_count":
@@ -251,6 +259,11 @@ export function StaffDirectoryTableClient({
                     Parent Faculty <span className="text-xs">{sortIndicator("faculty")}</span>
                   </button>
                 </TableHead>
+                <TableHead className="min-w-[200px]">
+                  <button type="button" onClick={() => toggleSort("other_faculties")} className="inline-flex items-center gap-1">
+                    Other Faculties <span className="text-xs">{sortIndicator("other_faculties")}</span>
+                  </button>
+                </TableHead>
                 <TableHead className="min-w-[240px]">
                   <button type="button" onClick={() => toggleSort("departments")} className="inline-flex items-center gap-1">
                     Departments <span className="text-xs">{sortIndicator("departments")}</span>
@@ -322,6 +335,13 @@ export function StaffDirectoryTableClient({
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
                     {resolveFacultyName(row).replace("Faculty of", "")}
+                  </TableCell>
+                  <TableCell className="!text-left text-dark-6">
+                    {resolveOtherFacultyNames(row).length > 0
+                      ? resolveOtherFacultyNames(row)
+                          .map((n) => n.replace(/^Faculty of\s+/i, "").trim())
+                          .join(", ")
+                      : "—"}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
                     {((row.pseudo_role ?? row.role) === "hod" || (row.pseudo_role ?? row.role) === "instructor") &&

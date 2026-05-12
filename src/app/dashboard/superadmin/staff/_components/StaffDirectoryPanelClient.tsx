@@ -41,6 +41,7 @@ type StaffListRow = {
     | null;
   faculty_id: string | null;
   faculty_name: string | null;
+  other_faculty_names: string[] | null;
   department_names: string[] | null;
   department_ids: string[] | null;
   login_count: number | null;
