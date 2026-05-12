@@ -11,6 +11,8 @@ type PropsType = {
   centerLabel?: string;
   /** Custom center value (e.g. "150 / 1200"). When set, overrides the numeric total. */
   centerValue?: string;
+  /** Makes the center total/value render bold. */
+  centerBold?: boolean;
   /** "sm" = compact size (matches overview card height); default = larger. */
   size?: "default" | "sm";
 };
@@ -29,6 +31,7 @@ export function DonutChart({
   colors = ["#5750F1", "#5475E5", "#8099EC", "#ADBCF2"],
   centerLabel = "Visitors",
   centerValue,
+  centerBold = false,
   size = "sm",
 }: PropsType) {
   const isSm = size === "sm";
@@ -60,7 +63,7 @@ export function DonutChart({
               showAlways: true,
               label: centerLabel,
               fontSize: labelFontSize,
-              fontWeight: "400",
+              fontWeight: centerBold ? "700" : "400",
               formatter: () =>
                 centerValue !== undefined
                   ? centerValue

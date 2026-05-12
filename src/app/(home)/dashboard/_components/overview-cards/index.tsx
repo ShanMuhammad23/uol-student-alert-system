@@ -19,6 +19,7 @@ type PropsType = {
   redGpa: number;
   yellowAttendance: number;
   redAttendance: number;
+  hideGpaCard?: boolean;
 };
 
 export function OverviewCardsGroup({
@@ -29,6 +30,7 @@ export function OverviewCardsGroup({
   redGpa,
   yellowAttendance,
   redAttendance,
+  hideGpaCard = false,
 }: PropsType) {
   const filter = useDashboardFilter();
   const mergeHref = useMergeDashboardHref();
@@ -93,6 +95,14 @@ export function OverviewCardsGroup({
     attendanceMissingCount: 0,
     attendanceCaseYellow: 0,
     attendanceCaseRed: 0,
+    attendanceOpenCaseYellow: 0,
+    attendanceClosedCaseYellow: 0,
+    attendanceOpenCaseRed: 0,
+    attendanceClosedCaseRed: 0,
+    attendanceOpenStudentsYellow: 0,
+    attendanceClosedStudentsYellow: 0,
+    attendanceOpenStudentsRed: 0,
+    attendanceClosedStudentsRed: 0,
     grossGpaYellow: yellowGpa,
     grossGpaRed: redGpa,
   });
@@ -137,6 +147,14 @@ export function OverviewCardsGroup({
       attendanceMissingCount: 0,
       attendanceCaseYellow: 0,
       attendanceCaseRed: 0,
+      attendanceOpenCaseYellow: 0,
+      attendanceClosedCaseYellow: 0,
+      attendanceOpenCaseRed: 0,
+      attendanceClosedCaseRed: 0,
+      attendanceOpenStudentsYellow: 0,
+      attendanceClosedStudentsYellow: 0,
+      attendanceOpenStudentsRed: 0,
+      attendanceClosedStudentsRed: 0,
       grossGpaYellow: yellowGpa,
       grossGpaRed: redGpa,
     });
@@ -169,6 +187,14 @@ export function OverviewCardsGroup({
             grossRed: number;
             caseYellow?: number;
             caseRed?: number;
+            openCaseYellow?: number;
+            closedCaseYellow?: number;
+            openCaseRed?: number;
+            closedCaseRed?: number;
+            openStudentsYellow?: number;
+            closedStudentsYellow?: number;
+            openStudentsRed?: number;
+            closedStudentsRed?: number;
             updatedAttendance: number;
             totalClassesHeld: number;
             missingCount?: number;
@@ -186,6 +212,14 @@ export function OverviewCardsGroup({
           grossAttendanceRed: body.attendance.grossRed,
           attendanceCaseYellow: body.attendance.caseYellow ?? 0,
           attendanceCaseRed: body.attendance.caseRed ?? 0,
+          attendanceOpenCaseYellow: body.attendance.openCaseYellow ?? 0,
+          attendanceClosedCaseYellow: body.attendance.closedCaseYellow ?? 0,
+          attendanceOpenCaseRed: body.attendance.openCaseRed ?? 0,
+          attendanceClosedCaseRed: body.attendance.closedCaseRed ?? 0,
+          attendanceOpenStudentsYellow: body.attendance.openStudentsYellow ?? 0,
+          attendanceClosedStudentsYellow: body.attendance.closedStudentsYellow ?? 0,
+          attendanceOpenStudentsRed: body.attendance.openStudentsRed ?? 0,
+          attendanceClosedStudentsRed: body.attendance.closedStudentsRed ?? 0,
           attendanceUpdatedCount: body.attendance.updatedAttendance ?? 0,
           attendanceHeldCount: body.attendance.totalClassesHeld ?? 0,
           attendanceMissingCount: body.attendance.missingCount ?? 0,
@@ -269,14 +303,20 @@ export function OverviewCardsGroup({
           isActive={active === "attendance"}
           yellowCount={netAttendanceYellow}
           redCount={netAttendanceRed}
-          interventionClosedYellowCount={interventionClosed.attendanceYellow}
-          interventionClosedRedCount={interventionClosed.attendanceRed}
           totalStudents={liveCounts.totalStudents}
           updatedAttendanceCount={liveCounts.attendanceUpdatedCount}
           totalHeldCount={liveCounts.attendanceHeldCount}
           attendanceMissingCount={liveCounts.attendanceMissingCount}
           totalAlertCasesYellow={liveCounts.attendanceCaseYellow}
           totalAlertCasesRed={liveCounts.attendanceCaseRed}
+          openCasesYellow={liveCounts.attendanceOpenCaseYellow}
+          closedCasesYellow={liveCounts.attendanceClosedCaseYellow}
+          openCasesRed={liveCounts.attendanceOpenCaseRed}
+          closedCasesRed={liveCounts.attendanceClosedCaseRed}
+          openStudentsYellow={liveCounts.attendanceOpenStudentsYellow}
+          closedStudentsYellow={liveCounts.attendanceClosedStudentsYellow}
+          openStudentsRed={liveCounts.attendanceOpenStudentsRed}
+          closedStudentsRed={liveCounts.attendanceClosedStudentsRed}
           attendanceFilters={filter?.attendanceFilters}
           yellowActive={attendanceYellowActive}
           redActive={attendanceRedActive}
@@ -284,7 +324,7 @@ export function OverviewCardsGroup({
           onRedClick={toggleAttendanceRed}
         />
       </div>
-      {session?.data?.user?.role !== 'instructor' &&  (
+      {!hideGpaCard && session?.data?.user?.role !== "instructor" && (
       <div
         className="rounded-[10px] bg-white dark:bg-gray-dark p-4 shadow-xl transition-shadow md:min-w-[240px] flex-1 border border-gray-200 data-[active=true]:ring-2 data-[active=true]:ring-primary data-[active=true]:shadow-md dark:border-dark-3"
         data-active={active === "gpa"}

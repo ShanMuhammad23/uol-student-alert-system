@@ -106,6 +106,8 @@ export function HodInstructorStats({
           {list.map((i) => {
         const attendanceMissing = i.attendanceMissing ?? 0;
         const attendanceClassesHeld = i.attendanceClassesHeld ?? 0;
+        const hasAllCoursesClassAverageHundred =
+          i.allCoursesClassAverageAttendanceHundred === true;
         return (
         <button
           key={i.instructorId}
@@ -113,6 +115,8 @@ export function HodInstructorStats({
           onClick={() => onSelectInstructorId?.(i.instructorId)}
           className={cn(
             "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
+            hasAllCoursesClassAverageHundred &&
+              "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-700/60",
             "min-w-[160px]",
             selectedInstructorId === i.instructorId &&
               "border-2 border-primary dark:border-primary"

@@ -190,11 +190,11 @@ const InterventionForm = ({
   const shouldShowEmailSection = mode === "intervention" && outreachMode === "email";
   const effectiveStatus = useMemo(() => {
     if (status) return status;
-    return "initiated";
-  }, [status]);
+    return "initiated";  }, [status]);
   const canUseSosTemplate = effectiveStatus === "initiated" && outreachMode === "email";
   const canUseReferralTemplate = status === "referred";
   const isNoActionRequiredSelected = status === "no-action-required";
+  const shouldShowModeField = mode === "intervention" && !isNoActionRequiredSelected;
 
   const effectiveTypeOptions = (allowedInterventionTypes?.length
     ? TYPE_OPTIONS.filter((o) =>
@@ -211,6 +211,18 @@ const InterventionForm = ({
   useEffect(() => {
     outreachModeRef.current = outreachMode;
   }, [outreachMode]);
+
+  useEffect(() => {
+    if (!isNoActionRequiredSelected) return;
+    // For "No Action Required", outreach mode is optional and mode picker is hidden.
+    setOutreachMode("");
+    outreachModeRef.current = "";
+    setEmailTemplateKey("");
+    setEmailSubject("");
+    setEmailBodyHtml("");
+    setRecipientEmail("");
+    setIsEmailSectionOpen(false);
+  }, [isNoActionRequiredSelected]);
 
   const handleOutreachModeChange = (value: string) => {
     outreachModeRef.current = value;
@@ -488,7 +500,11 @@ const InterventionForm = ({
     setSubmitMessage(null);
     setIsAdding(true);
     try {
-      const outreachAtSubmit = String(outreachModeRef.current ?? "").trim();
+      const rawOutreachAtSubmit = String(outreachModeRef.current ?? "").trim();
+      const outreachAtSubmit =
+        status === "no-action-required" && rawOutreachAtSubmit === ""
+          ? "not-applicable"
+          : rawOutreachAtSubmit;
       const isEmailMode = mode === "intervention" && outreachAtSubmit === "email";
 
       if (isEmailMode) {
@@ -614,7 +630,12 @@ const InterventionForm = ({
               name="status"
               value="no-action-required"
               checked={status === "no-action-required"}
-              onChange={() => setStatus("no-action-required")}
+              onClick={() =>
+                setStatus((prev) =>
+                  prev === "no-action-required" ? "" : "no-action-required"
+                )
+              }
+              onChange={() => {}}
               className="h-4 w-4 accent-primary"
             />
             No Action Required
@@ -623,7 +644,7 @@ const InterventionForm = ({
       </div>
 
       {/* 4. Mode */}
-      {mode === "intervention" ? (
+      {shouldShowModeField ? (
         <SelectField
           id={outreachId}
           label="Mode"
@@ -633,12 +654,39 @@ const InterventionForm = ({
           items={OUTREACH_MODES.map((o) => ({ value: o.value, label: o.label }))}
           required
         />
-      ) : (
+      ) : mode === "wellbeing" ? (
         <div className="rounded-lg border border-stroke p-3 text-sm text-dark-6 dark:border-dark-3 dark:text-white">
           Wellbeing case will be stored in wellbeing resolution records.
         </div>
-      )}
+      ) : null}
 
+      {!isNoActionRequiredSelected && (
+        <div className="space-y-3">
+          <label className="block text-body-sm font-medium text-dark dark:text-white">
+            Concluding Status (Only select to refer to wellbeing center or close the case) 
+          </label>
+          <div className="rounded-lg border border-stroke p-3 dark:border-dark-3">
+            <div className="flex flex-wrap items-center gap-4">
+              {MANUAL_STATUS_OPTIONS.map((s) => (
+                <label
+                  key={s.value}
+                  className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white"
+                >
+                  <input
+                    type="radio"
+                    name="status"
+                    value={s.value}
+                    checked={status === s.value}
+                    onChange={() => setStatus(s.value)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* 5. Remarks */}
       <div>
         <label className="mb-3 block text-body-sm font-medium text-dark dark:text-white">
@@ -777,34 +825,6 @@ const InterventionForm = ({
           </div>
         )}
       </div>
-
-      {!isNoActionRequiredSelected && (
-        <div className="space-y-3">
-          <label className="block text-body-sm font-medium text-dark dark:text-white">
-            Status
-          </label>
-          <div className="rounded-lg border border-stroke p-3 dark:border-dark-3">
-            <div className="flex flex-wrap items-center gap-4">
-              {MANUAL_STATUS_OPTIONS.map((s) => (
-                <label
-                  key={s.value}
-                  className="inline-flex cursor-pointer items-center gap-2 text-sm text-dark dark:text-white"
-                >
-                  <input
-                    type="radio"
-                    name="status"
-                    value={s.value}
-                    checked={status === s.value}
-                    onChange={() => setStatus(s.value)}
-                    className="h-4 w-4 accent-primary"
-                  />
-                  {s.label}
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button

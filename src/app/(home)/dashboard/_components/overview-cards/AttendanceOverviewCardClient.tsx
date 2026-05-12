@@ -2,9 +2,7 @@
 
 import type { JSX } from "react";
 import { cn } from "@/lib/utils";
-import type {
-  AlertDimensionFilter,
-} from "../../fetch";
+import type { AlertDimensionFilter } from "../../fetch";
 import { useDashboardFilter } from "../DashboardFilterContext";
 import { DonutChart } from "@/components/Charts/used-devices/chart";
 import Link from "next/link";
@@ -16,14 +14,23 @@ type PropsType = {
   /** Link target for the card title (e.g. `?selected_alert=attendance`). */
   titleHref: string;
   isActive?: boolean;
+  /** Distinct students with yellow / red attendance alerts (donut / denominator). */
   yellowCount: number;
   redCount: number;
-  /** Resolved + no-action-required (latest intervention per student in cohort). */
-  interventionClosedYellowCount: number;
-  interventionClosedRedCount: number;
   totalStudents: number;
+  /** Student–course rows with that attendance alert level. */
   totalAlertCasesYellow?: number;
   totalAlertCasesRed?: number;
+  /** Latest intervention on same student–course: initiated, in-progress, referred. */
+  openCasesYellow?: number;
+  closedCasesYellow?: number;
+  openCasesRed?: number;
+  closedCasesRed?: number;
+  /** Unique students among the alerted cohort that are open/closed. */
+  openStudentsYellow?: number;
+  closedStudentsYellow?: number;
+  openStudentsRed?: number;
+  closedStudentsRed?: number;
   updatedAttendanceCount: number;
   totalHeldCount: number;
   attendanceMissingCount?: number;
@@ -40,11 +47,17 @@ export function AttendanceOverviewCardClient({
   isActive,
   yellowCount,
   redCount,
-  interventionClosedYellowCount,
-  interventionClosedRedCount,
   totalStudents,
   totalAlertCasesYellow = 0,
   totalAlertCasesRed = 0,
+  openCasesYellow = 0,
+  closedCasesYellow = 0,
+  openCasesRed = 0,
+  closedCasesRed = 0,
+  openStudentsYellow = 0,
+  closedStudentsYellow = 0,
+  openStudentsRed = 0,
+  closedStudentsRed = 0,
   updatedAttendanceCount,
   totalHeldCount,
   attendanceMissingCount,
@@ -66,19 +79,41 @@ export function AttendanceOverviewCardClient({
   const visibleYellow =
     !allowed.size || allowed.has("yellow") ? yellowCount : 0;
   const visibleRed = !allowed.size || allowed.has("red") ? redCount : 0;
-  const visibleInterventionClosedYellow =
-    !allowed.size || allowed.has("yellow") ? interventionClosedYellowCount : 0;
-  const visibleInterventionClosedRed =
-    !allowed.size || allowed.has("red") ? interventionClosedRedCount : 0;
-  const totalAlerts = visibleYellow + visibleRed;
   const visibleAlertCasesYellow =
     !allowed.size || allowed.has("yellow") ? totalAlertCasesYellow : 0;
   const visibleAlertCasesRed =
     !allowed.size || allowed.has("red") ? totalAlertCasesRed : 0;
-  const totalAlertCases = visibleAlertCasesYellow + visibleAlertCasesRed;
+  const visibleOpenYellow =
+    !allowed.size || allowed.has("yellow") ? openCasesYellow : 0;
+  const visibleClosedYellow =
+    !allowed.size || allowed.has("yellow") ? closedCasesYellow : 0;
+  const visibleOpenRed =
+    !allowed.size || allowed.has("red") ? openCasesRed : 0;
+  const visibleClosedRed =
+    !allowed.size || allowed.has("red") ? closedCasesRed : 0;
+  const visibleOpenStudentsYellow =
+    !allowed.size || allowed.has("yellow") ? openStudentsYellow : 0;
+  const visibleClosedStudentsYellow =
+    !allowed.size || allowed.has("yellow") ? closedStudentsYellow : 0;
+  const visibleOpenStudentsRed =
+    !allowed.size || allowed.has("red") ? openStudentsRed : 0;
+  const visibleClosedStudentsRed =
+    !allowed.size || allowed.has("red") ? closedStudentsRed : 0;
+
+  /** Unique alerted students − unique open students − unique closed students. */
+  const visibleNeedingYellow = Math.max(
+    0,
+    visibleYellow - visibleOpenStudentsYellow - visibleClosedStudentsYellow
+  );
+  const visibleNeedingRed = Math.max(
+    0,
+    visibleRed - visibleOpenStudentsRed - visibleClosedStudentsRed
+  );
+
   const yellowPercentage =
     totalStudents > 0 ? (visibleYellow / totalStudents) * 100 : 0;
   const redPercentage = totalStudents > 0 ? (visibleRed / totalStudents) * 100 : 0;
+  const totalAlerts = visibleYellow + visibleRed;
   const alertsPercentage =
     totalStudents > 0 ? (totalAlerts / totalStudents) * 100 : 0;
   const noAlertPercentage = Math.max(0, 100 - yellowPercentage - redPercentage);
@@ -107,100 +142,107 @@ export function AttendanceOverviewCardClient({
       )}
     >
       <div className="flex justify-between">
-      <div>
-        <Link
-          href={titleHref}
-          scroll={false}
-          className="block rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <dd className="text-xl font-bold text-dark dark:text-white hover:underline">
-            {label}
-          </dd>
-        </Link>
+        <div>
+          <Link
+            href={titleHref}
+            scroll={false}
+            className="block rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <dd className="text-xl font-bold text-dark dark:text-white hover:underline">
+              {label}
+            </dd>
+          </Link>
 
-        <div className="mt-2 flex items-end justify-between">
-          <dl>
-            <dt className="mb-1.5 flex items-center gap-4 text-heading-4 font-bold">
-              <button
-                type="button"
-                onClick={onYellowClick}
-                className={cn(
-                  "rounded px-2 border-r-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  visibleYellow > 0
-                    ? "text-yellow-400 dark:text-yellow-400 hover:bg-yellow-400/10 cursor-pointer"
-                    : "text-gray-600 dark:text-gray-400 cursor-default",
-                  yellowActive && "ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-dark rounded-md"
-                )}
-                aria-pressed={yellowActive}
-                aria-label="Show intervention breakdown for yellow attendance alerts"
-                disabled={visibleYellow === 0}
-              >
-                {visibleYellow}
-               
-                <span className="block text-base font-medium text-yellow-400 dark:text-yellow-400">
-                  Closed: {visibleInterventionClosedYellow}
-                </span>
-                <span className="block text-xs font-medium text-yellow-500 dark:text-yellow-300">
-                  Cases: {visibleAlertCasesYellow}
-                </span>
-              </button>
-            
-              <button
-                type="button"
-                onClick={onRedClick}
-                className={cn(
-                  "rounded px-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  visibleRed > 0
-                    ? "text-red-600 dark:text-red-600 hover:bg-red-600/10 cursor-pointer"
-                    : "text-grey-600 dark:text-white cursor-default",
-                  redActive && "ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-dark rounded-md"
-                )}
-                aria-pressed={redActive}
-                aria-label="Show intervention breakdown for red attendance alerts"
-                disabled={visibleRed === 0}
-              >
-                {visibleRed}
-                
-                <span className="block text-base font-medium text-red-600 dark:text-red-600">
-                  Closed: {visibleInterventionClosedRed}
-                </span>
-                <span className="block text-xs font-medium text-red-600 dark:text-red-400">
-                  Cases: {visibleAlertCasesRed}
-                </span>
-              </button>
-            </dt>
-          </dl>
-          {hasGrowth ? null : null}
+          <div className="mt-2 flex items-end justify-between">
+            <dl>
+              <dt className="mb-1.5 flex items-start gap-4 text-heading-4">
+                <button
+                  type="button"
+                  onClick={onYellowClick}
+                  className={cn(
+                    "rounded px-2 border-r-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    visibleAlertCasesYellow > 0
+                      ? "text-yellow-400 dark:text-yellow-400 hover:bg-yellow-400/10 cursor-pointer"
+                      : "text-gray-600 dark:text-gray-400 cursor-default",
+                    yellowActive &&
+                      "ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-dark rounded-md"
+                  )}
+                  aria-pressed={yellowActive}
+                  aria-label="Attendance yellow alerts: needing intervention, open, closed, and cases"
+                  disabled={visibleAlertCasesYellow === 0}
+                >
+                  <span className="block text-2xl font-bold leading-tight">
+                    {visibleNeedingYellow}
+                  </span>
+                  <span className="mt-1 block text-sm font-medium text-yellow-600 dark:text-yellow-300">
+                    Open: {visibleOpenYellow}
+                  </span>
+                  <span className="block text-sm font-medium text-yellow-600 dark:text-yellow-300">
+                    Closed: {visibleClosedYellow}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                    Cases: {visibleAlertCasesYellow}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onRedClick}
+                  className={cn(
+                    "rounded px-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    visibleAlertCasesRed > 0
+                      ? "text-red-600 dark:text-red-600 hover:bg-red-600/10 cursor-pointer"
+                      : "text-grey-600 dark:text-white cursor-default",
+                    redActive &&
+                      "ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-dark rounded-md"
+                  )}
+                  aria-pressed={redActive}
+                  aria-label="Attendance red alerts: needing intervention, open, closed, and cases"
+                  disabled={visibleAlertCasesRed === 0}
+                >
+                  <span className="block text-2xl font-bold leading-tight">
+                    {visibleNeedingRed}
+                  </span>
+                  <span className="mt-1 block text-sm font-medium text-red-600 dark:text-red-600">
+                    Open: {visibleOpenRed}
+                  </span>
+                  <span className="block text-sm font-medium text-red-600 dark:text-red-600">
+                    Closed: {visibleClosedRed}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-medium text-red-700 dark:text-red-400">
+                    Cases: {visibleAlertCasesRed}
+                  </span>
+                </button>
+              </dt>
+            </dl>
+            {hasGrowth ? null : null}
+          </div>
         </div>
-       
+        <div className="ml-4 flex items-center">
+          <DonutChart
+            data={[
+              { name: "Yellow alert %", amount: yellowPercentage },
+              { name: "Red alert %", amount: redPercentage },
+              { name: "Good Standing %", amount: noAlertPercentage },
+            ]}
+            colors={["#FACC15", "#DC2626", "#22C55E"]}
+            centerLabel=""
+            centerValue={`${alertsPercentage.toFixed(1)}%`}
+            centerBold
+            size="sm"
+          />
+        </div>
       </div>
-      <div className="ml-4 flex items-center">
-        <DonutChart
-          data={[
-            { name: "Yellow alert %", amount: yellowPercentage },
-            { name: "Red alert %", amount: redPercentage },
-            { name: "Good Standing %", amount: noAlertPercentage },
-          ]}
-          colors={["#FACC15", "#DC2626", "#22C55E"]}
-          centerLabel=""
-          centerValue={`${alertsPercentage.toFixed(1)}%`}
-          size="sm"
-        />
-      </div>
-      </div>
-   
-      <p className="mt-3 text-base  text-dark-6 dark:text-white">
+
+      <p className="mt-3 text-base text-dark-6 dark:text-white">
         <div className="flex items-center justify-between">
-        <span className=" text-dark dark:text-white">
-          Attendance Missing:
-        </span>
-        <span className=" text-dark dark:text-white">
-          {resolvedAttendanceMissingCount} of {totalHeldCount.toLocaleString()} Classes
-          ({normalizedAttendanceMissingPercentage.toFixed(1)}%)
-        </span>
+          <span className="text-dark dark:text-white">Attendance Missing:</span>
+          <span className="text-dark dark:text-white">
+            {resolvedAttendanceMissingCount} of {totalHeldCount.toLocaleString()}{" "}
+            Classes ({normalizedAttendanceMissingPercentage.toFixed(1)}%)
+          </span>
         </div>
-          
-        </p>
+      </p>
       <div
         className="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-3"
         role="progressbar"
@@ -217,4 +259,3 @@ export function AttendanceOverviewCardClient({
     </div>
   );
 }
-

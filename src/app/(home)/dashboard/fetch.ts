@@ -868,6 +868,75 @@ async function getAttendanceMissingByDimension(
   return map;
 }
 
+async function getInstructorClassAverageHundredByScope(
+  instructorIds: string[],
+  scope?: MissingScope
+): Promise<Map<string, boolean>> {
+  const map = new Map<string, boolean>();
+  if (!pool || !instructorIds.length) return map;
+
+  const where: string[] = [
+    "e.is_active = TRUE",
+    "e.instructor_pernr = ANY($1::text[])",
+    "e.instructor_pernr IS NOT NULL",
+    "e.instructor_pernr <> ''",
+  ];
+  const params: unknown[] = [instructorIds];
+
+  if (scope?.facultyIds?.length) {
+    params.push(scope.facultyIds);
+    where.push(`e.faculty_id = ANY($${params.length}::text[])`);
+  } else if (scope?.facultyId) {
+    params.push(scope.facultyId);
+    where.push(`e.faculty_id = $${params.length}`);
+  }
+  if (scope?.departmentIds?.length) {
+    params.push(scope.departmentIds);
+    where.push(`e.department_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.programIds?.length) {
+    params.push(scope.programIds);
+    where.push(`e.program_id = ANY($${params.length}::text[])`);
+  }
+  if (scope?.courseIds?.length) {
+    params.push(scope.courseIds);
+    where.push(`e.course_id = ANY($${params.length}::text[])`);
+  }
+
+  const res = await pool.query<{
+    instructor_id: string;
+    all_hundred: boolean;
+  }>(
+    `WITH scoped AS (
+       SELECT
+         e.instructor_pernr AS instructor_id,
+         e.course_id,
+         e.section_code,
+         e.event_package_id,
+         MAX(a.class_average_attendance) AS class_avg
+       FROM student_enrollment_current e
+       LEFT JOIN student_alert_current a
+         ON a.sap_id = e.sap_id
+        AND a.course_id = e.course_id
+        AND a.section_code = e.section_code
+        AND a.event_package_id = e.event_package_id
+       WHERE ${where.join(" AND ")}
+       GROUP BY e.instructor_pernr, e.course_id, e.section_code, e.event_package_id
+     )
+     SELECT
+       instructor_id,
+       (COUNT(*) > 0 AND BOOL_AND(COALESCE(class_avg, -1) = 100)) AS all_hundred
+     FROM scoped
+     GROUP BY instructor_id`,
+    params
+  );
+
+  for (const row of res.rows) {
+    map.set(row.instructor_id, Boolean(row.all_hundred));
+  }
+  return map;
+}
+
 function applyDimensionFilterToCounts(
   yellow: number,
   red: number,
@@ -1964,6 +2033,8 @@ export type InstructorStats = {
   redAttendance: number;
   attendanceMissing?: number;
   attendanceClassesHeld?: number;
+  /** True only when every scoped class for the instructor has class average attendance = 100. */
+  allCoursesClassAverageAttendanceHundred?: boolean;
 };
 
 /** Returns instructor stats from enrollment tables. */
@@ -2046,6 +2117,17 @@ export async function getDeanInstructorStats(
           instructorIds: options?.instructorIds,
         }
       );
+      const classAvgAllHundredByInstructor =
+        await getInstructorClassAverageHundredByScope(
+          rows.map((row) => row.dimension_id),
+          {
+            facultyIds: facultyScopeIds,
+            departmentIds: options?.departmentIds,
+            programIds: options?.programIds,
+            courseIds: options?.courseIds,
+            instructorIds: options?.instructorIds,
+          }
+        );
       return rows.map((row) => ({
         instructorId: row.dimension_id,
         instructorName: row.dimension_name,
@@ -2056,6 +2138,8 @@ export async function getDeanInstructorStats(
         redAttendance: toInt(row.red_attendance),
         attendanceMissing: missingByInstructor.get(row.dimension_id)?.missing ?? 0,
         attendanceClassesHeld: missingByInstructor.get(row.dimension_id)?.held ?? 0,
+        allCoursesClassAverageAttendanceHundred:
+          classAvgAllHundredByInstructor.get(row.dimension_id) ?? false,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -2104,6 +2188,13 @@ export async function getDeanInstructorStats(
       redGpa,
       yellowAttendance,
       redAttendance,
+      allCoursesClassAverageAttendanceHundred:
+        courseIds.size > 0 &&
+        Array.from(courseIds).every((courseId) => {
+          const classAvg = students.find((s) => s.course_id === courseId)?.attendance
+            ?.class_average_attendance;
+          return Number(classAvg) === 100;
+        }),
     };
   });
 }
@@ -2624,6 +2715,13 @@ export async function getHodInstructorStats(
           instructorIds: options?.instructorIds,
         }
       );
+      const classAvgAllHundredByInstructor =
+        await getInstructorClassAverageHundredByScope(instructorIds, {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+          instructorIds: options?.instructorIds,
+        });
       return res.rows.map((teacher) => {
         const row = dbCounts.get(teacher.instructor_id);
         return {
@@ -2638,6 +2736,8 @@ export async function getHodInstructorStats(
             missingByInstructor.get(teacher.instructor_id)?.missing ?? 0,
           attendanceClassesHeld:
             missingByInstructor.get(teacher.instructor_id)?.held ?? 0,
+          allCoursesClassAverageAttendanceHundred:
+            classAvgAllHundredByInstructor.get(teacher.instructor_id) ?? false,
         };
       });
     } catch {
@@ -2687,6 +2787,13 @@ export async function getHodInstructorStats(
           instructorIds: options?.instructorIds,
         }
       );
+      const classAvgAllHundredByInstructor =
+        await getInstructorClassAverageHundredByScope(instructorIds, {
+          departmentIds,
+          programIds: options?.programIds,
+          courseIds: options?.courseIds,
+          instructorIds: options?.instructorIds,
+        });
       return teachers.map((teacher) => {
         const row = dbCounts.get(teacher.id);
         return {
@@ -2699,6 +2806,8 @@ export async function getHodInstructorStats(
           redAttendance: row ? toInt(row.red_attendance) : 0,
           attendanceMissing: missingByInstructor.get(teacher.id)?.missing ?? 0,
           attendanceClassesHeld: missingByInstructor.get(teacher.id)?.held ?? 0,
+          allCoursesClassAverageAttendanceHundred:
+            classAvgAllHundredByInstructor.get(teacher.id) ?? false,
         };
       });
     } catch {
@@ -2727,6 +2836,13 @@ export async function getHodInstructorStats(
       redGpa,
       yellowAttendance,
       redAttendance,
+      allCoursesClassAverageAttendanceHundred:
+        courseIds.size > 0 &&
+        Array.from(courseIds).every((courseId) => {
+          const classAvg = students.find((s) => s.course_id === courseId)?.attendance
+            ?.class_average_attendance;
+          return Number(classAvg) === 100;
+        }),
     };
   });
 }

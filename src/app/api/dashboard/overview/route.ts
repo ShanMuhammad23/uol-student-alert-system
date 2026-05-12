@@ -9,6 +9,25 @@ import type {
 } from "@/app/(home)/dashboard/fetch";
 import { getStudentListing, type SessionScope } from "@/lib/db/student-listing";
 
+function normalizeInterventionStatus(raw: string | null | undefined): string {
+  if (raw == null || raw === "") return "";
+  return String(raw).trim().toLowerCase().replace(/-/g, "_");
+}
+
+/** Open pipeline: initiated, in-progress, referred (same course as alert row). */
+function isOpenInterventionStatus(norm: string): boolean {
+  return (
+    norm === "initiated" ||
+    norm === "in_progress" ||
+    norm === "referred"
+  );
+}
+
+/** Closed: resolved or no_action_required. */
+function isClosedInterventionStatus(norm: string): boolean {
+  return norm === "resolved" || norm === "no_action_required";
+}
+
 type Body = {
   roleScope?: {
     role: "dean" | "hod" | "teacher";
@@ -127,6 +146,14 @@ export async function POST(req: Request) {
     const attendanceRedSapIds = new Set<string>();
     const attendanceYellowStudentCourseCases = new Set<string>();
     const attendanceRedStudentCourseCases = new Set<string>();
+    const attendanceYellowOpenCaseKeys = new Set<string>();
+    const attendanceYellowClosedCaseKeys = new Set<string>();
+    const attendanceRedOpenCaseKeys = new Set<string>();
+    const attendanceRedClosedCaseKeys = new Set<string>();
+    const attendanceYellowOpenSapIds = new Set<string>();
+    const attendanceYellowClosedSapIds = new Set<string>();
+    const attendanceRedOpenSapIds = new Set<string>();
+    const attendanceRedClosedSapIds = new Set<string>();
     const gpaYellowSapIds = new Set<string>();
     const gpaRedSapIds = new Set<string>();
     const totalSapIds = new Set<string>();
@@ -135,13 +162,30 @@ export async function POST(req: Request) {
       if (row.sapId) totalSapIds.add(row.sapId);
       const classKey = `${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}__${row.courseTitle ?? row.courseId}`;
       const studentCourseCaseKey = `${row.sapId}__${row.courseId}__${row.sectionCode ?? "NO_SECTION"}__${row.eventPackageId ?? "NO_EVENT_PACKAGE"}`;
+      const interventionNorm = normalizeInterventionStatus(
+        row.latestInterventionStatus
+      );
       if (row.attendanceAlertLevel === "warning" && row.sapId) {
         attendanceYellowSapIds.add(row.sapId);
         attendanceYellowStudentCourseCases.add(studentCourseCaseKey);
+        if (isOpenInterventionStatus(interventionNorm)) {
+          attendanceYellowOpenCaseKeys.add(studentCourseCaseKey);
+          attendanceYellowOpenSapIds.add(row.sapId);
+        } else if (isClosedInterventionStatus(interventionNorm)) {
+          attendanceYellowClosedCaseKeys.add(studentCourseCaseKey);
+          attendanceYellowClosedSapIds.add(row.sapId);
+        }
       }
       if (row.attendanceAlertLevel === "critical" && row.sapId) {
         attendanceRedSapIds.add(row.sapId);
         attendanceRedStudentCourseCases.add(studentCourseCaseKey);
+        if (isOpenInterventionStatus(interventionNorm)) {
+          attendanceRedOpenCaseKeys.add(studentCourseCaseKey);
+          attendanceRedOpenSapIds.add(row.sapId);
+        } else if (isClosedInterventionStatus(interventionNorm)) {
+          attendanceRedClosedCaseKeys.add(studentCourseCaseKey);
+          attendanceRedClosedSapIds.add(row.sapId);
+        }
       }
       if (row.gpaAlertLevel === "warning" && row.sapId) {
         gpaYellowSapIds.add(row.sapId);
@@ -180,6 +224,14 @@ export async function POST(req: Request) {
       // "Cases" means student-course instances carrying that alert.
       attendanceCaseYellow: attendanceYellowStudentCourseCases.size,
       attendanceCaseRed: attendanceRedStudentCourseCases.size,
+      attendanceOpenCaseYellow: attendanceYellowOpenCaseKeys.size,
+      attendanceClosedCaseYellow: attendanceYellowClosedCaseKeys.size,
+      attendanceOpenCaseRed: attendanceRedOpenCaseKeys.size,
+      attendanceClosedCaseRed: attendanceRedClosedCaseKeys.size,
+      attendanceOpenStudentsYellow: attendanceYellowOpenSapIds.size,
+      attendanceClosedStudentsYellow: attendanceYellowClosedSapIds.size,
+      attendanceOpenStudentsRed: attendanceRedOpenSapIds.size,
+      attendanceClosedStudentsRed: attendanceRedClosedSapIds.size,
     };
   });
 
@@ -192,6 +244,14 @@ export async function POST(req: Request) {
       grossRed: attendanceCoverage.grossAttendanceRed,
       caseYellow: attendanceCoverage.attendanceCaseYellow,
       caseRed: attendanceCoverage.attendanceCaseRed,
+      openCaseYellow: attendanceCoverage.attendanceOpenCaseYellow,
+      closedCaseYellow: attendanceCoverage.attendanceClosedCaseYellow,
+      openCaseRed: attendanceCoverage.attendanceOpenCaseRed,
+      closedCaseRed: attendanceCoverage.attendanceClosedCaseRed,
+      openStudentsYellow: attendanceCoverage.attendanceOpenStudentsYellow,
+      closedStudentsYellow: attendanceCoverage.attendanceClosedStudentsYellow,
+      openStudentsRed: attendanceCoverage.attendanceOpenStudentsRed,
+      closedStudentsRed: attendanceCoverage.attendanceClosedStudentsRed,
       updatedAttendance: attendanceCoverage.updatedAttendance,
       totalClassesHeld: attendanceCoverage.totalClassesHeld,
       missingCount: attendanceCoverage.missingCount,

@@ -19,7 +19,7 @@ import {
 import type { MasterFilterParams, AlertDimensionFilter } from "./fetch";
 import { InterventionStatusChartClient } from "./_components/InterventionStatusChartClient";
 import { WellbeingChartClient } from "./_components/WellbeingChartClient";
-import { AlertSnapshotsLineChart } from "./_components/AlertSnapshotsLineChart";
+import { AlertSnapshotsCollapsible } from "./_components/AlertSnapshotsCollapsible";
 import { FilterScrollPreserve } from "./_components/FilterScrollPreserve";
 import { EnrollmentDashboard } from "./_components/EnrollmentDashboard";
 import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersStateProvider";
@@ -262,7 +262,7 @@ export default async function Home({ searchParams }: PropsType) {
         <InterventionCohortStatsProvider user={effectiveUser}>
         <InterventionSliceProvider>
         <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6">
-          <div className="col-span-12 md:col-span-4 ">
+          <div className="col-span-12 md:col-span-4">
             <Suspense fallback={<OverviewCardsSkeleton />}>
               <OverviewCardsGroup
                 selectedAlert={selectedAlert}
@@ -275,12 +275,7 @@ export default async function Home({ searchParams }: PropsType) {
               />
             </Suspense>
           </div>
-          <div className="col-span-12 md:col-span-8 ">
-            <AlertSnapshotsLineChart points={snapshotTrend} />
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-12 gap-4">
-          <div className="col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
+          <div className="col-span-12 md:col-span-4 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
             <InterventionStatusChartClient
               title="Outreach & Intervention"
               user={effectiveUser}
@@ -295,12 +290,15 @@ export default async function Home({ searchParams }: PropsType) {
               filterApiRoleScope={filterApiRoleScope}
             />
           </div>
-          <div className="col-span-12 md:col-span-6 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
+          <div className="col-span-12 md:col-span-4 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">
             <WellbeingChartClient
               title="Wellbeing Intervention & Resolution"
               filterApiRoleScope={filterApiRoleScope}
             />
           </div>
+        </div>
+        <div className="mt-4">
+          <AlertSnapshotsCollapsible points={snapshotTrend} />
         </div>
         </InterventionSliceProvider>
         </InterventionCohortStatsProvider>
