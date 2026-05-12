@@ -41,6 +41,8 @@ export type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
+  /** True when a password hash exists (plaintext is never stored or returned). */
+  has_password: boolean;
 };
 
 export type FacultyRow = {
@@ -102,13 +104,14 @@ export async function queryStaffList(options?: {
          ARRAY[]::varchar[]
        ) AS department_ids,
        s.login_count,
-       s.last_login_at::text AS last_login_at
+       s.last_login_at::text AS last_login_at,
+       (s.password_hash IS NOT NULL AND TRIM(COALESCE(s.password_hash, '')) <> '') AS has_password
      FROM staff s
      LEFT JOIN faculties f ON f.id = s.faculty_id
      LEFT JOIN staff_departments sd ON sd.staff_id = s.id
      LEFT JOIN departments d ON d.id = sd.department_id
      WHERE ($1::varchar IS NULL OR s.faculty_id = $1::varchar)
-     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.actual_role, s.pseudo_role, s.faculty_id, f.name, s.login_count, s.last_login_at
+     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.actual_role, s.pseudo_role, s.faculty_id, f.name, s.login_count, s.last_login_at, s.password_hash
      ORDER BY s.role ASC, s.name ASC`,
     [facultyId]
   );

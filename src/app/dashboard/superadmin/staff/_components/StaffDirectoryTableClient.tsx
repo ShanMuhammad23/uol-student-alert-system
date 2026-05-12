@@ -65,6 +65,7 @@ type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
+  has_password: boolean;
 };
 
 type FacultyRow = {
@@ -88,6 +89,7 @@ type SortKey =
   | "other_faculties"
   | "departments"
   | "login_count"
+  | "password"
   | "last_login"
   | "actions";
 type SortDirection = "asc" | "desc";
@@ -150,6 +152,42 @@ function getRoleBadgeClassName(role: string): string {
   );
 }
 
+function PasswordStatusCell({
+  hasPassword,
+}: {
+  hasPassword: boolean;
+}) {
+  const [revealed, setRevealed] = useState(false);
+
+  if (!hasPassword) {
+    return <span className="text-dark-6">—</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setRevealed((v) => !v)}
+      className="max-w-[min(240px,28vw)] text-left text-sm text-dark-6 underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      aria-expanded={revealed}
+      aria-label={
+        revealed
+          ? "Hide password details"
+          : "Password masked; click for details"
+      }
+    >
+      {revealed ? (
+        <span className="text-xs font-normal leading-snug">
+          Stored as a secure hash — the original password cannot be shown. Set a new one in Edit.
+        </span>
+      ) : (
+        <span className="font-mono tracking-[0.2em]" aria-hidden>
+          ••••••••
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function StaffDirectoryTableClient({
   staff,
   faculties,
@@ -206,6 +244,8 @@ export function StaffDirectoryTableClient({
           return resolveDepartmentNames(row).join(", ");
         case "login_count":
           return row.login_count ?? 0;
+        case "password":
+          return row.has_password ? 1 : 0;
         case "last_login":
           return row.last_login_at ? new Date(row.last_login_at).getTime() : 0;
         case "actions":
@@ -296,6 +336,13 @@ export function StaffDirectoryTableClient({
                     Login Count <span className="text-xs">{sortIndicator("login_count")}</span>
                   </button>
                 </TableHead>
+                {!readOnly && (
+                  <TableHead className="min-w-[140px]">
+                    <button type="button" onClick={() => toggleSort("password")} className="inline-flex items-center gap-1">
+                      Password <span className="text-xs">{sortIndicator("password")}</span>
+                    </button>
+                  </TableHead>
+                )}
                 <TableHead className="min-w-[180px]">
                   <button type="button" onClick={() => toggleSort("last_login")} className="inline-flex items-center gap-1">
                     Last Login <span className="text-xs">{sortIndicator("last_login")}</span>
@@ -372,6 +419,13 @@ export function StaffDirectoryTableClient({
                   <TableCell className="!text-left text-dark-6">
                     {row.login_count ?? 0}
                   </TableCell>
+                  {!readOnly && (
+                    <TableCell className="!text-left text-dark-6 align-top">
+                      <PasswordStatusCell
+                        hasPassword={Boolean(row.has_password)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="!text-left text-dark-6">
                     {row.last_login_at
                       ? new Date(row.last_login_at).toLocaleString()

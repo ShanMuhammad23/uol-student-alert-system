@@ -46,6 +46,7 @@ type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
+  has_password: boolean;
 };
 
 type FacultyRow = { id: string; name: string };
