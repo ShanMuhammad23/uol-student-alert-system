@@ -24,7 +24,7 @@ export default async function FacultyStaffPage() {
   const facultyId = user.faculty_id;
 
   const [staff, allFaculties, allDepartments] = await Promise.all([
-    queryStaffList({ facultyId }),
+    queryStaffList({ facultyId, excludeSuperadmin: true }),
     queryFaculties(),
     queryDepartments(),
   ]);

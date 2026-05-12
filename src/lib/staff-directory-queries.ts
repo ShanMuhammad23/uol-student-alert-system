@@ -59,12 +59,23 @@ export type DepartmentRow = {
 
 /**
  * Staff directory rows. When `facultyId` is set, only staff whose parent faculty matches.
+ * When `excludeSuperadmin` is true, omit anyone with superadmin role/pseudo/actual (dean faculty view).
  */
 export async function queryStaffList(options?: {
   facultyId?: string | null;
+  excludeSuperadmin?: boolean;
 }): Promise<StaffListRow[]> {
   if (!pool) return [];
   const facultyId = options?.facultyId ?? null;
+  const excludeSuperadmin = options?.excludeSuperadmin ?? false;
+
+  const excludeSuperadminSql = excludeSuperadmin
+    ? ` AND NOT (
+          s.role = 'superadmin'
+          OR s.pseudo_role = 'superadmin'
+          OR s.actual_role = 'superadmin'
+        )`
+    : "";
 
   const res = await pool.query<StaffListRow>(
     `SELECT
@@ -110,7 +121,7 @@ export async function queryStaffList(options?: {
      LEFT JOIN faculties f ON f.id = s.faculty_id
      LEFT JOIN staff_departments sd ON sd.staff_id = s.id
      LEFT JOIN departments d ON d.id = sd.department_id
-     WHERE ($1::varchar IS NULL OR s.faculty_id = $1::varchar)
+     WHERE ($1::varchar IS NULL OR s.faculty_id = $1::varchar) ${excludeSuperadminSql}
      GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.actual_role, s.pseudo_role, s.faculty_id, f.name, s.login_count, s.last_login_at, s.password_hash
      ORDER BY s.role ASC, s.name ASC`,
     [facultyId]

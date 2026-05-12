@@ -109,6 +109,12 @@ export function StaffDirectoryPanelClient({
   const [selectedRole, setSelectedRole] = useState<RoleFilterValue>("all");
   const [search, setSearch] = useState<string>("");
 
+  useEffect(() => {
+    if (readOnly && selectedRole === "superadmin") {
+      setSelectedRole("all");
+    }
+  }, [readOnly, selectedRole]);
+
   const filteredDepartments = useMemo(() => {
     if (selectedFaculty === "all") return departments;
     return departments.filter((d) => d.faculty_id === selectedFaculty);
@@ -158,16 +164,22 @@ export function StaffDirectoryPanelClient({
     };
   }, [filteredStaff]);
 
-  const roleOptions: { value: RoleFilterValue; label: string }[] = [
-    { value: "all", label: "All Roles" },
-    { value: "superadmin", label: "Superadmin (actual/pseudo)" },
-    { value: "dean", label: "Dean (actual/pseudo)" },
-    { value: "pseudo-dean", label: "Pseudo Dean" },
-    { value: "hod", label: "HoD (actual/pseudo)" },
-    { value: "pseudo-hod", label: "Pseudo HoD" },
-    { value: "instructor", label: "Instructor (actual/pseudo)" },
-    { value: "wellbeing-staff", label: "Wellbeing Staff (Head + Counsellor)" },
-  ];
+  const roleOptions: { value: RoleFilterValue; label: string }[] = useMemo(() => {
+    const all: { value: RoleFilterValue; label: string }[] = [
+      { value: "all", label: "All Roles" },
+      { value: "superadmin", label: "Superadmin (actual/pseudo)" },
+      { value: "dean", label: "Dean (actual/pseudo)" },
+      { value: "pseudo-dean", label: "Pseudo Dean" },
+      { value: "hod", label: "HoD (actual/pseudo)" },
+      { value: "pseudo-hod", label: "Pseudo HoD" },
+      { value: "instructor", label: "Instructor (actual/pseudo)" },
+      { value: "wellbeing-staff", label: "Wellbeing Staff (Head + Counsellor)" },
+    ];
+    if (readOnly) {
+      return all.filter((o) => o.value !== "superadmin");
+    }
+    return all;
+  }, [readOnly]);
 
   const showFacultyFilter = !scopedFacultyId;
 
@@ -227,7 +239,12 @@ export function StaffDirectoryPanelClient({
         />
       </div>
 
-      <StaffStatsCards stats={stats} activeRoleFilter={selectedRole} onRoleSelect={setSelectedRole} />
+      <StaffStatsCards
+        stats={stats}
+        activeRoleFilter={selectedRole}
+        onRoleSelect={setSelectedRole}
+        omitSuperadminCard={readOnly}
+      />
 
       <StaffDirectoryTableClient
         staff={filteredStaff}

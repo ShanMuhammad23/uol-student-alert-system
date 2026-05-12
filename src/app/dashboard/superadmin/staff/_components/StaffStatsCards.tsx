@@ -262,10 +262,13 @@ export function StaffStatsCards({
   stats,
   activeRoleFilter = "all",
   onRoleSelect,
+  omitSuperadminCard = false,
 }: {
   stats: StaffStats;
   activeRoleFilter?: RoleFilterValue;
   onRoleSelect?: (role: RoleFilterValue) => void;
+  /** Faculty staff (dean) view: hide Superadmins tile */
+  omitSuperadminCard?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-3">
@@ -277,14 +280,16 @@ export function StaffStatsCards({
         active={activeRoleFilter === "all"}
         onClickRole={onRoleSelect}
       />
-      <StatCard
-        label="Superadmins"
-        value={stats.superadminCount}
-        tone="superadmin"
-        roleFilter="superadmin"
-        active={activeRoleFilter === "superadmin"}
-        onClickRole={onRoleSelect}
-      />
+      {!omitSuperadminCard && (
+        <StatCard
+          label="Superadmins"
+          value={stats.superadminCount}
+          tone="superadmin"
+          roleFilter="superadmin"
+          active={activeRoleFilter === "superadmin"}
+          onClickRole={onRoleSelect}
+        />
+      )}
       <StatCard
         label="Deans"
         value={stats.deanCount}
