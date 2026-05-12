@@ -10,6 +10,7 @@ const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000173": "Engineering & Technology",
   "50000174": "Science",
   "50000175": "Information Technology",
+  "50000176": "UCMD",
   "50000177": "Allied Health Sciences",
 };
 
