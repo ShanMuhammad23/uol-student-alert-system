@@ -14,6 +14,10 @@ import { Providers } from "./providers";
 import { getCurrentUser, getLatestAlertCountsSnapshot } from "./(home)/dashboard/fetch";
 import { pool } from "@/lib/db";
 import { normalizeFacultyName } from "@/lib/faculty-name";
+import {
+  getInstructorFacultyRollup,
+  type InstructorFacultyRollupItem,
+} from "@/lib/instructor-faculty-rollup";
 
 const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
   FAC_ENG: "50000172",
@@ -34,6 +38,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   let screenHeading: string | null = null;
   let totalStudents: number | undefined;
   let lastUpdated: string | null = null;
+  let instructorFacultyRollup: InstructorFacultyRollupItem[] | undefined;
 
   const latestSnapshot = await getLatestAlertCountsSnapshot();
   const latestSnapshotDate = latestSnapshot.snapshotDate;
@@ -83,10 +88,16 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           `SELECT COUNT(DISTINCT sap_id)::int AS total_students
            FROM student_enrollment_current
            WHERE is_active = TRUE
-             AND instructor_pernr = $1`,
+             AND TRIM(COALESCE(instructor_pernr, '')) <> ''
+             AND TRIM(instructor_pernr) = TRIM($1)`,
           [user.sap_id]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
+        try {
+          instructorFacultyRollup = await getInstructorFacultyRollup(user.sap_id);
+        } catch {
+          instructorFacultyRollup = [];
+        }
       } else if (
         user.role === "wellbeing" ||
         user.role === "wellbeing-head" ||
@@ -128,6 +139,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
                 screenHeading={screenHeading}
                 totalStudents={totalStudents}
                 lastUpdated={lastUpdated}
+                instructorFacultyRollup={instructorFacultyRollup}
               />
 
               <main className=" mx-auto w-full  overflow-hidden px-8 ">

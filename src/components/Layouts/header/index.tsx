@@ -10,12 +10,14 @@ import { UserInfo } from "./user-info";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeFacultyName } from "@/lib/faculty-name";
+import type { InstructorFacultyRollupItem } from "@/lib/instructor-faculty-rollup";
 
 type HeaderProps = {
   user?: AppUser | null;
   screenHeading?: string | null;
   totalStudents?: number;
   lastUpdated?: string | null;
+  instructorFacultyRollup?: InstructorFacultyRollupItem[];
 };
 
 function formatLastUpdatedLabel(value?: string | null): string | null {
@@ -34,7 +36,13 @@ function formatLastUpdatedLabel(value?: string | null): string | null {
   });
 }
 
-export function Header({ user, screenHeading, totalStudents, lastUpdated }: HeaderProps) {
+export function Header({
+  user,
+  screenHeading,
+  totalStudents,
+  lastUpdated,
+  instructorFacultyRollup,
+}: HeaderProps) {
   
   const { toggleSidebar, isMobile } = useSidebarContext();
   const pathname = usePathname();
@@ -133,6 +141,16 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
       user?.role === "teacher" ||
       user?.role === "instructor");
 
+  const instructorFacultySummaryLine = useMemo(() => {
+    if (!user || (user.role !== "instructor" && user.role !== "teacher")) {
+      return null;
+    }
+    if (!instructorFacultyRollup?.length) return null;
+    return instructorFacultyRollup
+      .map((i) => `${i.displayLabel} (${i.studentCount.toLocaleString()})`)
+      .join(", ");
+  }, [user, instructorFacultyRollup]);
+
   return (
     
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stroke bg-white px-4 py-5 shadow-1 dark:border-stroke-dark dark:bg-gray-dark md:px-5 2xl:px-10">
@@ -160,24 +178,36 @@ export function Header({ user, screenHeading, totalStudents, lastUpdated }: Head
         <h1 className="mb-0.5 text-heading-5 font-bold text-dark dark:text-white">
           Student Early Alert System
         </h1>
-        {(resolvedHeading || formattedLastUpdated && !hideUserInfo) && (
-          <div className="flex items-center gap-2">
-            <p className="text-lg font-medium text-green-600 dark:text-white">
-              {resolvedHeading} {resolvedHeading && shouldShowTotalStudents && (
-                <span className="font-semibold  dark:text-white">
-                  {resolvedTotalStudents.toLocaleString()}
-                 
-                </span>
-            
+        {(resolvedHeading || formattedLastUpdated || instructorFacultySummaryLine) &&
+          !hideUserInfo && (
+          <div className="flex flex-col gap-1">
+            {(resolvedHeading || formattedLastUpdated) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-medium text-green-600 dark:text-white">
+                  {resolvedHeading}{" "}
+                  {resolvedHeading &&
+                    shouldShowTotalStudents &&
+                    typeof resolvedTotalStudents === "number" && (
+                    <span className="font-semibold dark:text-white">
+                      {resolvedTotalStudents.toLocaleString()}
+                    </span>
+                  )}
+                </p>
+                {formattedLastUpdated && (
+                  <p className="text-lg text-gray-600 dark:border-gray-300 dark:text-gray-300 border-l border-gray-300 pl-2">
+                    Last updated: {formattedLastUpdated}
+                  </p>
+                )}
+                <p className="text-lg text-gray-600 dark:border-gray-300 dark:text-gray-300 border-l border-gray-300 pl-2">
+                  Next Update: Tomorrow 04:00 AM
+                </p>
+              </div>
             )}
-            </p>
-            {formattedLastUpdated && (
-              <p className="text-lg text-gray-600 dark:text-gray-300 border-l border-gray-300 pl-2">
-                Last updated: {formattedLastUpdated}
+            {instructorFacultySummaryLine ? (
+              <p className="max-w-4xl text-sm font-normal leading-snug text-slate-600 dark:text-slate-400">
+                {instructorFacultySummaryLine}
               </p>
-            )}
-            <p className="text-lg text-gray-600 dark:text-gray-300 border-l border-gray-300 pl-2">Next Update: Tomorrow 04:00 AM</p>
-            
+            ) : null}
           </div>
         )}
       </div>
