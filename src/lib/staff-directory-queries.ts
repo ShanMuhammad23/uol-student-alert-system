@@ -78,7 +78,19 @@ export async function queryStaffList(options?: {
     : "";
 
   const res = await pool.query<StaffListRow>(
-    `SELECT
+    `WITH enrollment_instructor_faculties AS (
+       SELECT DISTINCT
+         TRIM(BOTH FROM e.instructor_pernr) AS pernr_key,
+         e.faculty_id,
+         fac.name AS faculty_name
+       FROM student_enrollment_current e
+       INNER JOIN faculties fac ON fac.id = e.faculty_id
+       WHERE e.is_active = TRUE
+         AND e.instructor_pernr IS NOT NULL
+         AND TRIM(BOTH FROM e.instructor_pernr) <> ''
+         AND e.faculty_id IS NOT NULL
+     )
+     SELECT
        s.id,
        s.pernr,
        s.name,
@@ -93,15 +105,10 @@ export async function queryStaffList(options?: {
          (
            SELECT ARRAY_AGG(sub.faculty_name ORDER BY sub.faculty_name)
            FROM (
-             SELECT DISTINCT fac.name AS faculty_name
-             FROM student_enrollment_current e
-             INNER JOIN faculties fac ON fac.id = e.faculty_id
-             WHERE e.is_active = TRUE
-               AND e.instructor_pernr IS NOT NULL
-               AND TRIM(e.instructor_pernr) <> ''
-               AND TRIM(e.instructor_pernr) = TRIM(s.pernr)
-               AND e.faculty_id IS NOT NULL
-               AND (s.faculty_id IS NULL OR e.faculty_id IS DISTINCT FROM s.faculty_id)
+             SELECT DISTINCT eif.faculty_name
+             FROM enrollment_instructor_faculties eif
+             WHERE eif.pernr_key = TRIM(BOTH FROM s.pernr)
+               AND (s.faculty_id IS NULL OR eif.faculty_id IS DISTINCT FROM s.faculty_id)
            ) AS sub
          ),
          ARRAY[]::text[]

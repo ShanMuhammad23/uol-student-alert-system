@@ -9,7 +9,10 @@ export type MonitoringParams = {
   PSess: string;
   Begda: string;
   Endda: string;
-  /** Optional: filter to one student by SAP ID (EObjid). */
+  /**
+   * Optional OData filter value. On ZCLASS monitoring rows this is typically the **same SAP
+   * object id as attendance `EventId`** (scheduled class / event), not the student `SapNo`.
+   */
   EObjid?: string;
 };
 
@@ -41,6 +44,10 @@ type MonitoringProperties = {
   MakeupHeld?: string | number;
   CrHr?: string | number;
   MonitoredDt?: string;
+  /**
+   * SAP event object id for this class row. Matches **attendance `EventId`** for the same
+   * scheduled occurrence (distinct from `Packnumber` / `EventPackageId` when those differ).
+   */
   EObjid?: string;
 };
 
@@ -200,6 +207,7 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
   }
 
   for (const e of entries) {
+    // NOTE: `EObjid` is the class/event object id (same as attendance `EventId`), not student SapNo.
     const sapId = e.EObjid ?? "";
     const courseCode = (e.CrCode ?? "").toString();
     const courseId = courseCode || "UNKNOWN";
@@ -263,9 +271,10 @@ const defaultMonitoringParams = (): MonitoringParams => ({
 });
 
 /**
- * Fetch SAP monitoring data for one student by SAP ID (EObjid).
- * Tries OData $filter with EObjid first; if empty, fetches full set and filters in memory.
- * Returns one Student per course/section for that student; use first for single-course view.
+ * Fetch SAP monitoring and map rows to `Student` shapes.
+ * If `sapId` is a **student SapNo**, only use this when your monitoring feed actually scopes
+ * `EObjid` to students; on many class-monitoring feeds `EObjid` equals attendance **EventId**
+ * instead (see `MonitoringEntry.EObjid`).
  */
 export async function getMonitoringStudentsBySapId(
   sapId: string,

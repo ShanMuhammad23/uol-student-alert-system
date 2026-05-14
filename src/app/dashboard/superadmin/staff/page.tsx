@@ -18,9 +18,11 @@ export default async function SuperadminStaffPage(props: {
   const searchParams = (await props.searchParams) ?? {};
   const activeTab = searchParams.tab === "add" ? "add" : "directory";
 
-  const staff = await queryStaffList();
-  const faculties = await queryFaculties();
-  const departments = await queryDepartments();
+  const [staff, faculties, departments] = await Promise.all([
+    activeTab === "add" ? Promise.resolve([]) : queryStaffList(),
+    queryFaculties(),
+    queryDepartments(),
+  ]);
 
   const successMessage =
     searchParams.success === "updated"

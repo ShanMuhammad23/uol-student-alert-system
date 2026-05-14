@@ -42,31 +42,50 @@ export async function validateStaffFields(
   let enrollmentInstructorName: string | null = null;
 
   if (pool) {
-    if (email) {
-      const emailRes = await pool.query<{ exists: boolean }>(
-        `SELECT EXISTS(SELECT 1 FROM staff WHERE LOWER(email) = $1) AS exists`,
-        [email]
-      );
-      emailDuplicate = Boolean(emailRes.rows[0]?.exists);
-    }
-
-    if (pernr) {
-      const pernrRes = await pool.query<{ exists: boolean }>(
-        `SELECT EXISTS(SELECT 1 FROM staff WHERE pernr = $1) AS exists`,
-        [pernr]
-      );
-      pernrDuplicate = Boolean(pernrRes.rows[0]?.exists);
-      pernrInEnrollment = await isInstructorPernrInEnrollment(pernr);
-      const enrollmentNameRes = await pool.query<{ instructor_name: string | null }>(
-        `SELECT NULLIF(TRIM(MAX(e.instructor_name)), '') AS instructor_name
-         FROM student_enrollment_current e
-         WHERE e.is_active = TRUE
-           AND e.instructor_pernr IS NOT NULL
-           AND TRIM(BOTH FROM e.instructor_pernr) = $1`,
-        [pernr]
-      );
-      enrollmentInstructorName =
-        enrollmentNameRes.rows[0]?.instructor_name?.trim() ?? null;
+    type ValidationRow = {
+      email_duplicate: boolean;
+      pernr_duplicate: boolean;
+      pernr_in_enrollment: boolean | null;
+      enrollment_instructor_name: string | null;
+    };
+    const valRes = await pool.query<ValidationRow>(
+      `SELECT
+         EXISTS(
+           SELECT 1 FROM staff
+           WHERE $1::text <> '' AND LOWER(TRIM(email)) = LOWER($1::text)
+         ) AS email_duplicate,
+         EXISTS(
+           SELECT 1 FROM staff
+           WHERE $2::text <> '' AND TRIM(BOTH FROM pernr) = TRIM(BOTH FROM $2::text)
+         ) AS pernr_duplicate,
+         CASE
+           WHEN $2::text = '' OR TRIM(BOTH FROM $2::text) = '' THEN NULL::boolean
+           ELSE EXISTS (
+             SELECT 1
+             FROM student_enrollment_current e
+             WHERE e.is_active = TRUE
+               AND e.instructor_pernr IS NOT NULL
+               AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
+           )
+         END AS pernr_in_enrollment,
+         CASE
+           WHEN $2::text = '' OR TRIM(BOTH FROM $2::text) = '' THEN NULL::text
+           ELSE (
+             SELECT NULLIF(TRIM(MAX(e.instructor_name)), '')
+             FROM student_enrollment_current e
+             WHERE e.is_active = TRUE
+               AND e.instructor_pernr IS NOT NULL
+               AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
+           )
+         END AS enrollment_instructor_name`,
+      [email, pernr]
+    );
+    const row = valRes.rows[0];
+    if (row) {
+      emailDuplicate = Boolean(row.email_duplicate);
+      pernrDuplicate = Boolean(row.pernr_duplicate);
+      pernrInEnrollment = row.pernr_in_enrollment;
+      enrollmentInstructorName = row.enrollment_instructor_name?.trim() ?? null;
     }
   }
 
