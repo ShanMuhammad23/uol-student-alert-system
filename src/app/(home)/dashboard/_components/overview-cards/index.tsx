@@ -137,27 +137,18 @@ export function OverviewCardsGroup({
     };
   }, [user]);
 
+  // Only sync SSR props into live state. Do not zero out attendance case / open / closed
+  // counts here — those come from `/api/dashboard/overview`; resetting them on every
+  // prop change runs after the fetch and wipes Open/Closed on the card.
   useEffect(() => {
-    setLiveCounts({
+    setLiveCounts((prev) => ({
+      ...prev,
       totalStudents,
       grossAttendanceYellow: yellowAttendance,
       grossAttendanceRed: redAttendance,
-      attendanceUpdatedCount: 0,
-      attendanceHeldCount: 0,
-      attendanceMissingCount: 0,
-      attendanceCaseYellow: 0,
-      attendanceCaseRed: 0,
-      attendanceOpenCaseYellow: 0,
-      attendanceClosedCaseYellow: 0,
-      attendanceOpenCaseRed: 0,
-      attendanceClosedCaseRed: 0,
-      attendanceOpenStudentsYellow: 0,
-      attendanceClosedStudentsYellow: 0,
-      attendanceOpenStudentsRed: 0,
-      attendanceClosedStudentsRed: 0,
       grossGpaYellow: yellowGpa,
       grossGpaRed: redGpa,
-    });
+    }));
   }, [totalStudents, yellowAttendance, redAttendance, yellowGpa, redGpa]);
 
   useEffect(() => {
@@ -206,7 +197,8 @@ export function OverviewCardsGroup({
         };
       })
       .then((body) => {
-        setLiveCounts({
+        setLiveCounts((prev) => ({
+          ...prev,
           totalStudents: body.totalStudents,
           grossAttendanceYellow: body.attendance.grossYellow,
           grossAttendanceRed: body.attendance.grossRed,
@@ -225,7 +217,7 @@ export function OverviewCardsGroup({
           attendanceMissingCount: body.attendance.missingCount ?? 0,
           grossGpaYellow: body.gpa.grossYellow,
           grossGpaRed: body.gpa.grossRed,
-        });
+        }));
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;

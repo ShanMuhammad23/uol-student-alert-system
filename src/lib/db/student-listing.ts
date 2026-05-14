@@ -575,20 +575,40 @@ function buildListingBaseCte(
   const latestPackageOrder = interventionContext.hasEventPackageId
     ? "COALESCE(event_package_id, '')"
     : "''";
+  /**
+   * One latest intervention per student+course+section (package omitted from DISTINCT ON)
+   * so enrollments like 51755797__3 still join interventions stored as 51755797 or 51755797__lect.
+   */
+  const collapseLatestBySectionPackage =
+    interventionContext.hasSectionCode && interventionContext.hasEventPackageId;
+  const latestDistinctOnSql = collapseLatestBySectionPackage
+    ? `student_sap_id,
+        COALESCE(course_id, ''),
+        ${latestSectionOrder}`
+    : `student_sap_id,
+        COALESCE(course_id, ''),
+        ${latestSectionOrder},
+        ${latestPackageOrder}`;
+  const latestOrderBySql = collapseLatestBySectionPackage
+    ? `student_sap_id,
+        COALESCE(course_id, ''),
+        ${latestSectionOrder},
+        performed_at DESC`
+    : `student_sap_id,
+        COALESCE(course_id, ''),
+        ${latestSectionOrder},
+        ${latestPackageOrder},
+        performed_at DESC`;
   const latestContextJoin =
     interventionContext.hasSectionCode && interventionContext.hasEventPackageId
       ? `latest.course_id = e.course_id
-           AND COALESCE(latest.section_code, '') = COALESCE(e.section_code, '')
-           AND COALESCE(latest.event_package_id, '') = COALESCE(e.event_package_id, '')`
+           AND COALESCE(latest.section_code, '') = COALESCE(e.section_code, '')`
       : `latest.course_id = e.course_id`;
   return `
     WITH ${globalPrefix}
     latest AS (
       SELECT DISTINCT ON (
-        student_sap_id,
-        COALESCE(course_id, ''),
-        ${latestSectionOrder},
-        ${latestPackageOrder}
+        ${latestDistinctOnSql}
       )
         student_sap_id,
         COALESCE(course_id, '') AS course_id,
@@ -597,11 +617,7 @@ function buildListingBaseCte(
         status AS latest_intervention_status
       FROM interventions
       ORDER BY
-        student_sap_id,
-        COALESCE(course_id, ''),
-        ${latestSectionOrder},
-        ${latestPackageOrder},
-        performed_at DESC
+        ${latestOrderBySql}
     ),
     latest_wellbeing AS (
       SELECT DISTINCT ON (student_sap_id)
