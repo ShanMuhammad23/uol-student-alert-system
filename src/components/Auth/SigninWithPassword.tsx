@@ -4,8 +4,10 @@ import { EmailIcon, PasswordIcon, EyeOpenIcon, EyeClosedIcon } from "@/assets/ic
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { getSession, signIn } from "next-auth/react";
+import { AUTH_ERROR_EMAIL_NOT_REGISTERED } from "@/lib/auth-errors";
+import { UnregisteredEmailModal } from "./UnregisteredEmailModal";
 import InputGroup from "../FormElements/InputGroup";
 
 export default function SigninWithPassword() {
@@ -22,6 +24,17 @@ export default function SigninWithPassword() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unregisteredEmail, setUnregisteredEmail] = useState<string | null>(
+    null
+  );
+
+  useEffect(() => {
+    const queryError = searchParams.get("error");
+    const queryEmail = searchParams.get("email")?.trim() ?? "";
+    if (queryError === AUTH_ERROR_EMAIL_NOT_REGISTERED) {
+      setUnregisteredEmail(queryEmail || data.email.trim() || "");
+    }
+  }, [searchParams, data.email]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -43,6 +56,12 @@ export default function SigninWithPassword() {
     });
     if (result?.error) {
       setLoading(false);
+      const emailAttempted = data.email.trim();
+      if (result.error === AUTH_ERROR_EMAIL_NOT_REGISTERED) {
+        setUnregisteredEmail(emailAttempted);
+        setError(null);
+        return;
+      }
       setError("Invalid email or password");
       return;
     }
@@ -62,6 +81,12 @@ export default function SigninWithPassword() {
   };
 
   return (
+    <>
+      <UnregisteredEmailModal
+        email={unregisteredEmail ?? ""}
+        open={unregisteredEmail != null}
+        onClose={() => setUnregisteredEmail(null)}
+      />
     <form onSubmit={handleSubmit}>
       {searchParams.get("error") === "NotAuthorized" && (
         <p className="mb-4 rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
@@ -120,5 +145,6 @@ export default function SigninWithPassword() {
         </button>
       </div>
     </form>
+    </>
   );
 }

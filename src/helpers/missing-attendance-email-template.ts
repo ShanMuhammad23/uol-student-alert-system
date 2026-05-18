@@ -1,3 +1,14 @@
+export type MissingAttendanceEmailVars = {
+  instructorName: string;
+  courseName: string;
+  courseCode: string;
+  department: string;
+  studentsEnrolled: number;
+  classesHeld: number;
+  attendancePosted: number;
+  missingEntries: number;
+};
+
 export const MISSING_ATTENDANCE_EMAIL_SUBJECT =
   "Reminder: Missing Attendance Records — [Course Code]";
 
@@ -78,12 +89,14 @@ export const MISSING_ATTENDANCE_EMAIL_TEMPLATE = `
               Should you have already submitted the attendance, or if exceptional circumstances are preventing timely submission, please respond to this email with the relevant details.
             </p>
             <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
-              For any technical difficulties accessing the portal, please contact
+              For any technical difficulties accessing the portal, please contact <br/>
+              <strong>
               Shan Muhammad <br/>
               Web Developer <br/>
-              SPMO - University of Lahore
-              shan.muhammad@spmo.uol.edu.pk <br/> or <br/>
-              03219720819 <br/>
+              SPMO - The University of Lahore <br/>
+              shan.muhammad@spmo.uol.edu.pk <br/> 
+             Cell:  03219720819 <br/>
+             </strong>
             </p>
             <p style="margin:0 0 20px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
               Your prompt attention to this matter is greatly appreciated.
@@ -100,3 +113,46 @@ export const MISSING_ATTENDANCE_EMAIL_TEMPLATE = `
     </td>
   </tr>
 </table>`;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function buildMissingAttendanceEmailSubject(courseCode: string): string {
+  return MISSING_ATTENDANCE_EMAIL_SUBJECT.replace(
+    "[Course Code]",
+    courseCode.trim() || "Course"
+  );
+}
+
+export function buildMissingAttendanceEmailHtml(
+  vars: MissingAttendanceEmailVars
+): string {
+  const instructorName = escapeHtml(vars.instructorName.trim() || "Instructor");
+  const courseName = escapeHtml(vars.courseName.trim() || "—");
+  const courseCode = escapeHtml(vars.courseCode.trim() || "—");
+  const department = escapeHtml(vars.department.trim() || "—");
+  const studentsEnrolled = String(Math.max(0, vars.studentsEnrolled));
+  const classesHeld = String(Math.max(0, vars.classesHeld));
+  const attendancePosted = String(Math.max(0, vars.attendancePosted));
+  const missingEntries = String(Math.max(0, vars.missingEntries));
+
+  return MISSING_ATTENDANCE_EMAIL_TEMPLATE.replace(
+    "[Instructor Name]",
+    instructorName
+  )
+    .replace("[Course Name]", courseName)
+    .replace("[Course Code]", courseCode)
+    .replace("[Department]", department)
+    .replace("[No. of Students]", studentsEnrolled)
+    .replace("[No. of Classes Held]", classesHeld)
+    .replace(
+      "[No. of Classes with Attendance Posted]",
+      attendancePosted
+    )
+    .replace("[No. of Missing Entries]", missingEntries);
+}

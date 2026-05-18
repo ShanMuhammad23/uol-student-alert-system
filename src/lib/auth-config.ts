@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { compare } from "bcryptjs";
+import { AUTH_ERROR_EMAIL_NOT_REGISTERED } from "@/lib/auth-errors";
 import { bumpStaffLoginStats, getStaffByEmailWithDepartments } from "@/lib/db";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24; // 24 hours
@@ -26,7 +27,9 @@ export const authOptions: NextAuthOptions = {
         const password = String(credentials.password);
 
         const result = await getStaffByEmailWithDepartments(email);
-        if (!result) return null;
+        if (!result) {
+          throw new Error(AUTH_ERROR_EMAIL_NOT_REGISTERED);
+        }
 
         const { staff, departmentIds } = result;
         const hash = staff.password_hash;
@@ -62,10 +65,14 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider !== "google") return true;
       const email = String(user.email ?? "").trim();
-      if (!email) return "/auth/sign-in?error=NotAuthorized";
+      if (!email) {
+        return `/auth/sign-in?error=${AUTH_ERROR_EMAIL_NOT_REGISTERED}`;
+      }
 
       const result = await getStaffByEmailWithDepartments(email);
-      if (!result) return "/auth/sign-in?error=NotAuthorized";
+      if (!result) {
+        return `/auth/sign-in?error=${AUTH_ERROR_EMAIL_NOT_REGISTERED}&email=${encodeURIComponent(email)}`;
+      }
 
       const { staff, departmentIds } = result;
       const mutableUser = user as typeof user & {

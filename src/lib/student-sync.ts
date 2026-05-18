@@ -20,6 +20,7 @@ type EnrollmentRow = {
   Section?: string;
   Teacher?: string;
   Pernr?: string;
+  Email?: string;
   CampCode?: string;
   Peryr?: string;
   Perid?: string;
@@ -472,6 +473,7 @@ export async function runStudentSync(
     eventPackageId: string;
     instructorPernr: string | null;
     instructorName: string | null;
+    instructorEmail: string | null;
     termYear: string;
     termSession: string;
     admissionYear: string | null;
@@ -529,6 +531,7 @@ export async function runStudentSync(
       originalEventPackageId,
       instructorPernr: String(row.Pernr ?? "").trim() || null,
       instructorName: String(row.Teacher ?? "").trim() || null,
+      instructorEmail: String(row.Email ?? "").trim() || null,
       termYear: String(row.Peryr ?? pYear).trim(),
       termSession: String(row.Perid ?? pSess).trim(),
       admissionYear: String(row.AdmAyear ?? "").trim() || null,
@@ -746,12 +749,12 @@ export async function runStudentSync(
       await pool.query(
         `INSERT INTO student_enrollment_current (
            sap_id, student_name, faculty_id, department_id, program_id, course_id,
-           section_code, event_package_id, instructor_pernr, instructor_name,
+           section_code, event_package_id, instructor_pernr, instructor_name, instructor_email,
            term_year, term_session, admission_year, admission_period_id, admission_session,
            campus_code, is_active, snapshot_at
          )
          VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,TRUE,NOW()
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,TRUE,NOW()
          )
          ON CONFLICT (sap_id, course_id, section_code, event_package_id) DO UPDATE SET
            student_name = EXCLUDED.student_name,
@@ -760,6 +763,7 @@ export async function runStudentSync(
            program_id = EXCLUDED.program_id,
            instructor_pernr = EXCLUDED.instructor_pernr,
            instructor_name = EXCLUDED.instructor_name,
+           instructor_email = EXCLUDED.instructor_email,
            term_year = EXCLUDED.term_year,
            term_session = EXCLUDED.term_session,
            admission_year = EXCLUDED.admission_year,
@@ -780,6 +784,7 @@ export async function runStudentSync(
           row.eventPackageId,
           row.instructorPernr,
           row.instructorName,
+          row.instructorEmail,
           row.termYear,
           row.termSession,
           row.admissionYear,

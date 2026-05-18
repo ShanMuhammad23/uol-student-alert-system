@@ -3,6 +3,7 @@ type SmtpMailInput = {
   subject: string;
   html: string;
   replyTo?: string;
+  cc?: string[];
 };
 
 export async function sendSmtpMail(input: SmtpMailInput): Promise<void> {
@@ -25,9 +26,13 @@ export async function sendSmtpMail(input: SmtpMailInput): Promise<void> {
     auth: { user, pass },
   });
 
+  const cc =
+    input.cc?.map((e) => e.trim()).filter(Boolean) ?? [];
+
   await transport.sendMail({
     from: fromAddress,
     to: input.to,
+    ...(cc.length ? { cc } : {}),
     subject: input.subject,
     html: input.html,
     replyTo: input.replyTo,

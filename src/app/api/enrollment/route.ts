@@ -23,6 +23,7 @@ export async function GET() {
       section_code: string | null;
       instructor_name: string | null;
       instructor_pernr: string | null;
+      instructor_email: string | null;
     }>(
       `SELECT
          e.sap_id,
@@ -37,7 +38,8 @@ export async function GET() {
          c.title AS course_title,
          NULLIF(e.section_code, '') AS section_code,
          e.instructor_name,
-         e.instructor_pernr
+         e.instructor_pernr,
+         e.instructor_email
        FROM student_enrollment_current e
        LEFT JOIN departments d ON d.id = e.department_id
        LEFT JOIN programs p ON p.id = e.program_id
@@ -59,6 +61,7 @@ export async function GET() {
         Section: r.section_code ?? undefined,
         Teacher: r.instructor_name ?? undefined,
         Pernr: r.instructor_pernr ?? undefined,
+        Email: r.instructor_email ?? undefined,
       }))
     );
   } catch (err) {
