@@ -41,8 +41,6 @@ export type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
-  /** True when a password hash exists (plaintext is never stored or returned). */
-  has_password: boolean;
 };
 
 export type FacultyRow = {
@@ -89,6 +87,14 @@ export async function queryStaffList(options?: {
          AND e.instructor_pernr IS NOT NULL
          AND TRIM(BOTH FROM e.instructor_pernr) <> ''
          AND e.faculty_id IS NOT NULL
+     ),
+     enrollment_faculties_by_pernr AS (
+       SELECT
+         pernr_key,
+         ARRAY_AGG(faculty_name ORDER BY faculty_name) AS faculty_names,
+         ARRAY_AGG(faculty_id ORDER BY faculty_name) AS faculty_ids
+       FROM enrollment_instructor_faculties
+       GROUP BY pernr_key
      )
      SELECT
        s.id,
@@ -103,13 +109,12 @@ export async function queryStaffList(options?: {
        f.name AS faculty_name,
        COALESCE(
          (
-           SELECT ARRAY_AGG(sub.faculty_name ORDER BY sub.faculty_name)
-           FROM (
-             SELECT DISTINCT eif.faculty_name
-             FROM enrollment_instructor_faculties eif
-             WHERE eif.pernr_key = TRIM(BOTH FROM s.pernr)
-               AND (s.faculty_id IS NULL OR eif.faculty_id IS DISTINCT FROM s.faculty_id)
-           ) AS sub
+           SELECT ARRAY_AGG(u.faculty_name ORDER BY u.faculty_name)
+           FROM unnest(
+             COALESCE(ebp.faculty_names, ARRAY[]::text[]),
+             COALESCE(ebp.faculty_ids, ARRAY[]::varchar[])
+           ) AS u(faculty_name, faculty_id)
+           WHERE s.faculty_id IS NULL OR u.faculty_id IS DISTINCT FROM s.faculty_id
          ),
          ARRAY[]::text[]
        ) AS other_faculty_names,
@@ -122,14 +127,29 @@ export async function queryStaffList(options?: {
          ARRAY[]::varchar[]
        ) AS department_ids,
        s.login_count,
-       s.last_login_at::text AS last_login_at,
-       (s.password_hash IS NOT NULL AND TRIM(COALESCE(s.password_hash, '')) <> '') AS has_password
+       s.last_login_at::text AS last_login_at
      FROM staff s
      LEFT JOIN faculties f ON f.id = s.faculty_id
+     LEFT JOIN enrollment_faculties_by_pernr ebp
+       ON ebp.pernr_key = TRIM(BOTH FROM s.pernr)
      LEFT JOIN staff_departments sd ON sd.staff_id = s.id
      LEFT JOIN departments d ON d.id = sd.department_id
      WHERE ($1::varchar IS NULL OR s.faculty_id = $1::varchar) ${excludeSuperadminSql}
-     GROUP BY s.id, s.pernr, s.name, s.img, s.email, s.role, s.actual_role, s.pseudo_role, s.faculty_id, f.name, s.login_count, s.last_login_at, s.password_hash
+     GROUP BY
+       s.id,
+       s.pernr,
+       s.name,
+       s.img,
+       s.email,
+       s.role,
+       s.actual_role,
+       s.pseudo_role,
+       s.faculty_id,
+       f.name,
+       s.login_count,
+       s.last_login_at,
+       ebp.faculty_names,
+       ebp.faculty_ids
      ORDER BY s.role ASC, s.name ASC`,
     [facultyId]
   );
