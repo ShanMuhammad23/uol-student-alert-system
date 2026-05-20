@@ -1,12 +1,10 @@
 import "@/css/satoshi.css";
 import "@/css/style.css";
 
-import { Sidebar } from "@/components/Layouts/sidebar";
+import { AppShell } from "@/components/Layouts/app-shell";
 
 import "flatpickr/dist/flatpickr.min.css";
 import "jsvectormap/dist/jsvectormap.css";
-
-import { Header } from "@/components/Layouts/header";
 import type { Metadata } from "next";
 import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
@@ -23,7 +21,6 @@ const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
   FAC_ENG: "50000172",
   FAC_MGT: "50000172",
 };
-
 export const metadata: Metadata = {
   title: {
     template: "UOL | Student Early Alert System",
@@ -133,19 +130,17 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           <div className="flex min-h-screen">
 
 
-            <div className="w-full bg-gray-2 dark:bg-[#020d1a]">
-              <Header
-                user={user}
-                screenHeading={screenHeading}
-                totalStudents={totalStudents}
-                lastUpdated={lastUpdated}
-                instructorFacultyRollup={instructorFacultyRollup}
-              />
-
-              <main className=" mx-auto w-full  overflow-hidden px-8 ">
-                {children}
-              </main>
-            </div>
+            <AppShell
+              header={{
+                user,
+                screenHeading,
+                totalStudents,
+                lastUpdated,
+                instructorFacultyRollup,
+              }}
+            >
+              {children}
+            </AppShell>
           </div>
         </Providers>
       </body>

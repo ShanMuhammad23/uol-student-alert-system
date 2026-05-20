@@ -54,6 +54,10 @@ export function Dropdown({ children, isOpen, setIsOpen }: DropdownProps) {
         triggerRef.current?.focus();
       }, 0);
     }
+
+    return () => {
+      document.body.style.removeProperty("pointer-events");
+    };
   }, [isOpen]);
 
   function handleClose() {

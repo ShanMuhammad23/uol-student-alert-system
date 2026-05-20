@@ -1,83 +1,62 @@
+// SigninWithPassword.tsx — Academic Premium
 "use client";
 
-import { EmailIcon, PasswordIcon, EyeOpenIcon, EyeClosedIcon } from "@/assets/icons";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, GraduationCap } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { getSession, signIn } from "next-auth/react";
 import { AUTH_ERROR_EMAIL_NOT_REGISTERED } from "@/lib/auth-errors";
 import { UnregisteredEmailModal } from "./UnregisteredEmailModal";
-import InputGroup from "../FormElements/InputGroup";
 
 export default function SigninWithPassword() {
   const [showPassword, setShowPassword] = useState(false);
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [data, setData] = useState({
-    email: "",
-    password:"",
-  });
-
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unregisteredEmail, setUnregisteredEmail] = useState<string | null>(
     null
   );
 
-  useEffect(() => {
-    const queryError = searchParams.get("error");
-    const queryEmail = searchParams.get("email")?.trim() ?? "";
-    if (queryError === AUTH_ERROR_EMAIL_NOT_REGISTERED) {
-      setUnregisteredEmail(queryEmail || data.email.trim() || "");
-    }
-  }, [searchParams, data.email]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null);
-    setData({
-      ...data,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
-    const result = await signIn("credentials", {
-      email: data.email.trim(),
-      password: data.password,
-      redirect: false,
-      callbackUrl: "/dashboard",
-    });
-    if (result?.error) {
-      setLoading(false);
-      const emailAttempted = data.email.trim();
-      if (result.error === AUTH_ERROR_EMAIL_NOT_REGISTERED) {
-        setUnregisteredEmail(emailAttempted);
-        setError(null);
+
+    try {
+      const result = await signIn("credentials", {
+        email: email.trim(),
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
+      });
+
+      if (result?.error) {
+        if (result.error === AUTH_ERROR_EMAIL_NOT_REGISTERED) {
+          setUnregisteredEmail(email.trim());
+          return;
+        }
+        setError("Invalid email or password");
         return;
       }
-      setError("Invalid email or password");
-      return;
+
+      if (result?.ok) {
+        const session = await getSession();
+        const destination =
+          session?.user?.role === "superadmin"
+            ? "/dashboard/superadmin"
+            : "/dashboard";
+        window.location.assign(destination);
+        return;
+      }
+
+      setError("Sign in failed");
+    } catch {
+      setError("Sign in failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-    if (result?.ok) {
-      // Force full document navigation so root server layout/session-dependent
-      // header data refreshes immediately after login.
-      const session = await getSession();
-      const destination =
-        session?.user?.role === "superadmin"
-          ? "/dashboard/superadmin"
-          : "/dashboard";
-      window.location.assign(destination);
-      return;
-    }
-    setLoading(false);
-    setError("Sign in failed");
   };
 
   return (
@@ -87,64 +66,116 @@ export default function SigninWithPassword() {
         open={unregisteredEmail != null}
         onClose={() => setUnregisteredEmail(null)}
       />
-    <form onSubmit={handleSubmit}>
-      {searchParams.get("error") === "NotAuthorized" && (
-        <p className="mb-4 rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
-          Not authorized. Your Google account is not allowed for this system.
-        </p>
-      )}
-      {error && (
-        <p className="mb-4 rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
+      <form onSubmit={handleSubmit} className="space-y-5">
+      {error ? (
+        <p className="rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
           {error}
         </p>
-      )}
-      <InputGroup
-        type="email"
-        label="Email"
-        className="mb-4 [&_input]:py-[15px]"
-        placeholder="Enter your email"
-        name="email"
-        handleChange={handleChange}
-        value={data.email}
-        icon={<EmailIcon />}
-      />
+      ) : null}
+      {/* Email Field */}
+      <motion.div
+        initial={{ opacity: 0, x: -8 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1.05 }}
+        className="group space-y-1.5"
+      >
+        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 transition-colors group-focus-within:text-amber-700">
+          University Email
+        </label>
+        <div className="relative">
+          <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-amber-600" />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={cn(
+              "w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400",
+              "outline-none transition-all duration-200",
+              "focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20",
+              "hover:border-slate-300"
+            )}
+            placeholder="name@uol.edu.pk"
+            required
+          />
+        </div>
+      </motion.div>
 
-      <InputGroup
-        type={showPassword ? "text" : "password"}
-        label="Password"
-        className="mb-5 [&_input]:py-[15px]"
-        placeholder="Enter your password"
-        name="password"
-        handleChange={handleChange}
-        value={data.password}
-        icon={showPassword ? <EyeOpenIcon /> : <EyeClosedIcon />}
-        showPassword={showPassword}
-        togglePasswordVisibility={togglePasswordVisibility}
-      />
+      {/* Password Field */}
+      <motion.div
+        initial={{ opacity: 0, x: -8 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1.15 }}
+        className="group space-y-1.5"
+      >
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 transition-colors group-focus-within:text-amber-700">
+            Password
+          </label>
+          <a
+            href="/auth/forgot-password"
+            className="text-xs font-medium text-slate-500 transition-colors hover:text-amber-700"
+          >
+            Forgot?
+          </a>
+        </div>
+        <div className="relative">
+          <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-amber-600" />
+          <input
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={cn(
+              "w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-11 text-sm text-slate-900 placeholder:text-slate-400",
+              "outline-none transition-all duration-200",
+              "focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20",
+              "hover:border-slate-300"
+            )}
+            placeholder="Enter your password"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+      </motion.div>
 
-      <div className="mb-6 flex items-center justify-between gap-2 py-2 font-medium">
-       
-
-        <Link
-          href="/auth/forgot-password"
-          className="hover:text-primary dark:text-white dark:hover:text-primary"
-        >
-          Forgot Password?
-        </Link>
-      </div>
-
-      <div className="mb-4.5">
-        <button
-          type="submit"
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary p-4 font-medium text-white transition hover:bg-opacity-90"
-        >
-          Sign In
-          {loading && (
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-t-transparent dark:border-primary dark:border-t-transparent" />
+      {/* Submit Button — Academic Gold/Navy */}
+      <motion.button
+        type="submit"
+        disabled={isLoading}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.25 }}
+        whileHover={{ y: -1, boxShadow: "0 10px 30px -10px rgba(180, 83, 9, 0.3)" }}
+        whileTap={{ scale: 0.98 }}
+        className={cn(
+          "relative mt-2 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold tracking-tight text-white",
+          "bg-gradient-to-r from-slate-800 to-slate-900 shadow-lg",
+          "transition-all duration-300 hover:from-slate-700 hover:to-slate-800",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50",
+          "disabled:cursor-not-allowed disabled:opacity-60"
+        )}
+      >
+        <span className="flex items-center gap-2">
+          {isLoading ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full"
+            />
+          ) : (
+            <>
+              <GraduationCap className="h-4 w-4" />
+              Sign In to Portal
+            </>
           )}
-        </button>
-      </div>
-    </form>
+        </span>
+      </motion.button>
+      </form>
     </>
   );
 }
