@@ -53,7 +53,7 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.23, 1, 0.32, 1] },
+    transition: { duration: 0.6 },
   },
 };
 
@@ -115,7 +115,7 @@ export function SignInLayout({ children }: PropsWithChildren) {
         <motion.div
           initial={{ opacity: 0, y: 30, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          transition={{ duration: 0.7, delay: 0.4 }}
           className="w-full lg:max-w-[440px]"
         >
           {/* Warm ivory card — like premium stationery */}
