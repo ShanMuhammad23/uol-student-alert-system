@@ -264,7 +264,20 @@ export default async function SuperadminDashboardPage({
       {/* ─── Intervention + Wellbeing (one row) ───────────────────── */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-          <SectionHeader title="Intervention Status" />
+          <SectionHeader
+            title="Intervention Status"
+            action={
+              <Link
+                href="/dashboard/superadmin/interventions"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+              >
+                See All Interventions
+                <svg className="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            }
+          />
           <div className="mt-4">
             <InterventionStatusChart
               title=""

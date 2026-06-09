@@ -174,3 +174,38 @@ export async function queryDepartments(): Promise<DepartmentRow[]> {
   );
   return res.rows;
 }
+
+export type ProgramRow = {
+  id: string;
+  title: string;
+  faculty_id: string | null;
+  department_id: string | null;
+};
+
+export type CourseRow = {
+  id: string;
+  title: string | null;
+  faculty_id: string | null;
+  department_id: string | null;
+  program_id: string | null;
+};
+
+export async function queryPrograms(): Promise<ProgramRow[]> {
+  if (!pool) return [];
+  const res = await pool.query<ProgramRow>(
+    `SELECT id, title, faculty_id, department_id
+     FROM programs
+     ORDER BY title ASC`
+  );
+  return res.rows;
+}
+
+export async function queryCourses(): Promise<CourseRow[]> {
+  if (!pool) return [];
+  const res = await pool.query<CourseRow>(
+    `SELECT id, title, faculty_id, department_id, program_id
+     FROM courses
+     ORDER BY title ASC NULLS LAST, id ASC`
+  );
+  return res.rows;
+}

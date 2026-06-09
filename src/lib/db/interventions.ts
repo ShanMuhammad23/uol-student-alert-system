@@ -1143,3 +1143,262 @@ export async function getInterventionStatsForRoleScopeFromDb(
   return { ...counts, totalInterventionStudents };
 }
 
+export type InterventionListFilters = {
+  facultyId?: string | null;
+  departmentId?: string | null;
+  programId?: string | null;
+  courseId?: string | null;
+  status?: string | null;
+};
+
+export type InterventionListItem = {
+  id: string;
+  student_sap_id: string;
+  student_name: string | null;
+  date: string;
+  intervention_type: "attendance" | "gpa" | "both";
+  alert_level: "warning" | "critical" | null;
+  outreach_mode: string;
+  remarks: string;
+  status: string;
+  performed_at: string;
+  faculty_id: string | null;
+  faculty_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  course_id: string | null;
+  course_title: string | null;
+  program_id: string | null;
+  program_title: string | null;
+  uploader_name: string | null;
+  case_type: "referred" | "internal" | "external" | null;
+};
+
+export type InterventionListStats = {
+  total: number;
+  initiated: number;
+  inProgress: number;
+  referred: number;
+  resolved: number;
+  noActionRequired: number;
+};
+
+function buildInterventionListWhere(
+  filters: InterventionListFilters,
+  alias = "i"
+): { sql: string; args: unknown[] } {
+  const parts: string[] = [];
+  const args: unknown[] = [];
+
+  const facultyId = String(filters.facultyId ?? "").trim();
+  if (facultyId) {
+    args.push(facultyId);
+    parts.push(`${alias}.faculty_id = $${args.length}`);
+  }
+
+  const departmentId = String(filters.departmentId ?? "").trim();
+  if (departmentId) {
+    args.push(departmentId);
+    parts.push(`${alias}.department_id = $${args.length}`);
+  }
+
+  const programId = String(filters.programId ?? "").trim();
+  if (programId) {
+    args.push(programId);
+    parts.push(`EXISTS (
+      SELECT 1
+      FROM courses c_prog
+      WHERE c_prog.id = ${alias}.course_id
+        AND c_prog.program_id = $${args.length}
+    )`);
+  }
+
+  const courseId = String(filters.courseId ?? "").trim();
+  if (courseId) {
+    args.push(courseId);
+    parts.push(`${alias}.course_id = $${args.length}`);
+  }
+
+  const status = String(filters.status ?? "").trim();
+  if (status && status !== "all") {
+    args.push(status);
+    parts.push(`${alias}.status = $${args.length}`);
+  }
+
+  return {
+    sql: parts.length ? parts.join(" AND ") : "TRUE",
+    args,
+  };
+}
+
+function mapInterventionListRow(
+  r: Record<string, unknown>,
+  hasCaseType: boolean
+): InterventionListItem {
+  const interventionType = r.intervention_type;
+  const caseType = r.case_type;
+  const date = r.date;
+  const performedAt = r.performed_at;
+
+  return {
+    id: String(r.id),
+    student_sap_id: String(r.student_sap_id),
+    student_name: r.student_name != null ? String(r.student_name) : null,
+    date:
+      typeof date === "string"
+        ? date
+        : date instanceof Date
+          ? date.toISOString().slice(0, 10)
+          : String(date ?? ""),
+    intervention_type:
+      interventionType === "gpa"
+        ? "gpa"
+        : interventionType === "both"
+          ? "both"
+          : "attendance",
+    alert_level:
+      r.alert_level === "warning" || r.alert_level === "critical"
+        ? r.alert_level
+        : null,
+    outreach_mode: String(r.outreach_mode ?? ""),
+    remarks: String(r.remarks ?? ""),
+    status: String(r.status ?? ""),
+    performed_at:
+      typeof performedAt === "string"
+        ? performedAt
+        : performedAt instanceof Date
+          ? performedAt.toISOString()
+          : String(performedAt ?? ""),
+    faculty_id: r.faculty_id != null ? String(r.faculty_id) : null,
+    faculty_name: r.faculty_name != null ? String(r.faculty_name) : null,
+    department_id: r.department_id != null ? String(r.department_id) : null,
+    department_name: r.department_name != null ? String(r.department_name) : null,
+    course_id: r.course_id != null ? String(r.course_id) : null,
+    course_title: r.course_title != null ? String(r.course_title) : null,
+    program_id: r.program_id != null ? String(r.program_id) : null,
+    program_title: r.program_title != null ? String(r.program_title) : null,
+    uploader_name: r.uploader_name != null ? String(r.uploader_name) : null,
+    case_type: hasCaseType
+      ? caseType === "internal" || caseType === "external"
+        ? caseType
+        : caseType === "referred"
+          ? "referred"
+          : null
+      : null,
+  };
+}
+
+/** Paginated intervention list for superadmin directory (newest first). */
+export async function getInterventionsListFromDb(
+  filters: InterventionListFilters,
+  opts?: { page?: number; pageSize?: number }
+): Promise<{ rows: InterventionListItem[]; total: number }> {
+  if (!pool) return { rows: [], total: 0 };
+
+  const page = Math.max(1, opts?.page ?? 1);
+  const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 50));
+  const offset = (page - 1) * pageSize;
+
+  const hasType = await hasInterventionTypeColumn();
+  const hasAlertLevel = await hasAlertLevelColumn();
+  const hasCT = await hasCaseTypeColumn();
+  const { sql: whereSql, args } = buildInterventionListWhere(filters);
+
+  const countRes = await pool.query<{ total: string }>(
+    `SELECT COUNT(*)::int AS total FROM interventions i WHERE ${whereSql}`,
+    args
+  );
+  const total = Number(countRes.rows[0]?.total) || 0;
+
+  const selectParts = [
+    "i.id",
+    "i.student_sap_id",
+    "st.full_name AS student_name",
+    "i.date",
+  ];
+  if (hasType) selectParts.push("i.intervention_type");
+  if (hasAlertLevel) selectParts.push("i.alert_level");
+  if (hasCT) selectParts.push("i.case_type");
+  selectParts.push(
+    "i.outreach_mode",
+    "i.remarks",
+    "i.status",
+    "i.performed_at",
+    "i.faculty_id",
+    "f.name AS faculty_name",
+    "i.department_id",
+    "d.name AS department_name",
+    "i.course_id",
+    "c.title AS course_title",
+    "c.program_id",
+    "p.title AS program_title",
+    "s.name AS uploader_name"
+  );
+
+  const listArgs = [...args, pageSize, offset];
+  const limitIdx = args.length + 1;
+  const offsetIdx = args.length + 2;
+
+  const res = await pool.query(
+    `
+    SELECT ${selectParts.join(", ")}
+    FROM interventions i
+    LEFT JOIN students st ON st.sap_id = i.student_sap_id
+    LEFT JOIN faculties f ON f.id = i.faculty_id
+    LEFT JOIN departments d ON d.id = i.department_id
+    LEFT JOIN courses c ON c.id = i.course_id
+    LEFT JOIN programs p ON p.id = c.program_id
+    LEFT JOIN staff s ON s.id = i.staff_id
+    WHERE ${whereSql}
+    ORDER BY i.performed_at DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `,
+    listArgs
+  );
+
+  return {
+    rows: res.rows.map((row) => mapInterventionListRow(row, hasCT)),
+    total,
+  };
+}
+
+/** Status breakdown for superadmin intervention list filters. */
+export async function getInterventionListStatsFromDb(
+  filters: InterventionListFilters
+): Promise<InterventionListStats> {
+  const empty: InterventionListStats = {
+    total: 0,
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+    noActionRequired: 0,
+  };
+  if (!pool) return empty;
+
+  const { sql: whereSql, args } = buildInterventionListWhere(filters);
+
+  const res = await pool.query<{ status: string; cnt: string }>(
+    `
+    SELECT status, COUNT(*)::int AS cnt
+    FROM interventions i
+    WHERE ${whereSql}
+    GROUP BY status
+    `,
+    args
+  );
+
+  const stats = { ...empty };
+  for (const row of res.rows) {
+    const n = Number(row.cnt) || 0;
+    stats.total += n;
+    if (row.status === "initiated") stats.initiated = n;
+    else if (row.status === "in-progress") stats.inProgress = n;
+    else if (row.status === "referred") stats.referred = n;
+    else if (row.status === "resolved") stats.resolved = n;
+    else if (row.status === "no-action-required") stats.noActionRequired = n;
+  }
+
+  return stats;
+}
+
