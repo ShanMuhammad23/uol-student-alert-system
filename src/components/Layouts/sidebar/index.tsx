@@ -46,6 +46,11 @@ export function Sidebar({ user }: SidebarProps) {
               icon: User,
               url: "/dashboard/superadmin/automation",
             },
+            {
+              title: "Effectiveness",
+              icon: HomeIcon,
+              url: "/dashboard/superadmin/effectiveness",
+            },
           ],
         },
       ];

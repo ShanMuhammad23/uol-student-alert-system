@@ -10,7 +10,8 @@ $ErrorActionPreference = "Stop"
 
 $endpoints = @(
   "/api/cron/student-sync",
-  "/api/cron/alert-counts"
+  "/api/cron/alert-counts",
+  "/api/cron/effectiveness"
 )
 
 $facultyConfigs = @(

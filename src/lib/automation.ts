@@ -102,9 +102,24 @@ export async function getLastAlertSnapshotUpdateAt(): Promise<string | null> {
   if (!pool) return null;
   // Prefer updated_at so reruns on existing snapshot_date still move the "last update" clock.
   // Fall back to created_at for compatibility with older schema/data.
+  const { rows: columnRows } = await pool.query<{ has_updated_at: boolean }>(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'alert_counts_by_dimension'
+          AND column_name = 'updated_at'
+      ) AS has_updated_at
+    `
+  );
+  const hasUpdatedAt = Boolean(columnRows[0]?.has_updated_at);
   const res = await pool.query<{ last_update_at: string | null }>(
-    `SELECT MAX(COALESCE(updated_at, created_at))::text AS last_update_at
-     FROM alert_counts_by_dimension`
+    hasUpdatedAt
+      ? `SELECT MAX(COALESCE(updated_at, created_at))::text AS last_update_at
+         FROM alert_counts_by_dimension`
+      : `SELECT MAX(created_at)::text AS last_update_at
+         FROM alert_counts_by_dimension`
   );
   return res.rows[0]?.last_update_at ?? null;
 }
