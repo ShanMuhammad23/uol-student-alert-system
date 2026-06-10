@@ -35,6 +35,7 @@
     "react-apexcharts": "^1.7.0",
     "react-dom": "^19.2.0",
     "react-toastify": "^11.1.0",
+    "recharts": "^3.8.1",
     "sax": "^1.5.0",
     "tailwind-merge": "^2.6.1"
   },

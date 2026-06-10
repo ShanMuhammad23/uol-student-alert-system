@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { EffectivenessScoreRow, FeiRating } from "@/lib/effectiveness";
+import type { EffectivenessScoreRow, FeiRating } from "@/lib/effectiveness-scoring";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { cn } from "@/lib/utils";
 

@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { XMLParser } from "fast-xml-parser";
 import { pool } from "@/lib/db";
+import { upsertStudentAlertDailySnapshot } from "@/lib/alert-daily-snapshot";
 import { fetchMonitoringEntries } from "@/lib/sap-monitoring";
 import { getGpaTrendMapBySapIds } from "@/lib/db/gpa";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
@@ -69,6 +70,7 @@ type StudentSyncResult = {
   upsertedStudents: number;
   upsertedEnrollments: number;
   upsertedAlerts: number;
+  upsertedDailySnapshots: number;
 };
 
 const SGPA_WARNING_DROP = 1.0;
@@ -644,6 +646,8 @@ export async function runStudentSync(
     ).values()
   );
 
+  let scopedFacultyIds: string[] = [];
+
   await pool.query("BEGIN");
   try {
     for (const chunk of chunkArray(facultyRows, 1000)) {
@@ -731,7 +735,7 @@ export async function runStudentSync(
     const preparedFacultyIds = Array.from(
       new Set(prepared.map((row) => row.facultyId).filter(Boolean))
     );
-    const scopedFacultyIds = Array.from(
+    scopedFacultyIds = Array.from(
       new Set(
         requestedFacultyIds.length ? requestedFacultyIds : preparedFacultyIds
       )
@@ -973,6 +977,13 @@ export async function runStudentSync(
 
     await pool.query("COMMIT");
 
+    let upsertedDailySnapshots = 0;
+    if (scopedFacultyIds.length) {
+      upsertedDailySnapshots = await upsertStudentAlertDailySnapshot(date, {
+        facultyIds: scopedFacultyIds,
+      });
+    }
+
     return {
       snapshotDate: date,
       sourceEnrollmentRows: sourceEnrollments.length,
@@ -981,6 +992,7 @@ export async function runStudentSync(
       upsertedStudents: studentRows.length,
       upsertedEnrollments: prepared.length,
       upsertedAlerts: prepared.length,
+      upsertedDailySnapshots,
     };
   } catch (error) {
     await pool.query("ROLLBACK");

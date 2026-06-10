@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Early Alert System — Effectiveness (FEI) Guide</title>
+  <style>
+    :root {
+      --ink: #1e293b;
+      --muted: #64748b;
+      --accent: #059669;
+      --border: #e2e8f0;
+      --bg-soft: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 32px 40px 48px;
+      font-size: 11pt;
+    }
+    h1 {
+      font-size: 22pt;
+      color: var(--accent);
+      margin: 0 0 6px;
+      line-height: 1.2;
+    }
+    .subtitle { color: var(--muted); font-size: 10.5pt; margin-bottom: 28px; }
+    h2 {
+      font-size: 14pt;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--accent);
+      page-break-after: avoid;
+    }
+    h3 { font-size: 12pt; margin: 18px 0 8px; page-break-after: avoid; }
+    p { margin: 8px 0; }
+    .plain {
+      background: #ecfdf5;
+      border-left: 4px solid var(--accent);
+      padding: 12px 14px;
+      margin: 12px 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 10.5pt;
+    }
+    .formula {
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      margin: 10px 0;
+      border-radius: 6px;
+      font-family: "Cambria Math", "Times New Roman", serif;
+      font-size: 11pt;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 10pt;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--bg-soft); font-weight: 600; }
+    .center { text-align: center; }
+    .small { font-size: 9pt; color: var(--muted); }
+    ul { margin: 8px 0; padding-left: 22px; }
+    li { margin: 4px 0; }
+    .page-break { page-break-before: always; }
+    .cover-meta { margin-top: 40px; font-size: 10pt; color: var(--muted); }
+    @media print {
+      body { padding: 0; max-width: none; }
+      h2 { page-break-before: auto; }
+      .no-print { display: none; }
+    }
+    .print-hint {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 24px;
+      font-size: 10pt;
+    }
+  </style>
+</head>
+<body>
+
+  <p class="print-hint no-print"><strong>Save as PDF:</strong> Open this file in a browser → Print (Ctrl+P) → Destination: “Save as PDF” → Enable “Background graphics”.</p>
+
+  <h1>Faculty &amp; Department Effectiveness Guide</h1>
+  <p class="subtitle">Student Early Alert System — FEI metrics, scoring formulas, and plain-language explanations<br />
+  Document version: June 2026 · Matches implementation in <code>src/lib/effectiveness.ts</code></p>
+
+  <div class="cover-meta">
+    <p><strong>Purpose:</strong> Measure whether faculties and departments are using the alert system to support student wellbeing — not just to generate alerts.</p>
+  </div>
+
+  <h2>1. What is FEI?</h2>
+  <p><strong>FEI (Faculty Effectiveness Index)</strong> is a score from <strong>0 to 100</strong> with a letter grade <strong>A–E</strong>. It combines how quickly and thoroughly staff respond to at-risk students, whether students are referred to wellbeing, whether students recover academically, and whether attendance data is reliable.</p>
+
+  <div class="plain">
+    <strong>In simple terms:</strong> FEI answers: “When the system flags a struggling student, does this faculty actually help them — and do students get better?”
+  </div>
+
+  <table>
+    <tr><th>Grade</th><th>FEI range</th><th>Meaning</th></tr>
+    <tr><td class="center"><strong>A</strong></td><td class="center">85 – 100</td><td>Exemplary — strong outreach, wellbeing pathway, and recovery</td></tr>
+    <tr><td class="center"><strong>B</strong></td><td class="center">70 – 84</td><td>Effective — good practice with minor gaps</td></tr>
+    <tr><td class="center"><strong>C</strong></td><td class="center">55 – 69</td><td>Developing — alerts exist but response or outcomes are weak</td></tr>
+    <tr><td class="center"><strong>D</strong></td><td class="center">40 – 54</td><td>At risk — significant gaps in student support</td></tr>
+    <tr><td class="center"><strong>E</strong></td><td class="center">&lt; 40</td><td>Critical — intervention and wellbeing support largely absent</td></tr>
+  </table>
+
+  <h2>2. Overall FEI formula</h2>
+  <div class="formula">
+    FEI = round( 0.30 × Outcome + 0.25 × Wellbeing + 0.25 × Response + 0.10 × Readiness + 0.10 × Sustained , 2 )
+  </div>
+  <table>
+    <tr><th>Component</th><th>Weight</th><th>What it measures</th></tr>
+    <tr><td>Outcome</td><td class="center">30%</td><td>Students improving after intervention; few repeat alerts</td></tr>
+    <tr><td>Wellbeing</td><td class="center">25%</td><td>Referrals to wellbeing and confirmed wellbeing cases</td></tr>
+    <tr><td>Response</td><td class="center">25%</td><td>Coverage of alerted students, speed, open cases</td></tr>
+    <tr><td>Readiness</td><td class="center">10%</td><td>Attendance posting quality (data trust)</td></tr>
+    <tr><td>Sustained</td><td class="center">10%</td><td>Same as outcome focus: recovery + repeat control</td></tr>
+  </table>
+
+  <h2>3. Percentage helper (used everywhere)</h2>
+  <p>For any rate with numerator <em>n</em> and denominator <em>d</em>:</p>
+  <div class="formula">
+    If d &gt; 0: &nbsp; Rate% = round( (n ÷ d) × 100 , 2 decimal places )<br />
+    If d = 0: &nbsp; Rate% = empty (shown as “—” on dashboard)
+  </div>
+
+  <h2 class="page-break">4. Raw counts (before percentages)</h2>
+  <p>All metrics are calculated per <strong>faculty</strong> or <strong>department</strong> for the current snapshot date.</p>
+
+  <table>
+    <tr><th>Symbol</th><th>Name</th><th>How it is counted</th></tr>
+    <tr><td>N<sub>total</sub></td><td>Enrolled students</td><td>Distinct students actively enrolled in the faculty/department</td></tr>
+    <tr><td>N<sub>alerted</sub></td><td>Alerted students</td><td>Students with at least one <em>warning</em> or <em>critical</em> alert on any course in that entity</td></tr>
+    <tr><td>N<sub>crit alerted</sub></td><td>Critically alerted</td><td>Subset of alerted with at least one <em>critical</em> alert</td></tr>
+    <tr><td>N<sub>intervened</sub></td><td>Intervened (among alerted)</td><td>Alerted students with ≥1 intervention recorded for that faculty/department</td></tr>
+    <tr><td>N<sub>crit intervened</sub></td><td>Critically intervened</td><td>Critically alerted students who have an intervention</td></tr>
+    <tr><td>N<sub>referred</sub></td><td>Referred</td><td>Students whose <em>latest</em> intervention status is “referred” (or case type referred)</td></tr>
+    <tr><td>N<sub>wellbeing</sub></td><td>Wellbeing linked</td><td>Referred students who also have a wellbeing case record</td></tr>
+    <tr><td>N<sub>recovered</sub></td><td>Recovered</td><td>Intervened students who no longer have any warning/critical alert in that entity</td></tr>
+    <tr><td>N<sub>repeat</sub></td><td>Repeat alert</td><td>Currently alerted, but latest intervention was already “resolved” or “no-action-required”</td></tr>
+    <tr><td>N<sub>open</sub></td><td>Open interventions</td><td>Latest intervention status is initiated, in-progress, or referred</td></tr>
+    <tr><td>N<sub>stale</sub></td><td>Stale interventions</td><td>Open cases in initiated/in-progress for more than 14 days</td></tr>
+  </table>
+
+  <h2>5. Dashboard columns — formula &amp; plain explanation</h2>
+
+  <h3>5.1 Coverage (Intervention coverage %)</h3>
+  <div class="formula">Coverage% = pct( N<sub>intervened</sub> , N<sub>alerted</sub> )</div>
+  <div class="plain">
+    <strong>Plain English:</strong> Of all students the system flagged as at-risk, what percentage did staff actually reach out to? <br />
+    <em>Example:</em> 165 alerted, 74 intervened → 74÷165 = <strong>44.9%</strong>
+  </div>
+
+  <h3>5.2 Critical coverage %</h3>
+  <div class="formula">Critical coverage% = pct( N<sub>crit intervened</sub> , N<sub>crit alerted</sub> )</div>
+  <div class="plain">
+    <strong>Plain English:</strong> Same as coverage, but only for the most serious (critical) cases. Critical students should be prioritised.
+  </div>
+
+  <h3>5.3 TTFC — Time to first contact (median days)</h3>
+  <div class="formula">
+    For each student S:<br />
+    Δ<sub>S</sub> = (date of first intervention − date of first alert) in days<br />
+    TTFC = median of all Δ<sub>S</sub> where both dates exist
+  </div>
+  <div class="plain">
+    <strong>Plain English:</strong> How many days pass, on average, between the system first spotting a problem and a staff member making contact? Lower is better. Shown as “—” if daily alert history or interventions are missing.
+  </div>
+
+  <h3>5.4 Wellbeing uptake %</h3>
+  <div class="formula">Wellbeing% = pct( N<sub>wellbeing</sub> , N<sub>referred</sub> )</div>
+  <div class="plain">
+    <strong>Plain English:</strong> When staff refer a student toward wellbeing support, how often does that student actually appear in the wellbeing centre’s case records? This checks the handoff is real, not just a label on a form.
+  </div>
+
+  <h3>5.5 Recovery (Alert recovery %)</h3>
+  <div class="formula">Recovery% = pct( N<sub>recovered</sub> , N<sub>intervened</sub> )</div>
+  <div class="plain">
+    <strong>Plain English:</strong> After staff intervened, how many students cleared their alert (attendance/GPA no longer in warning/critical)? This is the closest measure of “did support work?”
+  </div>
+
+  <h3>5.6 Alerted (count)</h3>
+  <div class="formula">Alerted = N<sub>alerted</sub></div>
+  <div class="plain">
+    <strong>Plain English:</strong> How many students are currently flagged as needing attention in this faculty. This is workload / risk volume, not a quality score by itself.
+  </div>
+
+  <h3>5.7 Hidden detail metrics (expand row on dashboard)</h3>
+  <table>
+    <tr><th>Metric</th><th>Formula</th><th>Plain English</th></tr>
+    <tr>
+      <td>Referral rate %</td>
+      <td>pct( N<sub>referred</sub> , N<sub>intervened</sub> )</td>
+      <td>Of students staff contacted, how many were referred onward (e.g. wellbeing)?</td>
+    </tr>
+    <tr>
+      <td>Repeat alert %</td>
+      <td>pct( N<sub>repeat</sub> , N<sub>alerted</sub> )</td>
+      <td>Students back in alert after a case was already closed — may mean shallow follow-up</td>
+    </tr>
+    <tr>
+      <td>Stale intervention %</td>
+      <td>pct( N<sub>stale</sub> , N<sub>open</sub> )</td>
+      <td>Open cases left unattended for more than 14 days</td>
+    </tr>
+    <tr>
+      <td>Attendance posting %</td>
+      <td>100 × Σ marked classes ÷ Σ classes held</td>
+      <td>How completely instructors post attendance — affects alert accuracy</td>
+    </tr>
+  </table>
+
+  <h2 class="page-break">6. How each parameter becomes a score (0–100)</h2>
+  <p>Every percentage or day-value is converted to a <strong>sub-score from 0 to 100</strong> using fixed bands. If data is missing (“—”), the sub-score defaults to <strong>50</strong> (neutral).</p>
+
+  <h3>6.1 Higher is better — score function f↑(x)</h3>
+  <table>
+    <tr><th>Condition on value x</th><th>Score</th></tr>
+    <tr><td>x ≥ Excellent threshold</td><td class="center">100</td></tr>
+    <tr><td>x ≥ Good threshold</td><td class="center">85</td></tr>
+    <tr><td>x ≥ Fair threshold</td><td class="center">70</td></tr>
+    <tr><td>x ≥ Poor threshold</td><td class="center">55</td></tr>
+    <tr><td>Below poor</td><td class="center">35</td></tr>
+    <tr><td>Missing (null)</td><td class="center">50</td></tr>
+  </table>
+
+  <h3>6.2 Lower is better — score function f↓(x)</h3>
+  <table>
+    <tr><th>Condition on value x</th><th>Score</th></tr>
+    <tr><td>x ≤ Excellent threshold</td><td class="center">100</td></tr>
+    <tr><td>x ≤ Good threshold</td><td class="center">85</td></tr>
+    <tr><td>x ≤ Fair threshold</td><td class="center">70</td></tr>
+    <tr><td>x ≤ Poor threshold</td><td class="center">55</td></tr>
+    <tr><td>Above poor</td><td class="center">35</td></tr>
+    <tr><td>Missing (null)</td><td class="center">50</td></tr>
+  </table>
+
+  <h3>6.3 Band thresholds for each parameter</h3>
+  <table>
+    <tr>
+      <th>Parameter</th><th>Type</th>
+      <th>Excellent</th><th>Good</th><th>Fair</th><th>Poor</th>
+    </tr>
+    <tr><td>Intervention coverage %</td><td>↑ higher</td><td>≥95</td><td>≥85</td><td>≥70</td><td>≥50</td></tr>
+    <tr><td>Critical coverage %</td><td>↑ higher</td><td>≥95</td><td>≥90</td><td>≥75</td><td>≥60</td></tr>
+    <tr><td>TTFC (days)</td><td>↓ lower</td><td>≤3</td><td>≤7</td><td>≤14</td><td>≤21</td></tr>
+    <tr><td>Stale intervention %</td><td>↓ lower</td><td>≤10</td><td>≤20</td><td>≤35</td><td>≤50</td></tr>
+    <tr><td>Referral rate %</td><td>↑ higher</td><td>≥40</td><td>≥25</td><td>≥15</td><td>≥8</td></tr>
+    <tr><td>Wellbeing uptake %</td><td>↑ higher</td><td>≥80</td><td>≥65</td><td>≥50</td><td>≥35</td></tr>
+    <tr><td>Alert recovery %</td><td>↑ higher</td><td>≥60</td><td>≥45</td><td>≥30</td><td>≥15</td></tr>
+    <tr><td>Repeat alert %</td><td>↓ lower</td><td>≤5</td><td>≤10</td><td>≤20</td><td>≤30</td></tr>
+    <tr><td>Attendance posting %</td><td>↑ higher</td><td>≥95</td><td>≥90</td><td>≥80</td><td>≥70</td></tr>
+  </table>
+  <p class="small">↑ = higher values score better &nbsp;|&nbsp; ↓ = lower values score better</p>
+
+  <h2>7. Component scores (combined from parameters)</h2>
+
+  <h3>7.1 Response score (25% of FEI)</h3>
+  <div class="formula">
+    Response = average of:<br />
+    &nbsp; f↑( Coverage% ; 95, 85, 70, 50 )<br />
+    &nbsp; f↑( Critical coverage% ; 95, 90, 75, 60 )<br />
+    &nbsp; f↓( TTFC days ; 3, 7, 14, 21 )<br />
+    &nbsp; f↓( Stale% ; 10, 20, 35, 50 )
+  </div>
+  <div class="plain">
+    <strong>Plain English:</strong> Are we reaching flagged students quickly, including critical cases, and not leaving cases open too long?
+  </div>
+
+  <h3>7.2 Wellbeing score (25% of FEI)</h3>
+  <div class="formula">
+    Wellbeing = average of:<br />
+    &nbsp; f↑( Referral rate% ; 40, 25, 15, 8 )<br />
+    &nbsp; f↑( Wellbeing uptake% ; 80, 65, 50, 35 )
+  </div>
+  <div class="plain">
+    <strong>Plain English:</strong> When academic staff identify distress, are students referred appropriately and does the wellbeing service receive them?
+  </div>
+
+  <h3>7.3 Outcome score (30% of FEI)</h3>
+  <div class="formula">
+    Outcome = average of:<br />
+    &nbsp; f↑( Recovery% ; 60, 45, 30, 15 )<br />
+    &nbsp; f↓( Repeat alert% ; 5, 10, 20, 30 )
+  </div>
+  <div class="plain">
+    <strong>Plain English:</strong> Do students actually improve after support, and do we avoid students slipping back into crisis after a closed case?
+  </div>
+
+  <h3>7.4 Readiness score (10% of FEI)</h3>
+  <div class="formula">
+    Readiness = f↑( Attendance posting% ; 95, 90, 80, 70 )
+  </div>
+  <div class="plain">
+    <strong>Plain English:</strong> Is attendance data complete enough that alerts can be trusted? Poor posting can hide or distort student risk.
+  </div>
+
+  <h3>7.5 Sustained score (10% of FEI)</h3>
+  <div class="formula">
+    Sustained = average of:<br />
+    &nbsp; f↑( Recovery% ; 60, 45, 30, 15 )<br />
+    &nbsp; f↓( Repeat alert% ; 5, 10, 20, 30 )
+  </div>
+  <div class="plain">
+    <strong>Plain English:</strong> Same ideas as Outcome — recovery and avoiding repeat crises — weighted a second time to emphasise long-term student wellbeing.
+  </div>
+
+  <h2 class="page-break">8. Worked example</h2>
+  <p><strong>Faculty:</strong> Social Sciences &nbsp;|&nbsp; <strong>Alerted:</strong> 165 &nbsp;|&nbsp; <strong>Intervened:</strong> ~74 &nbsp;|&nbsp; <strong>Recovery:</strong> 0%</p>
+
+  <table>
+    <tr><th>Step</th><th>Calculation</th><th>Result</th></tr>
+    <tr><td>Coverage%</td><td>74 ÷ 165 × 100</td><td>44.9%</td></tr>
+    <tr><td>f↑(44.9%; bands 95,85,70,50)</td><td>Below 50 → poor band</td><td>Score 35</td></tr>
+    <tr><td>Recovery%</td><td>0 ÷ 74 × 100</td><td>0%</td></tr>
+    <tr><td>f↑(0%; bands 60,45,30,15)</td><td>Below 15</td><td>Score 35</td></tr>
+    <tr><td>TTFC</td><td>No daily alert history</td><td>— → Score 50</td></tr>
+    <tr><td>FEI</td><td>Weighted blend of all components</td><td>≈ 57 (Grade C)</td></tr>
+  </table>
+  <div class="plain">
+    <strong>Interpretation:</strong> Good outreach volume (44.9% coverage) but no students have cleared alerts yet, wellbeing handoff is not visible, and TTFC cannot be measured — so FEI stays in the “Developing” band despite being the best faculty on coverage.
+  </div>
+
+  <h2>9. Summary card formulas (top of dashboard)</h2>
+  <table>
+    <tr><th>Card</th><th>Formula</th></tr>
+    <tr><td>Average FEI</td><td>Mean of FEI across visible faculties/departments</td></tr>
+    <tr><td>Average Coverage</td><td>Mean of Coverage% where value is not empty</td></tr>
+    <tr><td>Average Recovery</td><td>Mean of Recovery% where value is not empty</td></tr>
+    <tr><td>Students in alert</td><td>Sum of N<sub>alerted</sub> across visible rows</td></tr>
+  </table>
+
+  <h2>10. Important notes for readers</h2>
+  <ul>
+    <li><strong>FEI is not a punishment tool</strong> — it highlights where student support processes need strengthening.</li>
+    <li><strong>High “Alerted” does not mean failure</strong> — it often means the detection system is working.</li>
+    <li><strong>Low coverage with high alerts</strong> means risk is visible but outreach has not kept pace.</li>
+    <li><strong>Scores update daily</strong> after the ETL job runs (<code>/api/cron/effectiveness</code>).</li>
+    <li><strong>“Live compute”</strong> on the dashboard recalculates from current data without waiting for the nightly snapshot.</li>
+  </ul>
+
+  <p class="small" style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 12px;">
+    University of Lahore — Student Early Alert System · Effectiveness (FEI) Specification · Generated for internal use.
+  </p>
+
+</body>
+</html>

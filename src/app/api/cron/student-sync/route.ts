@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
         upserted_students: result.upsertedStudents,
         upserted_enrollments: result.upsertedEnrollments,
         upserted_alerts: result.upsertedAlerts,
+        upserted_daily_snapshots: result.upsertedDailySnapshots,
       },
       { status: 200 }
     );
