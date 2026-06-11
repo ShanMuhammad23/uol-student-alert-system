@@ -15,7 +15,7 @@ export type FacultyEffectivenessView = {
   critCoverage: number;
   ttfc: number;
   staleRate: number;
-  referralRate: number;
+  conclusionRate: number;
   wellbeingPct: number;
   recovery: number;
   repeatAlert: number;
@@ -23,6 +23,7 @@ export type FacultyEffectivenessView = {
   alerted: number;
   intervened: number;
   referred: number;
+  concluded: number;
   recovered: number;
   nTotal: number;
   trend: number[];

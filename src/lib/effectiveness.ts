@@ -177,21 +177,33 @@ export async function buildEffectivenessRows(
         FROM latest_intervention li
         WHERE li.status = 'referred' OR li.case_type = 'referred'
       ),
+      concluded AS (
+        SELECT DISTINCT
+          iv.dimension_type,
+          iv.dimension_id,
+          iv.student_sap_id
+        FROM intervened iv
+        JOIN latest_intervention li
+          ON li.dimension_type = iv.dimension_type
+         AND li.dimension_id = iv.dimension_id
+         AND li.student_sap_id = iv.student_sap_id
+        WHERE li.status IN ('referred', 'resolved', 'no-action-required')
+      ),
       wellbeing_linked AS (
         SELECT DISTINCT
-          r.dimension_type,
-          r.dimension_id,
-          r.student_sap_id
-        FROM referred r
+          c.dimension_type,
+          c.dimension_id,
+          c.student_sap_id
+        FROM concluded c
         WHERE EXISTS (
           SELECT 1
           FROM wellbeing_cases wc
-          WHERE wc.student_sap_id = r.student_sap_id
+          WHERE wc.student_sap_id = c.student_sap_id
         )
         OR EXISTS (
           SELECT 1
           FROM wellbeing_direct_cases wdc
-          WHERE wdc.student_sap_id = r.student_sap_id
+          WHERE wdc.student_sap_id = c.student_sap_id
         )
       ),
       still_alerted AS (
@@ -243,7 +255,7 @@ export async function buildEffectivenessRows(
               AND li.performed_at < NOW() - INTERVAL '14 days'
           )::int AS stale_count
         FROM latest_intervention li
-        WHERE li.status IN ('initiated', 'in-progress', 'referred')
+        WHERE li.status IN ('initiated', 'in-progress')
         GROUP BY li.dimension_type, li.dimension_id
       ),
       first_alert AS (
@@ -342,6 +354,11 @@ export async function buildEffectivenessRows(
         FROM referred
         GROUP BY dimension_type, dimension_id
       ),
+      concluded_counts AS (
+        SELECT dimension_type, dimension_id, COUNT(DISTINCT student_sap_id)::int AS concluded_students
+        FROM concluded
+        GROUP BY dimension_type, dimension_id
+      ),
       wellbeing_counts AS (
         SELECT dimension_type, dimension_id, COUNT(DISTINCT student_sap_id)::int AS wellbeing_linked_students
         FROM wellbeing_linked
@@ -368,6 +385,7 @@ export async function buildEffectivenessRows(
         COALESCE(ic.intervened_students, 0)::int AS intervened_students,
         COALESCE(ic.critical_intervened_students, 0)::int AS critical_intervened_students,
         COALESCE(rc.referred_students, 0)::int AS referred_students,
+        COALESCE(cc.concluded_students, 0)::int AS concluded_students,
         COALESCE(wb.wellbeing_linked_students, 0)::int AS wellbeing_linked_students,
         COALESCE(rv.recovered_students, 0)::int AS recovered_students,
         COALESCE(rp.repeat_alert_students, 0)::int AS repeat_alert_students,
@@ -384,6 +402,8 @@ export async function buildEffectivenessRows(
         ON ic.dimension_type = dk.dimension_type AND ic.dimension_id = dk.dimension_id
       LEFT JOIN referred_counts rc
         ON rc.dimension_type = dk.dimension_type AND rc.dimension_id = dk.dimension_id
+      LEFT JOIN concluded_counts cc
+        ON cc.dimension_type = dk.dimension_type AND cc.dimension_id = dk.dimension_id
       LEFT JOIN wellbeing_counts wb
         ON wb.dimension_type = dk.dimension_type AND wb.dimension_id = dk.dimension_id
       LEFT JOIN recovered_counts rv
@@ -412,6 +432,7 @@ export async function buildEffectivenessRows(
         intervened_students: Number(row.intervened_students ?? 0),
         critical_intervened_students: Number(row.critical_intervened_students ?? 0),
         referred_students: Number(row.referred_students ?? 0),
+        concluded_students: Number(row.concluded_students ?? 0),
         wellbeing_linked_students: Number(row.wellbeing_linked_students ?? 0),
         recovered_students: Number(row.recovered_students ?? 0),
         repeat_alert_students: Number(row.repeat_alert_students ?? 0),
@@ -444,6 +465,7 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         intervened_students,
         critical_intervened_students,
         referred_students,
+        concluded_students,
         wellbeing_linked_students,
         recovered_students,
         repeat_alert_students,
@@ -453,7 +475,7 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         critical_coverage_pct,
         median_days_to_contact,
         stale_intervention_pct,
-        referral_rate_pct,
+        conclusion_rate_pct,
         wellbeing_uptake_pct,
         alert_recovery_pct,
         repeat_alert_pct,
@@ -467,8 +489,8 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         updated_at
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-        $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,NOW()
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,NOW()
       )
       ON CONFLICT (snapshot_date, dimension_type, dimension_id)
       DO UPDATE SET
@@ -479,6 +501,7 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         intervened_students = EXCLUDED.intervened_students,
         critical_intervened_students = EXCLUDED.critical_intervened_students,
         referred_students = EXCLUDED.referred_students,
+        concluded_students = EXCLUDED.concluded_students,
         wellbeing_linked_students = EXCLUDED.wellbeing_linked_students,
         recovered_students = EXCLUDED.recovered_students,
         repeat_alert_students = EXCLUDED.repeat_alert_students,
@@ -488,7 +511,7 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         critical_coverage_pct = EXCLUDED.critical_coverage_pct,
         median_days_to_contact = EXCLUDED.median_days_to_contact,
         stale_intervention_pct = EXCLUDED.stale_intervention_pct,
-        referral_rate_pct = EXCLUDED.referral_rate_pct,
+        conclusion_rate_pct = EXCLUDED.conclusion_rate_pct,
         wellbeing_uptake_pct = EXCLUDED.wellbeing_uptake_pct,
         alert_recovery_pct = EXCLUDED.alert_recovery_pct,
         repeat_alert_pct = EXCLUDED.repeat_alert_pct,
@@ -514,6 +537,7 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         row.intervened_students,
         row.critical_intervened_students,
         row.referred_students,
+        row.concluded_students,
         row.wellbeing_linked_students,
         row.recovered_students,
         row.repeat_alert_students,
@@ -523,7 +547,7 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         row.critical_coverage_pct,
         row.median_days_to_contact,
         row.stale_intervention_pct,
-        row.referral_rate_pct,
+        row.conclusion_rate_pct,
         row.wellbeing_uptake_pct,
         row.alert_recovery_pct,
         row.repeat_alert_pct,
@@ -623,6 +647,7 @@ export async function getEffectivenessScores(
       intervened_students: Number(row.intervened_students ?? 0),
       critical_intervened_students: Number(row.critical_intervened_students ?? 0),
       referred_students: Number(row.referred_students ?? 0),
+      concluded_students: Number(row.concluded_students ?? 0),
       wellbeing_linked_students: Number(row.wellbeing_linked_students ?? 0),
       recovered_students: Number(row.recovered_students ?? 0),
       repeat_alert_students: Number(row.repeat_alert_students ?? 0),
@@ -638,7 +663,8 @@ export async function getEffectivenessScores(
         row.critical_coverage_pct != null ? Number(row.critical_coverage_pct) : null,
       stale_intervention_pct:
         row.stale_intervention_pct != null ? Number(row.stale_intervention_pct) : null,
-      referral_rate_pct: row.referral_rate_pct != null ? Number(row.referral_rate_pct) : null,
+      conclusion_rate_pct:
+        row.conclusion_rate_pct != null ? Number(row.conclusion_rate_pct) : null,
       wellbeing_uptake_pct:
         row.wellbeing_uptake_pct != null ? Number(row.wellbeing_uptake_pct) : null,
       alert_recovery_pct:

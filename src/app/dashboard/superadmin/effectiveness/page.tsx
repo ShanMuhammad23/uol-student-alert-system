@@ -98,7 +98,7 @@ export default async function SuperadminEffectivenessPage() {
           Faculty Effectiveness Index
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Wellbeing-focused FEI — intervention coverage, referral uptake, student recovery, and
+          Wellbeing-focused FEI — intervention coverage, conclusion uptake, student recovery, and
           data readiness across all faculties.
         </p>
       </div>

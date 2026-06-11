@@ -441,11 +441,12 @@ function RowGroup({
               <Detail label="Outcome score" value={row.outcome_score.toFixed(1)} />
               <Detail label="Readiness score" value={row.readiness_score.toFixed(1)} />
               <Detail label="Referred students" value={String(row.referred_students)} />
+              <Detail label="Concluded students" value={String(row.concluded_students)} />
               <Detail label="Wellbeing linked" value={String(row.wellbeing_linked_students)} />
               <Detail label="Repeat alerts" value={String(row.repeat_alert_students)} />
               <Detail label="Stale interventions" value={String(row.stale_interventions)} />
               <Detail label="Attendance posting" value={formatPct(row.attendance_posting_pct)} />
-              <Detail label="Referral rate" value={formatPct(row.referral_rate_pct)} />
+              <Detail label="Conclusion rate" value={formatPct(row.conclusion_rate_pct)} />
               <Detail label="Repeat alert %" value={formatPct(row.repeat_alert_pct)} />
               <Detail label="Enrolled students" value={String(row.total_students)} />
             </div>

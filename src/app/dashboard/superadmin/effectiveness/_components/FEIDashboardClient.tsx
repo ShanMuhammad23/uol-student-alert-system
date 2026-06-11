@@ -47,7 +47,7 @@ type SortKey =
   | "ttfc"
   | "wellbeingPct"
   | "recovery"
-  | "referralRate"
+  | "conclusionRate"
   | "staleRate"
   | "repeatAlert"
   | "attendancePost"
@@ -98,7 +98,7 @@ const TABLE_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "ttfc", label: "TTFC (d)" },
   { key: "wellbeingPct", label: "Wellbeing %" },
   { key: "recovery", label: "Recovery %" },
-  { key: "referralRate", label: "Referral %" },
+  { key: "conclusionRate", label: "Conclusion %" },
   { key: "staleRate", label: "Stale %" },
   { key: "repeatAlert", label: "Repeat %" },
   { key: "attendancePost", label: "Attend. Post %" },
@@ -805,7 +805,7 @@ export function FEIDashboardClient({
               <MetricRow label="Critical Coverage %" value={selectedFaculty.critCoverage} benchmark={90} />
               <MetricRow label="Wellbeing Uptake %" value={selectedFaculty.wellbeingPct} benchmark={65} />
               <MetricRow label="Recovery %" value={selectedFaculty.recovery} benchmark={45} />
-              <MetricRow label="Referral Rate %" value={selectedFaculty.referralRate} benchmark={25} />
+              <MetricRow label="Conclusion Rate %" value={selectedFaculty.conclusionRate} benchmark={55} />
               <MetricRow label="Stale Cases %" value={selectedFaculty.staleRate} benchmark={20} higherBetter={false} />
               <MetricRow label="Repeat Alert %" value={selectedFaculty.repeatAlert} benchmark={10} higherBetter={false} />
               <MetricRow label="Attendance Posting %" value={selectedFaculty.attendancePost} benchmark={90} />
@@ -815,7 +815,8 @@ export function FEIDashboardClient({
                 {[
                   { l: "Alerted", v: selectedFaculty.alerted, c: "#F59E0B" },
                   { l: "Intervened", v: selectedFaculty.intervened, c: "#3B82F6" },
-                  { l: "Referred", v: selectedFaculty.referred, c: "#7C3AED" },
+                  { l: "Concluded", v: selectedFaculty.concluded, c: "#7C3AED" },
+                  { l: "Referred", v: selectedFaculty.referred, c: "#A78BFA" },
                   { l: "Recovered", v: selectedFaculty.recovered, c: "#10B981" },
                 ].map(({ l, v, c }) => (
                   <div
@@ -908,14 +909,14 @@ export function FEIDashboardClient({
               Wellbeing Pipeline per Faculty
             </h3>
             <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-              Alerted → Intervened → Referred → Recovered
+              Alerted → Intervened → Concluded → Recovered
             </p>
             <div className="flex flex-col gap-3.5">
               {faculties.map((f) => {
                 const steps = [
                   { l: "Alerted", v: f.alerted, c: "#F59E0B" },
                   { l: "Intervened", v: f.intervened, c: "#3B82F6" },
-                  { l: "Referred", v: f.referred, c: "#7C3AED" },
+                  { l: "Concluded", v: f.concluded, c: "#7C3AED" },
                   { l: "Recovered", v: f.recovered, c: "#10B981" },
                 ];
                 const max = Math.max(f.alerted, 1);
@@ -1095,7 +1096,7 @@ export function FEIDashboardClient({
                         { v: f.ttfc, b: 7, inv: true },
                         { v: f.wellbeingPct, b: 65 },
                         { v: f.recovery, b: 45 },
-                        { v: f.referralRate, b: 25 },
+                        { v: f.conclusionRate, b: 55 },
                         { v: f.staleRate, b: 20, inv: true },
                         { v: f.repeatAlert, b: 10, inv: true },
                         { v: f.attendancePost, b: 90 },

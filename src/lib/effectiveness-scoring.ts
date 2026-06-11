@@ -29,6 +29,7 @@ export type EffectivenessRawRow = {
   intervened_students: number;
   critical_intervened_students: number;
   referred_students: number;
+  concluded_students: number;
   wellbeing_linked_students: number;
   recovered_students: number;
   repeat_alert_students: number;
@@ -42,7 +43,7 @@ export type EffectivenessScoreRow = EffectivenessRawRow & {
   intervention_coverage_pct: number | null;
   critical_coverage_pct: number | null;
   stale_intervention_pct: number | null;
-  referral_rate_pct: number | null;
+  conclusion_rate_pct: number | null;
   wellbeing_uptake_pct: number | null;
   alert_recovery_pct: number | null;
   repeat_alert_pct: number | null;
@@ -123,6 +124,13 @@ const REPEAT_ALERT_BANDS = { excellent: 5, good: 10, fair: 20, poor: 30, worst: 
 const TTFC_BANDS = { excellent: 3, good: 7, fair: 14, poor: 21, worst: 42 };
 const STALE_BANDS = { excellent: 10, good: 20, fair: 35, poor: 50, worst: 100 };
 const RECOVERY_BANDS = { excellent: 60, good: 45, fair: 30, poor: 15 };
+const CONCLUSION_RATE_BANDS = {
+  excellent: 75,
+  good: 55,
+  fair: 35,
+  poor: 15,
+  worst: 0,
+};
 
 /** No interventions means inaction — do not treat missing TTFC as neutral. */
 function scoreTtfc(medianDays: number | null, intervenedStudents: number): number {
@@ -189,8 +197,8 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
     raw.critical_alerted_students
   );
   const stale_intervention_pct = pct(raw.stale_interventions, raw.open_interventions);
-  const referral_rate_pct = pct(raw.referred_students, raw.intervened_students);
-  const wellbeing_uptake_pct = pct(raw.wellbeing_linked_students, raw.referred_students);
+  const conclusion_rate_pct = pct(raw.concluded_students, raw.intervened_students);
+  const wellbeing_uptake_pct = pct(raw.wellbeing_linked_students, raw.concluded_students);
   const alert_recovery_pct = pct(raw.recovered_students, raw.intervened_students);
   const repeat_alert_pct = pct(raw.repeat_alert_students, raw.alerted_students);
 
@@ -217,12 +225,7 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   );
 
   const wellbeing_score = avg([
-    scorePiecewiseLinear(referral_rate_pct, {
-      excellent: 40,
-      good: 25,
-      fair: 15,
-      poor: 8,
-    }, "higher"),
+    scorePiecewiseLinear(conclusion_rate_pct, CONCLUSION_RATE_BANDS, "higher"),
     scorePiecewiseLinear(wellbeing_uptake_pct, {
       excellent: 80,
       good: 65,
@@ -267,7 +270,7 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
     intervention_coverage_pct,
     critical_coverage_pct,
     stale_intervention_pct,
-    referral_rate_pct,
+    conclusion_rate_pct,
     wellbeing_uptake_pct,
     alert_recovery_pct,
     repeat_alert_pct,
