@@ -32,7 +32,11 @@ export function mapRowToFacultyView(
     outcome: Math.round(row.outcome_score),
     readiness: Math.round(row.readiness_score),
     sustained: Math.round(
-      computeSustainedScore(row.alert_recovery_pct, row.repeat_alert_pct)
+      computeSustainedScore(
+        row.alert_recovery_pct,
+        row.repeat_alert_pct,
+        row.intervened_students
+      )
     ),
     coverage: row.intervention_coverage_pct ?? 0,
     critCoverage: row.critical_coverage_pct ?? 0,

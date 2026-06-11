@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import {
   Bar,
@@ -24,10 +24,12 @@ import {
 import {
   computeFeiRating,
   normalizeDateString,
+  type EffectivenessScoreRow,
   type FeiRating,
 } from "@/lib/effectiveness-scoring";
 import { cn } from "@/lib/utils";
 import { fontNum, fontUI } from "../fonts";
+import { mapRowToFacultyView } from "../map-faculty";
 import {
   formatTrendLabel,
   type FacultyEffectivenessView,
@@ -314,6 +316,39 @@ function StatCard({
   );
 }
 
+function GradeDistributionStatCard({
+  grades,
+  totalFaculties,
+}: {
+  grades: { grade: FeiRating; count: number; color: string }[];
+  totalFaculties: number;
+}) {
+  return (
+    <Panel className="flex flex-col justify-center gap-3 p-5 sm:col-span-2 lg:col-span-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Grade Distribution
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+        {grades.map(({ grade, count, color }) => (
+          <span
+            key={grade}
+            className="inline-flex items-baseline gap-1 text-2xl font-extrabold tabular-nums leading-none"
+            style={{ fontFamily: fontNum }}
+          >
+            <span style={{ color }}>{grade}</span>
+            <span className="text-lg font-bold text-slate-700 dark:text-slate-200">
+              ({count})
+            </span>
+          </span>
+        ))}
+      </div>
+      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+        {totalFaculties} {totalFaculties === 1 ? "faculty" : "faculties"} tracked in FEI index
+      </div>
+    </Panel>
+  );
+}
+
 function FacultyRadar({ faculty }: { faculty: FacultyEffectivenessView }) {
   const theme = useChartTheme();
   const data = [
@@ -430,19 +465,70 @@ function MetricRow({
   );
 }
 
-export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Props) {
+export function FEIDashboardClient({
+  faculties: initialFaculties,
+  snapshotDate: initialSnapshotDate,
+  trendDates,
+}: Props) {
   const theme = useChartTheme();
   const trendLabels = useMemo(
     () => trendDates.map(formatTrendLabel),
     [trendDates]
   );
 
+  const [faculties, setFaculties] = useState(initialFaculties);
+  const [snapshotDate, setSnapshotDate] = useState(initialSnapshotDate);
+  const [live, setLive] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<FacultyEffectivenessView | null>(
-    faculties[0] ?? null
+    initialFaculties[0] ?? null
   );
   const [sortKey, setSortKey] = useState<SortKey>("fei");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/dashboard/effectiveness", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ live, dimensionType: "faculty" }),
+      });
+      if (!res.ok) return;
+      const body = (await res.json()) as {
+        rows: EffectivenessScoreRow[];
+        snapshotDate: string;
+      };
+      const facultyRows = (body.rows ?? []).filter(
+        (row) => row.dimension_type === "faculty"
+      );
+      let nextViews: FacultyEffectivenessView[] = [];
+      setFaculties((prev) => {
+        const trendById = new Map(prev.map((f) => [f.id, f.trend]));
+        nextViews = facultyRows.map((row) =>
+          mapRowToFacultyView(row, trendById.get(row.dimension_id) ?? [])
+        );
+        return nextViews;
+      });
+      setSelected((current) => {
+        if (!nextViews.length) return null;
+        if (current) {
+          const match = nextViews.find((v) => v.id === current.id);
+          if (match) return match;
+        }
+        return nextViews[0];
+      });
+      setSnapshotDate(body.snapshotDate ?? initialSnapshotDate);
+    } finally {
+      setLoading(false);
+    }
+  }, [live, initialSnapshotDate]);
+
+  useEffect(() => {
+    if (!live) return;
+    void refresh();
+  }, [live, refresh]);
 
   const totalAlerted = faculties.reduce((a, f) => a + f.alerted, 0);
   const totalIntervened = faculties.reduce((a, f) => a + f.intervened, 0);
@@ -451,18 +537,15 @@ export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Prop
   const avgFEI = faculties.length
     ? Math.round(faculties.reduce((a, f) => a + f.fei, 0) / faculties.length)
     : 0;
-  const criticalFaculties = faculties.filter(
-    (f) => f.grade === "E" || f.grade === "D"
-  ).length;
 
-  const compBarData = faculties.map((f) => ({
-    name: f.code,
-    Response: f.response,
-    Wellbeing: f.wellbeing,
-    Outcome: f.outcome,
-    Readiness: f.readiness,
-    Sustained: f.sustained,
-  }));
+  const feiBarData = [...faculties]
+    .sort((a, b) => b.fei - a.fei)
+    .map((f) => ({
+      name: f.code,
+      fei: f.fei,
+      grade: f.grade,
+      color: GRADE_CONFIG[f.grade].color,
+    }));
 
   const sorted = sortFaculties(faculties, sortKey, sortDir);
 
@@ -491,17 +574,48 @@ export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Prop
     }
   };
 
+  const dataControls = (
+    <div className="flex flex-wrap items-center gap-3">
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+        Snapshot · {formatSnapshotDate(snapshotDate)}
+        {live ? " (live)" : ""}
+      </p>
+      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+        <input
+          type="checkbox"
+          checked={live}
+          onChange={(e) => setLive(e.target.checked)}
+          className="rounded border-slate-300"
+        />
+        Live compute
+      </label>
+      <button
+        type="button"
+        onClick={() => void refresh()}
+        disabled={loading}
+        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+      >
+        {loading ? "Loading…" : "Refresh"}
+      </button>
+    </div>
+  );
+
   if (!faculties.length) {
     return (
-      <Panel className="py-12 text-center">
-        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-          No effectiveness data available yet
-        </p>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Run the nightly ETL (<code className="text-emerald-600 dark:text-emerald-400">/api/cron/effectiveness</code>)
-          after student sync to populate faculty FEI scores.
-        </p>
-      </Panel>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-end">{dataControls}</div>
+        <Panel className="py-12 text-center">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            No effectiveness data available yet
+          </p>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Run the nightly ETL (
+            <code className="text-emerald-600 dark:text-emerald-400">/api/cron/effectiveness</code>
+            ) after student sync, or enable <strong>Live compute</strong> to score from current
+            data.
+          </p>
+        </Panel>
+      </div>
     );
   }
 
@@ -537,12 +651,10 @@ export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Prop
             </button>
           ))}
         </div>
-        <div className="rounded-full border border-emerald-500/30 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-400">
-          Snapshot · {formatSnapshotDate(snapshotDate)}
-        </div>
+        {dataControls}
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <StatCard
           label="University FEI"
           value={avgFEI}
@@ -571,21 +683,45 @@ export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Prop
           color="#10B981"
           icon="💚"
         />
-        <StatCard
-          label="Needs Attention"
-          value={criticalFaculties}
-          sub="Grade D or E faculties"
-          color="#F43F5E"
-          icon="⚠️"
-        />
-        <StatCard
-          label="Faculties"
-          value={faculties.length}
-          sub="Tracked in FEI index"
-          color="#7C3AED"
-          icon="🏛️"
+        <GradeDistributionStatCard
+          grades={gradeDistData}
+          totalFaculties={faculties.length}
         />
       </div>
+
+      <Panel>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Faculty FEI Scores</h3>
+        <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
+          Overall effectiveness index (0–100) per faculty, sorted highest to lowest
+        </p>
+        <ResponsiveContainer width="100%" height={Math.max(200, feiBarData.length * 28)}>
+          <BarChart data={feiBarData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+            <CartesianGrid stroke={theme.grid} vertical={false} />
+            <XAxis
+              dataKey="name"
+              tick={{ ...theme.tickUI, fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={theme.tooltip}
+              cursor={{ fill: theme.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)" }}
+              formatter={(value, _name, item) => [
+                `${value} (Grade ${(item.payload as { grade: FeiRating }).grade})`,
+                "FEI",
+              ]}
+            />
+            <ReferenceLine y={70} stroke={theme.refLine} strokeDasharray="4 2" />
+            <ReferenceLine y={55} stroke={theme.refLine} strokeDasharray="2 3" />
+            <Bar dataKey="fei" radius={[3, 3, 0, 0]} maxBarSize={32}>
+              {feiBarData.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </Panel>
 
       {activeTab === "overview" && (
         <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -605,30 +741,6 @@ export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Prop
                 ))}
               </div>
             </div>
-
-            <Panel>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Component Score Breakdown
-              </h3>
-              <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-                Response · Wellbeing · Outcome · Readiness · Sustained — per faculty
-              </p>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={compBarData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                  <CartesianGrid stroke={theme.grid} vertical={false} />
-                  <XAxis dataKey="name" tick={{ ...theme.tickUI, fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={theme.tooltip} cursor={{ fill: theme.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)" }} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: theme.textMuted, fontFamily: fontUI }} />
-                  <ReferenceLine y={70} stroke={theme.refLine} strokeDasharray="4 2" />
-                  <Bar dataKey="Response" fill="#3B82F6" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                  <Bar dataKey="Wellbeing" fill="#7C3AED" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                  <Bar dataKey="Outcome" fill="#10B981" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                  <Bar dataKey="Readiness" fill="#F59E0B" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                  <Bar dataKey="Sustained" fill="#F43F5E" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Panel>
           </div>
 
           <div className="flex flex-col gap-3">
@@ -1019,7 +1131,11 @@ export function FEIDashboardClient({ faculties, snapshotDate, trendDates }: Prop
         <span>
           FEI = 0.30×Outcome + 0.25×Wellbeing + 0.25×Response + 0.10×Readiness + 0.10×Sustained
         </span>
-        <span>Refreshed via ETL · /api/cron/effectiveness</span>
+        <span>
+          {live
+            ? "Live compute from current data"
+            : "Refreshed via ETL · /api/cron/effectiveness"}
+        </span>
       </div>
     </div>
   );

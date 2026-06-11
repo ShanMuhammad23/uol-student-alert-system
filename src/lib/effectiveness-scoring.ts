@@ -94,23 +94,57 @@ function scoreLowerBetter(
   return 35;
 }
 
+const REPEAT_ALERT_BANDS = { excellent: 5, good: 10, fair: 20, poor: 30 };
+const TTFC_BANDS = { excellent: 3, good: 7, fair: 14, poor: 21 };
+const RECOVERY_BANDS = { excellent: 60, good: 45, fair: 30, poor: 15 };
+
+/** No interventions means inaction — do not treat missing TTFC as neutral. */
+function scoreTtfc(medianDays: number | null, intervenedStudents: number): number {
+  if (intervenedStudents === 0) return 35;
+  return scoreLowerBetter(medianDays, TTFC_BANDS);
+}
+
+/** Low repeat alerts without any prior intervention is not a success signal. */
+function scoreRepeatAlert(
+  repeatAlertPct: number | null,
+  intervenedStudents: number
+): number {
+  if (intervenedStudents === 0) return 35;
+  return scoreLowerBetter(repeatAlertPct, REPEAT_ALERT_BANDS);
+}
+
+/** Faculties reaching fewer than 1 in 10 alerted students cannot score well on Response. */
+function applyResponseCoverageFloor(
+  responseScore: number,
+  coveragePct: number | null,
+  alertedStudents: number
+): number {
+  if (alertedStudents > 0 && (coveragePct == null || coveragePct < 10)) {
+    return Math.min(responseScore, 40);
+  }
+  return responseScore;
+}
+
+/** Alerted students with zero interventions cannot exceed Grade D. */
+function applyInactionFeiCap(
+  feiScore: number,
+  intervenedStudents: number,
+  alertedStudents: number
+): number {
+  if (intervenedStudents === 0 && alertedStudents > 0) {
+    return Math.min(feiScore, 40);
+  }
+  return feiScore;
+}
+
 export function computeSustainedScore(
   alertRecoveryPct: number | null,
-  repeatAlertPct: number | null
+  repeatAlertPct: number | null,
+  intervenedStudents: number
 ): number {
   return avg([
-    scoreHigherBetter(alertRecoveryPct, {
-      excellent: 60,
-      good: 45,
-      fair: 30,
-      poor: 15,
-    }),
-    scoreLowerBetter(repeatAlertPct, {
-      excellent: 5,
-      good: 10,
-      fair: 20,
-      poor: 30,
-    }),
+    scoreHigherBetter(alertRecoveryPct, RECOVERY_BANDS),
+    scoreRepeatAlert(repeatAlertPct, intervenedStudents),
   ]);
 }
 
@@ -134,7 +168,7 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   const alert_recovery_pct = pct(raw.recovered_students, raw.intervened_students);
   const repeat_alert_pct = pct(raw.repeat_alert_students, raw.alerted_students);
 
-  const response_score = avg([
+  let response_score = avg([
     scoreHigherBetter(intervention_coverage_pct, {
       excellent: 95,
       good: 85,
@@ -147,12 +181,7 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
       fair: 75,
       poor: 60,
     }),
-    scoreLowerBetter(raw.median_days_to_contact, {
-      excellent: 3,
-      good: 7,
-      fair: 14,
-      poor: 21,
-    }),
+    scoreTtfc(raw.median_days_to_contact, raw.intervened_students),
     scoreLowerBetter(stale_intervention_pct, {
       excellent: 10,
       good: 20,
@@ -160,6 +189,11 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
       poor: 50,
     }),
   ]);
+  response_score = applyResponseCoverageFloor(
+    response_score,
+    intervention_coverage_pct,
+    raw.alerted_students
+  );
 
   const wellbeing_score = avg([
     scoreHigherBetter(referral_rate_pct, {
@@ -177,18 +211,8 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   ]);
 
   const outcome_score = avg([
-    scoreHigherBetter(alert_recovery_pct, {
-      excellent: 60,
-      good: 45,
-      fair: 30,
-      poor: 15,
-    }),
-    scoreLowerBetter(repeat_alert_pct, {
-      excellent: 5,
-      good: 10,
-      fair: 20,
-      poor: 30,
-    }),
+    scoreHigherBetter(alert_recovery_pct, RECOVERY_BANDS),
+    scoreRepeatAlert(repeat_alert_pct, raw.intervened_students),
   ]);
 
   const readiness_score = scoreHigherBetter(raw.attendance_posting_pct, {
@@ -198,9 +222,13 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
     poor: 70,
   });
 
-  const sustained_score = computeSustainedScore(alert_recovery_pct, repeat_alert_pct);
+  const sustained_score = computeSustainedScore(
+    alert_recovery_pct,
+    repeat_alert_pct,
+    raw.intervened_students
+  );
 
-  const fei_score =
+  const fei_score = applyInactionFeiCap(
     Math.round(
       (0.3 * outcome_score +
         0.25 * wellbeing_score +
@@ -208,7 +236,10 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
         0.1 * readiness_score +
         0.1 * sustained_score) *
         100
-    ) / 100;
+    ) / 100,
+    raw.intervened_students,
+    raw.alerted_students
+  );
 
   return {
     ...raw,

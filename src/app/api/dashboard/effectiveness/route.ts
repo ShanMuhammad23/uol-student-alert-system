@@ -9,6 +9,7 @@ import {
   type EffectivenessDimensionType,
 } from "@/lib/effectiveness";
 import { mapSessionToAppUser } from "@/app/(home)/dashboard/fetch";
+import { queryFaculties } from "@/lib/staff-directory-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -76,10 +77,16 @@ export async function POST(req: Request) {
     const scope = resolveScope(user, body);
     const live = Boolean(body.live);
 
+    let liveFacultyIds = scope.facultyIds;
+    if (live && !liveFacultyIds?.length && user.role === "superadmin") {
+      const faculties = await queryFaculties();
+      liveFacultyIds = faculties.map((f) => f.id);
+    }
+
     let rows;
-    if (live && scope.facultyIds?.length) {
+    if (live && liveFacultyIds?.length) {
       rows = await buildEffectivenessRows(body.snapshotDate, {
-        facultyIds: scope.facultyIds,
+        facultyIds: liveFacultyIds,
       });
       if (scope.departmentIds?.length) {
         const allowed = new Set(scope.departmentIds);
