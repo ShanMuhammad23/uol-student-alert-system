@@ -70,38 +70,64 @@ function avg(scores: number[]): number {
   return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100;
 }
 
-function scoreHigherBetter(
-  value: number | null,
-  bands: { excellent: number; good: number; fair: number; poor: number }
-): number {
-  if (value == null) return 50;
-  if (value >= bands.excellent) return 100;
-  if (value >= bands.good) return 85;
-  if (value >= bands.fair) return 70;
-  if (value >= bands.poor) return 55;
-  return 35;
+type ScoreAnchor = { threshold: number; score: number };
+
+type ScoreBands = {
+  excellent: number;
+  good: number;
+  fair: number;
+  poor: number;
+  worst?: number;
+};
+
+function interpolateScore(lo: ScoreAnchor, hi: ScoreAnchor, value: number): number {
+  const t = (value - lo.threshold) / (hi.threshold - lo.threshold);
+  return Math.round(lo.score + t * (hi.score - lo.score));
 }
 
-function scoreLowerBetter(
+function scoreBelowPoorLower(value: number, bands: ScoreBands): number {
+  const worst = bands.worst ?? 100;
+  if (value >= worst) return 0;
+  const t = (value - bands.poor) / (worst - bands.poor);
+  return Math.round(55 - t * 55);
+}
+
+function scorePiecewiseLinear(
   value: number | null,
-  bands: { excellent: number; good: number; fair: number; poor: number }
+  bands: ScoreBands,
+  direction: "higher" | "lower"
 ): number {
   if (value == null) return 50;
+
+  const excellent: ScoreAnchor = { threshold: bands.excellent, score: 100 };
+  const good: ScoreAnchor = { threshold: bands.good, score: 85 };
+  const fair: ScoreAnchor = { threshold: bands.fair, score: 70 };
+  const poor: ScoreAnchor = { threshold: bands.poor, score: 55 };
+
+  if (direction === "higher") {
+    if (value >= bands.excellent) return 100;
+    if (value >= bands.good) return interpolateScore(good, excellent, value);
+    if (value >= bands.fair) return interpolateScore(fair, good, value);
+    if (value >= bands.poor) return interpolateScore(poor, fair, value);
+    return interpolateScore({ threshold: 0, score: 0 }, poor, value);
+  }
+
   if (value <= bands.excellent) return 100;
-  if (value <= bands.good) return 85;
-  if (value <= bands.fair) return 70;
-  if (value <= bands.poor) return 55;
-  return 35;
+  if (value <= bands.good) return interpolateScore(excellent, good, value);
+  if (value <= bands.fair) return interpolateScore(good, fair, value);
+  if (value <= bands.poor) return interpolateScore(fair, poor, value);
+  return scoreBelowPoorLower(value, bands);
 }
 
-const REPEAT_ALERT_BANDS = { excellent: 5, good: 10, fair: 20, poor: 30 };
-const TTFC_BANDS = { excellent: 3, good: 7, fair: 14, poor: 21 };
+const REPEAT_ALERT_BANDS = { excellent: 5, good: 10, fair: 20, poor: 30, worst: 60 };
+const TTFC_BANDS = { excellent: 3, good: 7, fair: 14, poor: 21, worst: 42 };
+const STALE_BANDS = { excellent: 10, good: 20, fair: 35, poor: 50, worst: 100 };
 const RECOVERY_BANDS = { excellent: 60, good: 45, fair: 30, poor: 15 };
 
 /** No interventions means inaction — do not treat missing TTFC as neutral. */
 function scoreTtfc(medianDays: number | null, intervenedStudents: number): number {
   if (intervenedStudents === 0) return 35;
-  return scoreLowerBetter(medianDays, TTFC_BANDS);
+  return scorePiecewiseLinear(medianDays, TTFC_BANDS, "lower");
 }
 
 /** Low repeat alerts without any prior intervention is not a success signal. */
@@ -110,7 +136,7 @@ function scoreRepeatAlert(
   intervenedStudents: number
 ): number {
   if (intervenedStudents === 0) return 35;
-  return scoreLowerBetter(repeatAlertPct, REPEAT_ALERT_BANDS);
+  return scorePiecewiseLinear(repeatAlertPct, REPEAT_ALERT_BANDS, "lower");
 }
 
 /** Faculties reaching fewer than 1 in 10 alerted students cannot score well on Response. */
@@ -143,7 +169,7 @@ export function computeSustainedScore(
   intervenedStudents: number
 ): number {
   return avg([
-    scoreHigherBetter(alertRecoveryPct, RECOVERY_BANDS),
+    scorePiecewiseLinear(alertRecoveryPct, RECOVERY_BANDS, "higher"),
     scoreRepeatAlert(repeatAlertPct, intervenedStudents),
   ]);
 }
@@ -169,25 +195,20 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   const repeat_alert_pct = pct(raw.repeat_alert_students, raw.alerted_students);
 
   let response_score = avg([
-    scoreHigherBetter(intervention_coverage_pct, {
+    scorePiecewiseLinear(intervention_coverage_pct, {
       excellent: 95,
       good: 85,
       fair: 70,
       poor: 50,
-    }),
-    scoreHigherBetter(critical_coverage_pct, {
+    }, "higher"),
+    scorePiecewiseLinear(critical_coverage_pct, {
       excellent: 95,
       good: 90,
       fair: 75,
       poor: 60,
-    }),
+    }, "higher"),
     scoreTtfc(raw.median_days_to_contact, raw.intervened_students),
-    scoreLowerBetter(stale_intervention_pct, {
-      excellent: 10,
-      good: 20,
-      fair: 35,
-      poor: 50,
-    }),
+    scorePiecewiseLinear(stale_intervention_pct, STALE_BANDS, "lower"),
   ]);
   response_score = applyResponseCoverageFloor(
     response_score,
@@ -196,31 +217,31 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   );
 
   const wellbeing_score = avg([
-    scoreHigherBetter(referral_rate_pct, {
+    scorePiecewiseLinear(referral_rate_pct, {
       excellent: 40,
       good: 25,
       fair: 15,
       poor: 8,
-    }),
-    scoreHigherBetter(wellbeing_uptake_pct, {
+    }, "higher"),
+    scorePiecewiseLinear(wellbeing_uptake_pct, {
       excellent: 80,
       good: 65,
       fair: 50,
       poor: 35,
-    }),
+    }, "higher"),
   ]);
 
   const outcome_score = avg([
-    scoreHigherBetter(alert_recovery_pct, RECOVERY_BANDS),
+    scorePiecewiseLinear(alert_recovery_pct, RECOVERY_BANDS, "higher"),
     scoreRepeatAlert(repeat_alert_pct, raw.intervened_students),
   ]);
 
-  const readiness_score = scoreHigherBetter(raw.attendance_posting_pct, {
+  const readiness_score = scorePiecewiseLinear(raw.attendance_posting_pct, {
     excellent: 95,
     good: 90,
     fair: 80,
     poor: 70,
-  });
+  }, "higher");
 
   const sustained_score = computeSustainedScore(
     alert_recovery_pct,
