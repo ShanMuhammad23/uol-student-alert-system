@@ -9,6 +9,10 @@ import {
   type EffectivenessDimensionType,
 } from "@/lib/effectiveness";
 import { mapSessionToAppUser } from "@/app/(home)/dashboard/fetch";
+import {
+  getInterventionStatsForRoleScopeFromDb,
+  type InterventionRoleScopeStats,
+} from "@/lib/db/interventions";
 import { queryFaculties } from "@/lib/staff-directory-queries";
 
 export const dynamic = "force-dynamic";
@@ -128,10 +132,19 @@ export async function POST(req: Request) {
       (await getLatestEffectivenessSnapshotDate()) ??
       new Date().toISOString().slice(0, 10);
 
+    let interventionStats: InterventionRoleScopeStats | undefined;
+    if (user.role === "superadmin") {
+      interventionStats = await getInterventionStatsForRoleScopeFromDb({
+        role: "superadmin",
+        interventionType: "all",
+      });
+    }
+
     return NextResponse.json({
       snapshotDate,
       live,
       rows: withResolvedEffectivenessNames(rows),
+      interventionStats,
     });
   } catch (error) {
     console.error("Error in /api/dashboard/effectiveness:", error);

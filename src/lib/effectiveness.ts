@@ -164,8 +164,8 @@ export async function buildEffectivenessRows(
           FROM interventions i
           WHERE i.student_sap_id = al.sap_id
             AND (
-              (al.dimension_type = 'faculty' AND i.faculty_id = al.dimension_id) OR
-              (al.dimension_type = 'department' AND i.department_id = al.dimension_id)
+              al.dimension_type = 'faculty'
+              OR (al.dimension_type = 'department' AND i.department_id = al.dimension_id)
             )
         )
       ),

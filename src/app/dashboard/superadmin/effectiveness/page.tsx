@@ -6,6 +6,10 @@ import {
   getLatestEffectivenessSnapshotDate,
   normalizeDateString,
 } from "@/lib/effectiveness";
+import {
+  getInterventionStatsForRoleScopeFromDb,
+  type InterventionRoleScopeStats,
+} from "@/lib/db/interventions";
 import { queryFaculties } from "@/lib/staff-directory-queries";
 import { FEIDashboardClient } from "./_components/FEIDashboardClient";
 import {
@@ -17,11 +21,21 @@ async function loadFacultyEffectiveness() {
   const faculties = await queryFaculties();
   const facultyIds = faculties.map((f) => f.id);
 
+  const emptyInterventionStats: InterventionRoleScopeStats = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+    noActionRequired: 0,
+    totalInterventionStudents: 0,
+  };
+
   if (!facultyIds.length) {
     return {
       facultyViews: [],
       snapshotDate: new Date().toISOString().slice(0, 10),
       trendDates: [] as string[],
+      interventionStats: emptyInterventionStats,
     };
   }
 
@@ -55,11 +69,17 @@ async function loadFacultyEffectiveness() {
     mapRowToFacultyView(row, trendByFaculty.get(row.dimension_id) ?? [])
   );
 
-  return { facultyViews, snapshotDate, trendDates };
+  const interventionStats = await getInterventionStatsForRoleScopeFromDb({
+    role: "superadmin",
+    interventionType: "all",
+  });
+
+  return { facultyViews, snapshotDate, trendDates, interventionStats };
 }
 
 export default async function SuperadminEffectivenessPage() {
-  const { facultyViews, snapshotDate, trendDates } = await loadFacultyEffectiveness();
+  const { facultyViews, snapshotDate, trendDates, interventionStats } =
+    await loadFacultyEffectiveness();
 
   return (
     <div className="mx-auto space-y-6 pb-8">
@@ -87,6 +107,7 @@ export default async function SuperadminEffectivenessPage() {
         faculties={facultyViews}
         snapshotDate={snapshotDate}
         trendDates={trendDates}
+        interventionStats={interventionStats}
       />
     </div>
   );

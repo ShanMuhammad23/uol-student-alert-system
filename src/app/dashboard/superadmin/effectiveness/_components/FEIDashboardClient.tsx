@@ -27,6 +27,7 @@ import {
   type EffectivenessScoreRow,
   type FeiRating,
 } from "@/lib/effectiveness-scoring";
+import type { InterventionRoleScopeStats } from "@/lib/db/interventions";
 import { cn } from "@/lib/utils";
 import { fontNum, fontUI } from "../fonts";
 import { mapRowToFacultyView } from "../map-faculty";
@@ -56,7 +57,18 @@ type Props = {
   faculties: FacultyEffectivenessView[];
   snapshotDate: string;
   trendDates: string[];
+  interventionStats: InterventionRoleScopeStats;
 };
+
+function formatInterventionStatusSub(stats: InterventionRoleScopeStats): string {
+  const parts: string[] = [];
+  if (stats.initiated > 0) parts.push(`${stats.initiated} initiated`);
+  if (stats.inProgress > 0) parts.push(`${stats.inProgress} in progress`);
+  if (stats.resolved > 0) parts.push(`${stats.resolved} resolved`);
+  if (stats.noActionRequired > 0) parts.push(`${stats.noActionRequired} not required`);
+  if (stats.referred > 0) parts.push(`${stats.referred} referred`);
+  return parts.length ? parts.join(" · ") : "No intervention records yet";
+}
 
 const GRADE_CONFIG: Record<
   FeiRating,
@@ -469,6 +481,7 @@ export function FEIDashboardClient({
   faculties: initialFaculties,
   snapshotDate: initialSnapshotDate,
   trendDates,
+  interventionStats: initialInterventionStats,
 }: Props) {
   const theme = useChartTheme();
   const trendLabels = useMemo(
@@ -478,6 +491,7 @@ export function FEIDashboardClient({
 
   const [faculties, setFaculties] = useState(initialFaculties);
   const [snapshotDate, setSnapshotDate] = useState(initialSnapshotDate);
+  const [interventionStats, setInterventionStats] = useState(initialInterventionStats);
   const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<FacultyEffectivenessView | null>(
@@ -499,7 +513,11 @@ export function FEIDashboardClient({
       const body = (await res.json()) as {
         rows: EffectivenessScoreRow[];
         snapshotDate: string;
+        interventionStats?: InterventionRoleScopeStats;
       };
+      if (body.interventionStats) {
+        setInterventionStats(body.interventionStats);
+      }
       const facultyRows = (body.rows ?? []).filter(
         (row) => row.dimension_type === "faculty"
       );
@@ -665,14 +683,14 @@ export function FEIDashboardClient({
         <StatCard
           label="Students Alerted"
           value={totalAlerted.toLocaleString()}
-          sub={`${totalEnrolled.toLocaleString()} enrolled`}
+          sub={`${totalEnrolled.toLocaleString()} enrolled · ${totalIntervened.toLocaleString()} reached (${coveragePct}% coverage)`}
           color="#F59E0B"
           icon="🔔"
         />
         <StatCard
           label="Interventions"
-          value={totalIntervened.toLocaleString()}
-          sub={`${coveragePct}% coverage`}
+          value={interventionStats.totalInterventionStudents.toLocaleString()}
+          sub={formatInterventionStatusSub(interventionStats)}
           color="#3B82F6"
           icon="🤝"
         />
