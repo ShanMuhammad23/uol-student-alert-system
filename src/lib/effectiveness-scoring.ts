@@ -71,71 +71,30 @@ function avg(scores: number[]): number {
   return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100;
 }
 
-type ScoreAnchor = { threshold: number; score: number };
-
-type ScoreBands = {
-  excellent: number;
-  good: number;
-  fair: number;
-  poor: number;
-  worst?: number;
-};
-
-function interpolateScore(lo: ScoreAnchor, hi: ScoreAnchor, value: number): number {
-  const t = (value - lo.threshold) / (hi.threshold - lo.threshold);
-  return Math.round(lo.score + t * (hi.score - lo.score));
-}
-
-function scoreBelowPoorLower(value: number, bands: ScoreBands): number {
-  const worst = bands.worst ?? 100;
-  if (value >= worst) return 0;
-  const t = (value - bands.poor) / (worst - bands.poor);
-  return Math.round(55 - t * 55);
-}
-
-function scorePiecewiseLinear(
-  value: number | null,
-  bands: ScoreBands,
-  direction: "higher" | "lower"
-): number {
+function scoreAbsolute(value: number | null): number {
   if (value == null) return 50;
-
-  const excellent: ScoreAnchor = { threshold: bands.excellent, score: 100 };
-  const good: ScoreAnchor = { threshold: bands.good, score: 85 };
-  const fair: ScoreAnchor = { threshold: bands.fair, score: 70 };
-  const poor: ScoreAnchor = { threshold: bands.poor, score: 55 };
-
-  if (direction === "higher") {
-    if (value >= bands.excellent) return 100;
-    if (value >= bands.good) return interpolateScore(good, excellent, value);
-    if (value >= bands.fair) return interpolateScore(fair, good, value);
-    if (value >= bands.poor) return interpolateScore(poor, fair, value);
-    return interpolateScore({ threshold: 0, score: 0 }, poor, value);
-  }
-
-  if (value <= bands.excellent) return 100;
-  if (value <= bands.good) return interpolateScore(excellent, good, value);
-  if (value <= bands.fair) return interpolateScore(good, fair, value);
-  if (value <= bands.poor) return interpolateScore(fair, poor, value);
-  return scoreBelowPoorLower(value, bands);
+  return Math.round(Math.min(100, Math.max(0, value)));
 }
 
-const REPEAT_ALERT_BANDS = { excellent: 5, good: 10, fair: 20, poor: 30, worst: 60 };
-const TTFC_BANDS = { excellent: 3, good: 7, fair: 14, poor: 21, worst: 42 };
-const STALE_BANDS = { excellent: 10, good: 20, fair: 35, poor: 50, worst: 100 };
-const RECOVERY_BANDS = { excellent: 60, good: 45, fair: 30, poor: 15 };
-const CONCLUSION_RATE_BANDS = {
-  excellent: 75,
-  good: 55,
-  fair: 35,
-  poor: 15,
-  worst: 0,
-};
+function scoreInverted(value: number | null): number {
+  if (value == null) return 50;
+  return Math.round(Math.min(100, Math.max(0, 100 - value)));
+}
+
+function scoreTTFC(days: number | null, maxDays = 30): number {
+  if (days == null) return 50;
+  return Math.round(Math.max(0, 100 - (days / maxDays) * 100));
+}
+
+function scoreAttendance(value: number | null): number {
+  if (value == null) return 50;
+  return Math.round(Math.min(100, Math.max(0, value)));
+}
 
 /** No interventions means inaction — do not treat missing TTFC as neutral. */
 function scoreTtfc(medianDays: number | null, intervenedStudents: number): number {
-  if (intervenedStudents === 0) return 35;
-  return scorePiecewiseLinear(medianDays, TTFC_BANDS, "lower");
+  if (intervenedStudents === 0) return 0;
+  return scoreTTFC(medianDays);
 }
 
 /** Low repeat alerts without any prior intervention is not a success signal. */
@@ -143,8 +102,19 @@ function scoreRepeatAlert(
   repeatAlertPct: number | null,
   intervenedStudents: number
 ): number {
-  if (intervenedStudents === 0) return 35;
-  return scorePiecewiseLinear(repeatAlertPct, REPEAT_ALERT_BANDS, "lower");
+  if (intervenedStudents === 0) return scoreInverted(100);
+  return scoreInverted(repeatAlertPct);
+}
+
+/** Recovery dominates outcome; repeat-alert control is a secondary signal. */
+function weightedOutcomeScore(
+  recoveryPct: number | null,
+  repeatAlertPct: number | null,
+  intervenedStudents: number
+): number {
+  const recovery_score = scoreAbsolute(recoveryPct);
+  const repeat_alert_score = scoreRepeatAlert(repeatAlertPct, intervenedStudents);
+  return Math.round((0.8 * recovery_score + 0.2 * repeat_alert_score) * 100) / 100;
 }
 
 /** Faculties reaching fewer than 1 in 10 alerted students cannot score well on Response. */
@@ -176,10 +146,7 @@ export function computeSustainedScore(
   repeatAlertPct: number | null,
   intervenedStudents: number
 ): number {
-  return avg([
-    scorePiecewiseLinear(alertRecoveryPct, RECOVERY_BANDS, "higher"),
-    scoreRepeatAlert(repeatAlertPct, intervenedStudents),
-  ]);
+  return weightedOutcomeScore(alertRecoveryPct, repeatAlertPct, intervenedStudents);
 }
 
 export function computeFeiRating(feiScore: number): FeiRating {
@@ -203,20 +170,10 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   const repeat_alert_pct = pct(raw.repeat_alert_students, raw.alerted_students);
 
   let response_score = avg([
-    scorePiecewiseLinear(intervention_coverage_pct, {
-      excellent: 95,
-      good: 85,
-      fair: 70,
-      poor: 50,
-    }, "higher"),
-    scorePiecewiseLinear(critical_coverage_pct, {
-      excellent: 95,
-      good: 90,
-      fair: 75,
-      poor: 60,
-    }, "higher"),
+    scoreAbsolute(intervention_coverage_pct),
+    scoreAbsolute(critical_coverage_pct),
     scoreTtfc(raw.median_days_to_contact, raw.intervened_students),
-    scorePiecewiseLinear(stale_intervention_pct, STALE_BANDS, "lower"),
+    scoreInverted(stale_intervention_pct),
   ]);
   response_score = applyResponseCoverageFloor(
     response_score,
@@ -225,26 +182,17 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   );
 
   const wellbeing_score = avg([
-    scorePiecewiseLinear(conclusion_rate_pct, CONCLUSION_RATE_BANDS, "higher"),
-    scorePiecewiseLinear(wellbeing_uptake_pct, {
-      excellent: 80,
-      good: 65,
-      fair: 50,
-      poor: 35,
-    }, "higher"),
+    scoreAbsolute(conclusion_rate_pct),
+    scoreAbsolute(wellbeing_uptake_pct),
   ]);
 
-  const outcome_score = avg([
-    scorePiecewiseLinear(alert_recovery_pct, RECOVERY_BANDS, "higher"),
-    scoreRepeatAlert(repeat_alert_pct, raw.intervened_students),
-  ]);
+  const outcome_score = weightedOutcomeScore(
+    alert_recovery_pct,
+    repeat_alert_pct,
+    raw.intervened_students
+  );
 
-  const readiness_score = scorePiecewiseLinear(raw.attendance_posting_pct, {
-    excellent: 95,
-    good: 90,
-    fair: 80,
-    poor: 70,
-  }, "higher");
+  const readiness_score = scoreAttendance(raw.attendance_posting_pct);
 
   const sustained_score = computeSustainedScore(
     alert_recovery_pct,
