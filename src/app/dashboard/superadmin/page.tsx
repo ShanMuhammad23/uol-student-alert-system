@@ -6,6 +6,9 @@ import {
   getInterventionChartData,
   getWellbeingChartData,
 } from "@/app/(home)/dashboard/fetch";
+import { buildEffectivenessRows, getEffectivenessScores } from "@/lib/effectiveness";
+import type { FeiRating } from "@/lib/effectiveness-scoring";
+import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
@@ -100,41 +103,81 @@ function MetricCard({
 }
 
 // ─── Faculty Card ──────────────────────────────────────────────────
-function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSuperadminFacultyStats>>[number] }) {
+type FacultyFei = {
+  score: number;
+  rating: FeiRating;
+};
+
+function FacultyCard({
+  faculty,
+  fei,
+}: {
+  faculty: Awaited<ReturnType<typeof getSuperadminFacultyStats>>[number];
+  fei?: FacultyFei | null;
+}) {
   const totalAlerts = faculty.yellowAttendance + faculty.redAttendance + faculty.yellowGpa + faculty.redGpa;
   const alertRate = faculty.total > 0 ? (totalAlerts / faculty.total) * 100 : 0;
+  const gradeConfig = fei ? FEI_GRADE_CONFIG[fei.rating] : null;
 
   return (
     <Link
       href={`/dashboard?as=dean&faculty=${encodeURIComponent(faculty.facultyId)}`}
-      className="group relative block rounded-xl border border-slate-200 bg-white p-5 transition-all hover:border-emerald-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700"
+      className={cn(
+        "group relative block rounded-xl border p-5 transition-all hover:shadow-lg",
+        !gradeConfig &&
+          "border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-700"
+      )}
+      style={
+        gradeConfig
+          ? {
+              background: gradeConfig.bg,
+              borderColor: `${gradeConfig.color}40`,
+            }
+          : undefined
+      }
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 flex gap-2 items-center">
-          <h3 className="truncate text-sm font-semibold text-slate-900 group-hover:text-emerald-600 dark:text-white dark:group-hover:text-emerald-400">
+          <h3 className="truncate text-sm font-semibold mt-2 text-slate-900 group-hover:text-emerald-600 dark:text-white dark:group-hover:text-emerald-400">
             {resolveFacultyNameFromIdOrName(faculty.facultyId, faculty.facultyName.replace("Faculty of ", "")) ?? faculty.facultyId}
           </h3>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
             ({faculty.total.toLocaleString()})
           </p>
         </div>
-        <span className={cn(
-          "shrink-0 rounded-tr-xl px-2.5 py-1 text-xs font-bold tabular-nums absolute top-0 right-0",
-          alertRate > 10
-            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-            : alertRate > 5
-            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-        )}>
-          {alertRate.toFixed(1)}%
-        </span>
+        <div className="absolute top-0 right-0 flex items-end">
+          {fei && gradeConfig ? (
+            <span
+              className="rounded-tr-xl rounded-bl-lg px-2.5 py-1 text-xs font-bold tabular-nums"
+              style={{
+                background: gradeConfig.color,
+                color: "#fff",
+              }}
+            >
+              FEI {Math.round(fei.score)} · {fei.rating}
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              "shrink-0 px-2.5 py-1 text-xs font-bold tabular-nums",
+              fei ? "rounded-bl-lg" : "rounded-tr-xl",
+              alertRate > 10
+                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                : alertRate > 5
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            )}
+          >
+            {alertRate.toFixed(1)}% alerts
+          </span>
+        </div>
       </div>
 
       {/* Metrics Grid */}
       <div className="mt-4 grid grid-cols-2 gap-3">
         {/* Attendance */}
-        <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/50">
+        <div className="rounded-lg bg-white/60 p-3 dark:bg-slate-900/40">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Attendance
           </p>
@@ -150,7 +193,7 @@ function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSupera
         </div>
 
         {/* GPA */}
-        <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/50">
+        <div className="rounded-lg bg-white/60 p-3 dark:bg-slate-900/40">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             SGPA
           </p>
@@ -165,8 +208,6 @@ function FacultyCard({ faculty }: { faculty: Awaited<ReturnType<typeof getSupera
           </div>
         </div>
       </div>
-
-   
     </Link>
   );
 }
@@ -204,6 +245,26 @@ export default async function SuperadminDashboardPage({
     getInterventionChartData(user),
     getWellbeingChartData(user),
   ]);
+
+  const facultyIds = facultyStats.map((f) => f.facultyId);
+  let feiRows = facultyIds.length
+    ? await getEffectivenessScores({ dimensionType: "faculty", facultyIds })
+    : [];
+  if (!feiRows.length && facultyIds.length) {
+    try {
+      feiRows = (await buildEffectivenessRows(undefined, { facultyIds })).filter(
+        (r) => r.dimension_type === "faculty"
+      );
+    } catch {
+      feiRows = [];
+    }
+  }
+  const feiByFacultyId = new Map(
+    feiRows.map((row) => [
+      row.dimension_id,
+      { score: row.fei_score, rating: row.fei_rating },
+    ])
+  );
   
   const validSelectedFaculty = facultyStats.some(
     (f) => f.facultyId === selectedFaculty
@@ -312,7 +373,7 @@ export default async function SuperadminDashboardPage({
         <SectionHeader title="Faculty Overview" />
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {facultyStats.map((f) => (
-            <FacultyCard key={f.facultyId} faculty={f} />
+            <FacultyCard key={f.facultyId} faculty={f} fei={feiByFacultyId.get(f.facultyId) ?? null} />
           ))}
         </div>
       </section>
