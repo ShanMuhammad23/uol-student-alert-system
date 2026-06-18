@@ -10,6 +10,7 @@ import {
   Legend,
   Line,
   LineChart,
+  LabelList,
   PolarAngleAxis,
   PolarGrid,
   PolarRadiusAxis,
@@ -360,6 +361,20 @@ function GradeDistributionStatCard({
   );
 }
 
+function chartLabelStyle(theme: ReturnType<typeof useChartTheme>) {
+  return {
+    fill: theme.text,
+    fontSize: 10,
+    fontFamily: fontNum,
+  } as const;
+}
+
+function formatChartValue(value: unknown): string {
+  if (value == null || Number.isNaN(Number(value))) return "";
+  const n = Number(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
 function FacultyRadar({ faculty }: { faculty: FacultyEffectivenessView }) {
   const theme = useChartTheme();
   const bars = categoryBarScores(faculty);
@@ -378,7 +393,14 @@ function FacultyRadar({ faculty }: { faculty: FacultyEffectivenessView }) {
           fill={cfg.color}
           fillOpacity={0.18}
           strokeWidth={2}
-        />
+        >
+          <LabelList
+            dataKey="score"
+            position="top"
+            {...chartLabelStyle(theme)}
+            formatter={formatChartValue}
+          />
+        </Radar>
       </RadarChart>
     </ResponsiveContainer>
   );
@@ -408,7 +430,7 @@ function FacultyTrend({
 
   return (
     <ResponsiveContainer width="100%" height={100}>
-      <LineChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
+      <LineChart data={data} margin={{ top: 18, right: 10, bottom: 5, left: -20 }}>
         <CartesianGrid stroke={theme.grid} vertical={false} />
         <XAxis dataKey="month" tick={theme.tickUI} axisLine={false} tickLine={false} />
         <YAxis domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
@@ -419,7 +441,14 @@ function FacultyTrend({
           stroke={cfg.color}
           strokeWidth={2.5}
           dot={{ fill: cfg.color, r: 3 }}
-        />
+        >
+          <LabelList
+            dataKey="ei"
+            position="top"
+            {...chartLabelStyle(theme)}
+            formatter={formatChartValue}
+          />
+        </Line>
       </LineChart>
     </ResponsiveContainer>
   );
@@ -718,7 +747,7 @@ export function FEIDashboardClient({
           Effectiveness Index (0–100) per faculty per Excel criteria, sorted highest to lowest
         </p>
         <ResponsiveContainer width="100%" height={Math.max(200, eiBarData.length * 28)}>
-          <BarChart data={eiBarData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+          <BarChart data={eiBarData} margin={{ top: 20, right: 8, bottom: 0, left: -20 }}>
             <CartesianGrid stroke={theme.grid} vertical={false} />
             <XAxis
               dataKey="name"
@@ -742,6 +771,12 @@ export function FEIDashboardClient({
               {eiBarData.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
+              <LabelList
+                dataKey="ei"
+                position="top"
+                {...chartLabelStyle(theme)}
+                formatter={formatChartValue}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -927,15 +962,29 @@ export function FEIDashboardClient({
                     "Login %": f.loginRate,
                     "Attendance %": f.attendancePost,
                   }))}
-                margin={{ left: 0, right: 10 }}
+                margin={{ left: 0, right: 28, top: 4 }}
               >
                 <CartesianGrid stroke={theme.grid} horizontal={false} />
                 <XAxis type="number" domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ ...theme.tickUI, fontSize: 11 }} axisLine={false} tickLine={false} width={34} />
                 <Tooltip contentStyle={theme.tooltip} />
                 <Legend wrapperStyle={{ fontSize: 11, color: theme.textMuted, fontFamily: fontUI }} />
-                <Bar dataKey="Login %" fill="#6366F1" radius={[0, 4, 4, 0]} maxBarSize={12} />
-                <Bar dataKey="Attendance %" fill="#F59E0B" radius={[0, 4, 4, 0]} maxBarSize={12} />
+                <Bar dataKey="Login %" fill="#6366F1" radius={[0, 4, 4, 0]} maxBarSize={12}>
+                  <LabelList
+                    dataKey="Login %"
+                    position="right"
+                    {...chartLabelStyle(theme)}
+                    formatter={(v) => `${formatChartValue(v)}%`}
+                  />
+                </Bar>
+                <Bar dataKey="Attendance %" fill="#F59E0B" radius={[0, 4, 4, 0]} maxBarSize={12}>
+                  <LabelList
+                    dataKey="Attendance %"
+                    position="right"
+                    {...chartLabelStyle(theme)}
+                    formatter={(v) => `${formatChartValue(v)}%`}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Panel>
@@ -1005,7 +1054,7 @@ export function FEIDashboardClient({
                     TTFA: f.ttfa,
                     "Case Prog. %": f.caseProgression,
                   }))}
-                margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
+                margin={{ top: 20, right: 8, bottom: 0, left: -20 }}
               >
                 <CartesianGrid stroke={theme.grid} vertical={false} />
                 <XAxis dataKey="name" tick={{ ...theme.tickUI, fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -1020,8 +1069,21 @@ export function FEIDashboardClient({
                       fill={f.ttfa <= 2 ? "#10B981" : f.ttfa <= 4 ? "#F59E0B" : "#F43F5E"}
                     />
                   ))}
+                  <LabelList
+                    dataKey="TTFA"
+                    position="top"
+                    {...chartLabelStyle(theme)}
+                    formatter={(v) => `${formatChartValue(v)}d`}
+                  />
                 </Bar>
-                <Bar dataKey="Case Prog. %" fill="#3B82F6" radius={[3, 3, 0, 0]} maxBarSize={22} />
+                <Bar dataKey="Case Prog. %" fill="#3B82F6" radius={[3, 3, 0, 0]} maxBarSize={22}>
+                  <LabelList
+                    dataKey="Case Prog. %"
+                    position="top"
+                    {...chartLabelStyle(theme)}
+                    formatter={(v) => `${formatChartValue(v)}%`}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Panel>
@@ -1035,7 +1097,7 @@ export function FEIDashboardClient({
             </p>
             {trendChartData.length ? (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={trendChartData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+                <LineChart data={trendChartData} margin={{ top: 22, right: 10, bottom: 0, left: -20 }}>
                   <CartesianGrid stroke={theme.grid} vertical={false} />
                   <XAxis dataKey="month" tick={{ ...theme.tickUI, fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
@@ -1050,7 +1112,16 @@ export function FEIDashboardClient({
                       stroke={GRADE_CONFIG[f.grade].color}
                       strokeWidth={2}
                       dot={false}
-                    />
+                    >
+                      <LabelList
+                        dataKey={f.code}
+                        position="top"
+                        fill={GRADE_CONFIG[f.grade].color}
+                        fontSize={9}
+                        fontFamily={fontNum}
+                        formatter={formatChartValue}
+                      />
+                    </Line>
                   ))}
                 </LineChart>
               </ResponsiveContainer>
