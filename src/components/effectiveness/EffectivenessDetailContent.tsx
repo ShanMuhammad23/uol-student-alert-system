@@ -74,7 +74,7 @@ function criterionDetailLine(
     if (row.median_days_to_first_action != null) {
       return `Median ${formatDays(row.median_days_to_first_action)} · PI ≤ 2 days`;
     }
-    return `${row.alerts_with_intervention} / ${row.total_alerts} alerts with intervention`;
+    return `${row.alerts_with_intervention} / ${row.total_alerts} alerted students with intervention`;
   }
   if (criterion.code === "D1_uptake" && row.wb_referred_cases <= 0) {
     return "No wellbeing referrals in scope — full credit";
@@ -219,8 +219,8 @@ export function EffectivenessDetailContent({ row }: { row: EffectivenessScoreRow
             { label: "Users logged in (7d)", value: row.login_users_meeting_pi },
             { label: "Classes held", value: row.classes_held_total },
             { label: "Classes posted", value: row.classes_posted_total },
-            { label: "Total alerts", value: row.total_alerts },
-            { label: "Alerts intervened", value: row.alerts_with_intervention },
+            { label: "Alerted students", value: row.total_alerts },
+            { label: "Students intervened", value: row.alerts_with_intervention },
             { label: "Open faculty cases", value: row.open_faculty_cases },
             { label: "Cases progression OK", value: row.faculty_cases_progression_ok },
             { label: "Total faculty cases", value: row.faculty_total_cases },

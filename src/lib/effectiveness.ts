@@ -170,21 +170,20 @@ const BUILD_EFFECTIVENESS_SQL = `
     GROUP BY dimension_type, dimension_id
   ),
   course_attendance AS (
-    SELECT DISTINCT
+    SELECT
       em.dimension_type,
       em.dimension_id,
       em.course_id,
       em.section_code,
-      em.event_package_id,
       MAX(COALESCE(a.total_classes_held, 0))::int AS classes_held,
       MAX(COALESCE(a.attendance_marked_classes, 0))::int AS classes_posted
     FROM enrollment_match em
-    JOIN student_alert_current a
+    LEFT JOIN student_alert_current a
       ON a.sap_id = em.sap_id
      AND a.course_id = em.course_id
      AND a.section_code = em.section_code
      AND a.event_package_id = em.event_package_id
-    GROUP BY em.dimension_type, em.dimension_id, em.course_id, em.section_code, em.event_package_id
+    GROUP BY em.dimension_type, em.dimension_id, em.course_id, em.section_code
   ),
   attendance_agg AS (
     SELECT
@@ -234,9 +233,16 @@ const BUILD_EFFECTIVENESS_SQL = `
         )
       )
   ),
-  alert_counts AS (
-    SELECT dimension_type, dimension_id, COUNT(*)::int AS total_alerts
+  alerted_students AS (
+    SELECT DISTINCT dimension_type, dimension_id, sap_id
     FROM alerted
+  ),
+  alert_counts AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      COUNT(*)::int AS total_alerts
+    FROM alerted_students
     GROUP BY dimension_type, dimension_id
   ),
   first_alert AS (
@@ -256,6 +262,18 @@ const BUILD_EFFECTIVENESS_SQL = `
             AND sad.section_code = al.section_code
             AND sad.event_package_id = al.event_package_id
             AND sad.overall_alert_level IN ('warning', 'critical')
+            AND sad.snapshot_date > COALESCE(
+              (
+                SELECT MAX(sad_clear.snapshot_date)
+                FROM student_alert_daily sad_clear
+                WHERE sad_clear.sap_id = al.sap_id
+                  AND sad_clear.course_id = al.course_id
+                  AND sad_clear.section_code = al.section_code
+                  AND sad_clear.event_package_id = al.event_package_id
+                  AND sad_clear.overall_alert_level = 'none'
+              ),
+              '1970-01-01'::date
+            )
         ),
         (
           SELECT (a.computed_at AT TIME ZONE 'UTC')::date
@@ -269,80 +287,84 @@ const BUILD_EFFECTIVENESS_SQL = `
       ) AS first_alert_date
     FROM alerted al
   ),
-  alerts_intervened AS (
-    SELECT
-      fa.dimension_type,
-      fa.dimension_id,
-      COUNT(*)::int AS alerts_with_intervention
-    FROM first_alert fa
-    WHERE fa.first_alert_date IS NOT NULL
-      AND EXISTS (
-        SELECT 1
-        FROM scoped_interventions si
-        WHERE si.dimension_type = fa.dimension_type
-          AND si.dimension_id = fa.dimension_id
-          AND si.student_sap_id = fa.sap_id
-          AND si.performed_at >= (fa.first_alert_date::timestamp AT TIME ZONE 'UTC')
-      )
-    GROUP BY fa.dimension_type, fa.dimension_id
-  ),
-  first_action AS (
-    SELECT
-      fa.dimension_type,
-      fa.dimension_id,
-      fa.sap_id,
-      fa.course_id,
-      fa.section_code,
-      fa.event_package_id,
-      EXTRACT(
-        EPOCH FROM (
-          MIN(si.performed_at) - (fa.first_alert_date::timestamp AT TIME ZONE 'UTC')
-        )
-      ) / 86400.0 AS days_to_action_raw
-    FROM first_alert fa
-    JOIN scoped_interventions si
-      ON si.dimension_type = fa.dimension_type
-     AND si.dimension_id = fa.dimension_id
-     AND si.student_sap_id = fa.sap_id
-     AND si.performed_at >= (fa.first_alert_date::timestamp AT TIME ZONE 'UTC')
-    WHERE fa.first_alert_date IS NOT NULL
-    GROUP BY
-      fa.dimension_type,
-      fa.dimension_id,
-      fa.sap_id,
-      fa.course_id,
-      fa.section_code,
-      fa.event_package_id,
-      fa.first_alert_date
-  ),
-  first_action_clamped AS (
+  student_first_alert AS (
     SELECT
       dimension_type,
       dimension_id,
       sap_id,
-      course_id,
-      section_code,
-      event_package_id,
-      GREATEST(0, days_to_action_raw) AS days_to_action
-    FROM first_action
+      MIN(first_alert_date) AS first_alert_date
+    FROM first_alert
+    WHERE first_alert_date IS NOT NULL
+    GROUP BY dimension_type, dimension_id, sap_id
+  ),
+  alerts_intervened AS (
+    SELECT
+      ast.dimension_type,
+      ast.dimension_id,
+      COUNT(*)::int AS alerts_with_intervention
+    FROM alerted_students ast
+    WHERE EXISTS (
+      SELECT 1
+      FROM scoped_interventions si
+      WHERE si.dimension_type = ast.dimension_type
+        AND si.dimension_id = ast.dimension_id
+        AND si.student_sap_id = ast.sap_id
+    )
+    GROUP BY ast.dimension_type, ast.dimension_id
+  ),
+  student_first_action AS (
+    SELECT
+      sfa.dimension_type,
+      sfa.dimension_id,
+      sfa.sap_id,
+      GREATEST(
+        0,
+        EXTRACT(
+          EPOCH FROM (
+            COALESCE(
+              MIN(si.performed_at) FILTER (
+                WHERE si.performed_at >= (sfa.first_alert_date::timestamp AT TIME ZONE 'UTC')
+              ),
+              MIN(si.performed_at)
+            ) - (sfa.first_alert_date::timestamp AT TIME ZONE 'UTC')
+          )
+        ) / 86400.0
+      ) AS days_to_action
+    FROM student_first_alert sfa
+    JOIN scoped_interventions si
+      ON si.dimension_type = sfa.dimension_type
+     AND si.dimension_id = sfa.dimension_id
+     AND si.student_sap_id = sfa.sap_id
+    GROUP BY
+      sfa.dimension_type,
+      sfa.dimension_id,
+      sfa.sap_id,
+      sfa.first_alert_date
   ),
   ttfa_median AS (
     SELECT
       dimension_type,
       dimension_id,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_action) AS median_days
-    FROM first_action_clamped
+    FROM student_first_action
     WHERE days_to_action IS NOT NULL
     GROUP BY dimension_type, dimension_id
   ),
   latest_case_status AS (
-    SELECT DISTINCT ON (dimension_type, dimension_id, student_sap_id)
-      dimension_type,
-      dimension_id,
-      student_sap_id,
-      status
-    FROM scoped_interventions
-    ORDER BY dimension_type, dimension_id, student_sap_id, performed_at DESC
+    SELECT DISTINCT ON (si.dimension_type, si.dimension_id, si.student_sap_id)
+      si.dimension_type,
+      si.dimension_id,
+      si.student_sap_id,
+      si.status
+    FROM scoped_interventions si
+    WHERE EXISTS (
+      SELECT 1
+      FROM alerted_students ast
+      WHERE ast.dimension_type = si.dimension_type
+        AND ast.dimension_id = si.dimension_id
+        AND ast.sap_id = si.student_sap_id
+    )
+    ORDER BY si.dimension_type, si.dimension_id, si.student_sap_id, si.performed_at DESC
   ),
   faculty_case_counts AS (
     SELECT
@@ -360,15 +382,22 @@ const BUILD_EFFECTIVENESS_SQL = `
   ),
   intervention_gaps AS (
     SELECT
-      dimension_type,
-      dimension_id,
-      student_sap_id,
-      performed_at,
-      LAG(performed_at) OVER (
-        PARTITION BY dimension_type, dimension_id, student_sap_id
-        ORDER BY performed_at
+      si.dimension_type,
+      si.dimension_id,
+      si.student_sap_id,
+      si.performed_at,
+      LAG(si.performed_at) OVER (
+        PARTITION BY si.dimension_type, si.dimension_id, si.student_sap_id
+        ORDER BY si.performed_at
       ) AS prev_at
-    FROM scoped_interventions
+    FROM scoped_interventions si
+    WHERE EXISTS (
+      SELECT 1
+      FROM alerted_students ast
+      WHERE ast.dimension_type = si.dimension_type
+        AND ast.dimension_id = si.dimension_id
+        AND ast.sap_id = si.student_sap_id
+    )
   ),
   students_bad_gap AS (
     SELECT DISTINCT dimension_type, dimension_id, student_sap_id

@@ -850,7 +850,7 @@ export function FEIDashboardClient({
 
               <div className="mt-3.5 grid grid-cols-2 gap-2">
                 {[
-                  { l: "Alerted", v: selectedFaculty.alerted, c: "#F59E0B" },
+                  { l: "Alerted students", v: selectedFaculty.alerted, c: "#F59E0B" },
                   { l: "Intervened", v: selectedFaculty.intervened, c: "#3B82F6" },
                   { l: "Concluded", v: selectedFaculty.concluded, c: "#7C3AED" },
                   { l: "Referred (WB)", v: selectedFaculty.referred, c: "#A78BFA" },
@@ -950,7 +950,7 @@ export function FEIDashboardClient({
             <div className="flex flex-col gap-3.5">
               {faculties.map((f) => {
                 const steps = [
-                  { l: "Alerted", v: f.alerted, c: "#F59E0B" },
+                  { l: "Alerted students", v: f.alerted, c: "#F59E0B" },
                   { l: "Intervened", v: f.intervened, c: "#3B82F6" },
                   { l: "Concluded", v: f.concluded, c: "#7C3AED" },
                   { l: "WB Referred", v: f.referred, c: "#A78BFA" },
