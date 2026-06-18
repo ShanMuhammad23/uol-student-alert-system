@@ -777,6 +777,7 @@ export function FEIDashboardClient({
                 {...chartLabelStyle(theme)}
                 formatter={formatChartValue}
               />
+
             </Bar>
           </BarChart>
         </ResponsiveContainer>

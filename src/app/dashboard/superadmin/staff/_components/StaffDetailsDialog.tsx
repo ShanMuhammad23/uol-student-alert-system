@@ -57,10 +57,11 @@ export function StaffDetailsDialog({ staff }: Props) {
           className="h-8 w-8 rounded-full object-cover"
         />
         <span className="min-w-0">
-          <span className="block truncate">{staff.name || "—"}</span>
+          <span className="block truncate">{staff.name || "—"} ({staff.pernr || "—"})</span>
           <span className="block truncate text-xs font-normal text-dark-6">
             {staff.email || "—"}
           </span>
+        
         </span>
       </button>
 

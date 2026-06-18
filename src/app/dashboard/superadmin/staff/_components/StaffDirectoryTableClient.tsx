@@ -15,6 +15,11 @@ import {
   type StoredPseudoRole,
 } from "@/lib/staff-role-rules";
 import {
+  Dropdown,
+  DropdownContent,
+  DropdownTrigger,
+} from "@/components/ui/dropdown";
+import {
   Table,
   TableBody,
   TableCell,
@@ -134,11 +139,6 @@ function resolveOtherFacultyDisplayParts(row: StaffListRow): string[] {
     .filter((s) => s.length > 0);
 }
 
-function formatOtherFacultiesCell(row: StaffListRow): string {
-  const parts = resolveOtherFacultyDisplayParts(row);
-  return parts.length > 0 ? parts.join(", ") : "—";
-}
-
 function formatRoleLabel(role: string): string {
   return role.replaceAll("-", " ").toUpperCase();
 }
@@ -147,6 +147,60 @@ function getRoleBadgeClassName(role: string): string {
   return (
     ROLE_BADGE_STYLES[role] ??
     "bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200 dark:bg-gray-500/20 dark:text-gray-200 dark:ring-gray-400/40"
+  );
+}
+
+function CountListDropdown({
+  items,
+  labelSingular,
+  labelPlural,
+}: {
+  items: string[];
+  labelSingular: string;
+  labelPlural: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const count = items.length;
+
+  if (count === 0) {
+    return <span className="text-dark-6">—</span>;
+  }
+
+  const label =
+    count === 1 ? `1 ${labelSingular}` : `${count} ${labelPlural}`;
+
+  return (
+    <Dropdown isOpen={isOpen} setIsOpen={setIsOpen}>
+      <DropdownTrigger className="inline-flex items-center gap-1 rounded-md border border-stroke px-2 py-0.5 text-xs font-medium text-dark-6 transition hover:bg-gray-2 dark:border-dark-3 dark:hover:bg-dark-3">
+        {label}
+        <svg
+          className="h-3.5 w-3.5 opacity-70"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </DropdownTrigger>
+      <DropdownContent
+        align="start"
+        className="border border-stroke bg-white p-2 shadow-lg dark:border-dark-3 dark:bg-gray-dark"
+      >
+        <ul className="max-h-48 space-y-0.5 overflow-y-auto text-xs text-dark dark:text-white">
+          {items.map((item) => (
+            <li key={item} className="whitespace-nowrap rounded px-2 py-1">
+              {item}
+            </li>
+          ))}
+        </ul>
+      </DropdownContent>
+    </Dropdown>
   );
 }
 
@@ -201,9 +255,9 @@ export function StaffDirectoryTableClient({
         case "faculty":
           return resolveFacultyName(row).replace("Faculty of", "").trim();
         case "other_faculties":
-          return resolveOtherFacultyDisplayParts(row).join(", ");
+          return resolveOtherFacultyDisplayParts(row).length;
         case "departments":
-          return resolveDepartmentNames(row).join(", ");
+          return resolveDepartmentNames(row).length;
         case "login_count":
           return row.login_count ?? 0;
         case "last_login":
@@ -271,27 +325,23 @@ export function StaffDirectoryTableClient({
                     Actual Role <span className="text-xs">{sortIndicator("actual_role")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[120px]">
-                  <button type="button" onClick={() => toggleSort("pernr")} className="inline-flex items-center gap-1">
-                    Pernr <span className="text-xs">{sortIndicator("pernr")}</span>
-                  </button>
-                </TableHead>
+              
                 <TableHead className="min-w-[160px]">
                   <button type="button" onClick={() => toggleSort("faculty")} className="inline-flex items-center gap-1">
                     Parent Faculty <span className="text-xs">{sortIndicator("faculty")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[200px]">
+                <TableHead className="min-w-[110px]">
                   <button type="button" onClick={() => toggleSort("other_faculties")} className="inline-flex items-center gap-1">
                     Other Faculties <span className="text-xs">{sortIndicator("other_faculties")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[240px]">
+                <TableHead className="min-w-[110px]">
                   <button type="button" onClick={() => toggleSort("departments")} className="inline-flex items-center gap-1">
                     Departments <span className="text-xs">{sortIndicator("departments")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[60px]">
+                <TableHead className="min-w-[30px]">
                   <button type="button" onClick={() => toggleSort("login_count")} className="inline-flex items-center gap-1">
                     Login Count <span className="text-xs">{sortIndicator("login_count")}</span>
                   </button>
@@ -354,20 +404,23 @@ export function StaffDirectoryTableClient({
                       "—"
                     )}
                   </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    {row.pernr || "—"}
-                  </TableCell>
+                  
                   <TableCell className="!text-left text-dark-6">
                     {resolveFacultyName(row).replace("Faculty of", "")}
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
-                    {formatOtherFacultiesCell(row)}
+                    <CountListDropdown
+                      items={resolveOtherFacultyDisplayParts(row)}
+                      labelSingular="faculty"
+                      labelPlural="faculties"
+                    />
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
-                    {((row.pseudo_role ?? row.role) === "hod" || (row.pseudo_role ?? row.role) === "instructor") &&
-                    resolveDepartmentNames(row).length
-                      ? resolveDepartmentNames(row).join(", ")
-                      : "—"}
+                    <CountListDropdown
+                      items={resolveDepartmentNames(row)}
+                      labelSingular="department"
+                      labelPlural="departments"
+                    />
                   </TableCell>
                   <TableCell className="!text-left text-dark-6">
                     {row.login_count ?? 0}

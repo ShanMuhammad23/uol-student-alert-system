@@ -95,6 +95,35 @@ export async function queryStaffList(options?: {
          ARRAY_AGG(faculty_id ORDER BY faculty_name) AS faculty_ids
        FROM enrollment_instructor_faculties
        GROUP BY pernr_key
+     ),
+     enrollment_instructor_departments AS (
+       SELECT DISTINCT
+         TRIM(BOTH FROM e.instructor_pernr) AS pernr_key,
+         e.department_id,
+         d.name AS department_name
+       FROM student_enrollment_current e
+       INNER JOIN departments d ON d.id = e.department_id
+       WHERE e.is_active = TRUE
+         AND e.instructor_pernr IS NOT NULL
+         AND TRIM(BOTH FROM e.instructor_pernr) <> ''
+         AND e.department_id IS NOT NULL
+     ),
+     enrollment_departments_by_pernr AS (
+       SELECT
+         pernr_key,
+         ARRAY_AGG(department_name ORDER BY department_name) AS department_names,
+         ARRAY_AGG(department_id ORDER BY department_name) AS department_ids
+       FROM enrollment_instructor_departments
+       GROUP BY pernr_key
+     ),
+     staff_departments_by_staff AS (
+       SELECT
+         sd.staff_id,
+         ARRAY_AGG(d.name ORDER BY d.name) AS department_names,
+         ARRAY_AGG(d.id ORDER BY d.name) AS department_ids
+       FROM staff_departments sd
+       INNER JOIN departments d ON d.id = sd.department_id
+       GROUP BY sd.staff_id
      )
      SELECT
        s.id,
@@ -119,11 +148,27 @@ export async function queryStaffList(options?: {
          ARRAY[]::text[]
        ) AS other_faculty_names,
        COALESCE(
-         ARRAY_AGG(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL),
+         (
+           SELECT ARRAY_AGG(x.name ORDER BY x.name)
+           FROM (
+             SELECT unnest(COALESCE(sdp.department_names, ARRAY[]::text[])) AS name
+             UNION
+             SELECT unnest(COALESCE(edp.department_names, ARRAY[]::text[])) AS name
+           ) AS x
+           WHERE x.name IS NOT NULL AND TRIM(x.name) <> ''
+         ),
          ARRAY[]::text[]
        ) AS department_names,
        COALESCE(
-         ARRAY_AGG(DISTINCT d.id) FILTER (WHERE d.id IS NOT NULL),
+         (
+           SELECT ARRAY_AGG(x.id ORDER BY x.id)
+           FROM (
+             SELECT unnest(COALESCE(sdp.department_ids, ARRAY[]::varchar[])) AS id
+             UNION
+             SELECT unnest(COALESCE(edp.department_ids, ARRAY[]::varchar[])) AS id
+           ) AS x
+           WHERE x.id IS NOT NULL AND TRIM(x.id) <> ''
+         ),
          ARRAY[]::varchar[]
        ) AS department_ids,
        s.login_count,
@@ -132,24 +177,10 @@ export async function queryStaffList(options?: {
      LEFT JOIN faculties f ON f.id = s.faculty_id
      LEFT JOIN enrollment_faculties_by_pernr ebp
        ON ebp.pernr_key = TRIM(BOTH FROM s.pernr)
-     LEFT JOIN staff_departments sd ON sd.staff_id = s.id
-     LEFT JOIN departments d ON d.id = sd.department_id
+     LEFT JOIN enrollment_departments_by_pernr edp
+       ON edp.pernr_key = TRIM(BOTH FROM s.pernr)
+     LEFT JOIN staff_departments_by_staff sdp ON sdp.staff_id = s.id
      WHERE ($1::varchar IS NULL OR s.faculty_id = $1::varchar) ${excludeSuperadminSql}
-     GROUP BY
-       s.id,
-       s.pernr,
-       s.name,
-       s.img,
-       s.email,
-       s.role,
-       s.actual_role,
-       s.pseudo_role,
-       s.faculty_id,
-       f.name,
-       s.login_count,
-       s.last_login_at,
-       ebp.faculty_names,
-       ebp.faculty_ids
      ORDER BY s.role ASC, s.name ASC`,
     [facultyId]
   );
