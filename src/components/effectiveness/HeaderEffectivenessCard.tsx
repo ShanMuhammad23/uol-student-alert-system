@@ -121,7 +121,7 @@ export function HeaderEffectivenessCard({ user }: { user?: AppUser | null }) {
                   className="text-lg font-extrabold leading-none tabular-nums"
                   style={{ color: gradeCfg.color }}
                 >
-                  EI {Math.round(summary.eiScore)}
+                   {Math.round(summary.eiScore)}
                   <span className="ml-1.5 text-xs font-bold">{summary.eiRating}</span>
                 </p>
                 <p className="mt-0.5 max-w-[140px] truncate text-[10px] text-slate-500 dark:text-slate-400">
