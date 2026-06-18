@@ -1,9 +1,9 @@
 import {
-  computeSustainedScore,
   normalizeDateString,
   type EffectivenessScoreRow,
   type EffectivenessTrendPoint,
 } from "@/lib/effectiveness-scoring";
+import { EI_CRITERION_DEFINITIONS } from "@/lib/ei-metric-definitions";
 import type { FacultyEffectivenessView } from "./types";
 
 export function toFacultyCode(name: string): string {
@@ -21,37 +21,31 @@ export function mapRowToFacultyView(
   row: EffectivenessScoreRow,
   trend: number[] = []
 ): FacultyEffectivenessView {
+  const criteria = EI_CRITERION_DEFINITIONS.map(
+    (def) => row.criteria_breakdown[def.code]
+  );
+
   return {
     id: row.dimension_id,
     name: row.dimension_name,
     code: toFacultyCode(row.dimension_name),
-    fei: Math.round(row.fei_score),
-    grade: row.fei_rating,
-    response: Math.round(row.response_score),
-    wellbeing: Math.round(row.wellbeing_score),
-    outcome: Math.round(row.outcome_score),
-    readiness: Math.round(row.readiness_score),
-    sustained: Math.round(
-      computeSustainedScore(
-        row.alert_recovery_pct,
-        row.repeat_alert_pct,
-        row.intervened_students
-      )
-    ),
-    coverage: row.intervention_coverage_pct ?? 0,
-    critCoverage: row.critical_coverage_pct ?? 0,
-    ttfc: row.median_days_to_contact ?? 0,
-    staleRate: row.stale_intervention_pct ?? 0,
-    conclusionRate: row.conclusion_rate_pct ?? 0,
-    wellbeingPct: row.wellbeing_uptake_pct ?? 0,
-    recovery: row.alert_recovery_pct ?? 0,
-    repeatAlert: row.repeat_alert_pct ?? 0,
+    dimensionType: row.dimension_type,
+    ei: Math.round(row.ei_score),
+    grade: row.ei_rating,
+    criteria,
+    loginRate: row.login_rate_pct ?? 0,
     attendancePost: row.attendance_posting_pct ?? 0,
-    alerted: row.alerted_students,
-    intervened: row.intervened_students,
-    referred: row.referred_students,
-    concluded: row.concluded_students,
-    recovered: row.recovered_students,
+    coverage: row.intervention_coverage_pct ?? 0,
+    ttfa: row.median_days_to_first_action ?? 0,
+    caseProgression: row.faculty_case_progression_pct ?? 0,
+    resolution: row.faculty_resolution_pct ?? 0,
+    wbUptake: row.wb_uptake_days ?? 0,
+    wbProgression: row.wb_case_progression_pct ?? 0,
+    wbResolution: row.wb_resolution_pct ?? 0,
+    alerted: row.total_alerts,
+    intervened: row.alerts_with_intervention,
+    referred: row.wb_referred_cases,
+    concluded: row.faculty_cases_closed_or_referred,
     nTotal: row.total_students,
     trend,
   };
@@ -76,7 +70,7 @@ export function buildTrendByFaculty(
           (p) =>
             p.dimension_id === id && normalizeDateString(p.snapshot_date) === date
         );
-        return point ? Math.round(point.fei_score) : 0;
+        return point ? Math.round(point.ei_score) : 0;
       })
     );
   }

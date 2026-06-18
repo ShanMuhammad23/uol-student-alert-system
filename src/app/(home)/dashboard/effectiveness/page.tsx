@@ -66,8 +66,8 @@ export default async function DeanHodEffectivenessPage() {
         </div>
         <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{title}</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Track how effectively your {user.role === "hod" ? "department" : "faculty"} responds to
-          student alerts and connects at-risk students to wellbeing support.
+          Track Effectiveness Index (EI) for your {user.role === "hod" ? "department" : "faculty"} —
+          log-in, attendance posting, interventions, and wellbeing criteria.
         </p>
       </div>
 

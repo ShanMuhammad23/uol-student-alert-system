@@ -21,6 +21,7 @@ type RequestBody = {
   dimensionType?: EffectivenessDimensionType;
   facultyIds?: string[];
   departmentIds?: string[];
+  instructorPernrs?: string[];
   live?: boolean;
   snapshotDate?: string;
 };
@@ -31,12 +32,14 @@ function resolveScope(
 ): {
   facultyIds?: string[];
   departmentIds?: string[];
+  instructorPernrs?: string[];
   dimensionType?: EffectivenessDimensionType;
 } {
   if (user.role === "superadmin") {
     return {
       facultyIds: body.facultyIds,
       departmentIds: body.departmentIds,
+      instructorPernrs: body.instructorPernrs,
       dimensionType: body.dimensionType,
     };
   }
@@ -56,6 +59,17 @@ function resolveScope(
     };
   }
 
+  if (
+    (user.role === "instructor" || user.role === "teacher") &&
+    user.sap_id
+  ) {
+    return {
+      facultyIds: user.faculty_id ? [user.faculty_id] : undefined,
+      instructorPernrs: [user.sap_id],
+      dimensionType: "instructor",
+    };
+  }
+
   return {};
 }
 
@@ -72,7 +86,9 @@ export async function POST(req: Request) {
     if (
       user.role !== "superadmin" &&
       user.role !== "dean" &&
-      user.role !== "hod"
+      user.role !== "hod" &&
+      user.role !== "instructor" &&
+      user.role !== "teacher"
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -98,6 +114,12 @@ export async function POST(req: Request) {
           (r) => r.dimension_type !== "department" || allowed.has(r.dimension_id)
         );
       }
+      if (scope.instructorPernrs?.length) {
+        const allowed = new Set(scope.instructorPernrs);
+        rows = rows.filter(
+          (r) => r.dimension_type !== "instructor" || allowed.has(r.dimension_id)
+        );
+      }
       if (scope.dimensionType) {
         rows = rows.filter((r) => r.dimension_type === scope.dimensionType);
       }
@@ -107,6 +129,7 @@ export async function POST(req: Request) {
         dimensionType: scope.dimensionType,
         facultyIds: scope.facultyIds,
         departmentIds: scope.departmentIds,
+        instructorPernrs: scope.instructorPernrs,
         live: false,
       });
 
@@ -118,6 +141,13 @@ export async function POST(req: Request) {
           const allowed = new Set(scope.departmentIds);
           rows = rows.filter(
             (r) => r.dimension_type !== "department" || allowed.has(r.dimension_id)
+          );
+        }
+        if (scope.instructorPernrs?.length) {
+          const allowed = new Set(scope.instructorPernrs);
+          rows = rows.filter(
+            (r) =>
+              r.dimension_type !== "instructor" || allowed.has(r.dimension_id)
           );
         }
         if (scope.dimensionType) {

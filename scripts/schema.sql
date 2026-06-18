@@ -524,12 +524,12 @@ CREATE INDEX IF NOT EXISTS idx_ma_reminder_emails_status
   ON missing_attendance_reminder_emails (status, created_at DESC);
 
 -- -----------------------------------------------------------------------------
--- 10) EFFECTIVENESS SCORES (faculty / department FEI snapshots)
+-- 10) EFFECTIVENESS SCORES (faculty / department / instructor EI snapshots)
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS effectiveness_scores_by_dimension (
   snapshot_date               DATE NOT NULL,
-  dimension_type              VARCHAR(20) NOT NULL CHECK (dimension_type IN ('faculty', 'department')),
+  dimension_type              VARCHAR(20) NOT NULL CHECK (dimension_type IN ('faculty', 'department', 'instructor')),
   dimension_id                VARCHAR(128) NOT NULL,
   dimension_name              VARCHAR(255) NOT NULL,
 
@@ -546,9 +546,26 @@ CREATE TABLE IF NOT EXISTS effectiveness_scores_by_dimension (
   stale_interventions         INTEGER NOT NULL DEFAULT 0,
   open_interventions          INTEGER NOT NULL DEFAULT 0,
 
+  login_users_meeting_pi      INTEGER NOT NULL DEFAULT 0,
+  login_total_users           INTEGER NOT NULL DEFAULT 0,
+  classes_held_total          INTEGER NOT NULL DEFAULT 0,
+  classes_posted_total        INTEGER NOT NULL DEFAULT 0,
+  total_alerts                INTEGER NOT NULL DEFAULT 0,
+  alerts_with_intervention    INTEGER NOT NULL DEFAULT 0,
+  open_faculty_cases          INTEGER NOT NULL DEFAULT 0,
+  faculty_cases_progression_ok INTEGER NOT NULL DEFAULT 0,
+  faculty_total_cases         INTEGER NOT NULL DEFAULT 0,
+  faculty_cases_closed_or_referred INTEGER NOT NULL DEFAULT 0,
+  wb_referred_cases           INTEGER NOT NULL DEFAULT 0,
+  wb_open_cases               INTEGER NOT NULL DEFAULT 0,
+  wb_cases_progression_ok     INTEGER NOT NULL DEFAULT 0,
+  wb_cases_closed             INTEGER NOT NULL DEFAULT 0,
+
   intervention_coverage_pct   NUMERIC(5,2),
   critical_coverage_pct       NUMERIC(5,2),
   median_days_to_contact      NUMERIC(6,2),
+  median_days_to_first_action NUMERIC(6,2),
+  wb_median_days_to_uptake    NUMERIC(6,2),
   stale_intervention_pct      NUMERIC(5,2),
   conclusion_rate_pct         NUMERIC(5,2),
   wellbeing_uptake_pct        NUMERIC(5,2),
@@ -561,8 +578,11 @@ CREATE TABLE IF NOT EXISTS effectiveness_scores_by_dimension (
   outcome_score               NUMERIC(5,2) NOT NULL DEFAULT 0,
   readiness_score             NUMERIC(5,2) NOT NULL DEFAULT 0,
 
+  ei_score                    NUMERIC(5,2),
+  ei_rating                   VARCHAR(2),
   fei_score                   NUMERIC(5,2) NOT NULL DEFAULT 0,
-  fei_rating                  VARCHAR(2) NOT NULL DEFAULT 'E',
+  fei_rating                  VARCHAR(2) NOT NULL DEFAULT 'D',
+  criteria_breakdown          JSONB NOT NULL DEFAULT '{}'::jsonb,
 
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -576,8 +596,15 @@ CREATE INDEX IF NOT EXISTS idx_effectiveness_snapshot_date
 CREATE INDEX IF NOT EXISTS idx_effectiveness_type_dim
   ON effectiveness_scores_by_dimension (dimension_type, dimension_id, snapshot_date DESC);
 
+CREATE INDEX IF NOT EXISTS idx_effectiveness_ei_rating
+  ON effectiveness_scores_by_dimension (snapshot_date, ei_rating);
+
 CREATE INDEX IF NOT EXISTS idx_effectiveness_fei_rating
   ON effectiveness_scores_by_dimension (snapshot_date, fei_rating);
+
+CREATE INDEX IF NOT EXISTS idx_effectiveness_instructor
+  ON effectiveness_scores_by_dimension (dimension_type, dimension_id, snapshot_date DESC)
+  WHERE dimension_type = 'instructor';
 
 -- =============================================================================
 -- End schema

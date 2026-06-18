@@ -1,4 +1,10 @@
-/** Pure FEI types and scoring — safe to import from client components (no Node/pg). */
+/** Pure EI types and scoring — safe to import from client components (no Node/pg). */
+
+import {
+  EI_CRITERION_BY_CODE,
+  type EiCriterionCode,
+  type EiCriterionDefinition,
+} from "@/lib/ei-metric-definitions";
 
 /** Coerce pg DATE / ISO strings to YYYY-MM-DD for serialization and display. */
 export function normalizeDateString(value: unknown): string {
@@ -14,9 +20,12 @@ export function normalizeDateString(value: unknown): string {
   return s;
 }
 
-export type EffectivenessDimensionType = "faculty" | "department";
+export type EffectivenessDimensionType = "faculty" | "department" | "instructor";
 
-export type FeiRating = "A" | "B" | "C" | "D" | "E";
+export type EiRating = "A" | "B" | "C" | "D";
+
+/** @deprecated Use EiRating — kept for gradual UI migration */
+export type FeiRating = EiRating;
 
 export type EffectivenessRawRow = {
   snapshot_date: string;
@@ -24,209 +33,283 @@ export type EffectivenessRawRow = {
   dimension_id: string;
   dimension_name: string;
   total_students: number;
-  alerted_students: number;
-  critical_alerted_students: number;
-  intervened_students: number;
-  critical_intervened_students: number;
-  referred_students: number;
-  concluded_students: number;
-  wellbeing_linked_students: number;
-  recovered_students: number;
-  repeat_alert_students: number;
-  stale_interventions: number;
-  open_interventions: number;
-  median_days_to_contact: number | null;
-  attendance_posting_pct: number | null;
+  login_users_meeting_pi: number;
+  login_total_users: number;
+  classes_held_total: number;
+  classes_posted_total: number;
+  total_alerts: number;
+  alerts_with_intervention: number;
+  median_days_to_first_action: number | null;
+  open_faculty_cases: number;
+  faculty_cases_progression_ok: number;
+  faculty_total_cases: number;
+  faculty_cases_closed_or_referred: number;
+  wb_referred_cases: number;
+  median_days_to_wb_uptake: number | null;
+  wb_open_cases: number;
+  wb_cases_progression_ok: number;
+  wb_cases_closed: number;
+};
+
+export type EiCriterionBreakdown = {
+  code: EiCriterionCode;
+  label: string;
+  weight: number;
+  piTarget: string;
+  formula: string;
+  tooltip: string;
+  numerator: number;
+  denominator: number;
+  score: number;
+  contribution: number;
 };
 
 export type EffectivenessScoreRow = EffectivenessRawRow & {
-  intervention_coverage_pct: number | null;
-  critical_coverage_pct: number | null;
-  stale_intervention_pct: number | null;
-  conclusion_rate_pct: number | null;
-  wellbeing_uptake_pct: number | null;
-  alert_recovery_pct: number | null;
-  repeat_alert_pct: number | null;
-  response_score: number;
-  wellbeing_score: number;
-  outcome_score: number;
-  readiness_score: number;
+  criteria_breakdown: Record<EiCriterionCode, EiCriterionBreakdown>;
+  ei_score: number;
+  ei_rating: EiRating;
+  /** Mirrors ei_score for legacy DB column / UI fields */
   fei_score: number;
-  fei_rating: FeiRating;
+  /** Mirrors ei_rating for legacy DB column / UI fields */
+  fei_rating: EiRating;
+  login_rate_pct: number | null;
+  attendance_posting_pct: number | null;
+  intervention_coverage_pct: number | null;
+  faculty_case_progression_pct: number | null;
+  faculty_resolution_pct: number | null;
+  wb_uptake_days: number | null;
+  wb_case_progression_pct: number | null;
+  wb_resolution_pct: number | null;
 };
 
 export type EffectivenessTrendPoint = {
   snapshot_date: string;
   dimension_id: string;
+  ei_score: number;
+  /** @deprecated */
   fei_score: number;
 };
 
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function pct(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
-  return Math.round((numerator / denominator) * 10000) / 100;
+  return round2((numerator / denominator) * 100);
 }
 
-function avg(scores: number[]): number {
-  if (!scores.length) return 0;
-  return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100;
+function ratioScore(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return round4(Math.min(1, Math.max(0, numerator / denominator)));
 }
 
-function scoreAbsolute(value: number | null): number {
-  if (value == null) return 50;
-  return Math.round(Math.min(100, Math.max(0, value)));
+/** −20% per whole day over target (Excel guide). */
+export function scoreTimePenalty(days: number | null, targetDays = 2): number {
+  if (days == null || !Number.isFinite(days)) return 0;
+  if (days <= targetDays) return 1;
+  const daysOver = Math.ceil(days - targetDays);
+  return round4(Math.max(0, 1 - 0.2 * daysOver));
 }
 
-function scoreInverted(value: number | null): number {
-  if (value == null) return 50;
-  return Math.round(Math.min(100, Math.max(0, 100 - value)));
+function buildCriterion(
+  code: EiCriterionCode,
+  numerator: number,
+  denominator: number,
+  score: number,
+  contribution: number
+): EiCriterionBreakdown {
+  const def: EiCriterionDefinition = EI_CRITERION_BY_CODE[code];
+  return {
+    code,
+    label: def.label,
+    weight: def.weight,
+    piTarget: def.piTarget,
+    formula: def.formula,
+    tooltip: def.tooltip,
+    numerator,
+    denominator,
+    score: round4(score),
+    contribution: round4(contribution),
+  };
 }
 
-function scoreTTFC(days: number | null, maxDays = 30): number {
-  if (days == null) return 50;
-  return Math.round(Math.max(0, 100 - (days / maxDays) * 100));
+export function computeEiRating(eiScore: number): EiRating {
+  if (eiScore >= 90) return "A";
+  if (eiScore >= 75) return "B";
+  if (eiScore >= 50) return "C";
+  return "D";
 }
 
-function scoreAttendance(value: number | null): number {
-  if (value == null) return 50;
-  return Math.round(Math.min(100, Math.max(0, value)));
-}
-
-/** No interventions means inaction — do not treat missing TTFC as neutral. */
-function scoreTtfc(medianDays: number | null, intervenedStudents: number): number {
-  if (intervenedStudents === 0) return 0;
-  return scoreTTFC(medianDays);
-}
-
-/** Low repeat alerts without any prior intervention is not a success signal. */
-function scoreRepeatAlert(
-  repeatAlertPct: number | null,
-  intervenedStudents: number
-): number {
-  if (intervenedStudents === 0) return scoreInverted(100);
-  return scoreInverted(repeatAlertPct);
-}
-
-/** Recovery dominates outcome; repeat-alert control is a secondary signal. */
-function weightedOutcomeScore(
-  recoveryPct: number | null,
-  repeatAlertPct: number | null,
-  intervenedStudents: number
-): number {
-  const recovery_score = scoreAbsolute(recoveryPct);
-  const repeat_alert_score = scoreRepeatAlert(repeatAlertPct, intervenedStudents);
-  return Math.round((0.8 * recovery_score + 0.2 * repeat_alert_score) * 100) / 100;
-}
-
-/** Faculties reaching fewer than 1 in 10 alerted students cannot score well on Response. */
-function applyResponseCoverageFloor(
-  responseScore: number,
-  coveragePct: number | null,
-  alertedStudents: number
-): number {
-  if (alertedStudents > 0 && (coveragePct == null || coveragePct < 10)) {
-    return Math.min(responseScore, 40);
-  }
-  return responseScore;
-}
-
-/** Alerted students with zero interventions cannot exceed Grade D. */
-function applyInactionFeiCap(
-  feiScore: number,
-  intervenedStudents: number,
-  alertedStudents: number
-): number {
-  if (intervenedStudents === 0 && alertedStudents > 0) {
-    return Math.min(feiScore, 40);
-  }
-  return feiScore;
-}
-
-export function computeSustainedScore(
-  alertRecoveryPct: number | null,
-  repeatAlertPct: number | null,
-  intervenedStudents: number
-): number {
-  return weightedOutcomeScore(alertRecoveryPct, repeatAlertPct, intervenedStudents);
-}
-
-export function computeFeiRating(feiScore: number): FeiRating {
-  if (feiScore >= 85) return "A";
-  if (feiScore >= 70) return "B";
-  if (feiScore >= 55) return "C";
-  if (feiScore >= 40) return "D";
-  return "E";
+/** @deprecated Use computeEiRating */
+export function computeFeiRating(score: number): EiRating {
+  return computeEiRating(score);
 }
 
 export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessScoreRow {
-  const intervention_coverage_pct = pct(raw.intervened_students, raw.alerted_students);
-  const critical_coverage_pct = pct(
-    raw.critical_intervened_students,
-    raw.critical_alerted_students
+  const loginScore = ratioScore(raw.login_users_meeting_pi, raw.login_total_users);
+  const loginContribution = loginScore * EI_CRITERION_BY_CODE.A_login.weight;
+
+  const attendanceScore = ratioScore(raw.classes_posted_total, raw.classes_held_total);
+  const attendanceContribution = attendanceScore * EI_CRITERION_BY_CODE.B_attendance.weight;
+
+  const ttfaScore =
+    raw.total_alerts > 0
+      ? scoreTimePenalty(raw.median_days_to_first_action, 2)
+      : 0;
+  const ttfaContribution = ttfaScore * EI_CRITERION_BY_CODE.C1_ttfa.weight;
+
+  const coverageRaw = ratioScore(raw.alerts_with_intervention, raw.total_alerts);
+  const coverageContribution =
+    coverageRaw * EI_CRITERION_BY_CODE.C2_coverage.weight * (100 / 95);
+
+  const progressionScore = ratioScore(
+    raw.faculty_cases_progression_ok,
+    raw.open_faculty_cases
   );
-  const stale_intervention_pct = pct(raw.stale_interventions, raw.open_interventions);
-  const conclusion_rate_pct = pct(raw.concluded_students, raw.intervened_students);
-  const wellbeing_uptake_pct = pct(raw.wellbeing_linked_students, raw.concluded_students);
-  const alert_recovery_pct = pct(raw.recovered_students, raw.intervened_students);
-  const repeat_alert_pct = pct(raw.repeat_alert_students, raw.alerted_students);
+  const progressionContribution =
+    progressionScore * EI_CRITERION_BY_CODE.C3_case_progression.weight;
 
-  let response_score = avg([
-    scoreAbsolute(intervention_coverage_pct),
-    scoreAbsolute(critical_coverage_pct),
-    scoreTtfc(raw.median_days_to_contact, raw.intervened_students),
-    scoreInverted(stale_intervention_pct),
-  ]);
-  response_score = applyResponseCoverageFloor(
-    response_score,
-    intervention_coverage_pct,
-    raw.alerted_students
+  const resolutionScore = ratioScore(
+    raw.faculty_cases_closed_or_referred,
+    raw.faculty_total_cases
+  );
+  const resolutionContribution =
+    resolutionScore * EI_CRITERION_BY_CODE.C4_resolution.weight;
+
+  const wbUptakeScore =
+    raw.wb_referred_cases > 0
+      ? scoreTimePenalty(raw.median_days_to_wb_uptake, 2)
+      : 0;
+  const wbUptakeContribution = wbUptakeScore * EI_CRITERION_BY_CODE.D1_uptake.weight;
+
+  const wbProgressionScore = ratioScore(
+    raw.wb_cases_progression_ok,
+    raw.wb_open_cases
+  );
+  const wbProgressionContribution =
+    wbProgressionScore * EI_CRITERION_BY_CODE.D2_wb_progression.weight;
+
+  const wbResolutionScore = ratioScore(raw.wb_cases_closed, raw.wb_referred_cases);
+  const wbResolutionContribution =
+    wbResolutionScore * EI_CRITERION_BY_CODE.D3_wb_resolution.weight;
+
+  const criteria_breakdown: Record<EiCriterionCode, EiCriterionBreakdown> = {
+    A_login: buildCriterion(
+      "A_login",
+      raw.login_users_meeting_pi,
+      raw.login_total_users,
+      loginScore,
+      loginContribution
+    ),
+    B_attendance: buildCriterion(
+      "B_attendance",
+      raw.classes_posted_total,
+      raw.classes_held_total,
+      attendanceScore,
+      attendanceContribution
+    ),
+    C1_ttfa: buildCriterion(
+      "C1_ttfa",
+      raw.median_days_to_first_action != null
+        ? Math.round(raw.median_days_to_first_action * 10) / 10
+        : 0,
+      2,
+      ttfaScore,
+      ttfaContribution
+    ),
+    C2_coverage: buildCriterion(
+      "C2_coverage",
+      raw.alerts_with_intervention,
+      raw.total_alerts,
+      coverageRaw,
+      coverageContribution
+    ),
+    C3_case_progression: buildCriterion(
+      "C3_case_progression",
+      raw.faculty_cases_progression_ok,
+      raw.open_faculty_cases,
+      progressionScore,
+      progressionContribution
+    ),
+    C4_resolution: buildCriterion(
+      "C4_resolution",
+      raw.faculty_cases_closed_or_referred,
+      raw.faculty_total_cases,
+      resolutionScore,
+      resolutionContribution
+    ),
+    D1_uptake: buildCriterion(
+      "D1_uptake",
+      raw.median_days_to_wb_uptake != null
+        ? Math.round(raw.median_days_to_wb_uptake * 10) / 10
+        : 0,
+      2,
+      wbUptakeScore,
+      wbUptakeContribution
+    ),
+    D2_wb_progression: buildCriterion(
+      "D2_wb_progression",
+      raw.wb_cases_progression_ok,
+      raw.wb_open_cases,
+      wbProgressionScore,
+      wbProgressionContribution
+    ),
+    D3_wb_resolution: buildCriterion(
+      "D3_wb_resolution",
+      raw.wb_cases_closed,
+      raw.wb_referred_cases,
+      wbResolutionScore,
+      wbResolutionContribution
+    ),
+  };
+
+  const ei_score = round2(
+    (loginContribution +
+      attendanceContribution +
+      ttfaContribution +
+      coverageContribution +
+      progressionContribution +
+      resolutionContribution +
+      wbUptakeContribution +
+      wbProgressionContribution +
+      wbResolutionContribution) *
+      100
   );
 
-  const wellbeing_score = avg([
-    scoreAbsolute(conclusion_rate_pct),
-    scoreAbsolute(wellbeing_uptake_pct),
-  ]);
-
-  const outcome_score = weightedOutcomeScore(
-    alert_recovery_pct,
-    repeat_alert_pct,
-    raw.intervened_students
-  );
-
-  const readiness_score = scoreAttendance(raw.attendance_posting_pct);
-
-  const sustained_score = computeSustainedScore(
-    alert_recovery_pct,
-    repeat_alert_pct,
-    raw.intervened_students
-  );
-
-  const fei_score = applyInactionFeiCap(
-    Math.round(
-      (0.3 * outcome_score +
-        0.25 * wellbeing_score +
-        0.25 * response_score +
-        0.1 * readiness_score +
-        0.1 * sustained_score) *
-        100
-    ) / 100,
-    raw.intervened_students,
-    raw.alerted_students
-  );
+  const ei_rating = computeEiRating(ei_score);
 
   return {
     ...raw,
-    intervention_coverage_pct,
-    critical_coverage_pct,
-    stale_intervention_pct,
-    conclusion_rate_pct,
-    wellbeing_uptake_pct,
-    alert_recovery_pct,
-    repeat_alert_pct,
-    response_score,
-    wellbeing_score,
-    outcome_score,
-    readiness_score,
-    fei_score,
-    fei_rating: computeFeiRating(fei_score),
+    criteria_breakdown,
+    ei_score,
+    ei_rating,
+    fei_score: ei_score,
+    fei_rating: ei_rating,
+    login_rate_pct: pct(raw.login_users_meeting_pi, raw.login_total_users),
+    attendance_posting_pct: pct(raw.classes_posted_total, raw.classes_held_total),
+    intervention_coverage_pct: pct(raw.alerts_with_intervention, raw.total_alerts),
+    faculty_case_progression_pct: pct(
+      raw.faculty_cases_progression_ok,
+      raw.open_faculty_cases
+    ),
+    faculty_resolution_pct: pct(
+      raw.faculty_cases_closed_or_referred,
+      raw.faculty_total_cases
+    ),
+    wb_uptake_days: raw.median_days_to_wb_uptake,
+    wb_case_progression_pct: pct(raw.wb_cases_progression_ok, raw.wb_open_cases),
+    wb_resolution_pct: pct(raw.wb_cases_closed, raw.wb_referred_cases),
   };
 }
+
+/** @deprecated EI no longer uses sustained score */
+export function computeSustainedScore(): number {
+  return 0;
+}
+
+export type { EiCriterionCode, EiCriterionDefinition };

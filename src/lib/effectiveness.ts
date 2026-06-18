@@ -1,11 +1,12 @@
 import { pool } from "@/lib/db";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
+import type { EiCriterionCode } from "@/lib/ei-metric-definitions";
 import {
   type EffectivenessDimensionType,
   type EffectivenessRawRow,
   type EffectivenessScoreRow,
   type EffectivenessTrendPoint,
-  type FeiRating,
+  type EiRating,
   normalizeDateString,
   scoreEffectivenessRow,
 } from "@/lib/effectiveness-scoring";
@@ -15,19 +16,551 @@ export type {
   EffectivenessRawRow,
   EffectivenessScoreRow,
   EffectivenessTrendPoint,
+  EiCriterionBreakdown,
+  EiRating,
   FeiRating,
 } from "@/lib/effectiveness-scoring";
 
 export {
+  computeEiRating,
   computeFeiRating,
   computeSustainedScore,
   normalizeDateString,
   scoreEffectivenessRow,
+  scoreTimePenalty,
 } from "@/lib/effectiveness-scoring";
 
 type EffectivenessBuildOptions = {
   facultyIds?: string[];
 };
+
+const BUILD_EFFECTIVENESS_SQL = `
+  WITH enrollment_dim AS (
+    SELECT
+      e.sap_id,
+      'faculty'::text AS dimension_type,
+      e.faculty_id AS dimension_id,
+      COALESCE(NULLIF(TRIM(f.name), ''), e.faculty_id) AS dimension_name
+    FROM student_enrollment_current e
+    LEFT JOIN faculties f ON f.id = e.faculty_id
+    WHERE e.is_active = TRUE
+      AND e.faculty_id IS NOT NULL
+      AND e.faculty_id <> ''
+      AND e.faculty_id = ANY($2::text[])
+
+    UNION ALL
+
+    SELECT
+      e.sap_id,
+      'department'::text AS dimension_type,
+      e.department_id AS dimension_id,
+      COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name
+    FROM student_enrollment_current e
+    LEFT JOIN departments d ON d.id = e.department_id
+    WHERE e.is_active = TRUE
+      AND e.department_id IS NOT NULL
+      AND e.department_id <> ''
+      AND e.faculty_id = ANY($2::text[])
+
+    UNION ALL
+
+    SELECT
+      e.sap_id,
+      'instructor'::text AS dimension_type,
+      e.instructor_pernr AS dimension_id,
+      COALESCE(
+        NULLIF(TRIM(s.name), ''),
+        NULLIF(TRIM(e.instructor_name), ''),
+        e.instructor_pernr
+      ) AS dimension_name
+    FROM student_enrollment_current e
+    LEFT JOIN staff s ON s.pernr = e.instructor_pernr
+    WHERE e.is_active = TRUE
+      AND e.instructor_pernr IS NOT NULL
+      AND e.instructor_pernr <> ''
+      AND e.faculty_id = ANY($2::text[])
+  ),
+  dim_keys AS (
+    SELECT DISTINCT dimension_type, dimension_id, dimension_name
+    FROM enrollment_dim
+  ),
+  enrollment_match AS (
+    SELECT
+      p.dimension_type,
+      p.dimension_id,
+      e.sap_id,
+      e.course_id,
+      e.section_code,
+      e.event_package_id
+    FROM dim_keys p
+    JOIN student_enrollment_current e
+      ON e.is_active = TRUE
+     AND e.sap_id IN (
+       SELECT sap_id FROM enrollment_dim ed
+       WHERE ed.dimension_type = p.dimension_type AND ed.dimension_id = p.dimension_id
+     )
+     AND (
+          (p.dimension_type = 'faculty' AND e.faculty_id = p.dimension_id) OR
+          (p.dimension_type = 'department' AND e.department_id = p.dimension_id) OR
+          (p.dimension_type = 'instructor' AND e.instructor_pernr = p.dimension_id)
+     )
+  ),
+  staff_scope AS (
+    SELECT DISTINCT
+      'faculty'::text AS dimension_type,
+      f.id AS dimension_id,
+      s.id AS staff_id,
+      s.last_login_at
+    FROM faculties f
+    JOIN staff s ON s.faculty_id = f.id
+    WHERE f.id = ANY($2::text[])
+      AND s.role IN ('instructor', 'dean', 'hod')
+
+    UNION
+
+    SELECT DISTINCT
+      'department'::text,
+      d.id,
+      s.id,
+      s.last_login_at
+    FROM departments d
+    JOIN student_enrollment_current e
+      ON e.department_id = d.id
+     AND e.is_active = TRUE
+     AND e.faculty_id = ANY($2::text[])
+    JOIN staff s ON s.pernr = e.instructor_pernr
+    WHERE d.faculty_id = ANY($2::text[])
+
+    UNION
+
+    SELECT DISTINCT
+      'department'::text,
+      sd.department_id,
+      s.id,
+      s.last_login_at
+    FROM staff_departments sd
+    JOIN departments d ON d.id = sd.department_id
+    JOIN staff s ON s.id = sd.staff_id
+    WHERE d.faculty_id = ANY($2::text[])
+
+    UNION
+
+    SELECT DISTINCT
+      'instructor'::text,
+      s.pernr,
+      s.id,
+      s.last_login_at
+    FROM staff s
+    JOIN student_enrollment_current e ON e.instructor_pernr = s.pernr
+    WHERE e.is_active = TRUE
+      AND e.faculty_id = ANY($2::text[])
+      AND s.pernr IS NOT NULL
+      AND s.pernr <> ''
+  ),
+  login_counts AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      COUNT(DISTINCT staff_id)::int AS login_total_users,
+      COUNT(DISTINCT staff_id) FILTER (
+        WHERE last_login_at IS NOT NULL
+          AND last_login_at >= NOW() - INTERVAL '7 days'
+      )::int AS login_users_meeting_pi
+    FROM staff_scope
+    GROUP BY dimension_type, dimension_id
+  ),
+  course_attendance AS (
+    SELECT DISTINCT
+      em.dimension_type,
+      em.dimension_id,
+      em.course_id,
+      em.section_code,
+      em.event_package_id,
+      MAX(COALESCE(a.total_classes_held, 0))::int AS classes_held,
+      MAX(COALESCE(a.attendance_marked_classes, 0))::int AS classes_posted
+    FROM enrollment_match em
+    JOIN student_alert_current a
+      ON a.sap_id = em.sap_id
+     AND a.course_id = em.course_id
+     AND a.section_code = em.section_code
+     AND a.event_package_id = em.event_package_id
+    GROUP BY em.dimension_type, em.dimension_id, em.course_id, em.section_code, em.event_package_id
+  ),
+  attendance_agg AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      COALESCE(SUM(classes_held), 0)::int AS classes_held_total,
+      COALESCE(SUM(classes_posted), 0)::int AS classes_posted_total
+    FROM course_attendance
+    GROUP BY dimension_type, dimension_id
+  ),
+  alerted AS (
+    SELECT DISTINCT
+      em.dimension_type,
+      em.dimension_id,
+      em.sap_id,
+      em.course_id,
+      em.section_code,
+      em.event_package_id
+    FROM enrollment_match em
+    JOIN student_alert_current a
+      ON a.sap_id = em.sap_id
+     AND a.course_id = em.course_id
+     AND a.section_code = em.section_code
+     AND a.event_package_id = em.event_package_id
+    WHERE a.overall_alert_level IN ('warning', 'critical')
+  ),
+  scoped_interventions AS (
+    SELECT
+      em.dimension_type,
+      em.dimension_id,
+      i.student_sap_id,
+      i.status,
+      i.case_type,
+      i.performed_at,
+      i.staff_id,
+      i.course_id
+    FROM interventions i
+    JOIN enrollment_match em ON em.sap_id = i.student_sap_id
+    WHERE
+      em.dimension_type = 'faculty'
+      OR (em.dimension_type = 'department' AND i.department_id = em.dimension_id)
+      OR (
+        em.dimension_type = 'instructor'
+        AND (
+          i.staff_id IN (SELECT id FROM staff WHERE pernr = em.dimension_id)
+          OR i.course_id = em.course_id
+        )
+      )
+  ),
+  alert_counts AS (
+    SELECT dimension_type, dimension_id, COUNT(*)::int AS total_alerts
+    FROM alerted
+    GROUP BY dimension_type, dimension_id
+  ),
+  alerts_intervened AS (
+    SELECT
+      al.dimension_type,
+      al.dimension_id,
+      COUNT(*)::int AS alerts_with_intervention
+    FROM alerted al
+    WHERE EXISTS (
+      SELECT 1
+      FROM scoped_interventions si
+      WHERE si.dimension_type = al.dimension_type
+        AND si.dimension_id = al.dimension_id
+        AND si.student_sap_id = al.sap_id
+    )
+    GROUP BY al.dimension_type, al.dimension_id
+  ),
+  first_alert AS (
+    SELECT
+      em.dimension_type,
+      em.dimension_id,
+      em.sap_id,
+      em.course_id,
+      em.section_code,
+      em.event_package_id,
+      MIN(sad.snapshot_date) AS first_alert_date
+    FROM enrollment_match em
+    JOIN student_alert_daily sad
+      ON sad.sap_id = em.sap_id
+     AND sad.course_id = em.course_id
+     AND sad.section_code = em.section_code
+     AND sad.event_package_id = em.event_package_id
+    WHERE sad.overall_alert_level IN ('warning', 'critical')
+    GROUP BY em.dimension_type, em.dimension_id, em.sap_id, em.course_id, em.section_code, em.event_package_id
+  ),
+  first_action AS (
+    SELECT
+      fa.dimension_type,
+      fa.dimension_id,
+      fa.sap_id,
+      fa.course_id,
+      fa.section_code,
+      fa.event_package_id,
+      EXTRACT(
+        EPOCH FROM (
+          MIN(si.performed_at) - fa.first_alert_date::timestamptz
+        )
+      ) / 86400.0 AS days_to_action
+    FROM first_alert fa
+    JOIN scoped_interventions si
+      ON si.dimension_type = fa.dimension_type
+     AND si.dimension_id = fa.dimension_id
+     AND si.student_sap_id = fa.sap_id
+    GROUP BY
+      fa.dimension_type,
+      fa.dimension_id,
+      fa.sap_id,
+      fa.course_id,
+      fa.section_code,
+      fa.event_package_id,
+      fa.first_alert_date
+  ),
+  ttfa_median AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_action) AS median_days
+    FROM first_action
+    WHERE days_to_action IS NOT NULL AND days_to_action >= 0
+    GROUP BY dimension_type, dimension_id
+  ),
+  latest_case_status AS (
+    SELECT DISTINCT ON (dimension_type, dimension_id, student_sap_id)
+      dimension_type,
+      dimension_id,
+      student_sap_id,
+      status
+    FROM scoped_interventions
+    ORDER BY dimension_type, dimension_id, student_sap_id, performed_at DESC
+  ),
+  faculty_case_counts AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      COUNT(DISTINCT student_sap_id)::int AS faculty_total_cases,
+      COUNT(DISTINCT student_sap_id) FILTER (
+        WHERE status IN ('referred', 'resolved', 'no-action-required')
+      )::int AS faculty_cases_closed_or_referred,
+      COUNT(DISTINCT student_sap_id) FILTER (
+        WHERE status IN ('initiated', 'in-progress')
+      )::int AS open_faculty_cases
+    FROM latest_case_status
+    GROUP BY dimension_type, dimension_id
+  ),
+  intervention_gaps AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      student_sap_id,
+      performed_at,
+      LAG(performed_at) OVER (
+        PARTITION BY dimension_type, dimension_id, student_sap_id
+        ORDER BY performed_at
+      ) AS prev_at
+    FROM scoped_interventions
+  ),
+  students_bad_gap AS (
+    SELECT DISTINCT dimension_type, dimension_id, student_sap_id
+    FROM intervention_gaps
+    WHERE prev_at IS NOT NULL
+      AND performed_at - prev_at > INTERVAL '10 days'
+  ),
+  faculty_progression AS (
+    SELECT
+      lcs.dimension_type,
+      lcs.dimension_id,
+      COUNT(DISTINCT lcs.student_sap_id) FILTER (
+        WHERE lcs.status IN ('initiated', 'in-progress')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM students_bad_gap bg
+            WHERE bg.dimension_type = lcs.dimension_type
+              AND bg.dimension_id = lcs.dimension_id
+              AND bg.student_sap_id = lcs.student_sap_id
+          )
+      )::int AS faculty_cases_progression_ok
+    FROM latest_case_status lcs
+    GROUP BY lcs.dimension_type, lcs.dimension_id
+  ),
+  referred_cases AS (
+    SELECT DISTINCT
+      si.dimension_type,
+      si.dimension_id,
+      si.student_sap_id,
+      MIN(si.performed_at) AS referred_at
+    FROM scoped_interventions si
+    WHERE si.status = 'referred' OR si.case_type = 'referred'
+    GROUP BY si.dimension_type, si.dimension_id, si.student_sap_id
+  ),
+  wb_referred_counts AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      COUNT(*)::int AS wb_referred_cases
+    FROM referred_cases
+    GROUP BY dimension_type, dimension_id
+  ),
+  wb_first_touch AS (
+    SELECT
+      rc.dimension_type,
+      rc.dimension_id,
+      rc.student_sap_id,
+      EXTRACT(
+        EPOCH FROM (
+          LEAST(
+            COALESCE((
+              SELECT MIN(wc.opened_at)
+              FROM wellbeing_cases wc
+              WHERE wc.student_sap_id = rc.student_sap_id
+                AND wc.opened_at >= rc.referred_at
+            ), 'infinity'::timestamptz),
+            COALESCE((
+              SELECT MIN(wdc.created_at)
+              FROM wellbeing_direct_cases wdc
+              WHERE wdc.student_sap_id = rc.student_sap_id
+                AND wdc.created_at >= rc.referred_at
+            ), 'infinity'::timestamptz),
+            COALESCE((
+              SELECT MIN(i2.performed_at)
+              FROM interventions i2
+              JOIN staff ws ON ws.id = i2.staff_id
+              WHERE i2.student_sap_id = rc.student_sap_id
+                AND ws.role IN ('wellbeing', 'wellbeing-counseller', 'wellbeing-head')
+                AND i2.performed_at >= rc.referred_at
+            ), 'infinity'::timestamptz)
+          ) - rc.referred_at
+        )
+      ) / 86400.0 AS days_to_uptake
+    FROM referred_cases rc
+  ),
+  wb_uptake_median AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_uptake) AS median_days
+    FROM wb_first_touch
+    WHERE days_to_uptake IS NOT NULL
+      AND days_to_uptake >= 0
+      AND days_to_uptake < 100000
+    GROUP BY dimension_type, dimension_id
+  ),
+  wb_staff_interventions AS (
+    SELECT
+      rc.dimension_type,
+      rc.dimension_id,
+      rc.student_sap_id,
+      i.performed_at
+    FROM referred_cases rc
+    JOIN interventions i ON i.student_sap_id = rc.student_sap_id
+    JOIN staff ws ON ws.id = i.staff_id
+    WHERE ws.role IN ('wellbeing', 'wellbeing-counseller', 'wellbeing-head')
+      AND i.performed_at >= rc.referred_at
+  ),
+  wb_intervention_gaps AS (
+    SELECT
+      dimension_type,
+      dimension_id,
+      student_sap_id,
+      performed_at,
+      LAG(performed_at) OVER (
+        PARTITION BY dimension_type, dimension_id, student_sap_id
+        ORDER BY performed_at
+      ) AS prev_at
+    FROM wb_staff_interventions
+  ),
+  wb_students_bad_gap AS (
+    SELECT DISTINCT dimension_type, dimension_id, student_sap_id
+    FROM wb_intervention_gaps
+    WHERE prev_at IS NOT NULL
+      AND performed_at - prev_at > INTERVAL '10 days'
+  ),
+  wb_latest_status AS (
+    SELECT DISTINCT ON (rc.dimension_type, rc.dimension_id, rc.student_sap_id)
+      rc.dimension_type,
+      rc.dimension_id,
+      rc.student_sap_id,
+      COALESCE(wc.wellbeing_status, wdc.direct_case_status, 'open') AS wb_status
+    FROM referred_cases rc
+    LEFT JOIN wellbeing_cases wc ON wc.student_sap_id = rc.student_sap_id
+    LEFT JOIN wellbeing_direct_cases wdc ON wdc.student_sap_id = rc.student_sap_id
+    ORDER BY rc.dimension_type, rc.dimension_id, rc.student_sap_id, wc.updated_at DESC NULLS LAST
+  ),
+  wb_case_counts AS (
+    SELECT
+      rc.dimension_type,
+      rc.dimension_id,
+      COUNT(DISTINCT rc.student_sap_id) FILTER (
+        WHERE wls.wb_status IN ('initiated', 'in-progress', 'open')
+      )::int AS wb_open_cases,
+      COUNT(DISTINCT rc.student_sap_id) FILTER (
+        WHERE wls.wb_status IN ('closed', 'resolved', 'no-action-required')
+      )::int AS wb_cases_closed
+    FROM referred_cases rc
+    LEFT JOIN wb_latest_status wls
+      ON wls.dimension_type = rc.dimension_type
+     AND wls.dimension_id = rc.dimension_id
+     AND wls.student_sap_id = rc.student_sap_id
+    GROUP BY rc.dimension_type, rc.dimension_id
+  ),
+  wb_progression AS (
+    SELECT
+      rc.dimension_type,
+      rc.dimension_id,
+      COUNT(DISTINCT rc.student_sap_id) FILTER (
+        WHERE wls.wb_status IN ('initiated', 'in-progress', 'open')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM wb_students_bad_gap bg
+            WHERE bg.dimension_type = rc.dimension_type
+              AND bg.dimension_id = rc.dimension_id
+              AND bg.student_sap_id = rc.student_sap_id
+          )
+      )::int AS wb_cases_progression_ok
+    FROM referred_cases rc
+    LEFT JOIN wb_latest_status wls
+      ON wls.dimension_type = rc.dimension_type
+     AND wls.dimension_id = rc.dimension_id
+     AND wls.student_sap_id = rc.student_sap_id
+    GROUP BY rc.dimension_type, rc.dimension_id
+  ),
+  pop_counts AS (
+    SELECT dimension_type, dimension_id, COUNT(DISTINCT sap_id)::int AS total_students
+    FROM enrollment_dim
+    GROUP BY dimension_type, dimension_id
+  )
+  SELECT
+    $1::date AS snapshot_date,
+    dk.dimension_type::text AS dimension_type,
+    dk.dimension_id::text AS dimension_id,
+    dk.dimension_name::text AS dimension_name,
+    COALESCE(pc.total_students, 0)::int AS total_students,
+    COALESCE(lc.login_users_meeting_pi, 0)::int AS login_users_meeting_pi,
+    COALESCE(lc.login_total_users, 0)::int AS login_total_users,
+    COALESCE(aa.classes_held_total, 0)::int AS classes_held_total,
+    COALESCE(aa.classes_posted_total, 0)::int AS classes_posted_total,
+    COALESCE(ac.total_alerts, 0)::int AS total_alerts,
+    COALESCE(ai.alerts_with_intervention, 0)::int AS alerts_with_intervention,
+    tm.median_days::float AS median_days_to_first_action,
+    COALESCE(fcc.open_faculty_cases, 0)::int AS open_faculty_cases,
+    COALESCE(fp.faculty_cases_progression_ok, 0)::int AS faculty_cases_progression_ok,
+    COALESCE(fcc.faculty_total_cases, 0)::int AS faculty_total_cases,
+    COALESCE(fcc.faculty_cases_closed_or_referred, 0)::int AS faculty_cases_closed_or_referred,
+    COALESCE(wrc.wb_referred_cases, 0)::int AS wb_referred_cases,
+    wum.median_days::float AS median_days_to_wb_uptake,
+    COALESCE(wcc.wb_open_cases, 0)::int AS wb_open_cases,
+    COALESCE(wp.wb_cases_progression_ok, 0)::int AS wb_cases_progression_ok,
+    COALESCE(wcc.wb_cases_closed, 0)::int AS wb_cases_closed
+  FROM dim_keys dk
+  LEFT JOIN pop_counts pc
+    ON pc.dimension_type = dk.dimension_type AND pc.dimension_id = dk.dimension_id
+  LEFT JOIN login_counts lc
+    ON lc.dimension_type = dk.dimension_type AND lc.dimension_id = dk.dimension_id
+  LEFT JOIN attendance_agg aa
+    ON aa.dimension_type = dk.dimension_type AND aa.dimension_id = dk.dimension_id
+  LEFT JOIN alert_counts ac
+    ON ac.dimension_type = dk.dimension_type AND ac.dimension_id = dk.dimension_id
+  LEFT JOIN alerts_intervened ai
+    ON ai.dimension_type = dk.dimension_type AND ai.dimension_id = dk.dimension_id
+  LEFT JOIN ttfa_median tm
+    ON tm.dimension_type = dk.dimension_type AND tm.dimension_id = dk.dimension_id
+  LEFT JOIN faculty_case_counts fcc
+    ON fcc.dimension_type = dk.dimension_type AND fcc.dimension_id = dk.dimension_id
+  LEFT JOIN faculty_progression fp
+    ON fp.dimension_type = dk.dimension_type AND fp.dimension_id = dk.dimension_id
+  LEFT JOIN wb_referred_counts wrc
+    ON wrc.dimension_type = dk.dimension_type AND wrc.dimension_id = dk.dimension_id
+  LEFT JOIN wb_uptake_median wum
+    ON wum.dimension_type = dk.dimension_type AND wum.dimension_id = dk.dimension_id
+  LEFT JOIN wb_case_counts wcc
+    ON wcc.dimension_type = dk.dimension_type AND wcc.dimension_id = dk.dimension_id
+  LEFT JOIN wb_progression wp
+    ON wp.dimension_type = dk.dimension_type AND wp.dimension_id = dk.dimension_id
+  ORDER BY dk.dimension_type, dk.dimension_name
+`;
 
 export function resolveEffectivenessDimensionName(
   row: Pick<EffectivenessScoreRow, "dimension_type" | "dimension_id" | "dimension_name">
@@ -50,6 +583,101 @@ export function withResolvedEffectivenessNames(
   });
 }
 
+function normalizeRawRow(row: EffectivenessRawRow): EffectivenessRawRow {
+  return {
+    ...row,
+    snapshot_date: normalizeDateString(row.snapshot_date),
+    total_students: Number(row.total_students ?? 0),
+    login_users_meeting_pi: Number(row.login_users_meeting_pi ?? 0),
+    login_total_users: Number(row.login_total_users ?? 0),
+    classes_held_total: Number(row.classes_held_total ?? 0),
+    classes_posted_total: Number(row.classes_posted_total ?? 0),
+    total_alerts: Number(row.total_alerts ?? 0),
+    alerts_with_intervention: Number(row.alerts_with_intervention ?? 0),
+    median_days_to_first_action:
+      row.median_days_to_first_action != null
+        ? Number(row.median_days_to_first_action)
+        : null,
+    open_faculty_cases: Number(row.open_faculty_cases ?? 0),
+    faculty_cases_progression_ok: Number(row.faculty_cases_progression_ok ?? 0),
+    faculty_total_cases: Number(row.faculty_total_cases ?? 0),
+    faculty_cases_closed_or_referred: Number(
+      row.faculty_cases_closed_or_referred ?? 0
+    ),
+    wb_referred_cases: Number(row.wb_referred_cases ?? 0),
+    median_days_to_wb_uptake:
+      row.median_days_to_wb_uptake != null ? Number(row.median_days_to_wb_uptake) : null,
+    wb_open_cases: Number(row.wb_open_cases ?? 0),
+    wb_cases_progression_ok: Number(row.wb_cases_progression_ok ?? 0),
+    wb_cases_closed: Number(row.wb_cases_closed ?? 0),
+  };
+}
+
+function parseCriteriaBreakdown(
+  value: unknown
+): EffectivenessScoreRow["criteria_breakdown"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  return value as EffectivenessScoreRow["criteria_breakdown"];
+}
+
+function dbRowToRaw(row: Record<string, unknown>): EffectivenessRawRow {
+  return normalizeRawRow({
+    snapshot_date: String(row.snapshot_date ?? ""),
+    dimension_type: row.dimension_type as EffectivenessRawRow["dimension_type"],
+    dimension_id: String(row.dimension_id ?? ""),
+    dimension_name: String(row.dimension_name ?? ""),
+    total_students: Number(row.total_students ?? 0),
+    login_users_meeting_pi: Number(row.login_users_meeting_pi ?? 0),
+    login_total_users: Number(row.login_total_users ?? 0),
+    classes_held_total: Number(row.classes_held_total ?? 0),
+    classes_posted_total: Number(row.classes_posted_total ?? 0),
+    total_alerts: Number(row.total_alerts ?? row.alerted_students ?? 0),
+    alerts_with_intervention: Number(
+      row.alerts_with_intervention ?? row.intervened_students ?? 0
+    ),
+    median_days_to_first_action:
+      row.median_days_to_first_action != null
+        ? Number(row.median_days_to_first_action)
+        : row.median_days_to_contact != null
+          ? Number(row.median_days_to_contact)
+          : null,
+    open_faculty_cases: Number(row.open_faculty_cases ?? row.open_interventions ?? 0),
+    faculty_cases_progression_ok: Number(row.faculty_cases_progression_ok ?? 0),
+    faculty_total_cases: Number(row.faculty_total_cases ?? row.intervened_students ?? 0),
+    faculty_cases_closed_or_referred: Number(
+      row.faculty_cases_closed_or_referred ?? row.concluded_students ?? 0
+    ),
+    wb_referred_cases: Number(row.wb_referred_cases ?? row.referred_students ?? 0),
+    median_days_to_wb_uptake:
+      row.wb_median_days_to_uptake != null
+        ? Number(row.wb_median_days_to_uptake)
+        : null,
+    wb_open_cases: Number(row.wb_open_cases ?? 0),
+    wb_cases_progression_ok: Number(row.wb_cases_progression_ok ?? 0),
+    wb_cases_closed: Number(row.wb_cases_closed ?? 0),
+  });
+}
+
+function hydrateScoreRow(row: Record<string, unknown>): EffectivenessScoreRow {
+  const parsedBreakdown = parseCriteriaBreakdown(row.criteria_breakdown);
+  const scored = scoreEffectivenessRow(dbRowToRaw(row));
+
+  if (parsedBreakdown && Object.keys(parsedBreakdown).length >= 9) {
+    const ei_score = Number(row.ei_score ?? row.fei_score ?? scored.ei_score);
+    const ei_rating = (row.ei_rating ?? row.fei_rating ?? scored.ei_rating) as EiRating;
+    return {
+      ...scored,
+      criteria_breakdown: parsedBreakdown,
+      ei_score,
+      ei_rating,
+      fei_score: ei_score,
+      fei_rating: ei_rating,
+    };
+  }
+
+  return scored;
+}
+
 export async function buildEffectivenessRows(
   snapshotDate?: string,
   options?: EffectivenessBuildOptions
@@ -65,385 +693,13 @@ export async function buildEffectivenessRows(
     );
   }
 
-  const res = await pool.query<EffectivenessRawRow>(
-    `
-      WITH enrollment_dim AS (
-        SELECT
-          e.sap_id,
-          'faculty'::text AS dimension_type,
-          e.faculty_id AS dimension_id,
-          COALESCE(NULLIF(TRIM(f.name), ''), e.faculty_id) AS dimension_name
-        FROM student_enrollment_current e
-        LEFT JOIN faculties f ON f.id = e.faculty_id
-        WHERE e.is_active = TRUE
-          AND e.faculty_id IS NOT NULL
-          AND e.faculty_id <> ''
-          AND e.faculty_id = ANY($2::text[])
-
-        UNION ALL
-
-        SELECT
-          e.sap_id,
-          'department'::text AS dimension_type,
-          e.department_id AS dimension_id,
-          COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name
-        FROM student_enrollment_current e
-        LEFT JOIN departments d ON d.id = e.department_id
-        WHERE e.is_active = TRUE
-          AND e.department_id IS NOT NULL
-          AND e.department_id <> ''
-          AND e.faculty_id = ANY($2::text[])
-      ),
-      pop AS (
-        SELECT DISTINCT sap_id, dimension_type, dimension_id, dimension_name
-        FROM enrollment_dim
-      ),
-      enrollment_match AS (
-        SELECT
-          p.dimension_type,
-          p.dimension_id,
-          e.sap_id,
-          e.course_id,
-          e.section_code,
-          e.event_package_id
-        FROM pop p
-        JOIN student_enrollment_current e
-          ON e.is_active = TRUE
-         AND e.sap_id = p.sap_id
-         AND (
-              (p.dimension_type = 'faculty' AND e.faculty_id = p.dimension_id) OR
-              (p.dimension_type = 'department' AND e.department_id = p.dimension_id)
-         )
-      ),
-      alerted AS (
-        SELECT DISTINCT
-          em.dimension_type,
-          em.dimension_id,
-          em.sap_id,
-          MAX(
-            CASE
-              WHEN a.overall_alert_level = 'critical' THEN 1
-              ELSE 0
-            END
-          ) AS is_critical
-        FROM enrollment_match em
-        JOIN student_alert_current a
-          ON a.sap_id = em.sap_id
-         AND a.course_id = em.course_id
-         AND a.section_code = em.section_code
-         AND a.event_package_id = em.event_package_id
-        WHERE a.overall_alert_level IN ('warning', 'critical')
-        GROUP BY em.dimension_type, em.dimension_id, em.sap_id
-      ),
-      latest_intervention AS (
-        SELECT DISTINCT ON (i.student_sap_id, em.dimension_type, em.dimension_id)
-          em.dimension_type,
-          em.dimension_id,
-          i.student_sap_id,
-          i.status,
-          i.performed_at,
-          i.case_type
-        FROM interventions i
-        JOIN enrollment_match em
-          ON em.sap_id = i.student_sap_id
-         AND (
-              (em.dimension_type = 'faculty' AND i.faculty_id = em.dimension_id) OR
-              (em.dimension_type = 'department' AND i.department_id = em.dimension_id)
-         )
-        ORDER BY i.student_sap_id, em.dimension_type, em.dimension_id, i.performed_at DESC
-      ),
-      intervened AS (
-        SELECT DISTINCT
-          al.dimension_type,
-          al.dimension_id,
-          al.sap_id AS student_sap_id,
-          al.is_critical AS was_critical
-        FROM alerted al
-        WHERE EXISTS (
-          SELECT 1
-          FROM interventions i
-          WHERE i.student_sap_id = al.sap_id
-            AND (
-              al.dimension_type = 'faculty'
-              OR (al.dimension_type = 'department' AND i.department_id = al.dimension_id)
-            )
-        )
-      ),
-      referred AS (
-        SELECT DISTINCT
-          li.dimension_type,
-          li.dimension_id,
-          li.student_sap_id
-        FROM latest_intervention li
-        WHERE li.status = 'referred' OR li.case_type = 'referred'
-      ),
-      concluded AS (
-        SELECT DISTINCT
-          iv.dimension_type,
-          iv.dimension_id,
-          iv.student_sap_id
-        FROM intervened iv
-        JOIN latest_intervention li
-          ON li.dimension_type = iv.dimension_type
-         AND li.dimension_id = iv.dimension_id
-         AND li.student_sap_id = iv.student_sap_id
-        WHERE li.status IN ('referred', 'resolved', 'no-action-required')
-      ),
-      wellbeing_linked AS (
-        SELECT DISTINCT
-          c.dimension_type,
-          c.dimension_id,
-          c.student_sap_id
-        FROM concluded c
-        WHERE EXISTS (
-          SELECT 1
-          FROM wellbeing_cases wc
-          WHERE wc.student_sap_id = c.student_sap_id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM wellbeing_direct_cases wdc
-          WHERE wdc.student_sap_id = c.student_sap_id
-        )
-      ),
-      still_alerted AS (
-        SELECT DISTINCT
-          em.dimension_type,
-          em.dimension_id,
-          em.sap_id
-        FROM enrollment_match em
-        JOIN student_alert_current a
-          ON a.sap_id = em.sap_id
-         AND a.course_id = em.course_id
-         AND a.section_code = em.section_code
-         AND a.event_package_id = em.event_package_id
-        WHERE a.overall_alert_level IN ('warning', 'critical')
-      ),
-      recovered AS (
-        SELECT DISTINCT
-          iv.dimension_type,
-          iv.dimension_id,
-          iv.student_sap_id AS sap_id
-        FROM intervened iv
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM still_alerted sa
-          WHERE sa.dimension_type = iv.dimension_type
-            AND sa.dimension_id = iv.dimension_id
-            AND sa.sap_id = iv.student_sap_id
-        )
-      ),
-      repeat_alert AS (
-        SELECT DISTINCT
-          al.dimension_type,
-          al.dimension_id,
-          al.sap_id
-        FROM alerted al
-        JOIN latest_intervention li
-          ON li.dimension_type = al.dimension_type
-         AND li.dimension_id = al.dimension_id
-         AND li.student_sap_id = al.sap_id
-        WHERE li.status IN ('resolved', 'no-action-required')
-      ),
-      open_interventions AS (
-        SELECT
-          li.dimension_type,
-          li.dimension_id,
-          COUNT(*)::int AS open_count,
-          COUNT(*) FILTER (
-            WHERE li.status IN ('initiated', 'in-progress')
-              AND li.performed_at < NOW() - INTERVAL '14 days'
-          )::int AS stale_count
-        FROM latest_intervention li
-        WHERE li.status IN ('initiated', 'in-progress')
-        GROUP BY li.dimension_type, li.dimension_id
-      ),
-      first_alert AS (
-        SELECT
-          em.dimension_type,
-          em.dimension_id,
-          em.sap_id,
-          MIN(sad.snapshot_date) AS first_alert_date
-        FROM enrollment_match em
-        JOIN student_alert_daily sad
-          ON sad.sap_id = em.sap_id
-         AND sad.course_id = em.course_id
-         AND sad.section_code = em.section_code
-         AND sad.event_package_id = em.event_package_id
-        WHERE sad.overall_alert_level IN ('warning', 'critical')
-        GROUP BY em.dimension_type, em.dimension_id, em.sap_id
-      ),
-      first_contact AS (
-        SELECT
-          fa.dimension_type,
-          fa.dimension_id,
-          fa.sap_id,
-          EXTRACT(
-            EPOCH FROM (
-              MIN(i.performed_at) - fa.first_alert_date::timestamptz
-            )
-          ) / 86400.0 AS days_to_contact
-        FROM first_alert fa
-        JOIN interventions i ON i.student_sap_id = fa.sap_id
-        JOIN enrollment_match em
-          ON em.sap_id = fa.sap_id
-         AND em.dimension_type = fa.dimension_type
-         AND em.dimension_id = fa.dimension_id
-         AND (
-              (fa.dimension_type = 'faculty' AND i.faculty_id = fa.dimension_id) OR
-              (fa.dimension_type = 'department' AND i.department_id = fa.dimension_id)
-         )
-        GROUP BY fa.dimension_type, fa.dimension_id, fa.sap_id, fa.first_alert_date
-      ),
-      contact_median AS (
-        SELECT
-          dimension_type,
-          dimension_id,
-          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_contact) AS median_days
-        FROM first_contact
-        WHERE days_to_contact IS NOT NULL AND days_to_contact >= 0
-        GROUP BY dimension_type, dimension_id
-      ),
-      attendance_posting AS (
-        SELECT
-          em.dimension_type,
-          em.dimension_id,
-          CASE
-            WHEN SUM(COALESCE(a.total_classes_held, 0)) > 0 THEN
-              100.0 * SUM(COALESCE(a.attendance_marked_classes, 0))
-              / SUM(COALESCE(a.total_classes_held, 0))
-            ELSE NULL
-          END AS posting_pct
-        FROM enrollment_match em
-        JOIN student_alert_current a
-          ON a.sap_id = em.sap_id
-         AND a.course_id = em.course_id
-         AND a.section_code = em.section_code
-         AND a.event_package_id = em.event_package_id
-        GROUP BY em.dimension_type, em.dimension_id
-      ),
-      dim_keys AS (
-        SELECT DISTINCT dimension_type, dimension_id, dimension_name
-        FROM pop
-      ),
-      pop_counts AS (
-        SELECT dimension_type, dimension_id, COUNT(DISTINCT sap_id)::int AS total_students
-        FROM pop
-        GROUP BY dimension_type, dimension_id
-      ),
-      alerted_counts AS (
-        SELECT
-          dimension_type,
-          dimension_id,
-          COUNT(DISTINCT sap_id)::int AS alerted_students,
-          COUNT(DISTINCT sap_id) FILTER (WHERE is_critical = 1)::int AS critical_alerted_students
-        FROM alerted
-        GROUP BY dimension_type, dimension_id
-      ),
-      intervened_counts AS (
-        SELECT
-          dimension_type,
-          dimension_id,
-          COUNT(DISTINCT student_sap_id)::int AS intervened_students,
-          COUNT(DISTINCT student_sap_id) FILTER (WHERE was_critical = 1)::int AS critical_intervened_students
-        FROM intervened
-        GROUP BY dimension_type, dimension_id
-      ),
-      referred_counts AS (
-        SELECT dimension_type, dimension_id, COUNT(DISTINCT student_sap_id)::int AS referred_students
-        FROM referred
-        GROUP BY dimension_type, dimension_id
-      ),
-      concluded_counts AS (
-        SELECT dimension_type, dimension_id, COUNT(DISTINCT student_sap_id)::int AS concluded_students
-        FROM concluded
-        GROUP BY dimension_type, dimension_id
-      ),
-      wellbeing_counts AS (
-        SELECT dimension_type, dimension_id, COUNT(DISTINCT student_sap_id)::int AS wellbeing_linked_students
-        FROM wellbeing_linked
-        GROUP BY dimension_type, dimension_id
-      ),
-      recovered_counts AS (
-        SELECT dimension_type, dimension_id, COUNT(DISTINCT sap_id)::int AS recovered_students
-        FROM recovered
-        GROUP BY dimension_type, dimension_id
-      ),
-      repeat_counts AS (
-        SELECT dimension_type, dimension_id, COUNT(DISTINCT sap_id)::int AS repeat_alert_students
-        FROM repeat_alert
-        GROUP BY dimension_type, dimension_id
-      )
-      SELECT
-        $1::date AS snapshot_date,
-        dk.dimension_type::text AS dimension_type,
-        dk.dimension_id::text AS dimension_id,
-        dk.dimension_name::text AS dimension_name,
-        COALESCE(pc.total_students, 0)::int AS total_students,
-        COALESCE(ac.alerted_students, 0)::int AS alerted_students,
-        COALESCE(ac.critical_alerted_students, 0)::int AS critical_alerted_students,
-        COALESCE(ic.intervened_students, 0)::int AS intervened_students,
-        COALESCE(ic.critical_intervened_students, 0)::int AS critical_intervened_students,
-        COALESCE(rc.referred_students, 0)::int AS referred_students,
-        COALESCE(cc.concluded_students, 0)::int AS concluded_students,
-        COALESCE(wb.wellbeing_linked_students, 0)::int AS wellbeing_linked_students,
-        COALESCE(rv.recovered_students, 0)::int AS recovered_students,
-        COALESCE(rp.repeat_alert_students, 0)::int AS repeat_alert_students,
-        COALESCE(oi.stale_count, 0)::int AS stale_interventions,
-        COALESCE(oi.open_count, 0)::int AS open_interventions,
-        cm.median_days::float AS median_days_to_contact,
-        ap.posting_pct::float AS attendance_posting_pct
-      FROM dim_keys dk
-      LEFT JOIN pop_counts pc
-        ON pc.dimension_type = dk.dimension_type AND pc.dimension_id = dk.dimension_id
-      LEFT JOIN alerted_counts ac
-        ON ac.dimension_type = dk.dimension_type AND ac.dimension_id = dk.dimension_id
-      LEFT JOIN intervened_counts ic
-        ON ic.dimension_type = dk.dimension_type AND ic.dimension_id = dk.dimension_id
-      LEFT JOIN referred_counts rc
-        ON rc.dimension_type = dk.dimension_type AND rc.dimension_id = dk.dimension_id
-      LEFT JOIN concluded_counts cc
-        ON cc.dimension_type = dk.dimension_type AND cc.dimension_id = dk.dimension_id
-      LEFT JOIN wellbeing_counts wb
-        ON wb.dimension_type = dk.dimension_type AND wb.dimension_id = dk.dimension_id
-      LEFT JOIN recovered_counts rv
-        ON rv.dimension_type = dk.dimension_type AND rv.dimension_id = dk.dimension_id
-      LEFT JOIN repeat_counts rp
-        ON rp.dimension_type = dk.dimension_type AND rp.dimension_id = dk.dimension_id
-      LEFT JOIN open_interventions oi
-        ON oi.dimension_type = dk.dimension_type AND oi.dimension_id = dk.dimension_id
-      LEFT JOIN contact_median cm
-        ON cm.dimension_type = dk.dimension_type AND cm.dimension_id = dk.dimension_id
-      LEFT JOIN attendance_posting ap
-        ON ap.dimension_type = dk.dimension_type AND ap.dimension_id = dk.dimension_id
-      ORDER BY dk.dimension_type, dk.dimension_name
-    `,
-    [date, scopedFacultyIds]
-  );
+  const res = await pool.query<EffectivenessRawRow>(BUILD_EFFECTIVENESS_SQL, [
+    date,
+    scopedFacultyIds,
+  ]);
 
   return withResolvedEffectivenessNames(
-    res.rows.map((row) =>
-      scoreEffectivenessRow({
-        ...row,
-        snapshot_date: normalizeDateString(row.snapshot_date),
-        total_students: Number(row.total_students ?? 0),
-        alerted_students: Number(row.alerted_students ?? 0),
-        critical_alerted_students: Number(row.critical_alerted_students ?? 0),
-        intervened_students: Number(row.intervened_students ?? 0),
-        critical_intervened_students: Number(row.critical_intervened_students ?? 0),
-        referred_students: Number(row.referred_students ?? 0),
-        concluded_students: Number(row.concluded_students ?? 0),
-        wellbeing_linked_students: Number(row.wellbeing_linked_students ?? 0),
-        recovered_students: Number(row.recovered_students ?? 0),
-        repeat_alert_students: Number(row.repeat_alert_students ?? 0),
-        stale_interventions: Number(row.stale_interventions ?? 0),
-        open_interventions: Number(row.open_interventions ?? 0),
-        median_days_to_contact:
-          row.median_days_to_contact != null ? Number(row.median_days_to_contact) : null,
-        attendance_posting_pct:
-          row.attendance_posting_pct != null ? Number(row.attendance_posting_pct) : null,
-      })
-    )
+    res.rows.map((row) => scoreEffectivenessRow(normalizeRawRow(row)))
   );
 }
 
@@ -460,68 +716,70 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         dimension_id,
         dimension_name,
         total_students,
-        alerted_students,
-        critical_alerted_students,
-        intervened_students,
-        critical_intervened_students,
-        referred_students,
-        concluded_students,
-        wellbeing_linked_students,
-        recovered_students,
-        repeat_alert_students,
-        stale_interventions,
-        open_interventions,
+        login_users_meeting_pi,
+        login_total_users,
+        classes_held_total,
+        classes_posted_total,
+        total_alerts,
+        alerts_with_intervention,
+        median_days_to_first_action,
+        open_faculty_cases,
+        faculty_cases_progression_ok,
+        faculty_total_cases,
+        faculty_cases_closed_or_referred,
+        wb_referred_cases,
+        wb_median_days_to_uptake,
+        wb_open_cases,
+        wb_cases_progression_ok,
+        wb_cases_closed,
         intervention_coverage_pct,
-        critical_coverage_pct,
-        median_days_to_contact,
-        stale_intervention_pct,
-        conclusion_rate_pct,
-        wellbeing_uptake_pct,
-        alert_recovery_pct,
-        repeat_alert_pct,
         attendance_posting_pct,
-        response_score,
-        wellbeing_score,
-        outcome_score,
-        readiness_score,
+        ei_score,
+        ei_rating,
         fei_score,
         fei_rating,
+        criteria_breakdown,
+        alerted_students,
+        intervened_students,
+        referred_students,
+        concluded_students,
         updated_at
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,NOW()
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+        $22,$23,$24,$25,$26,$27,$28::jsonb,$29,$30,$31,$32,NOW()
       )
       ON CONFLICT (snapshot_date, dimension_type, dimension_id)
       DO UPDATE SET
         dimension_name = EXCLUDED.dimension_name,
         total_students = EXCLUDED.total_students,
-        alerted_students = EXCLUDED.alerted_students,
-        critical_alerted_students = EXCLUDED.critical_alerted_students,
-        intervened_students = EXCLUDED.intervened_students,
-        critical_intervened_students = EXCLUDED.critical_intervened_students,
-        referred_students = EXCLUDED.referred_students,
-        concluded_students = EXCLUDED.concluded_students,
-        wellbeing_linked_students = EXCLUDED.wellbeing_linked_students,
-        recovered_students = EXCLUDED.recovered_students,
-        repeat_alert_students = EXCLUDED.repeat_alert_students,
-        stale_interventions = EXCLUDED.stale_interventions,
-        open_interventions = EXCLUDED.open_interventions,
+        login_users_meeting_pi = EXCLUDED.login_users_meeting_pi,
+        login_total_users = EXCLUDED.login_total_users,
+        classes_held_total = EXCLUDED.classes_held_total,
+        classes_posted_total = EXCLUDED.classes_posted_total,
+        total_alerts = EXCLUDED.total_alerts,
+        alerts_with_intervention = EXCLUDED.alerts_with_intervention,
+        median_days_to_first_action = EXCLUDED.median_days_to_first_action,
+        open_faculty_cases = EXCLUDED.open_faculty_cases,
+        faculty_cases_progression_ok = EXCLUDED.faculty_cases_progression_ok,
+        faculty_total_cases = EXCLUDED.faculty_total_cases,
+        faculty_cases_closed_or_referred = EXCLUDED.faculty_cases_closed_or_referred,
+        wb_referred_cases = EXCLUDED.wb_referred_cases,
+        wb_median_days_to_uptake = EXCLUDED.wb_median_days_to_uptake,
+        wb_open_cases = EXCLUDED.wb_open_cases,
+        wb_cases_progression_ok = EXCLUDED.wb_cases_progression_ok,
+        wb_cases_closed = EXCLUDED.wb_cases_closed,
         intervention_coverage_pct = EXCLUDED.intervention_coverage_pct,
-        critical_coverage_pct = EXCLUDED.critical_coverage_pct,
-        median_days_to_contact = EXCLUDED.median_days_to_contact,
-        stale_intervention_pct = EXCLUDED.stale_intervention_pct,
-        conclusion_rate_pct = EXCLUDED.conclusion_rate_pct,
-        wellbeing_uptake_pct = EXCLUDED.wellbeing_uptake_pct,
-        alert_recovery_pct = EXCLUDED.alert_recovery_pct,
-        repeat_alert_pct = EXCLUDED.repeat_alert_pct,
         attendance_posting_pct = EXCLUDED.attendance_posting_pct,
-        response_score = EXCLUDED.response_score,
-        wellbeing_score = EXCLUDED.wellbeing_score,
-        outcome_score = EXCLUDED.outcome_score,
-        readiness_score = EXCLUDED.readiness_score,
+        ei_score = EXCLUDED.ei_score,
+        ei_rating = EXCLUDED.ei_rating,
         fei_score = EXCLUDED.fei_score,
         fei_rating = EXCLUDED.fei_rating,
+        criteria_breakdown = EXCLUDED.criteria_breakdown,
+        alerted_students = EXCLUDED.alerted_students,
+        intervened_students = EXCLUDED.intervened_students,
+        referred_students = EXCLUDED.referred_students,
+        concluded_students = EXCLUDED.concluded_students,
         updated_at = NOW()
     `;
 
@@ -532,32 +790,33 @@ export async function upsertEffectivenessRows(rows: EffectivenessScoreRow[]): Pr
         row.dimension_id,
         row.dimension_name,
         row.total_students,
-        row.alerted_students,
-        row.critical_alerted_students,
-        row.intervened_students,
-        row.critical_intervened_students,
-        row.referred_students,
-        row.concluded_students,
-        row.wellbeing_linked_students,
-        row.recovered_students,
-        row.repeat_alert_students,
-        row.stale_interventions,
-        row.open_interventions,
+        row.login_users_meeting_pi,
+        row.login_total_users,
+        row.classes_held_total,
+        row.classes_posted_total,
+        row.total_alerts,
+        row.alerts_with_intervention,
+        row.median_days_to_first_action,
+        row.open_faculty_cases,
+        row.faculty_cases_progression_ok,
+        row.faculty_total_cases,
+        row.faculty_cases_closed_or_referred,
+        row.wb_referred_cases,
+        row.median_days_to_wb_uptake,
+        row.wb_open_cases,
+        row.wb_cases_progression_ok,
+        row.wb_cases_closed,
         row.intervention_coverage_pct,
-        row.critical_coverage_pct,
-        row.median_days_to_contact,
-        row.stale_intervention_pct,
-        row.conclusion_rate_pct,
-        row.wellbeing_uptake_pct,
-        row.alert_recovery_pct,
-        row.repeat_alert_pct,
         row.attendance_posting_pct,
-        row.response_score,
-        row.wellbeing_score,
-        row.outcome_score,
-        row.readiness_score,
+        row.ei_score,
+        row.ei_rating,
         row.fei_score,
         row.fei_rating,
+        JSON.stringify(row.criteria_breakdown),
+        row.total_alerts,
+        row.alerts_with_intervention,
+        row.wb_referred_cases,
+        row.faculty_cases_closed_or_referred,
       ]);
     }
 
@@ -574,6 +833,7 @@ export type EffectivenessQueryOptions = {
   dimensionType?: EffectivenessDimensionType;
   facultyIds?: string[];
   departmentIds?: string[];
+  instructorPernrs?: string[];
   live?: boolean;
 };
 
@@ -610,6 +870,13 @@ export async function getEffectivenessScores(
     where.push(`(dimension_type <> 'department' OR dimension_id = ANY($${params.length}::text[]))`);
   }
 
+  if (options?.instructorPernrs?.length) {
+    params.push(options.instructorPernrs);
+    where.push(
+      `(dimension_type <> 'instructor' OR dimension_id = ANY($${params.length}::text[]))`
+    );
+  }
+
   if (options?.facultyIds?.length) {
     params.push(options.facultyIds);
     where.push(`
@@ -621,63 +888,33 @@ export async function getEffectivenessScores(
             SELECT id FROM departments WHERE faculty_id = ANY($${params.length}::text[])
           )
         )
+        OR (
+          dimension_type = 'instructor'
+          AND dimension_id IN (
+            SELECT DISTINCT instructor_pernr
+            FROM student_enrollment_current
+            WHERE faculty_id = ANY($${params.length}::text[])
+              AND instructor_pernr IS NOT NULL
+              AND instructor_pernr <> ''
+          )
+        )
       )
     `);
   }
 
   const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-  const res = await pool.query<EffectivenessScoreRow>(
+  const res = await pool.query(
     `
       SELECT *
       FROM effectiveness_scores_by_dimension
       ${whereClause}
-      ORDER BY dimension_type, fei_score DESC, dimension_name
+      ORDER BY dimension_type, COALESCE(ei_score, fei_score) DESC, dimension_name
     `,
     params
   );
 
-  return withResolvedEffectivenessNames(
-    res.rows.map((row) => ({
-      ...row,
-      snapshot_date: normalizeDateString(row.snapshot_date),
-      total_students: Number(row.total_students ?? 0),
-      alerted_students: Number(row.alerted_students ?? 0),
-      critical_alerted_students: Number(row.critical_alerted_students ?? 0),
-      intervened_students: Number(row.intervened_students ?? 0),
-      critical_intervened_students: Number(row.critical_intervened_students ?? 0),
-      referred_students: Number(row.referred_students ?? 0),
-      concluded_students: Number(row.concluded_students ?? 0),
-      wellbeing_linked_students: Number(row.wellbeing_linked_students ?? 0),
-      recovered_students: Number(row.recovered_students ?? 0),
-      repeat_alert_students: Number(row.repeat_alert_students ?? 0),
-      stale_interventions: Number(row.stale_interventions ?? 0),
-      open_interventions: Number(row.open_interventions ?? 0),
-      median_days_to_contact:
-        row.median_days_to_contact != null ? Number(row.median_days_to_contact) : null,
-      attendance_posting_pct:
-        row.attendance_posting_pct != null ? Number(row.attendance_posting_pct) : null,
-      intervention_coverage_pct:
-        row.intervention_coverage_pct != null ? Number(row.intervention_coverage_pct) : null,
-      critical_coverage_pct:
-        row.critical_coverage_pct != null ? Number(row.critical_coverage_pct) : null,
-      stale_intervention_pct:
-        row.stale_intervention_pct != null ? Number(row.stale_intervention_pct) : null,
-      conclusion_rate_pct:
-        row.conclusion_rate_pct != null ? Number(row.conclusion_rate_pct) : null,
-      wellbeing_uptake_pct:
-        row.wellbeing_uptake_pct != null ? Number(row.wellbeing_uptake_pct) : null,
-      alert_recovery_pct:
-        row.alert_recovery_pct != null ? Number(row.alert_recovery_pct) : null,
-      repeat_alert_pct: row.repeat_alert_pct != null ? Number(row.repeat_alert_pct) : null,
-      response_score: Number(row.response_score ?? 0),
-      wellbeing_score: Number(row.wellbeing_score ?? 0),
-      outcome_score: Number(row.outcome_score ?? 0),
-      readiness_score: Number(row.readiness_score ?? 0),
-      fei_score: Number(row.fei_score ?? 0),
-      fei_rating: (row.fei_rating ?? "E") as FeiRating,
-    }))
-  );
+  return withResolvedEffectivenessNames(res.rows.map((row) => hydrateScoreRow(row)));
 }
 
 export async function getEffectivenessTrend(
@@ -699,7 +936,8 @@ export async function getEffectivenessTrend(
       SELECT
         e.snapshot_date::text AS snapshot_date,
         e.dimension_id::text AS dimension_id,
-        e.fei_score::float AS fei_score
+        COALESCE(e.ei_score, e.fei_score)::float AS ei_score,
+        COALESCE(e.ei_score, e.fei_score)::float AS fei_score
       FROM effectiveness_scores_by_dimension e
       JOIN ranked_dates d ON d.snapshot_date = e.snapshot_date
       WHERE e.dimension_type = 'faculty'
@@ -712,7 +950,8 @@ export async function getEffectivenessTrend(
   return res.rows.map((row) => ({
     ...row,
     snapshot_date: normalizeDateString(row.snapshot_date),
-    fei_score: Number(row.fei_score ?? 0),
+    ei_score: Number(row.ei_score ?? 0),
+    fei_score: Number(row.fei_score ?? row.ei_score ?? 0),
   }));
 }
 
@@ -728,3 +967,5 @@ export async function getLatestEffectivenessSnapshotDate(): Promise<string | nul
     return null;
   }
 }
+
+export type { EiCriterionCode };

@@ -22,10 +22,11 @@ import {
   YAxis,
 } from "recharts";
 import {
-  computeFeiRating,
+  computeEiRating,
   normalizeDateString,
   type EffectivenessScoreRow,
-  type FeiRating,
+  type EiCriterionBreakdown,
+  type EiRating,
 } from "@/lib/effectiveness-scoring";
 import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
 import type { InterventionRoleScopeStats } from "@/lib/db/interventions";
@@ -42,16 +43,16 @@ type Tab = "overview" | "breakdown" | "table";
 type SortKey =
   | "name"
   | "grade"
-  | "fei"
-  | "coverage"
-  | "critCoverage"
-  | "ttfc"
-  | "wellbeingPct"
-  | "recovery"
-  | "conclusionRate"
-  | "staleRate"
-  | "repeatAlert"
+  | "ei"
+  | "loginRate"
   | "attendancePost"
+  | "coverage"
+  | "ttfa"
+  | "caseProgression"
+  | "resolution"
+  | "wbUptake"
+  | "wbProgression"
+  | "wbResolution"
   | "alerted";
 
 type Props = {
@@ -73,29 +74,41 @@ function formatInterventionStatusSub(stats: InterventionRoleScopeStats): string 
 
 const GRADE_CONFIG = FEI_GRADE_CONFIG;
 
-const GRADE_ORDER: Record<FeiRating, number> = {
-  A: 5,
-  B: 4,
-  C: 3,
-  D: 2,
-  E: 1,
+const GRADE_ORDER: Record<EiRating, number> = {
+  A: 4,
+  B: 3,
+  C: 2,
+  D: 1,
 };
 
 const TABLE_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "name", label: "Faculty" },
   { key: "grade", label: "Grade" },
-  { key: "fei", label: "FEI" },
+  { key: "ei", label: "EI" },
+  { key: "loginRate", label: "Login %" },
+  { key: "attendancePost", label: "Attend. %" },
   { key: "coverage", label: "Coverage %" },
-  { key: "critCoverage", label: "Crit. Cov %" },
-  { key: "ttfc", label: "TTFC (d)" },
-  { key: "wellbeingPct", label: "Wellbeing %" },
-  { key: "recovery", label: "Recovery %" },
-  { key: "conclusionRate", label: "Conclusion %" },
-  { key: "staleRate", label: "Stale %" },
-  { key: "repeatAlert", label: "Repeat %" },
-  { key: "attendancePost", label: "Attend. Post %" },
+  { key: "ttfa", label: "TTFA (d)" },
+  { key: "caseProgression", label: "Case Prog. %" },
+  { key: "resolution", label: "Resolution %" },
+  { key: "wbUptake", label: "WB Uptake (d)" },
+  { key: "wbProgression", label: "WB Prog. %" },
+  { key: "wbResolution", label: "WB Res. %" },
   { key: "alerted", label: "Alerted" },
 ];
+
+function categoryBarScores(faculty: FacultyEffectivenessView) {
+  const totals = { A: 0, B: 0, C: 0, D: 0 };
+  for (const c of faculty.criteria) {
+    totals[c.code[0] as keyof typeof totals] += c.contribution;
+  }
+  return [
+    { label: "Login", val: Math.round(totals.A * 100), color: "#6366F1" },
+    { label: "Attendance", val: Math.round(totals.B * 100), color: "#F59E0B" },
+    { label: "Faculty Int.", val: Math.round(totals.C * 100), color: "#3B82F6" },
+    { label: "Wellbeing", val: Math.round(totals.D * 100), color: "#7C3AED" },
+  ];
+}
 
 function useChartTheme() {
   const { resolvedTheme } = useTheme();
@@ -189,15 +202,9 @@ function FEIRing({
   const cy = 50;
   const stroke = 7;
   const circ = 2 * Math.PI * r;
-  const dash = (faculty.fei / 100) * circ;
+  const dash = (faculty.ei / 100) * circ;
 
-  const components = [
-    { label: "Outcome", val: faculty.outcome, color: "#10B981" },
-    { label: "Wellbeing", val: faculty.wellbeing, color: "#7C3AED" },
-    { label: "Response", val: faculty.response, color: "#3B82F6" },
-    { label: "Readiness", val: faculty.readiness, color: "#F59E0B" },
-    { label: "Sustained", val: faculty.sustained, color: "#F43F5E" },
-  ];
+  const components = categoryBarScores(faculty);
 
   return (
     <button
@@ -242,10 +249,10 @@ function FEIRing({
             fontWeight={700}
             style={{ fontFamily: fontNum }}
           >
-            {faculty.fei}
+            {faculty.ei}
           </text>
           <text x={cx} y={cy + 10} textAnchor="middle" fill={theme.textFaint} fontSize={9}>
-            FEI Score
+            EI Score
           </text>
         </svg>
       </div>
@@ -324,7 +331,7 @@ function GradeDistributionStatCard({
   grades,
   totalFaculties,
 }: {
-  grades: { grade: FeiRating; count: number; color: string }[];
+  grades: { grade: EiRating; count: number; color: string }[];
   totalFaculties: number;
 }) {
   return (
@@ -347,7 +354,7 @@ function GradeDistributionStatCard({
         ))}
       </div>
       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-        {totalFaculties} {totalFaculties === 1 ? "faculty" : "faculties"} tracked in FEI index
+        {totalFaculties} {totalFaculties === 1 ? "faculty" : "faculties"} tracked in EI index
       </div>
     </Panel>
   );
@@ -355,13 +362,8 @@ function GradeDistributionStatCard({
 
 function FacultyRadar({ faculty }: { faculty: FacultyEffectivenessView }) {
   const theme = useChartTheme();
-  const data = [
-    { dim: "Response", score: faculty.response },
-    { dim: "Wellbeing", score: faculty.wellbeing },
-    { dim: "Outcome", score: faculty.outcome },
-    { dim: "Readiness", score: faculty.readiness },
-    { dim: "Sustained", score: faculty.sustained },
-  ];
+  const bars = categoryBarScores(faculty);
+  const data = bars.map((b) => ({ dim: b.label, score: b.val }));
   const cfg = GRADE_CONFIG[faculty.grade];
 
   return (
@@ -391,9 +393,9 @@ function FacultyTrend({
 }) {
   const theme = useChartTheme();
   const cfg = GRADE_CONFIG[faculty.grade];
-  const data = faculty.trend.map((fei, i) => ({
+  const data = faculty.trend.map((ei, i) => ({
     month: trendLabels[i] ?? `Pt ${i + 1}`,
-    fei,
+    ei,
   }));
 
   if (!data.length) {
@@ -410,10 +412,10 @@ function FacultyTrend({
         <CartesianGrid stroke={theme.grid} vertical={false} />
         <XAxis dataKey="month" tick={theme.tickUI} axisLine={false} tickLine={false} />
         <YAxis domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
-        <ReferenceLine y={70} stroke={theme.refLine} strokeDasharray="3 3" />
+        <ReferenceLine y={75} stroke={theme.refLine} strokeDasharray="3 3" />
         <Line
           type="monotone"
-          dataKey="fei"
+          dataKey="ei"
           stroke={cfg.color}
           strokeWidth={2.5}
           dot={{ fill: cfg.color, r: 3 }}
@@ -424,13 +426,13 @@ function FacultyTrend({
 }
 
 function MetricRow({
-  label,
+  criterion,
   value,
   benchmark,
   unit = "%",
   higherBetter = true,
 }: {
-  label: string;
+  criterion: EiCriterionBreakdown;
   value: number;
   benchmark: number;
   unit?: string;
@@ -446,21 +448,42 @@ function MetricRow({
       : num > (higherBetter ? benchmark * 0.6 : benchmark * 1.4)
         ? "#F59E0B"
         : "#F43F5E";
+  const detail =
+    criterion.denominator > 0
+      ? `${criterion.numerator}/${criterion.denominator}`
+      : "—";
 
   return (
-    <div className="flex items-center gap-2.5 border-b border-slate-100 py-1.5 dark:border-slate-700/60">
-      <div className="flex-1 text-xs text-slate-600 dark:text-slate-300">{label}</div>
-      <div
-        className="min-w-[60px] text-right text-[13px] font-bold tabular-nums"
-        style={{ color, fontFamily: fontNum }}
-      >
-        {Number.isNaN(num) ? "—" : `${num}${unit}`}
+    <div className="border-b border-slate-100 py-2 dark:border-slate-700/60">
+      <div className="flex items-start gap-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+              {criterion.label}
+            </span>
+            <span
+              className="cursor-help text-[10px] text-slate-400 dark:text-slate-500"
+              title={`${criterion.tooltip}\n\nFormula: ${criterion.formula}\nPI: ${criterion.piTarget}\nWeight: ${Math.round(criterion.weight * 100)}%`}
+            >
+              ⓘ
+            </span>
+          </div>
+          <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+            {detail} · contributes {(criterion.contribution * 100).toFixed(1)} pts
+          </div>
+        </div>
+        <div
+          className="min-w-[60px] text-right text-[13px] font-bold tabular-nums"
+          style={{ color, fontFamily: fontNum }}
+        >
+          {Number.isNaN(num) ? "—" : `${num}${unit}`}
+        </div>
       </div>
-      <div className="h-1 w-20 rounded-sm" style={{ background: theme.barTrack }}>
+      <div className="mt-1.5 h-1 w-full rounded-sm" style={{ background: theme.barTrack }}>
         <div
           className="h-full rounded-sm transition-all duration-500"
           style={{
-            width: `${Math.min(100, higherBetter ? num : Math.max(0, 100 - num))}%`,
+            width: `${Math.min(100, Math.max(0, criterion.score * 100))}%`,
             background: color,
           }}
         />
@@ -489,7 +512,7 @@ export function FEIDashboardClient({
   const [selected, setSelected] = useState<FacultyEffectivenessView | null>(
     initialFaculties[0] ?? null
   );
-  const [sortKey, setSortKey] = useState<SortKey>("fei");
+  const [sortKey, setSortKey] = useState<SortKey>("ei");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -542,24 +565,23 @@ export function FEIDashboardClient({
 
   const totalAlerted = faculties.reduce((a, f) => a + f.alerted, 0);
   const totalIntervened = faculties.reduce((a, f) => a + f.intervened, 0);
-  const totalRecovered = faculties.reduce((a, f) => a + f.recovered, 0);
   const totalEnrolled = faculties.reduce((a, f) => a + f.nTotal, 0);
-  const avgFEI = faculties.length
-    ? Math.round(faculties.reduce((a, f) => a + f.fei, 0) / faculties.length)
+  const avgEI = faculties.length
+    ? Math.round(faculties.reduce((a, f) => a + f.ei, 0) / faculties.length)
     : 0;
 
-  const feiBarData = [...faculties]
-    .sort((a, b) => b.fei - a.fei)
+  const eiBarData = [...faculties]
+    .sort((a, b) => b.ei - a.ei)
     .map((f) => ({
       name: f.code,
-      fei: f.fei,
+      ei: f.ei,
       grade: f.grade,
       color: GRADE_CONFIG[f.grade].color,
     }));
 
   const sorted = sortFaculties(faculties, sortKey, sortDir);
 
-  const gradeDistData = (["A", "B", "C", "D", "E"] as FeiRating[]).map((grade) => ({
+  const gradeDistData = (["A", "B", "C", "D"] as EiRating[]).map((grade) => ({
     grade,
     count: faculties.filter((f) => f.grade === grade).length,
     color: GRADE_CONFIG[grade].color,
@@ -631,11 +653,9 @@ export function FEIDashboardClient({
 
   const selectedFaculty = selected ?? faculties[0];
   const cfg = GRADE_CONFIG[selectedFaculty.grade];
-  const avgGrade = computeFeiRating(avgFEI);
+  const avgGrade = computeEiRating(avgEI);
   const coveragePct =
     totalAlerted > 0 ? Math.round((totalIntervened / totalAlerted) * 100) : 0;
-  const recoveryPct =
-    totalIntervened > 0 ? Math.round((totalRecovered / totalIntervened) * 100) : 0;
 
   return (
     <div className="space-y-6" style={{ fontFamily: fontUI }}>
@@ -664,11 +684,11 @@ export function FEIDashboardClient({
         {dataControls}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          label="University FEI"
-          value={avgFEI}
-          sub="Weighted avg. all faculties"
+          label="University EI"
+          value={avgEI}
+          sub="Average Effectiveness Index · all faculties"
           color={GRADE_CONFIG[avgGrade].color}
           icon="🎯"
         />
@@ -686,13 +706,6 @@ export function FEIDashboardClient({
           color="#3B82F6"
           icon="🤝"
         />
-        <StatCard
-          label="Recovered"
-          value={totalRecovered.toLocaleString()}
-          sub={`${recoveryPct}% of intervened`}
-          color="#10B981"
-          icon="💚"
-        />
         <GradeDistributionStatCard
           grades={gradeDistData}
           totalFaculties={faculties.length}
@@ -700,12 +713,12 @@ export function FEIDashboardClient({
       </div>
 
       <Panel>
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Faculty FEI Scores</h3>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Faculty EI Scores</h3>
         <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-          Overall effectiveness index (0–100) per faculty, sorted highest to lowest
+          Effectiveness Index (0–100) per faculty per Excel criteria, sorted highest to lowest
         </p>
-        <ResponsiveContainer width="100%" height={Math.max(200, feiBarData.length * 28)}>
-          <BarChart data={feiBarData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+        <ResponsiveContainer width="100%" height={Math.max(200, eiBarData.length * 28)}>
+          <BarChart data={eiBarData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
             <CartesianGrid stroke={theme.grid} vertical={false} />
             <XAxis
               dataKey="name"
@@ -718,14 +731,15 @@ export function FEIDashboardClient({
               contentStyle={theme.tooltip}
               cursor={{ fill: theme.isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)" }}
               formatter={(value, _name, item) => [
-                `${value} (Grade ${(item.payload as { grade: FeiRating }).grade})`,
-                "FEI",
+                `${value} (Grade ${(item.payload as { grade: EiRating }).grade})`,
+                "EI",
               ]}
             />
-            <ReferenceLine y={70} stroke={theme.refLine} strokeDasharray="4 2" />
-            <ReferenceLine y={55} stroke={theme.refLine} strokeDasharray="2 3" />
-            <Bar dataKey="fei" radius={[3, 3, 0, 0]} maxBarSize={32}>
-              {feiBarData.map((entry) => (
+            <ReferenceLine y={90} stroke={theme.refLine} strokeDasharray="4 2" />
+            <ReferenceLine y={75} stroke={theme.refLine} strokeDasharray="2 3" />
+            <ReferenceLine y={50} stroke={theme.refLine} strokeDasharray="2 3" />
+            <Bar dataKey="ei" radius={[3, 3, 0, 0]} maxBarSize={32}>
+              {eiBarData.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
             </Bar>
@@ -738,7 +752,7 @@ export function FEIDashboardClient({
           <div className="flex flex-col gap-5">
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                FEI Health Rings — click a faculty for details
+                EI Health Rings — click a faculty for details
               </p>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
                 {faculties.map((f) => (
@@ -781,35 +795,65 @@ export function FEIDashboardClient({
               </div>
 
               <p className="mb-1 text-center text-[11px] text-slate-500 dark:text-slate-400">
-                Component Profile
+                Category Profile (EI contribution pts)
               </p>
               <FacultyRadar faculty={selectedFaculty} />
 
               <p className="mb-1 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                FEI Trend ({trendLabels.length || "no"} snapshots)
+                EI Trend ({trendLabels.length || "no"} snapshots)
               </p>
               <FacultyTrend faculty={selectedFaculty} trendLabels={trendLabels} />
 
               <p className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Raw Metrics
+                EI Criteria
               </p>
-              <MetricRow label="Coverage %" value={selectedFaculty.coverage} benchmark={85} />
-              <MetricRow label="Critical Coverage %" value={selectedFaculty.critCoverage} benchmark={90} />
-              <MetricRow label="Wellbeing Uptake %" value={selectedFaculty.wellbeingPct} benchmark={65} />
-              <MetricRow label="Recovery %" value={selectedFaculty.recovery} benchmark={45} />
-              <MetricRow label="Conclusion Rate %" value={selectedFaculty.conclusionRate} benchmark={55} />
-              <MetricRow label="Stale Cases %" value={selectedFaculty.staleRate} benchmark={20} higherBetter={false} />
-              <MetricRow label="Repeat Alert %" value={selectedFaculty.repeatAlert} benchmark={10} higherBetter={false} />
-              <MetricRow label="Attendance Posting %" value={selectedFaculty.attendancePost} benchmark={90} />
-              <MetricRow label="TTFC (days)" value={selectedFaculty.ttfc} benchmark={7} unit=" d" higherBetter={false} />
+              {selectedFaculty.criteria.map((criterion) => {
+                const isDays =
+                  criterion.code === "C1_ttfa" || criterion.code === "D1_uptake";
+                const value =
+                  criterion.code === "A_login"
+                    ? selectedFaculty.loginRate
+                    : criterion.code === "B_attendance"
+                      ? selectedFaculty.attendancePost
+                      : criterion.code === "C1_ttfa"
+                        ? selectedFaculty.ttfa
+                        : criterion.code === "C2_coverage"
+                          ? selectedFaculty.coverage
+                          : criterion.code === "C3_case_progression"
+                            ? selectedFaculty.caseProgression
+                            : criterion.code === "C4_resolution"
+                              ? selectedFaculty.resolution
+                              : criterion.code === "D1_uptake"
+                                ? selectedFaculty.wbUptake
+                                : criterion.code === "D2_wb_progression"
+                                  ? selectedFaculty.wbProgression
+                                  : selectedFaculty.wbResolution;
+                const benchmark =
+                  criterion.code === "C1_ttfa" || criterion.code === "D1_uptake"
+                    ? 2
+                    : criterion.code === "C2_coverage"
+                      ? 95
+                      : criterion.code === "B_attendance"
+                        ? 90
+                        : 100;
+                return (
+                  <MetricRow
+                    key={criterion.code}
+                    criterion={criterion}
+                    value={value}
+                    benchmark={benchmark}
+                    unit={isDays ? " d" : "%"}
+                    higherBetter={!isDays}
+                  />
+                );
+              })}
 
               <div className="mt-3.5 grid grid-cols-2 gap-2">
                 {[
                   { l: "Alerted", v: selectedFaculty.alerted, c: "#F59E0B" },
                   { l: "Intervened", v: selectedFaculty.intervened, c: "#3B82F6" },
                   { l: "Concluded", v: selectedFaculty.concluded, c: "#7C3AED" },
-                  { l: "Referred", v: selectedFaculty.referred, c: "#A78BFA" },
-                  { l: "Recovered", v: selectedFaculty.recovered, c: "#10B981" },
+                  { l: "Referred (WB)", v: selectedFaculty.referred, c: "#A78BFA" },
                 ].map(({ l, v, c }) => (
                   <div
                     key={l}
@@ -868,20 +912,20 @@ export function FEIDashboardClient({
         <div className="grid gap-5 md:grid-cols-2">
           <Panel>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Coverage vs Recovery
+              Login &amp; Attendance Posting
             </h3>
             <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-              Intervention coverage and student recovery rate by faculty
+              Category A (15%) and B (25%) criteria by faculty
             </p>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart
                 layout="vertical"
                 data={[...faculties]
-                  .sort((a, b) => b.coverage - a.coverage)
+                  .sort((a, b) => b.loginRate - a.loginRate)
                   .map((f) => ({
                     name: f.code,
-                    Coverage: f.coverage,
-                    Recovery: f.recovery,
+                    "Login %": f.loginRate,
+                    "Attendance %": f.attendancePost,
                   }))}
                 margin={{ left: 0, right: 10 }}
               >
@@ -890,18 +934,18 @@ export function FEIDashboardClient({
                 <YAxis type="category" dataKey="name" tick={{ ...theme.tickUI, fontSize: 11 }} axisLine={false} tickLine={false} width={34} />
                 <Tooltip contentStyle={theme.tooltip} />
                 <Legend wrapperStyle={{ fontSize: 11, color: theme.textMuted, fontFamily: fontUI }} />
-                <Bar dataKey="Coverage" fill="#3B82F6" radius={[0, 4, 4, 0]} maxBarSize={12} />
-                <Bar dataKey="Recovery" fill="#10B981" radius={[0, 4, 4, 0]} maxBarSize={12} />
+                <Bar dataKey="Login %" fill="#6366F1" radius={[0, 4, 4, 0]} maxBarSize={12} />
+                <Bar dataKey="Attendance %" fill="#F59E0B" radius={[0, 4, 4, 0]} maxBarSize={12} />
               </BarChart>
             </ResponsiveContainer>
           </Panel>
 
           <Panel>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Wellbeing Pipeline per Faculty
+              Intervention Pipeline
             </h3>
             <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-              Alerted → Intervened → Concluded → Recovered
+              Alerted → Intervened → Concluded → Referred to Wellbeing
             </p>
             <div className="flex flex-col gap-3.5">
               {faculties.map((f) => {
@@ -909,7 +953,7 @@ export function FEIDashboardClient({
                   { l: "Alerted", v: f.alerted, c: "#F59E0B" },
                   { l: "Intervened", v: f.intervened, c: "#3B82F6" },
                   { l: "Concluded", v: f.concluded, c: "#7C3AED" },
-                  { l: "Recovered", v: f.recovered, c: "#10B981" },
+                  { l: "WB Referred", v: f.referred, c: "#A78BFA" },
                 ];
                 const max = Math.max(f.alerted, 1);
                 return (
@@ -947,19 +991,19 @@ export function FEIDashboardClient({
 
           <Panel>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Response Speed &amp; Stale Cases
+              TTFA &amp; Case Progression
             </h3>
             <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-              TTFC = median days to first contact · Stale = open &gt;14 days
+              Time to first action (target ≤2 days) · Case progression (no gap &gt;10 days)
             </p>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart
                 data={[...faculties]
-                  .sort((a, b) => a.ttfc - b.ttfc)
+                  .sort((a, b) => a.ttfa - b.ttfa)
                   .map((f) => ({
                     name: f.code,
-                    TTFC: f.ttfc,
-                    "Stale %": f.staleRate,
+                    TTFA: f.ttfa,
+                    "Case Prog. %": f.caseProgression,
                   }))}
                 margin={{ top: 0, right: 0, bottom: 0, left: -20 }}
               >
@@ -968,26 +1012,26 @@ export function FEIDashboardClient({
                 <YAxis tick={theme.tickNum} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={theme.tooltip} />
                 <Legend wrapperStyle={{ fontSize: 11, color: theme.textMuted, fontFamily: fontUI }} />
-                <ReferenceLine y={7} stroke="#F59E0B" strokeDasharray="4 2" />
-                <Bar dataKey="TTFC" radius={[3, 3, 0, 0]} maxBarSize={22}>
+                <ReferenceLine y={2} stroke="#F59E0B" strokeDasharray="4 2" />
+                <Bar dataKey="TTFA" radius={[3, 3, 0, 0]} maxBarSize={22}>
                   {faculties.map((f) => (
                     <Cell
                       key={f.code}
-                      fill={f.ttfc <= 7 ? "#10B981" : f.ttfc <= 14 ? "#F59E0B" : "#F43F5E"}
+                      fill={f.ttfa <= 2 ? "#10B981" : f.ttfa <= 4 ? "#F59E0B" : "#F43F5E"}
                     />
                   ))}
                 </Bar>
-                <Bar dataKey="Stale %" fill="#7C3AED" radius={[3, 3, 0, 0]} maxBarSize={22} />
+                <Bar dataKey="Case Prog. %" fill="#3B82F6" radius={[3, 3, 0, 0]} maxBarSize={22} />
               </BarChart>
             </ResponsiveContainer>
           </Panel>
 
           <Panel>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              FEI Trend — All Faculties
+              EI Trend — All Faculties
             </h3>
             <p className="mb-4 text-[11px] text-slate-500 dark:text-slate-400">
-              Historical FEI scores from nightly snapshots
+              Historical EI scores from nightly snapshots
             </p>
             {trendChartData.length ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -997,7 +1041,7 @@ export function FEIDashboardClient({
                   <YAxis domain={[0, 100]} tick={theme.tickNum} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={theme.tooltip} />
                   <Legend wrapperStyle={{ fontSize: 11, color: theme.textMuted, fontFamily: fontUI }} />
-                  <ReferenceLine y={70} stroke={theme.refLine} strokeDasharray="3 3" />
+                  <ReferenceLine y={75} stroke={theme.refLine} strokeDasharray="3 3" />
                   {faculties.map((f) => (
                     <Line
                       key={f.code}
@@ -1080,18 +1124,18 @@ export function FEIDashboardClient({
                         className="px-3.5 py-2.5 text-[15px] font-extrabold tabular-nums"
                         style={{ color: g.color, fontFamily: fontNum }}
                       >
-                        {f.fei}
+                        {f.ei}
                       </td>
                       {[
-                        { v: f.coverage, b: 85 },
-                        { v: f.critCoverage, b: 90 },
-                        { v: f.ttfc, b: 7, inv: true },
-                        { v: f.wellbeingPct, b: 65 },
-                        { v: f.recovery, b: 45 },
-                        { v: f.conclusionRate, b: 55 },
-                        { v: f.staleRate, b: 20, inv: true },
-                        { v: f.repeatAlert, b: 10, inv: true },
+                        { v: f.loginRate, b: 100 },
                         { v: f.attendancePost, b: 90 },
+                        { v: f.coverage, b: 95 },
+                        { v: f.ttfa, b: 2, inv: true },
+                        { v: f.caseProgression, b: 100 },
+                        { v: f.resolution, b: 100 },
+                        { v: f.wbUptake, b: 2, inv: true },
+                        { v: f.wbProgression, b: 100 },
+                        { v: f.wbResolution, b: 100 },
                       ].map((cell, ci) => {
                         const good = cell.inv ? cell.v <= cell.b : cell.v >= cell.b;
                         const warn = cell.inv
@@ -1140,7 +1184,7 @@ export function FEIDashboardClient({
 
       <div className="flex flex-wrap justify-between gap-2 border-t border-slate-200 pt-4 text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">
         <span>
-          FEI = 0.30×Outcome + 0.25×Wellbeing + 0.25×Response + 0.10×Readiness + 0.10×Sustained
+          EI = Login (15%) + Attendance (25%) + Faculty intervention (35%) + Wellbeing (25%). Grades: A ≥90, B ≥75, C ≥50, D &lt;50.
         </span>
         <span>
           {live

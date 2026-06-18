@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { EffectivenessScoreRow, FeiRating } from "@/lib/effectiveness-scoring";
+import type { EffectivenessScoreRow, EiRating } from "@/lib/effectiveness-scoring";
+import { EI_GRADE_LABELS } from "@/lib/ei-metric-definitions";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { cn } from "@/lib/utils";
 
@@ -18,24 +19,23 @@ function displayDimensionName(row: EffectivenessScoreRow): string {
 type Props = {
   initialRows: EffectivenessScoreRow[];
   initialSnapshotDate: string;
-  defaultDimensionType?: "faculty" | "department" | "all";
+  defaultDimensionType?: "faculty" | "department" | "instructor" | "all";
   showFacultyTab?: boolean;
 };
 
 type SortKey =
   | "dimension_name"
-  | "fei_score"
+  | "ei_score"
+  | "login_rate_pct"
   | "intervention_coverage_pct"
-  | "alert_recovery_pct"
-  | "wellbeing_uptake_pct"
-  | "alerted_students";
+  | "attendance_posting_pct"
+  | "total_alerts";
 
-const RATING_STYLES: Record<FeiRating, string> = {
+const RATING_STYLES: Record<EiRating, string> = {
   A: "bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-700",
   B: "bg-sky-100 text-sky-800 ring-sky-300 dark:bg-sky-900/40 dark:text-sky-200 dark:ring-sky-700",
   C: "bg-amber-100 text-amber-900 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-700",
-  D: "bg-orange-100 text-orange-900 ring-orange-300 dark:bg-orange-900/40 dark:text-orange-100 dark:ring-orange-700",
-  E: "bg-red-100 text-red-800 ring-red-300 dark:bg-red-900/40 dark:text-red-100 dark:ring-red-700",
+  D: "bg-red-100 text-red-800 ring-red-300 dark:bg-red-900/40 dark:text-red-100 dark:ring-red-700",
 };
 
 function formatPct(value: number | null | undefined): string {
@@ -78,13 +78,14 @@ function SummaryCard({
   );
 }
 
-function FeiBadge({ rating, score }: { rating: FeiRating; score: number }) {
+function EiBadge({ rating, score }: { rating: EiRating; score: number }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1",
         RATING_STYLES[rating]
       )}
+      title={EI_GRADE_LABELS[rating]}
     >
       <span>{rating}</span>
       <span className="font-normal opacity-80">{score.toFixed(0)}</span>
@@ -100,13 +101,13 @@ export function EffectivenessPanelClient({
 }: Props) {
   const [rows, setRows] = useState(initialRows);
   const [snapshotDate, setSnapshotDate] = useState(initialSnapshotDate);
-  const [dimensionFilter, setDimensionFilter] = useState<"faculty" | "department" | "all">(
-    defaultDimensionType
-  );
+  const [dimensionFilter, setDimensionFilter] = useState<
+    "faculty" | "department" | "instructor" | "all"
+  >(defaultDimensionType);
   const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("fei_score");
+  const [sortKey, setSortKey] = useState<SortKey>("ei_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const refresh = useCallback(async () => {
@@ -158,37 +159,37 @@ export function EffectivenessPanelClient({
   const summary = useMemo(() => {
     if (!filteredRows.length) {
       return {
-        avgFei: 0,
+        avgEi: 0,
+        avgLogin: null as number | null,
         avgCoverage: null as number | null,
-        avgRecovery: null as number | null,
         totalAlerted: 0,
-        ratingCounts: { A: 0, B: 0, C: 0, D: 0, E: 0 } as Record<FeiRating, number>,
+        ratingCounts: { A: 0, B: 0, C: 0, D: 0 } as Record<EiRating, number>,
       };
     }
-    const ratingCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 } as Record<FeiRating, number>;
-    let feiSum = 0;
+    const ratingCounts = { A: 0, B: 0, C: 0, D: 0 } as Record<EiRating, number>;
+    let eiSum = 0;
+    let loginSum = 0;
+    let loginN = 0;
     let coverageSum = 0;
     let coverageN = 0;
-    let recoverySum = 0;
-    let recoveryN = 0;
     let totalAlerted = 0;
     for (const row of filteredRows) {
-      feiSum += row.fei_score;
-      ratingCounts[row.fei_rating] += 1;
-      totalAlerted += row.alerted_students;
+      eiSum += row.ei_score;
+      ratingCounts[row.ei_rating] += 1;
+      totalAlerted += row.total_alerts;
+      if (row.login_rate_pct != null) {
+        loginSum += row.login_rate_pct;
+        loginN += 1;
+      }
       if (row.intervention_coverage_pct != null) {
         coverageSum += row.intervention_coverage_pct;
         coverageN += 1;
       }
-      if (row.alert_recovery_pct != null) {
-        recoverySum += row.alert_recovery_pct;
-        recoveryN += 1;
-      }
     }
     return {
-      avgFei: feiSum / filteredRows.length,
+      avgEi: eiSum / filteredRows.length,
+      avgLogin: loginN ? loginSum / loginN : null,
       avgCoverage: coverageN ? coverageSum / coverageN : null,
-      avgRecovery: recoveryN ? recoverySum / recoveryN : null,
       totalAlerted,
       ratingCounts,
     };
@@ -224,6 +225,16 @@ export function EffectivenessPanelClient({
                 onClick={() => setDimensionFilter("department")}
                 label="Departments"
               />
+              <FilterButton
+                active={dimensionFilter === "instructor"}
+                onClick={() => setDimensionFilter("instructor")}
+                label="Instructors"
+              />
+              <FilterButton
+                active={dimensionFilter === "all"}
+                onClick={() => setDimensionFilter("all")}
+                label="All"
+              />
             </>
           ) : (
             <FilterButton
@@ -232,13 +243,6 @@ export function EffectivenessPanelClient({
               label="Departments"
             />
           )}
-          {showFacultyTab ? (
-            <FilterButton
-              active={dimensionFilter === "all"}
-              onClick={() => setDimensionFilter("all")}
-              label="All"
-            />
-          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -267,27 +271,25 @@ export function EffectivenessPanelClient({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
-          label="Average FEI"
-          value={summary.avgFei.toFixed(1)}
-          hint="Faculty Effectiveness Index (0–100)"
-          tone={
-            summary.avgFei >= 70 ? "emerald" : summary.avgFei >= 55 ? "amber" : "red"
-          }
+          label="Average EI"
+          value={summary.avgEi.toFixed(1)}
+          hint="Effectiveness Index (0–100)"
+          tone={summary.avgEi >= 75 ? "emerald" : summary.avgEi >= 50 ? "amber" : "red"}
+        />
+        <SummaryCard
+          label="Log-in rate"
+          value={formatPct(summary.avgLogin)}
+          hint="Users active in past 7 days"
         />
         <SummaryCard
           label="Intervention coverage"
           value={formatPct(summary.avgCoverage)}
-          hint="Alerted students reached"
-        />
-        <SummaryCard
-          label="Alert recovery"
-          value={formatPct(summary.avgRecovery)}
-          hint="Intervened students no longer in alert"
+          hint="Alerts with intervention started"
         />
         <SummaryCard
           label="Students in alert"
           value={summary.totalAlerted.toLocaleString()}
-          hint={`${summary.ratingCounts.A} A · ${summary.ratingCounts.B} B · ${summary.ratingCounts.C} C`}
+          hint={`${summary.ratingCounts.A} A · ${summary.ratingCounts.B} B · ${summary.ratingCounts.C} C · ${summary.ratingCounts.D} D`}
         />
       </div>
 
@@ -302,8 +304,18 @@ export function EffectivenessPanelClient({
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort("fei_score")} className="inline-flex items-center gap-1">
-                    FEI {sortIndicator("fei_score")}
+                  <button type="button" onClick={() => toggleSort("ei_score")} className="inline-flex items-center gap-1">
+                    EI {sortIndicator("ei_score")}
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button type="button" onClick={() => toggleSort("login_rate_pct")} className="inline-flex items-center gap-1">
+                    Login {sortIndicator("login_rate_pct")}
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button type="button" onClick={() => toggleSort("attendance_posting_pct")} className="inline-flex items-center gap-1">
+                    Attendance {sortIndicator("attendance_posting_pct")}
                   </button>
                 </th>
                 <th className="px-4 py-3">
@@ -311,21 +323,10 @@ export function EffectivenessPanelClient({
                     Coverage {sortIndicator("intervention_coverage_pct")}
                   </button>
                 </th>
-                <th className="px-4 py-3">Critical cov.</th>
-                <th className="px-4 py-3">TTFC</th>
+                <th className="px-4 py-3">TTFA</th>
                 <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort("wellbeing_uptake_pct")} className="inline-flex items-center gap-1">
-                    Wellbeing {sortIndicator("wellbeing_uptake_pct")}
-                  </button>
-                </th>
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort("alert_recovery_pct")} className="inline-flex items-center gap-1">
-                    Recovery {sortIndicator("alert_recovery_pct")}
-                  </button>
-                </th>
-                <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort("alerted_students")} className="inline-flex items-center gap-1">
-                    Alerted {sortIndicator("alerted_students")}
+                  <button type="button" onClick={() => toggleSort("total_alerts")} className="inline-flex items-center gap-1">
+                    Alerted {sortIndicator("total_alerts")}
                   </button>
                 </th>
                 <th className="px-4 py-3 w-10" />
@@ -334,7 +335,7 @@ export function EffectivenessPanelClient({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
                     No effectiveness data yet. Run the nightly ETL or enable live compute.
                   </td>
                 </tr>
@@ -358,11 +359,11 @@ export function EffectivenessPanelClient({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-400">
-        <p className="font-semibold text-slate-700 dark:text-slate-300">How FEI is calculated</p>
+        <p className="font-semibold text-slate-700 dark:text-slate-300">How EI is calculated</p>
         <p className="mt-2">
-          FEI weights student outcomes (30%), wellbeing pathway (25%), response timeliness &amp; coverage (25%),
-          data readiness via attendance posting (10%), and sustained recovery / repeat-alert control (10%).
-          Ratings: A ≥85, B ≥70, C ≥55, D ≥40, E &lt;40.
+          Effectiveness Index follows the official criteria: Log-in rate (15%), Attendance posting
+          (25%), Faculty intervention process (35%), and Wellbeing intervention (25%). Grades: A ≥
+          90%, B ≥ 75%, C ≥ 50%, D &lt; 50%.
         </p>
       </div>
     </div>
@@ -413,14 +414,15 @@ function RowGroup({
           <div className="text-xs capitalize text-slate-500">{row.dimension_type}</div>
         </td>
         <td className="px-4 py-3">
-          <FeiBadge rating={row.fei_rating} score={row.fei_score} />
+          <EiBadge rating={row.ei_rating} score={row.ei_score} />
         </td>
+        <td className="px-4 py-3 tabular-nums">{formatPct(row.login_rate_pct)}</td>
+        <td className="px-4 py-3 tabular-nums">{formatPct(row.attendance_posting_pct)}</td>
         <td className="px-4 py-3 tabular-nums">{formatPct(row.intervention_coverage_pct)}</td>
-        <td className="px-4 py-3 tabular-nums">{formatPct(row.critical_coverage_pct)}</td>
-        <td className="px-4 py-3 tabular-nums">{formatDays(row.median_days_to_contact)}</td>
-        <td className="px-4 py-3 tabular-nums">{formatPct(row.wellbeing_uptake_pct)}</td>
-        <td className="px-4 py-3 tabular-nums">{formatPct(row.alert_recovery_pct)}</td>
-        <td className="px-4 py-3 tabular-nums">{row.alerted_students}</td>
+        <td className="px-4 py-3 tabular-nums">
+          {formatDays(row.median_days_to_first_action)}
+        </td>
+        <td className="px-4 py-3 tabular-nums">{row.total_alerts}</td>
         <td className="px-4 py-3">
           <button
             type="button"
@@ -434,34 +436,39 @@ function RowGroup({
       </tr>
       {isOpen ? (
         <tr className="bg-slate-50/80 dark:bg-slate-900/40">
-          <td colSpan={9} className="px-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Detail label="Response score" value={row.response_score.toFixed(1)} />
-              <Detail label="Wellbeing score" value={row.wellbeing_score.toFixed(1)} />
-              <Detail label="Outcome score" value={row.outcome_score.toFixed(1)} />
-              <Detail label="Readiness score" value={row.readiness_score.toFixed(1)} />
-              <Detail label="Referred students" value={String(row.referred_students)} />
-              <Detail label="Concluded students" value={String(row.concluded_students)} />
-              <Detail label="Wellbeing linked" value={String(row.wellbeing_linked_students)} />
-              <Detail label="Repeat alerts" value={String(row.repeat_alert_students)} />
-              <Detail label="Stale interventions" value={String(row.stale_interventions)} />
-              <Detail label="Attendance posting" value={formatPct(row.attendance_posting_pct)} />
-              <Detail label="Conclusion rate" value={formatPct(row.conclusion_rate_pct)} />
-              <Detail label="Repeat alert %" value={formatPct(row.repeat_alert_pct)} />
-              <Detail label="Enrolled students" value={String(row.total_students)} />
+          <td colSpan={8} className="px-4 py-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.values(row.criteria_breakdown).map((criterion) => (
+                <div
+                  key={criterion.code}
+                  className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50"
+                  title={`${criterion.tooltip}\n\nFormula: ${criterion.formula}\nPI: ${criterion.piTarget}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      {criterion.label}
+                    </p>
+                    <span className="text-[10px] text-slate-400">
+                      {(criterion.contribution * 100).toFixed(1)} pts
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm font-bold tabular-nums text-slate-900 dark:text-white">
+                    {criterion.denominator > 0
+                      ? `${criterion.numerator}/${criterion.denominator}`
+                      : "—"}
+                    <span className="ml-2 text-xs font-normal text-slate-500">
+                      score {(criterion.score * 100).toFixed(0)}%
+                    </span>
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                    {criterion.piTarget}
+                  </p>
+                </div>
+              ))}
             </div>
           </td>
         </tr>
       ) : null}
     </>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-0.5 font-medium tabular-nums text-slate-900 dark:text-white">{value}</p>
-    </div>
   );
 }

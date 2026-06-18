@@ -7,7 +7,7 @@ import {
   getWellbeingChartData,
 } from "@/app/(home)/dashboard/fetch";
 import { buildEffectivenessRows, getEffectivenessScores } from "@/lib/effectiveness";
-import type { FeiRating } from "@/lib/effectiveness-scoring";
+import type { EiRating } from "@/lib/effectiveness-scoring";
 import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
@@ -105,7 +105,7 @@ function MetricCard({
 // ─── Faculty Card ──────────────────────────────────────────────────
 type FacultyFei = {
   score: number;
-  rating: FeiRating;
+  rating: EiRating;
 };
 
 function FacultyCard({
@@ -155,7 +155,7 @@ function FacultyCard({
                 color: "#fff",
               }}
             >
-              FEI {Math.round(fei.score)} · {fei.rating}
+              EI {Math.round(fei.score)} · {fei.rating}
             </span>
           ) : null}
           <span
@@ -262,7 +262,7 @@ export default async function SuperadminDashboardPage({
   const feiByFacultyId = new Map(
     feiRows.map((row) => [
       row.dimension_id,
-      { score: row.fei_score, rating: row.fei_rating },
+      { score: row.ei_score, rating: row.ei_rating },
     ])
   );
   
