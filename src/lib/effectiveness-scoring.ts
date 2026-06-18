@@ -103,9 +103,30 @@ function pct(numerator: number, denominator: number): number | null {
   return round2((numerator / denominator) * 100);
 }
 
-function ratioScore(numerator: number, denominator: number): number {
-  if (denominator <= 0) return 0;
+function ratioScore(
+  numerator: number,
+  denominator: number,
+  ifEmpty: "zero" | "full" = "zero"
+): number {
+  if (denominator <= 0) return ifEmpty === "full" ? 1 : 0;
   return round4(Math.min(1, Math.max(0, numerator / denominator)));
+}
+
+function scoreTtfa(
+  totalAlerts: number,
+  alertsWithIntervention: number,
+  medianDays: number | null
+): number {
+  if (totalAlerts <= 0) return 1;
+  if (alertsWithIntervention <= 0) return 0;
+  if (medianDays == null || !Number.isFinite(medianDays)) return 0;
+  return scoreTimePenalty(medianDays, 2);
+}
+
+function scoreWbUptake(referredCases: number, medianDays: number | null): number {
+  if (referredCases <= 0) return 1;
+  if (medianDays == null || !Number.isFinite(medianDays)) return 0;
+  return scoreTimePenalty(medianDays, 2);
 }
 
 /** −20% per whole day over target (Excel guide). */
@@ -157,10 +178,11 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   const attendanceScore = ratioScore(raw.classes_posted_total, raw.classes_held_total);
   const attendanceContribution = attendanceScore * EI_CRITERION_BY_CODE.B_attendance.weight;
 
-  const ttfaScore =
-    raw.total_alerts > 0
-      ? scoreTimePenalty(raw.median_days_to_first_action, 2)
-      : 0;
+  const ttfaScore = scoreTtfa(
+    raw.total_alerts,
+    raw.alerts_with_intervention,
+    raw.median_days_to_first_action
+  );
   const ttfaContribution = ttfaScore * EI_CRITERION_BY_CODE.C1_ttfa.weight;
 
   const coverageRaw = ratioScore(raw.alerts_with_intervention, raw.total_alerts);
@@ -169,7 +191,8 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
 
   const progressionScore = ratioScore(
     raw.faculty_cases_progression_ok,
-    raw.open_faculty_cases
+    raw.open_faculty_cases,
+    "full"
   );
   const progressionContribution =
     progressionScore * EI_CRITERION_BY_CODE.C3_case_progression.weight;
@@ -181,20 +204,23 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
   const resolutionContribution =
     resolutionScore * EI_CRITERION_BY_CODE.C4_resolution.weight;
 
-  const wbUptakeScore =
-    raw.wb_referred_cases > 0
-      ? scoreTimePenalty(raw.median_days_to_wb_uptake, 2)
-      : 0;
+  const wbUptakeScore = scoreWbUptake(
+    raw.wb_referred_cases,
+    raw.median_days_to_wb_uptake
+  );
   const wbUptakeContribution = wbUptakeScore * EI_CRITERION_BY_CODE.D1_uptake.weight;
 
-  const wbProgressionScore = ratioScore(
-    raw.wb_cases_progression_ok,
-    raw.wb_open_cases
-  );
+  const wbProgressionScore =
+    raw.wb_referred_cases <= 0
+      ? 1
+      : ratioScore(raw.wb_cases_progression_ok, raw.wb_open_cases, "full");
   const wbProgressionContribution =
     wbProgressionScore * EI_CRITERION_BY_CODE.D2_wb_progression.weight;
 
-  const wbResolutionScore = ratioScore(raw.wb_cases_closed, raw.wb_referred_cases);
+  const wbResolutionScore =
+    raw.wb_referred_cases <= 0
+      ? 1
+      : ratioScore(raw.wb_cases_closed, raw.wb_referred_cases);
   const wbResolutionContribution =
     wbResolutionScore * EI_CRITERION_BY_CODE.D3_wb_resolution.weight;
 
@@ -217,8 +243,8 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
       "C1_ttfa",
       raw.median_days_to_first_action != null
         ? Math.round(raw.median_days_to_first_action * 10) / 10
-        : 0,
-      2,
+        : raw.alerts_with_intervention,
+      raw.median_days_to_first_action != null ? 2 : Math.max(raw.alerts_with_intervention, 1),
       ttfaScore,
       ttfaContribution
     ),
@@ -245,10 +271,12 @@ export function scoreEffectivenessRow(raw: EffectivenessRawRow): EffectivenessSc
     ),
     D1_uptake: buildCriterion(
       "D1_uptake",
-      raw.median_days_to_wb_uptake != null
-        ? Math.round(raw.median_days_to_wb_uptake * 10) / 10
-        : 0,
-      2,
+      raw.wb_referred_cases <= 0
+        ? 0
+        : raw.median_days_to_wb_uptake != null
+          ? Math.round(raw.median_days_to_wb_uptake * 10) / 10
+          : raw.wb_referred_cases,
+      raw.wb_referred_cases <= 0 ? 0 : 2,
       wbUptakeScore,
       wbUptakeContribution
     ),

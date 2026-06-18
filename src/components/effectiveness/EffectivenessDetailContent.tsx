@@ -37,7 +37,12 @@ function criterionDisplayValue(
     case "B_attendance":
       return formatPct(row.attendance_posting_pct);
     case "C1_ttfa":
-      return formatDays(row.median_days_to_first_action);
+      if (row.median_days_to_first_action != null) {
+        return formatDays(row.median_days_to_first_action);
+      }
+      if (row.total_alerts <= 0) return "No alerts";
+      if (row.alerts_with_intervention <= 0) return "No intervention yet";
+      return "Pending measurement";
     case "C2_coverage":
       return formatPct(row.intervention_coverage_pct);
     case "C3_case_progression":
@@ -45,14 +50,44 @@ function criterionDisplayValue(
     case "C4_resolution":
       return formatPct(row.faculty_resolution_pct);
     case "D1_uptake":
-      return formatDays(row.wb_uptake_days);
+      if (row.wb_referred_cases <= 0) return "No WB referrals";
+      if (row.median_days_to_wb_uptake != null) {
+        return formatDays(row.median_days_to_wb_uptake);
+      }
+      return "Pending measurement";
     case "D2_wb_progression":
+      if (row.wb_referred_cases <= 0) return "No WB referrals";
       return formatPct(row.wb_case_progression_pct);
     case "D3_wb_resolution":
+      if (row.wb_referred_cases <= 0) return "No WB referrals";
       return formatPct(row.wb_resolution_pct);
     default:
       return "—";
   }
+}
+
+function criterionDetailLine(
+  row: EffectivenessScoreRow,
+  criterion: EffectivenessScoreRow["criteria_breakdown"][keyof EffectivenessScoreRow["criteria_breakdown"]]
+): string {
+  if (criterion.code === "C1_ttfa") {
+    if (row.median_days_to_first_action != null) {
+      return `Median ${formatDays(row.median_days_to_first_action)} · PI ≤ 2 days`;
+    }
+    return `${row.alerts_with_intervention} / ${row.total_alerts} alerts with intervention`;
+  }
+  if (criterion.code === "D1_uptake" && row.wb_referred_cases <= 0) {
+    return "No wellbeing referrals in scope — full credit";
+  }
+  if (criterion.code === "D2_wb_progression" && row.wb_referred_cases <= 0) {
+    return "No wellbeing referrals in scope — full credit";
+  }
+  if (criterion.code === "D3_wb_resolution" && row.wb_referred_cases <= 0) {
+    return "No wellbeing referrals in scope — full credit";
+  }
+  return criterion.denominator > 0
+    ? `${criterion.numerator} / ${criterion.denominator}`
+    : "—";
 }
 
 export function EffectivenessDetailContent({ row }: { row: EffectivenessScoreRow }) {
@@ -159,9 +194,7 @@ export function EffectivenessDetailContent({ row }: { row: EffectivenessScoreRow
                   {criterionDisplayValue(row, criterion.code)}
                 </span>
                 <span className="text-slate-500 dark:text-slate-400">
-                  {criterion.denominator > 0
-                    ? `${criterion.numerator} / ${criterion.denominator}`
-                    : "No data"}
+                  {criterionDetailLine(row, criterion)}
                 </span>
                 <span className="text-slate-500 dark:text-slate-400">
                   PI: {criterion.piTarget}
