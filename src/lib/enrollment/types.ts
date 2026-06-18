@@ -83,6 +83,7 @@ export type MasterFilterOptions = {
   programs: { value: string; label: string }[];
   instructors: { value: string; label: string }[];
   courses: { value: string; label: string }[];
+  batches: { value: string; label: string }[];
 };
 
 export type MasterFilterParams = {
@@ -90,4 +91,6 @@ export type MasterFilterParams = {
   programs?: string[];
   instructor_ids?: string[];
   course_ids?: string[];
+  /** Admission year values (batch). */
+  batches?: string[];
 };

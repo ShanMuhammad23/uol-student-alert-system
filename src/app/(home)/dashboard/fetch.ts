@@ -13,6 +13,7 @@ import { fetchMonitoringEntries, mapMonitoringToStudents, getMonitoringStudentsB
 import { getServerSession } from "next-auth";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 import { normalizeFacultyName } from "@/lib/faculty-name";
+import { getBatchOptionsFromEnrollment } from "@/lib/enrollment/queries";
 
 /** Minimal enrollment shape (one row per course enrollment; same student can appear multiple times). */
 type EnrollmentRecord = {
@@ -242,6 +243,8 @@ export type MasterFilterParams = {
   programs?: string[];
   instructor_ids?: string[];
   course_ids?: string[];
+  /** Admission year values (batch). */
+  batches?: string[];
 };
 
 /** GPA / Attendance filter: all | red (critical) | yellow (warning) | good (no alert) */
@@ -283,6 +286,7 @@ export type MasterFilterOptions = {
   programs: { value: string; label: string }[];
   instructors: { value: string; label: string }[];
   courses: { value: string; label: string }[];
+  batches: { value: string; label: string }[];
 };
 
 export type GpaHistoryEntry = {
@@ -1344,6 +1348,80 @@ function applyMasterFilter(
   return out;
 }
 
+/** Distinct admission years (batch) for the master filter dropdown. */
+async function getBatchFilterOptions(
+  user?: AppUser | null,
+  current?: MasterFilterParams
+): Promise<{ value: string; label: string }[]> {
+  if (!pool) return [];
+  try {
+    const params: unknown[] = [];
+    const where: string[] = [
+      "e.is_active = TRUE",
+      "NULLIF(TRIM(e.admission_year), '') IS NOT NULL",
+    ];
+
+    if (user?.role === "dean" && user.faculty_id) {
+      const enrollmentFacultyId =
+        FACULTY_ID_TO_ENROLLMENT_FAC_ID[user.faculty_id] ?? user.faculty_id;
+      params.push(enrollmentFacultyId);
+      where.push(`e.faculty_id = $${params.length}`);
+    } else if (user?.role === "hod" && user.department_ids?.length) {
+      params.push(user.department_ids);
+      where.push(`e.department_id = ANY($${params.length}::text[])`);
+    } else if (
+      (user?.role === "instructor" || user?.role === "teacher") &&
+      user.sap_id
+    ) {
+      params.push(String(user.sap_id).trim());
+      where.push(`e.instructor_pernr = $${params.length}`);
+    }
+
+    if (current?.department_ids?.length) {
+      params.push(current.department_ids);
+      where.push(`e.department_id = ANY($${params.length}::text[])`);
+    }
+    if (current?.programs?.length) {
+      params.push(current.programs);
+      where.push(`e.program_id = ANY($${params.length}::text[])`);
+    }
+    if (current?.course_ids?.length) {
+      params.push(current.course_ids);
+      where.push(`e.course_id = ANY($${params.length}::text[])`);
+    }
+    if (current?.instructor_ids?.length) {
+      params.push(current.instructor_ids);
+      where.push(`e.instructor_pernr = ANY($${params.length}::text[])`);
+    }
+
+    const res = await pool.query<{ batch: string }>(
+      `SELECT DISTINCT NULLIF(TRIM(e.admission_year), '') AS batch
+       FROM student_enrollment_current e
+       WHERE ${where.join(" AND ")}
+       ORDER BY batch DESC`,
+      params
+    );
+    return res.rows.map((r) => ({ value: r.batch, label: r.batch }));
+  } catch {
+    return [];
+  }
+}
+
+async function attachBatchOptions(
+  options: Omit<MasterFilterOptions, "batches">,
+  user?: AppUser | null,
+  current?: MasterFilterParams
+): Promise<MasterFilterOptions> {
+  let batches = await getBatchFilterOptions(user, current);
+  if (!batches.length) {
+    const records = await readEnrollmentFile();
+    const facultyId =
+      user?.role === "dean" ? (user.faculty_id ?? null) : null;
+    batches = getBatchOptionsFromEnrollment(records, facultyId, current);
+  }
+  return { ...options, batches };
+}
+
 /** Get filter options with parent-child cascade: Department → Program → Course → Instructor. */
 export async function getMasterFilterOptions(
   user?: AppUser | null,
@@ -1489,12 +1567,16 @@ export async function getMasterFilterOptions(
             ),
           }));
 
-        return {
-          departments: departmentsScoped,
-          programs: programsScoped,
-          courses: coursesScoped,
-          instructors: instructorsScoped,
-        };
+        return attachBatchOptions(
+          {
+            departments: departmentsScoped,
+            programs: programsScoped,
+            courses: coursesScoped,
+            instructors: instructorsScoped,
+          },
+          user,
+          current
+        );
       }
 
       if (user?.role === "hod" && user.department_ids?.length) {
@@ -1580,18 +1662,26 @@ export async function getMasterFilterOptions(
             ),
           }));
 
-        return {
-          departments: departmentsScoped,
-          programs: programsScoped,
-          courses: coursesScoped,
-          instructors: instructorsScoped,
-        };
+        return attachBatchOptions(
+          {
+            departments: departmentsScoped,
+            programs: programsScoped,
+            courses: coursesScoped,
+            instructors: instructorsScoped,
+          },
+          user,
+          current
+        );
       }
 
       if (user?.role === "instructor" || user?.role === "teacher") {
         const instructorPernr = String(user.sap_id ?? "").trim();
         if (!instructorPernr) {
-          return { departments: [], programs: [], courses: [], instructors: [] };
+          return attachBatchOptions(
+            { departments: [], programs: [], courses: [], instructors: [] },
+            user,
+            current
+          );
         }
         const scopedRows = await pool.query<{
           sap_id: string;
@@ -1736,12 +1826,16 @@ export async function getMasterFilterOptions(
             ...i,
             label: withStudentCount(i.label, totalStudentsForInstructor),
           }));
-        return {
-          departments: departmentsScoped,
-          programs: programsScoped,
-          courses: coursesScoped,
-          instructors: instructorsScoped,
-        };
+        return attachBatchOptions(
+          {
+            departments: departmentsScoped,
+            programs: programsScoped,
+            courses: coursesScoped,
+            instructors: instructorsScoped,
+          },
+          user,
+          current
+        );
       }
 
       if (
@@ -1750,7 +1844,11 @@ export async function getMasterFilterOptions(
         courses.length ||
         instructors.length
       ) {
-        return { departments, programs, instructors, courses };
+        return attachBatchOptions(
+          { departments, programs, instructors, courses },
+          user,
+          current
+        );
       }
     } catch {
       // Fall back to enrollment-derived options.
@@ -1850,7 +1948,7 @@ export async function getMasterFilterOptions(
   }
   instructors.sort((a, b) => a.label.localeCompare(b.label));
 
-  return { departments, programs, instructors, courses };
+  return attachBatchOptions({ departments, programs, instructors, courses }, user, current);
 }
 
 export type DepartmentStats = {
@@ -3552,6 +3650,7 @@ export async function getWellbeingChartData(
     programs: masterFilter?.programs,
     instructor_ids: masterFilter?.instructor_ids,
     course_ids: masterFilter?.course_ids,
+    batches: masterFilter?.batches,
     gpaFilters,
     attendanceFilters,
   });

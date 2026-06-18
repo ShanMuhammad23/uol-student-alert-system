@@ -237,7 +237,9 @@ export function getMasterFilterOptions(
       return { value, label };
     });
 
-  return { departments, programs, courses, instructors };
+  const batches = getBatchOptionsFromEnrollment(listByFaculty, facultyId, current);
+
+  return { departments, programs, courses, instructors, batches };
 }
 
 /** Filter enrollment records by master filter (department, program, instructor, course) and optional faculty. */
@@ -263,5 +265,47 @@ export function filterEnrollmentByMasterFilter(
     const set = new Set(masterFilter.course_ids);
     list = list.filter((r) => set.has(r.CrCode ?? "") || set.has(r.CrTitle ?? ""));
   }
+  if (masterFilter.batches?.length) {
+    const set = new Set(masterFilter.batches);
+    list = list.filter((r) => {
+      const year = String(r.AdmAyear ?? "").trim();
+      return year && set.has(year);
+    });
+  }
   return list;
+}
+
+/** Unique admission years (batch) from enrollment records, scoped like other master filters. */
+export function getBatchOptionsFromEnrollment(
+  records: EnrollmentRecord[],
+  facultyId?: string | null,
+  current?: MasterFilterParams
+): { value: string; label: string }[] {
+  let list = filterByFaculty(records, facultyId);
+  if (current?.department_ids?.length) {
+    const deptSet = new Set(current.department_ids);
+    list = list.filter((r) => deptSet.has(r.DeptCode) || deptSet.has(r.DeptId));
+  }
+  if (current?.programs?.length) {
+    const progSet = new Set(current.programs);
+    list = list.filter((r) => progSet.has((r.DegreeCode ?? "").trim()));
+  }
+  if (current?.course_ids?.length) {
+    const courseSet = new Set(current.course_ids);
+    list = list.filter(
+      (r) => courseSet.has(r.CrCode ?? "") || courseSet.has(r.CrTitle ?? "")
+    );
+  }
+  if (current?.instructor_ids?.length) {
+    const instructorSet = new Set(current.instructor_ids);
+    list = list.filter((r) => r.Pernr && instructorSet.has(r.Pernr));
+  }
+  const years = new Set<string>();
+  for (const r of list) {
+    const year = String(r.AdmAyear ?? "").trim();
+    if (year) years.add(year);
+  }
+  return Array.from(years)
+    .sort((a, b) => b.localeCompare(a))
+    .map((value) => ({ value, label: value }));
 }

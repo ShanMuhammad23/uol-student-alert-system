@@ -18,6 +18,8 @@ export type ListingFilters = {
   programs?: string[];
   instructor_ids?: string[];
   course_ids?: string[];
+  /** Admission year values (batch). */
+  batches?: string[];
   attendanceFilters?: AlertDimensionFilter[];
   classStatusFilters?: string[];
   gpaFilters?: AlertDimensionFilter[];
@@ -396,6 +398,11 @@ function buildWhere(
   if (courseIds?.length) {
     params.push(courseIds);
     where.push(`e.course_id = ANY($${params.length}::text[])`);
+  }
+  const batches = toArray(filters.batches);
+  if (batches?.length) {
+    params.push(batches);
+    where.push(`NULLIF(TRIM(e.admission_year), '') = ANY($${params.length}::text[])`);
   }
 
   if (!skip?.has("attendance")) {

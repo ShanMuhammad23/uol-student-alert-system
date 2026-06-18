@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Student Early Alert System — Staff Training Guide</title>
+  <style>
+    :root { --ink: #1e293b; --muted: #64748b; --accent: #059669; --border: #e2e8f0; --soft: #f8fafc; }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 36px 44px 48px; font-size: 11pt; }
+    h1 { font-size: 24pt; color: var(--accent); margin: 0 0 8px; }
+    .subtitle { color: var(--muted); margin-bottom: 28px; }
+    h2 { font-size: 15pt; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); page-break-after: avoid; }
+    h3 { font-size: 12pt; margin: 18px 0 8px; page-break-after: avoid; }
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0; padding-left: 24px; }
+    li { margin: 5px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; text-align: left; }
+    th { background: var(--soft); }
+    .tip { background: #ecfdf5; border-left: 4px solid var(--accent); padding: 12px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+    .warn { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+    .step { background: var(--soft); border: 1px solid var(--border); padding: 12px 14px; margin: 10px 0; border-radius: 6px; }
+    .step-num { display: inline-block; background: var(--accent); color: white; width: 22px; height: 22px; text-align: center; line-height: 22px; border-radius: 50%; font-size: 10pt; font-weight: bold; margin-right: 8px; }
+    .badge-y { display: inline-block; background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 9pt; font-weight: 600; }
+    .badge-r { display: inline-block; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 9pt; font-weight: 600; }
+    .flow { font-family: Consolas, monospace; font-size: 9.5pt; background: var(--soft); padding: 12px; border-radius: 6px; white-space: pre-line; margin: 10px 0; }
+    .page-break { page-break-before: always; }
+    .cover { text-align: center; padding: 60px 0 40px; }
+    .cover h1 { font-size: 28pt; }
+    .small { font-size: 9pt; color: var(--muted); }
+    @media print { body { padding: 0; max-width: none; } .no-print { display: none; } }
+  </style>
+</head>
+<body>
+
+<p class="no-print tip"><strong>Save as PDF:</strong> Open in browser → Print (Ctrl+P) → Save as PDF → enable Background graphics.</p>
+
+<div class="cover">
+  <h1>Student Early Alert System</h1>
+  <p class="subtitle" style="font-size: 14pt;">Staff Training Guide — Alerts, Access &amp; Interventions</p>
+  <p>University of Lahore</p>
+  <p class="small">For instructors, HoDs, deans, and wellbeing staff · UI walkthrough only</p>
+</div>
+
+<h2>1. Welcome — what this system does</h2>
+<p>The <strong>Student Early Alert System</strong> helps the university spot students whose <strong>attendance</strong> or <strong>SGPA (semester GPA)</strong> is falling, so staff can reach out early — before problems become crises.</p>
+<p>Your role is not only to <em>see</em> alerts, but to:</p>
+<ol>
+  <li><strong>Contact</strong> the student and understand what is going wrong</li>
+  <li><strong>Record</strong> what you did (an “intervention”) in the system</li>
+  <li><strong>Follow up</strong> until the case is resolved or the student is referred to the <strong>Wellbeing Centre</strong></li>
+</ol>
+<div class="tip">Think of the system as: <strong>Detect → Discuss → Document → Support → Resolve</strong>.</div>
+
+<h2>2. Signing in</h2>
+<ol>
+  <li>Open the system in your web browser (link provided by your IT/admin team).</li>
+  <li>Go to the <strong>Sign in</strong> page.</li>
+  <li>Enter your <strong>university email</strong> and <strong>password</strong>.</li>
+  <li>After login, you are taken automatically to the screen that matches your role (see Section 3).</li>
+</ol>
+<p>If you cannot sign in, contact your faculty administrator — do not share your password.</p>
+
+<h2 class="page-break">3. Who sees what — your access level</h2>
+<p>Each person sees only the students and data relevant to their job.</p>
+<table>
+  <tr><th>Role</th><th>What you see after login</th></tr>
+  <tr><td><strong>Instructor / Teacher</strong></td><td>Dashboard for <strong>your own courses and students</strong>. You add interventions for students you teach.</td></tr>
+  <tr><td><strong>Head of Department (HoD)</strong></td><td>Dashboard for <strong>your department(s)</strong> — all programs, courses, and instructors under you.</td></tr>
+  <tr><td><strong>Dean</strong></td><td>Dashboard for <strong>your whole faculty</strong> — departments, programs, courses, instructors. Can also open <strong>Faculty staff</strong> (view-only directory).</td></tr>
+  <tr><td><strong>Wellbeing counsellor</strong></td><td><strong>Wellbeing Dashboard</strong> — students referred to you; add resolutions and direct cases.</td></tr>
+  <tr><td><strong>Wellbeing head</strong></td><td><strong>Wellbeing Admin</strong> — overview of all wellbeing cases.</td></tr>
+  <tr><td><strong>System administrator</strong></td><td>Full university view, staff management, and automation screens (not covered in this guide).</td></tr>
+</table>
+<div class="tip"><strong>Remember:</strong> You only see students in your scope. If you search for a student and find nothing, they may belong to another department or faculty.</div>
+
+<h2>4. Types of alerts — what the colours mean</h2>
+<p>The system watches <strong>attendance</strong> and <strong>SGPA</strong> for every enrolled student. When something is wrong, the student gets an alert. On screen you will see <span class="badge-y">Yellow / Warning</span> or <span class="badge-r">Red / Critical</span>.</p>
+
+<h3>4.1 Attendance alerts</h3>
+<table>
+  <tr><th>Colour</th><th>Name</th><th>What it means (in plain language)</th></tr>
+  <tr>
+    <td><span class="badge-r">Red</span></td>
+    <td>Critical</td>
+    <td>Student attendance is <strong>60% or below</strong> (and classes have been held).</td>
+  </tr>
+  <tr>
+    <td><span class="badge-y">Yellow</span></td>
+    <td>Warning</td>
+    <td>Attendance is above 60%, but the student is <strong>at least 20 percentage points below</strong> the class average (e.g. class average 85%, student 60%).</td>
+  </tr>
+</table>
+
+<h3>4.2 SGPA (grade) alerts</h3>
+<table>
+  <tr><th>Colour</th><th>Name</th><th>What it means</th></tr>
+  <tr>
+    <td><span class="badge-r">Red</span></td>
+    <td>Critical</td>
+    <td>SGPA has dropped by <strong>1.5 points or more</strong> compared to the previous semester.</td>
+  </tr>
+  <tr>
+    <td><span class="badge-y">Yellow</span></td>
+    <td>Warning</td>
+    <td>SGPA has dropped by <strong>1.0 to 1.49 points</strong> compared to the previous semester.</td>
+  </tr>
+</table>
+
+<h3>4.3 Combined alerts</h3>
+<p>A student can have an attendance alert, an SGPA alert, or <strong>both</strong>. If either is red, treat the case as high priority.</p>
+<div class="warn"><strong>Important:</strong> An alert is a <em>signal to talk to the student</em>, not a punishment. Many students are struggling with health, family, or financial issues — your conversation matters.</div>
+
+<h2 class="page-break">5. The main dashboard — what you see</h2>
+<p>After login, most academic staff land on the <strong>Dashboard</strong>. It has four main areas:</p>
+
+<h3>5.1 Overview cards (top row)</h3>
+<ul>
+  <li><strong>Total students</strong> — how many students are in your scope.</li>
+  <li><strong>Attendance alerts</strong> — yellow and red counts. Click a card to filter the student list below.</li>
+  <li><strong>SGPA alerts</strong> — yellow and red counts (may be hidden for some roles until grade data is available).</li>
+</ul>
+
+<h3>5.2 Outreach &amp; Intervention chart</h3>
+<p>Shows how alert cases are moving through the support pipeline:</p>
+<table>
+  <tr><th>Status shown</th><th>Meaning</th></tr>
+  <tr><td><strong>Not Started</strong></td><td>Student is in alert, but <strong>no intervention</strong> has been recorded yet.</td></tr>
+  <tr><td><strong>Initiated</strong></td><td>First contact recorded — outreach has begun.</td></tr>
+  <tr><td><strong>In Progress</strong></td><td>Follow-up is ongoing (second or later contact on the same course).</td></tr>
+  <tr><td><strong>Referred</strong></td><td>Student referred to the <strong>Wellbeing Centre</strong> (or similar support).</td></tr>
+  <tr><td><strong>Resolved</strong></td><td>Issue addressed — student improved or situation stabilised.</td></tr>
+  <tr><td><strong>No Action Required</strong></td><td>Reviewed and closed — no further action needed (use with care and brief notes).</td></tr>
+</table>
+
+<h3>5.3 Wellbeing chart</h3>
+<p>Shows referred students and wellbeing case progress (mainly for deans/HoDs monitoring handoffs).</p>
+
+<h3>5.4 Student list (main table)</h3>
+<p>A large table of students, courses, and alert levels. Use the <strong>filters</strong> at the top to narrow by department, program, instructor, course, alert type, or intervention status.</p>
+<p><strong>Tip:</strong> Click column headers or filter chips to find “red attendance, not started” students first — they need the fastest response.</p>
+
+<h2>6. How to find a student</h2>
+<p>There are three common ways:</p>
+
+<h3>Method A — Browse the dashboard table</h3>
+<ol>
+  <li>On the Dashboard, scroll to the student table.</li>
+  <li>Use filters (department, course, alert colour) to shorten the list.</li>
+  <li>Click the <strong>student name or row</strong> to open their profile.</li>
+</ol>
+
+<h3>Method B — Intervention search tab</h3>
+<ol>
+  <li>On the Dashboard, switch to the <strong>Intervention search</strong> view (tab at top of the student area).</li>
+  <li>Enter the student’s <strong>SAP ID</strong> (student number).</li>
+  <li>Press <strong>Search</strong> — you see all their courses, alert types, and latest intervention status.</li>
+  <li>Open the student profile from there.</li>
+</ol>
+
+<h3>Method C — From a specific course</h3>
+<ol>
+  <li>Filter the dashboard to one <strong>course</strong> or expand a nested course view.</li>
+  <li>Find the student in that class list and open their profile.</li>
+</ol>
+
+<h2 class="page-break">7. Student profile page — what you will see</h2>
+<p>When you open a student, you see:</p>
+<ul>
+  <li><strong>Student details</strong> — name, SAP ID, faculty, department, program.</li>
+  <li><strong>Course metrics</strong> — attendance %, class average, SGPA/CGPA, alert badges per course.</li>
+  <li><strong>Intervention History</strong> — all past interventions and emails sent.</li>
+</ul>
+<p>If you arrived from a specific course row, the page may focus on that <strong>course and section</strong> — interventions you add will be linked to that class.</p>
+
+<h2>8. How to add an intervention — step by step</h2>
+
+<div class="step"><span class="step-num">1</span> Open the student’s profile (Section 6).</div>
+<div class="step"><span class="step-num">2</span> Scroll to <strong>Intervention History</strong>.</div>
+<div class="step"><span class="step-num">3</span> Click the green <strong>Add Intervention</strong> button.</div>
+<div class="step"><span class="step-num">4</span> A form opens. Fill in each field (explained below).</div>
+<div class="step"><span class="step-num">5</span> Click <strong>Add Intervention</strong> at the bottom of the form.</div>
+<div class="step"><span class="step-num">6</span> You should see a success message. The new row appears in Intervention History.</div>
+
+<h3>8.1 Form fields explained</h3>
+<table>
+  <tr><th>Field</th><th>What to enter</th></tr>
+  <tr>
+    <td><strong>Date</strong></td>
+    <td>The date you contacted or met the student (usually today).</td>
+  </tr>
+  <tr>
+    <td><strong>Type</strong></td>
+    <td>
+      <strong>Attendance</strong> — mainly discussing attendance.<br />
+      <strong>SGPA</strong> — mainly discussing grades.<br />
+      <strong>Both</strong> — both issues discussed.<br />
+      <em>Instructors may only see Attendance if SGPA is restricted for their role.</em>
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Status → No Action Required</strong></td>
+    <td>Tick only if you reviewed the alert and genuinely no follow-up is needed. Hides the outreach mode field. Always add a short remark explaining why.</td>
+  </tr>
+  <tr>
+    <td><strong>Mode</strong></td>
+    <td>How you reached the student: <strong>Email</strong>, <strong>WhatsApp</strong>, <strong>Phone Call</strong>, <strong>Meeting</strong>, or <strong>Not Applicable</strong>.</td>
+  </tr>
+  <tr>
+    <td><strong>Concluding Status</strong></td>
+    <td>
+      Use only when closing or escalating:<br />
+      <strong>Referred</strong> — sending student to Wellbeing Centre.<br />
+      <strong>Resolved</strong> — case closed; student is OK or back on track.<br />
+      If you leave this blank, the system sets <strong>Initiated</strong> or <strong>In Progress</strong> automatically.
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Remarks</strong></td>
+    <td>Short notes: what the student said, agreed actions, concerns (stress, financial, health). <strong>Do not</strong> put sensitive medical detail — refer to Wellbeing instead.</td>
+  </tr>
+</table>
+
+<h3>8.2 The progress stepper on the form</h3>
+<p>At the top of the form you may see three steps: <strong>Initiated → In Progress → Concluding Status</strong>. This shows where the case sits in the journey. Your first contact usually starts at <strong>Initiated</strong>.</p>
+
+<h3>8.3 Automatic status rules (you do not need to memorise these)</h3>
+<ul>
+  <li><strong>First intervention</strong> on a course → usually saved as <strong>Initiated</strong>.</li>
+  <li><strong>Another intervention</strong> on the same course when earlier ones were only “Initiated” → moves to <strong>In Progress</strong>.</li>
+  <li>If you select <strong>Referred</strong> or <strong>Resolved</strong> → saved exactly as chosen.</li>
+</ul>
+
+<h2 class="page-break">9. Sending an email from the intervention form</h2>
+<p>If you choose <strong>Mode = Email</strong>, an email section appears below the form.</p>
+
+<h3>9.1 SOS Check-In email</h3>
+<p>Use for a <strong>first friendly check-in</strong> with the student about attendance or SGPA. The system fills in the student’s name, SAP ID, and academic details. Review the text, then send.</p>
+<p><strong>When:</strong> First outreach, status is Initiated, mode is Email.</p>
+
+<h3>9.2 Student Referral email</h3>
+<p>Use when you select <strong>Referred</strong> as concluding status — to notify the <strong>Wellbeing Centre</strong> or counsellor that the student needs support.</p>
+<p><strong>When:</strong> You have decided the student needs professional wellbeing support.</p>
+
+<div class="tip">Always use your official university email as the reply address. The system logs every email sent for audit purposes.</div>
+
+<h2>10. Following up after you add an intervention</h2>
+<p>Adding an intervention is <strong>not the end</strong>. You must track the case until it is truly finished.</p>
+
+<h3>10.1 What to do next — general timeline</h3>
+<table>
+  <tr><th>When</th><th>Your action</th></tr>
+  <tr><td><strong>Within 3–7 days</strong> of first contact</td><td>Follow up if the student has not responded or situation unchanged.</td></tr>
+  <tr><td><strong>After each contact</strong></td><td>Add another intervention OR update the existing one’s status.</td></tr>
+  <tr><td><strong>If student mentions stress, depression, family crisis</strong></td><td>Change status to <strong>Referred</strong> and involve Wellbeing.</td></tr>
+  <tr><td><strong>When attendance/SGPA improves</strong></td><td>Mark as <strong>Resolved</strong> with a note on what improved.</td></tr>
+</table>
+
+<h3>10.2 How to update an existing intervention</h3>
+<ol>
+  <li>Go to the student’s profile → <strong>Intervention History</strong>.</li>
+  <li>Find the intervention row you want to update.</li>
+  <li>Click <strong>Edit</strong> (pencil icon or Edit button on that row).</li>
+  <li>Change <strong>Status</strong>, <strong>Mode</strong>, or <strong>Date</strong> as needed.</li>
+  <li>Click <strong>Save Changes</strong>.</li>
+</ol>
+<p>Available statuses when editing:</p>
+<ul>
+  <li>Initiated</li>
+  <li>In Progress</li>
+  <li>Referred</li>
+  <li>Resolved</li>
+  <li>No Action Required</li>
+</ul>
+
+<h3>10.3 Adding a follow-up intervention (instead of editing)</h3>
+<p>Sometimes it is better to <strong>add a new intervention</strong> for each contact (second meeting, second call) so there is a clear history. Click <strong>Add Intervention</strong> again and record the new date and remarks.</p>
+
+<h3>10.4 Monitoring on the dashboard</h3>
+<p>Return to your Dashboard and check:</p>
+<ul>
+  <li>The <strong>Outreach &amp; Intervention</strong> chart — “Not Started” should go down as you work cases.</li>
+  <li>Filter the student table by <strong>intervention status</strong> to see who is still In Progress or Referred.</li>
+</ul>
+
+<h2 class="page-break">11. Referring a student to Wellbeing</h2>
+<ol>
+  <li>Talk to the student first where possible — explain that support is available.</li>
+  <li>On the intervention form, set <strong>Concluding Status → Referred</strong>.</li>
+  <li>In <strong>Remarks</strong>, note the reason (academic stress, mental health concern, financial difficulty) without excessive private detail.</li>
+  <li>If using email, send the <strong>Student Referral</strong> template to the wellbeing team.</li>
+  <li>The case appears on the <strong>Wellbeing Dashboard</strong> for counsellors to pick up.</li>
+  <li>Keep status as <strong>Referred</strong> until wellbeing staff close or resolve the case with you.</li>
+</ol>
+
+<h2>12. Intervention lifecycle — visual summary</h2>
+<div class="flow">Alert appears on Dashboard
+    ↓
+Staff opens student profile
+    ↓
+Add Intervention (Initiated / In Progress)
+    ↓
+┌──────────────────────────────────────┐
+│  Ongoing follow-up contacts          │
+│  (more interventions or edits)       │
+└──────────────────────────────────────┘
+    ↓
+    ├──→ Resolved (student improved)
+    ├──→ Referred (Wellbeing takes over)
+    └──→ No Action Required (rare — document why)</div>
+
+<h2>13. Good practice checklist</h2>
+<ul>
+  <li>☐ Respond to <span class="badge-r">red</span> alerts as soon as possible — same week if you can.</li>
+  <li>☐ Always add <strong>remarks</strong> — future staff (and you) need context.</li>
+  <li>☐ Do not mark <strong>Resolved</strong> until the student’s alert has actually cleared or the issue is genuinely fixed.</li>
+  <li>☐ Use <strong>Referred</strong> when wellbeing support is needed — do not try to be the counsellor yourself.</li>
+  <li>☐ Check the dashboard weekly for <strong>Not Started</strong> cases in your scope.</li>
+  <li>☐ Keep outreach professional and documented (email through the system when possible).</li>
+</ul>
+
+<h2>14. Quick reference — status meanings</h2>
+<table>
+  <tr><th>Status</th><th>Use when…</th></tr>
+  <tr><td>Not Started</td><td>System only — student alerted, you have not acted yet.</td></tr>
+  <tr><td>Initiated</td><td>First contact made.</td></tr>
+  <tr><td>In Progress</td><td>Ongoing support / multiple contacts.</td></tr>
+  <tr><td>Referred</td><td>Handed to Wellbeing Centre.</td></tr>
+  <tr><td>Resolved</td><td>Student back on track; alert cleared or issue fixed.</td></tr>
+  <tr><td>No Action Required</td><td>Alert reviewed; no action needed (explain in remarks).</td></tr>
+</table>
+
+<h2>15. Getting help</h2>
+<ul>
+  <li><strong>Cannot find a student?</strong> Check you are in the right faculty/department scope, or ask your HoD.</li>
+  <li><strong>Form will not save?</strong> Make sure Date, Type, and Mode (if required) are filled in.</li>
+  <li><strong>Wrong alert?</strong> Attendance may update when teachers post marks — wait for the next daily update.</li>
+  <li><strong>Technical problems?</strong> Contact your faculty IT coordinator or system administrator.</li>
+</ul>
+
+<p class="small" style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 12px;">
+  Student Early Alert System · Staff Training Guide · University of Lahore · For internal training use only.
+</p>
+
+</body>
+</html>

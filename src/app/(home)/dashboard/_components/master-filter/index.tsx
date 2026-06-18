@@ -84,6 +84,7 @@ type FilterKey =
   | "program"
   | "course"
   | "instructor"
+  | "batch"
   | "attendance"
   | "gpa"
   | "intervention"
@@ -260,6 +261,7 @@ export function MasterFilter({
       programs: current.programs,
       instructor_ids: current.instructor_ids,
       course_ids: current.course_ids,
+      batches: current.batches,
       selected_alert:
         selectedAlert && selectedAlert !== "all" ? selectedAlert : undefined,
       attendanceFilters: normalizeDimFiltersForApi(attendanceFilters),
@@ -299,6 +301,7 @@ export function MasterFilter({
     current.programs?.join(","),
     current.instructor_ids?.join(","),
     current.course_ids?.join(","),
+    current.batches?.join(","),
     selectedAlert,
     attendanceFilters?.join(","),
     gpaFilters?.join(","),
@@ -407,6 +410,12 @@ export function MasterFilter({
     });
   };
 
+  const handleBatch = (values: string[]) => {
+    onChangeMasterFilter?.({
+      batches: values.length ? values : undefined,
+    });
+  };
+
   const handleGpaFilters = (values: string[]) => {
     onChangeGpaFilters?.(values as AlertDimensionFilter[]);
   };
@@ -439,6 +448,7 @@ export function MasterFilter({
     (current.programs?.length ?? 0) > 0 ||
     (current.instructor_ids?.length ?? 0) > 0 ||
     (current.course_ids?.length ?? 0) > 0 ||
+    (current.batches?.length ?? 0) > 0 ||
     (gpaFilters?.length ?? 0) > 0 ||
     (attendanceFilters?.length ?? 0) > 0 ||
     (classStatusFilters?.length ?? 0) > 0 ||
@@ -451,6 +461,7 @@ export function MasterFilter({
       programs: undefined,
       instructor_ids: undefined,
       course_ids: undefined,
+      batches: undefined,
     });
     onChangeGpaFilters?.([]);
     onChangeAttendanceFilters?.([]);
@@ -466,6 +477,7 @@ export function MasterFilter({
       program: null,
       instructor: null,
       course: null,
+      batch: null,
       gpa_filter: null,
       attendance_filter: null,
       class_status_filter: null,
@@ -534,6 +546,18 @@ export function MasterFilter({
           onOpenChange={toggleFilter("instructor")}
           searchable
           data-testid="filter-instructor"
+        />
+      )}
+      {(options.batches?.length ?? 0) > 0 && (
+        <FilterMultiSelect
+          label="Batch"
+          selected={current.batches ?? []}
+          items={options.batches}
+          onChange={handleBatch}
+          isOpen={openFilter === "batch"}
+          onOpenChange={toggleFilter("batch")}
+          searchable
+          data-testid="filter-batch"
         />
       )}
 

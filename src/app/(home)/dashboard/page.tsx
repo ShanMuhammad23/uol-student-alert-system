@@ -44,6 +44,7 @@ type PropsType = {
     program?: string | string[];
     instructor?: string | string[];
     course?: string | string[];
+    batch?: string | string[];
     gpa_filter?: string;
     attendance_filter?: string;
     class_status_filter?: string | string[];
@@ -88,6 +89,7 @@ export default async function Home({ searchParams }: PropsType) {
   const programs = parseMultiParam(params.program);
   let instructorIds = parseMultiParam(params.instructor);
   const courseIds = parseMultiParam(params.course);
+  const batches = parseMultiParam(params.batch);
 
   // Scope by session: Instructor sees only their courses (Pernr = sap_id); HoD sees only their departments
   if (
@@ -109,6 +111,7 @@ export default async function Home({ searchParams }: PropsType) {
     programs: programs.length ? programs : undefined,
     instructor_ids: instructorIds.length ? instructorIds : undefined,
     course_ids: courseIds.length ? courseIds : undefined,
+    batches: batches.length ? batches : undefined,
   };
 
   const validAlertDim = (s: string): s is AlertDimensionFilter =>
