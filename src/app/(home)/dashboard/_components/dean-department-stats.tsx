@@ -84,7 +84,7 @@ export function DeanDepartmentStats({
                   }
                 }}
                 className={cn(
-                  "rounded-md border px-2 py-1 font-medium",
+                  "rounded-md border mb-2 px-2 py-1 font-medium",
                   sortMetric === metric
                     ? "border-primary text-primary"
                     : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
@@ -184,9 +184,9 @@ export function DeanDepartmentStats({
               </span>
               {" · "}
               Att Missing{" "}
-              <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
+              <span className=" font-bold">{attendanceMissing}</span>{" "}
               of{" "}
-              <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>{" "}
+              <span className=" font-bold">{attendanceClassesHeld}</span>{" "}
         
             </span>
           </button>

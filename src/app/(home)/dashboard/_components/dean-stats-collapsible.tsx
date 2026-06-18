@@ -34,7 +34,7 @@ function CollapsibleSection({
   };
 
   return (
-    <div className="rounded-lg border border-stroke dark:border-stroke-dark bg-white dark:bg-gray-dark overflow-hidden">
+    <div className=" border border-stroke dark:border-stroke-dark bg-white dark:bg-gray-dark overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -93,7 +93,7 @@ function CollapsibleSection({
         </span>
       </button>
       {open && (
-        <div ref={contentRef} className="border-t border-stroke dark:border-stroke-dark px-4 py-3">
+        <div ref={contentRef} className="border-t border-stroke dark:border-stroke-dark px-1">
           {children}
         </div>
       )}
@@ -159,8 +159,8 @@ export function DeanStatsCollapsible({
   hasCourseFilters,
 }: DeanStatsCollapsibleProps) {
   return (
-    <div className="mt-4  pt-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="  border">
+      <div className="grid grid-cols-1 md:grid-cols-2 ">
         <CollapsibleSection
           title="Department"
           count={departmentCount}
@@ -180,7 +180,7 @@ export function DeanStatsCollapsible({
           {programContent}
         </CollapsibleSection>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2">
         <CollapsibleSection
           title="Course"
           count={courseCount}
