@@ -30,7 +30,7 @@ function CollapsibleSection({
   };
 
   return (
-    <div className="rounded-lg border border-stroke dark:border-stroke-dark bg-white dark:bg-gray-dark overflow-hidden">
+    <div className=" border border-stroke dark:border-stroke-dark  dark:bg-gray-dark overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -53,7 +53,7 @@ function CollapsibleSection({
           <button
             type="button"
             onClick={openFullscreen}
-            className="inline-flex items-center gap-1 rounded-full border border-stroke px-2 py-0.5 text-[11px] font-medium text-dark-6 hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white"
+            className="inline-flex items-center gap-1 rounded-full border border-stroke px-2 py-0.5 text-[11px] font-medium text-white hover:border-primary dark:border-dark-3 dark:text-white"
           >
             <Maximize2 className="h-3 w-3" />
             Maximize
@@ -66,7 +66,7 @@ function CollapsibleSection({
           )}
           aria-hidden
         >
-          <ChevronDownIcon className="w-4 h-4" />
+          <ChevronDownIcon className="w-4 h-4 text-white" />
         </span>
       </button>
       {open && (

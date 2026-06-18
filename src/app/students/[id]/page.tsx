@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { AlertHistoryStepper } from "./_components/AlertHistoryStepper";
 import { InterventionHistorySection } from "./_components/InterventionHistorySection";
 import {
   getInterventionEmailsByStudentSapId,
@@ -13,6 +14,7 @@ import { getWellbeingCounsellorEmailOptions } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getStudentGpaProfileBySapId } from "@/lib/db/gpa";
+import { getStudentAlertDailyHistory } from "@/lib/db/student-alert-history";
 import { getWellbeingCasesByStudentSapId } from "@/lib/db/wellbeing";
 import { normalizeFacultyName, toShortFacultyName } from "@/lib/faculty-name";
 
@@ -294,6 +296,12 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       notFound();
     }
   }
+  const alertHistoryCourseId = suppressCourseFocus ? null : selectedCourseCode ?? null;
+  const alertHistorySectionCode = suppressCourseFocus ? null : selectedSection ?? null;
+  const alertHistoryEventPackageId = suppressCourseFocus
+    ? null
+    : selectedEventPackageId ?? null;
+
   const [
     interventionHistory,
     wellbeingCases,
@@ -302,6 +310,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     gpaProfile,
     enrollmentRecords,
     dbMetricRows,
+    alertDailyHistory,
   ] = await Promise.all([
     getInterventionsByStudentSapId(sapIdFromUrl),
     getWellbeingCasesByStudentSapId(sapIdFromUrl),
@@ -310,6 +319,11 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     getStudentGpaProfileBySapId(sapIdFromUrl),
     getEnrollmentForStudentSapId(sapIdFromUrl),
     getStudentProfileMetricRows(sapIdFromUrl),
+    getStudentAlertDailyHistory(sapIdFromUrl, {
+      courseId: alertHistoryCourseId,
+      sectionCode: alertHistorySectionCode,
+      eventPackageId: alertHistoryEventPackageId,
+    }),
   ]);
   if (!enrollmentRecords.length) notFound();
   const primaryEnrollment = enrollmentRecords[0] ?? null;
@@ -538,9 +552,9 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         noFocusedCourse={suppressCourseFocus}
       />
           </div>
-        </div>
 
-    
+          <AlertHistoryStepper entries={alertDailyHistory} variant="hero" />
+        </div>
       </div>
 
       <StudentMetricsClient

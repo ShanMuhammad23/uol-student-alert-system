@@ -1,0 +1,125 @@
+import { pool } from "@/lib/db";
+
+export type InterventionReminderScope =
+  | { role: "dean"; facultyId: string }
+  | { role: "hod"; departmentIds: string[] }
+  | { role: "instructor"; pernr: string };
+
+export type InterventionOpenOutOfAlertCounts = {
+  /** Intervened students who are out of alert but latest case is still open. */
+  openOutOfAlertCount: number;
+  /** Distinct students with at least one intervention in scope. */
+  totalIntervenedCount: number;
+};
+
+const OPEN_STATUSES = ["initiated", "in-progress", "referred"] as const;
+
+function pushScopeParam(scope: InterventionReminderScope, params: unknown[]): number {
+  if (scope.role === "dean") {
+    params.push(scope.facultyId);
+    return params.length;
+  }
+  if (scope.role === "hod") {
+    params.push(scope.departmentIds);
+    return params.length;
+  }
+  params.push(scope.pernr);
+  return params.length;
+}
+
+function enrollmentScopeSql(scope: InterventionReminderScope, paramIdx: number): string {
+  if (scope.role === "dean") {
+    return `e.is_active = TRUE AND e.faculty_id = $${paramIdx}`;
+  }
+  if (scope.role === "hod") {
+    return `e.is_active = TRUE AND e.department_id = ANY($${paramIdx}::text[])`;
+  }
+  return `e.is_active = TRUE AND e.instructor_pernr = $${paramIdx}`;
+}
+
+function alertEnrollmentScopeSql(
+  scope: InterventionReminderScope,
+  paramIdx: number,
+  alias: string
+): string {
+  if (scope.role === "dean") {
+    return `${alias}.faculty_id = $${paramIdx}`;
+  }
+  if (scope.role === "hod") {
+    return `${alias}.department_id = ANY($${paramIdx}::text[])`;
+  }
+  return `${alias}.instructor_pernr = $${paramIdx}`;
+}
+
+export async function getIntervenedStudentsOpenOutOfAlertCounts(
+  scope: InterventionReminderScope
+): Promise<InterventionOpenOutOfAlertCounts> {
+  if (!pool) {
+    return { openOutOfAlertCount: 0, totalIntervenedCount: 0 };
+  }
+
+  const params: unknown[] = [];
+  const scopeParamIdx = pushScopeParam(scope, params);
+  params.push([...OPEN_STATUSES]);
+  const openStatusIdx = params.length;
+
+  const enrollmentScope = enrollmentScopeSql(scope, scopeParamIdx);
+  const alertEnrollmentScope = alertEnrollmentScopeSql(scope, scopeParamIdx, "e2");
+
+  try {
+    const res = await pool.query<{
+      open_out_of_alert_count: number;
+      total_intervened_count: number;
+    }>(
+      `
+      WITH scoped_students AS (
+        SELECT DISTINCT e.sap_id
+        FROM student_enrollment_current e
+        WHERE ${enrollmentScope}
+      ),
+      latest_intervention AS (
+        SELECT DISTINCT ON (i.student_sap_id)
+          i.student_sap_id,
+          i.status
+        FROM interventions i
+        JOIN scoped_students ss ON ss.sap_id = i.student_sap_id
+        ORDER BY i.student_sap_id, i.performed_at DESC
+      ),
+      out_of_alert AS (
+        SELECT ss.sap_id
+        FROM scoped_students ss
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM student_enrollment_current e2
+          JOIN student_alert_current a
+            ON a.sap_id = e2.sap_id
+           AND a.course_id = e2.course_id
+           AND a.section_code = e2.section_code
+           AND a.event_package_id = e2.event_package_id
+          WHERE e2.is_active = TRUE
+            AND e2.sap_id = ss.sap_id
+            AND ${alertEnrollmentScope}
+            AND a.overall_alert_level IN ('warning', 'critical')
+        )
+      )
+      SELECT
+        COUNT(*) FILTER (
+          WHERE li.status = ANY($${openStatusIdx}::text[])
+            AND oa.sap_id IS NOT NULL
+        )::int AS open_out_of_alert_count,
+        COUNT(*)::int AS total_intervened_count
+      FROM latest_intervention li
+      LEFT JOIN out_of_alert oa ON oa.sap_id = li.student_sap_id
+      `,
+      params
+    );
+
+    const row = res.rows[0];
+    return {
+      openOutOfAlertCount: Number(row?.open_out_of_alert_count ?? 0),
+      totalIntervenedCount: Number(row?.total_intervened_count ?? 0),
+    };
+  } catch {
+    return { openOutOfAlertCount: 0, totalIntervenedCount: 0 };
+  }
+}
