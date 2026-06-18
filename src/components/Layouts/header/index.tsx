@@ -8,6 +8,7 @@ import { MenuIcon } from "./icons";
 import { ThemeToggleSwitch } from "./theme-toggle";
 import { UserInfo } from "./user-info";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
+import { HeaderEffectivenessCard } from "@/components/effectiveness/HeaderEffectivenessCard";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import type { InstructorFacultyRollupItem } from "@/lib/instructor-faculty-rollup";
@@ -213,7 +214,7 @@ export function Header({
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 min-[375px]:gap-4">
-       
+        <HeaderEffectivenessCard user={user} />
 
         <ThemeToggleSwitch />
 
