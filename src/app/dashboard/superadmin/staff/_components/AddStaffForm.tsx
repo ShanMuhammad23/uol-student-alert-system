@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import type { FormEvent } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useRef, useCallback, useLayoutEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
@@ -476,8 +476,14 @@ export function AddStaffForm({
     }
   }
 
-  async function handlePernrBlur() {
-    const value = pernr.trim();
+  async function runPernrLookup(
+    pernrValue: string,
+    options?: { autoFill?: boolean; notify?: boolean }
+  ) {
+    const value = pernrValue.trim();
+    const autoFill = options?.autoFill ?? false;
+    const notify = options?.notify ?? false;
+
     if (!value) {
       setPernrError(null);
       setPernrWarning(null);
@@ -485,6 +491,7 @@ export function AddStaffForm({
       setNameVariationWarning(null);
       return;
     }
+
     setPernrChecking(true);
     try {
       const result = await validateStaffFields(email, value);
@@ -499,18 +506,59 @@ export function AddStaffForm({
           : null
       );
       setEnrollmentName(result.enrollmentInstructorName);
-      const typedName = normalizedName(name);
-      const dbName = normalizedName(result.enrollmentInstructorName ?? "");
-      if (typedName && dbName && typedName !== dbName) {
-        setNameVariationWarning(
-          `Name variation found: enrollment has "${result.enrollmentInstructorName}".`
-        );
+
+      const instructorName = result.enrollmentInstructorName?.trim() ?? "";
+      const instructorEmail = result.enrollmentInstructorEmail?.trim().toLowerCase() ?? "";
+
+      if (autoFill) {
+        if (instructorName) {
+          setName(instructorName);
+          setNameVariationWarning(null);
+        }
+        if (instructorEmail) {
+          const emailCheck = await validateStaffFields(instructorEmail, value);
+          setEmail(instructorEmail);
+          setEmailError(
+            emailCheck.emailDuplicate
+              ? "This email is already assigned to an existing staff member."
+              : null
+          );
+        }
+        if (notify) {
+          if (instructorName || instructorEmail) {
+            appToast.success("Staff details loaded from enrollment.", {
+              toastId: "staff-pernr-lookup-success",
+            });
+          } else if (result.pernrInEnrollment === false) {
+            appToast.warning("PERNR not found in enrollment data.", {
+              toastId: "staff-pernr-lookup-missing",
+            });
+          }
+        }
       } else {
-        setNameVariationWarning(null);
+        const typedName = normalizedName(name);
+        const dbName = normalizedName(instructorName);
+        if (typedName && dbName && typedName !== dbName) {
+          setNameVariationWarning(
+            `Name variation found: enrollment has "${instructorName}".`
+          );
+        } else {
+          setNameVariationWarning(null);
+        }
       }
     } finally {
       setPernrChecking(false);
     }
+  }
+
+  async function handlePernrBlur() {
+    await runPernrLookup(pernr);
+  }
+
+  function handlePernrKeyDown(ev: KeyboardEvent<HTMLInputElement>) {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    void runPernrLookup(pernr, { autoFill: true, notify: true });
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -582,7 +630,7 @@ export function AddStaffForm({
         <div className="absolute bottom-0 right-1/4 h-[600px] w-[600px] rounded-full bg-violet-500/5 blur-[120px]" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-4xl">
+      <div className="relative z-10 mx-auto ">
   
 
         {/* Form */}
@@ -591,7 +639,7 @@ export function AddStaffForm({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="space-y-8"
+          className="flex flex-wrap gap-6"
         >
           {/* Personal Information Section */}
           <div className="relative z-30 rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.02] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.3)]">
@@ -679,7 +727,7 @@ export function AddStaffForm({
                 error={pernrError}
                 warning={pernrWarning}
                 success={enrollmentName ? `Enrollment instructor: ${enrollmentName}` : undefined}
-                info="Must appear as an instructor in current enrollment data"
+                info="Press Enter to fetch name and email from enrollment data"
                 delay={0.25}
               >
                 <div className="relative">
@@ -694,6 +742,7 @@ export function AddStaffForm({
                       if (pernrWarning) setPernrWarning(null);
                     }}
                     onBlur={handlePernrBlur}
+                    onKeyDown={handlePernrKeyDown}
                     className={cn(
                       "w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-900/50 dark:text-white dark:placeholder:text-slate-600",
                       "outline-none transition-all duration-200 backdrop-blur-sm",
@@ -842,7 +891,7 @@ export function AddStaffForm({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.55, ease: [0.23, 1, 0.32, 1] }}
-            className="relative z-10 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.02]"
+            className="relative z-10 flex items-center flex-1 justify-between rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.02]"
           >
             <div className="space-y-1">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Ready to create account?</p>

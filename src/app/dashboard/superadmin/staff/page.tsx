@@ -1,10 +1,12 @@
 import { StaffDirectoryPanelClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryPanelClient";
+import { UnregisteredStaffPanelClient } from "@/app/dashboard/superadmin/staff/_components/UnregisteredStaffPanelClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
 import { cn } from "@/lib/utils";
 import {
   queryStaffList,
+  queryUnregisteredStaffList,
   queryFaculties,
   queryDepartments,
   type DepartmentRow,
@@ -12,14 +14,42 @@ import {
 
 export type { DepartmentRow };
 
+type StaffTab = "directory" | "add" | "unregistered";
+
+function resolveStaffTab(tab: string | undefined): StaffTab {
+  if (tab === "add") return "add";
+  if (tab === "unregistered") return "unregistered";
+  return "directory";
+}
+
 export default async function SuperadminStaffPage(props: {
-  searchParams?: Promise<{ success?: string; error?: string; tab?: string }>;
+  searchParams?: Promise<{
+    success?: string;
+    error?: string;
+    tab?: string;
+    page?: string;
+    faculty?: string;
+    department?: string;
+    q?: string;
+  }>;
 }) {
   const searchParams = (await props.searchParams) ?? {};
-  const activeTab = searchParams.tab === "add" ? "add" : "directory";
+  const activeTab = resolveStaffTab(searchParams.tab);
+  const unregisteredPage = Math.max(1, Number(searchParams.page ?? 1) || 1);
+  const unregisteredFacultyId = searchParams.faculty?.trim() || null;
+  const unregisteredDepartmentId = searchParams.department?.trim() || null;
+  const unregisteredSearch = searchParams.q?.trim() ?? "";
 
-  const [staff, faculties, departments] = await Promise.all([
-    activeTab === "add" ? Promise.resolve([]) : queryStaffList(),
+  const [staff, unregisteredStaff, faculties, departments] = await Promise.all([
+    activeTab === "directory" ? queryStaffList() : Promise.resolve([]),
+    activeTab === "unregistered"
+      ? queryUnregisteredStaffList({
+          page: unregisteredPage,
+          facultyId: unregisteredFacultyId,
+          departmentId: unregisteredDepartmentId,
+          search: unregisteredSearch || null,
+        })
+      : Promise.resolve(null),
     queryFaculties(),
     queryDepartments(),
   ]);
@@ -97,6 +127,20 @@ export default async function SuperadminStaffPage(props: {
             )}
           </a>
           <a
+            href="?tab=unregistered"
+            className={cn(
+              "relative px-4 py-3 text-sm font-medium transition-colors",
+              activeTab === "unregistered"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            )}
+          >
+            Un-Registered Staff
+            {activeTab === "unregistered" && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
+            )}
+          </a>
+          <a
             href="?tab=add"
             className={cn(
               "relative px-4 py-3 text-sm font-medium transition-colors",
@@ -132,6 +176,20 @@ export default async function SuperadminStaffPage(props: {
             }))}
           />
         </div>
+      ) : activeTab === "unregistered" && unregisteredStaff ? (
+        <UnregisteredStaffPanelClient
+          staff={unregisteredStaff.rows}
+          total={unregisteredStaff.total}
+          page={unregisteredStaff.page}
+          pageSize={unregisteredStaff.pageSize}
+          totalPages={unregisteredStaff.totalPages}
+          faculties={faculties}
+          departments={departments}
+          facultyId={unregisteredFacultyId}
+          departmentId={unregisteredDepartmentId}
+          search={unregisteredSearch}
+          createStaff={createStaffMember}
+        />
       ) : (
         <StaffDirectoryPanelClient
           staff={staff}

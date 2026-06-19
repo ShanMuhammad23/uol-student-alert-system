@@ -28,6 +28,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StaffDetailsDialog } from "./StaffDetailsDialog";
+import { GrantAccessDialog } from "./GrantAccessDialog";
+import type { CreateStaffResult } from "@/app/dashboard/superadmin/staff/create-staff-action";
 
 type StaffListRow = {
   id: string;
@@ -209,14 +211,21 @@ export function StaffDirectoryTableClient({
   faculties,
   departments,
   readOnly = false,
+  variant = "default",
+  createStaff,
 }: {
   staff: StaffListRow[];
   faculties: FacultyRow[];
   departments: DepartmentRow[];
   /** Dean directory: no edit/delete/actions column */
   readOnly?: boolean;
+  /** Unregistered enrollment instructors: hide role/login columns, show Grant Access */
+  variant?: "default" | "unregistered";
+  createStaff?: (formData: FormData) => Promise<CreateStaffResult>;
 }) {
+  const isUnregistered = variant === "unregistered";
   const [editingStaff, setEditingStaff] = useState<StaffListRow | null>(null);
+  const [grantAccessStaff, setGrantAccessStaff] = useState<StaffListRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("staff");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -315,16 +324,20 @@ export function StaffDirectoryTableClient({
                     Staff <span className="text-xs">{sortIndicator("staff")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[100px]">
-                  <button type="button" onClick={() => toggleSort("pseudo_role")} className="inline-flex items-center gap-1">
-                    Pseudo Role <span className="text-xs">{sortIndicator("pseudo_role")}</span>
-                  </button>
-                </TableHead>
-                <TableHead className="min-w-[110px]">
-                  <button type="button" onClick={() => toggleSort("actual_role")} className="inline-flex items-center gap-1">
-                    Actual Role <span className="text-xs">{sortIndicator("actual_role")}</span>
-                  </button>
-                </TableHead>
+                {!isUnregistered && (
+                  <>
+                    <TableHead className="min-w-[100px]">
+                      <button type="button" onClick={() => toggleSort("pseudo_role")} className="inline-flex items-center gap-1">
+                        Pseudo Role <span className="text-xs">{sortIndicator("pseudo_role")}</span>
+                      </button>
+                    </TableHead>
+                    <TableHead className="min-w-[110px]">
+                      <button type="button" onClick={() => toggleSort("actual_role")} className="inline-flex items-center gap-1">
+                        Actual Role <span className="text-xs">{sortIndicator("actual_role")}</span>
+                      </button>
+                    </TableHead>
+                  </>
+                )}
               
                 <TableHead className="min-w-[160px]">
                   <button type="button" onClick={() => toggleSort("faculty")} className="inline-flex items-center gap-1">
@@ -341,17 +354,21 @@ export function StaffDirectoryTableClient({
                     Departments <span className="text-xs">{sortIndicator("departments")}</span>
                   </button>
                 </TableHead>
-                <TableHead className="min-w-[30px]">
-                  <button type="button" onClick={() => toggleSort("login_count")} className="inline-flex items-center gap-1">
-                    Login Count <span className="text-xs">{sortIndicator("login_count")}</span>
-                  </button>
-                </TableHead>
-                <TableHead className="min-w-[180px]">
-                  <button type="button" onClick={() => toggleSort("last_login")} className="inline-flex items-center gap-1">
-                    Last Login <span className="text-xs">{sortIndicator("last_login")}</span>
-                  </button>
-                </TableHead>
-                {!readOnly && (
+                {!isUnregistered && (
+                  <>
+                    <TableHead className="min-w-[30px]">
+                      <button type="button" onClick={() => toggleSort("login_count")} className="inline-flex items-center gap-1">
+                        Login Count <span className="text-xs">{sortIndicator("login_count")}</span>
+                      </button>
+                    </TableHead>
+                    <TableHead className="min-w-[180px]">
+                      <button type="button" onClick={() => toggleSort("last_login")} className="inline-flex items-center gap-1">
+                        Last Login <span className="text-xs">{sortIndicator("last_login")}</span>
+                      </button>
+                    </TableHead>
+                  </>
+                )}
+                {(!readOnly || isUnregistered) && (
                   <TableHead className="min-w-[200px]">
                     <button type="button" onClick={() => toggleSort("actions")} className="inline-flex items-center gap-1">
                       Actions <span className="text-xs">{sortIndicator("actions")}</span>
@@ -380,30 +397,34 @@ export function StaffDirectoryTableClient({
                       }}
                     />
                   </TableCell>
-                  <TableCell className="!text-left text-dark dark:text-white ">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
-                        row.pseudo_role ?? row.role
-                      )}`}
-                    >
-                      {formatRoleLabel(row.pseudo_role ?? row.role)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    {row.actual_role ? (
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
-                          row.actual_role === "admin" || row.actual_role === "coordinator"
-                            ? "admin"
-                            : row.actual_role
-                        )}`}
-                      >
-                        {formatActualRoleDisplay(row.actual_role)}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
+                  {!isUnregistered && (
+                    <>
+                      <TableCell className="!text-left text-dark dark:text-white ">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
+                            row.pseudo_role ?? row.role
+                          )}`}
+                        >
+                          {formatRoleLabel(row.pseudo_role ?? row.role)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="!text-left text-dark-6">
+                        {row.actual_role ? (
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
+                              row.actual_role === "admin" || row.actual_role === "coordinator"
+                                ? "admin"
+                                : row.actual_role
+                            )}`}
+                          >
+                            {formatActualRoleDisplay(row.actual_role)}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    </>
+                  )}
                   
                   <TableCell className="!text-left text-dark-6">
                     {resolveFacultyName(row).replace("Faculty of", "")}
@@ -422,15 +443,19 @@ export function StaffDirectoryTableClient({
                       labelPlural="departments"
                     />
                   </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    {row.login_count ?? 0}
-                  </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    {row.last_login_at
-                      ? new Date(row.last_login_at).toLocaleString()
-                      : "—"}
-                  </TableCell>
-                  {!readOnly && (
+                  {!isUnregistered && (
+                    <>
+                      <TableCell className="!text-left text-dark-6">
+                        {row.login_count ?? 0}
+                      </TableCell>
+                      <TableCell className="!text-left text-dark-6">
+                        {row.last_login_at
+                          ? new Date(row.last_login_at).toLocaleString()
+                          : "—"}
+                      </TableCell>
+                    </>
+                  )}
+                  {!readOnly && !isUnregistered && (
                     <TableCell className="!text-left">
                       <div className="flex items-center gap-2">
                         <button
@@ -450,6 +475,17 @@ export function StaffDirectoryTableClient({
                       </div>
                     </TableCell>
                   )}
+                  {isUnregistered && createStaff && (
+                    <TableCell className="!text-left">
+                      <button
+                        type="button"
+                        onClick={() => setGrantAccessStaff(row)}
+                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700"
+                      >
+                        Grant Access
+                      </button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -457,12 +493,22 @@ export function StaffDirectoryTableClient({
         </div>
       )}
 
-      {editingStaff && !readOnly && (
+      {editingStaff && !readOnly && !isUnregistered && (
         <EditStaffModal
           staff={editingStaff}
           faculties={faculties}
           departments={departments}
           onClose={() => setEditingStaff(null)}
+        />
+      )}
+
+      {grantAccessStaff && isUnregistered && createStaff && (
+        <GrantAccessDialog
+          staff={grantAccessStaff}
+          faculties={faculties}
+          departments={departments}
+          createStaff={createStaff}
+          onClose={() => setGrantAccessStaff(null)}
         />
       )}
     </div>

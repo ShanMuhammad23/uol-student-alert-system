@@ -27,6 +27,7 @@ export type StaffFieldValidationResult = {
   pernrDuplicate: boolean;
   pernrInEnrollment: boolean | null;
   enrollmentInstructorName: string | null;
+  enrollmentInstructorEmail: string | null;
 };
 
 export async function validateStaffFields(
@@ -40,6 +41,7 @@ export async function validateStaffFields(
   let pernrDuplicate = false;
   let pernrInEnrollment: boolean | null = null;
   let enrollmentInstructorName: string | null = null;
+  let enrollmentInstructorEmail: string | null = null;
 
   if (pool) {
     type ValidationRow = {
@@ -47,6 +49,7 @@ export async function validateStaffFields(
       pernr_duplicate: boolean;
       pernr_in_enrollment: boolean | null;
       enrollment_instructor_name: string | null;
+      enrollment_instructor_email: string | null;
     };
     const valRes = await pool.query<ValidationRow>(
       `SELECT
@@ -77,7 +80,17 @@ export async function validateStaffFields(
                AND e.instructor_pernr IS NOT NULL
                AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
            )
-         END AS enrollment_instructor_name`,
+         END AS enrollment_instructor_name,
+         CASE
+           WHEN $2::text = '' OR TRIM(BOTH FROM $2::text) = '' THEN NULL::text
+           ELSE (
+             SELECT NULLIF(TRIM(LOWER(MAX(e.instructor_email))), '')
+             FROM student_enrollment_current e
+             WHERE e.is_active = TRUE
+               AND e.instructor_pernr IS NOT NULL
+               AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
+           )
+         END AS enrollment_instructor_email`,
       [email, pernr]
     );
     const row = valRes.rows[0];
@@ -86,6 +99,7 @@ export async function validateStaffFields(
       pernrDuplicate = Boolean(row.pernr_duplicate);
       pernrInEnrollment = row.pernr_in_enrollment;
       enrollmentInstructorName = row.enrollment_instructor_name?.trim() ?? null;
+      enrollmentInstructorEmail = row.enrollment_instructor_email?.trim() ?? null;
     }
   }
 
@@ -94,6 +108,7 @@ export async function validateStaffFields(
     pernrDuplicate,
     pernrInEnrollment,
     enrollmentInstructorName,
+    enrollmentInstructorEmail,
   };
 }
 
