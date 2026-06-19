@@ -29,7 +29,9 @@ import {
 } from "@/components/ui/table";
 import { StaffDetailsDialog } from "./StaffDetailsDialog";
 import { GrantAccessDialog } from "./GrantAccessDialog";
+import { EiScoreBadge } from "./EiScoreBadge";
 import type { CreateStaffResult } from "@/app/dashboard/superadmin/staff/create-staff-action";
+import type { EiRating } from "@/lib/effectiveness-scoring";
 
 type StaffListRow = {
   id: string;
@@ -72,6 +74,9 @@ type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
+  ei_score: number | null;
+  ei_rating: EiRating | null;
+  ei_dimension_label: string | null;
 };
 
 type FacultyRow = {
@@ -94,6 +99,7 @@ type SortKey =
   | "faculty"
   | "other_faculties"
   | "departments"
+  | "ei_score"
   | "login_count"
   | "last_login"
   | "actions";
@@ -267,6 +273,8 @@ export function StaffDirectoryTableClient({
           return resolveOtherFacultyDisplayParts(row).length;
         case "departments":
           return resolveDepartmentNames(row).length;
+        case "ei_score":
+          return row.ei_score ?? -1;
         case "login_count":
           return row.login_count ?? 0;
         case "last_login":
@@ -352,6 +360,11 @@ export function StaffDirectoryTableClient({
                 <TableHead className="min-w-[110px]">
                   <button type="button" onClick={() => toggleSort("departments")} className="inline-flex items-center gap-1">
                     Departments <span className="text-xs">{sortIndicator("departments")}</span>
+                  </button>
+                </TableHead>
+                <TableHead className="min-w-[100px]">
+                  <button type="button" onClick={() => toggleSort("ei_score")} className="inline-flex items-center gap-1">
+                    EI <span className="text-xs">{sortIndicator("ei_score")}</span>
                   </button>
                 </TableHead>
                 {!isUnregistered && (
@@ -441,6 +454,13 @@ export function StaffDirectoryTableClient({
                       items={resolveDepartmentNames(row)}
                       labelSingular="department"
                       labelPlural="departments"
+                    />
+                  </TableCell>
+                  <TableCell className="!text-left text-dark-6">
+                    <EiScoreBadge
+                      rating={row.ei_rating}
+                      score={row.ei_score}
+                      dimensionLabel={row.ei_dimension_label}
                     />
                   </TableCell>
                   {!isUnregistered && (

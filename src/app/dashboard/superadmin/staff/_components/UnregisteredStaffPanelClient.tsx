@@ -48,6 +48,9 @@ type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
+  ei_score: number | null;
+  ei_rating: "A" | "B" | "C" | "D" | null;
+  ei_dimension_label: string | null;
 };
 
 type FacultyRow = { id: string; name: string };

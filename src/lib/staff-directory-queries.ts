@@ -1,4 +1,10 @@
 import { pool } from "@/lib/db";
+import {
+  getEffectivenessScores,
+  getLatestEffectivenessSnapshotDate,
+} from "@/lib/effectiveness";
+import type { EffectivenessScoreRow } from "@/lib/effectiveness-scoring";
+import { computeEiRating, type EiRating } from "@/lib/effectiveness-scoring";
 
 export type StaffListRow = {
   id: string;
@@ -41,6 +47,9 @@ export type StaffListRow = {
   department_ids: string[] | null;
   login_count: number | null;
   last_login_at: string | null;
+  ei_score: number | null;
+  ei_rating: EiRating | null;
+  ei_dimension_label: string | null;
 };
 
 export type FacultyRow = {
@@ -54,6 +63,149 @@ export type DepartmentRow = {
   code: string | null;
   faculty_id: string | null;
 };
+
+function normalizePernrKey(pernr: string): string {
+  return String(pernr ?? "").trim();
+}
+
+function isDeanStaff(row: Pick<StaffListRow, "pseudo_role" | "actual_role">): boolean {
+  return row.pseudo_role === "dean" || row.actual_role === "dean";
+}
+
+function isHodStaff(row: Pick<StaffListRow, "pseudo_role" | "actual_role">): boolean {
+  return row.pseudo_role === "hod" || row.actual_role === "hod";
+}
+
+function buildInstructorScoreMap(rows: EffectivenessScoreRow[]): Map<string, EffectivenessScoreRow> {
+  const map = new Map<string, EffectivenessScoreRow>();
+  for (const row of rows) {
+    const key = normalizePernrKey(row.dimension_id);
+    if (key) map.set(key, row);
+    const noZeros = key.replace(/^0+/, "");
+    if (noZeros && noZeros !== key) map.set(noZeros, row);
+  }
+  return map;
+}
+
+function resolveStaffEffectiveness(
+  row: StaffListRow,
+  instructorMap: Map<string, EffectivenessScoreRow>,
+  facultyMap: Map<string, EffectivenessScoreRow>,
+  departmentMap: Map<string, EffectivenessScoreRow>
+): Pick<StaffListRow, "ei_score" | "ei_rating" | "ei_dimension_label"> {
+  if (isDeanStaff(row) && row.faculty_id) {
+    const facultyRow = facultyMap.get(row.faculty_id);
+    if (facultyRow) {
+      return {
+        ei_score: facultyRow.ei_score,
+        ei_rating: facultyRow.ei_rating,
+        ei_dimension_label: `Faculty · ${facultyRow.dimension_name}`,
+      };
+    }
+  }
+
+  if (isHodStaff(row)) {
+    const deptIds = row.department_ids ?? [];
+    const deptRows = deptIds
+      .map((id) => departmentMap.get(id))
+      .filter((entry): entry is EffectivenessScoreRow => Boolean(entry));
+    if (deptRows.length > 0) {
+      const avg =
+        deptRows.reduce((sum, entry) => sum + entry.ei_score, 0) / deptRows.length;
+      const rounded = Math.round(avg * 100) / 100;
+      return {
+        ei_score: rounded,
+        ei_rating: computeEiRating(rounded),
+        ei_dimension_label:
+          deptRows.length === 1
+            ? `Department · ${deptRows[0]!.dimension_name}`
+            : `Department avg · ${deptRows.length} depts`,
+      };
+    }
+  }
+
+  const pernr = normalizePernrKey(row.pernr);
+  const instructorRow =
+    (pernr ? instructorMap.get(pernr) : undefined) ??
+    (pernr ? instructorMap.get(pernr.replace(/^0+/, "")) : undefined);
+  if (instructorRow) {
+    return {
+      ei_score: instructorRow.ei_score,
+      ei_rating: instructorRow.ei_rating,
+      ei_dimension_label: `Instructor · ${instructorRow.dimension_name}`,
+    };
+  }
+
+  return { ei_score: null, ei_rating: null, ei_dimension_label: null };
+}
+
+async function attachStaffEffectivenessScores(rows: StaffListRow[]): Promise<StaffListRow[]> {
+  if (!rows.length) return rows;
+
+  const snapshotDate = await getLatestEffectivenessSnapshotDate();
+  if (!snapshotDate) {
+    return rows.map((row) => ({
+      ...row,
+      ei_score: null,
+      ei_rating: null,
+      ei_dimension_label: null,
+    }));
+  }
+
+  const pernrs = [...new Set(rows.map((row) => normalizePernrKey(row.pernr)).filter(Boolean))];
+  const facultyIds = [
+    ...new Set(rows.map((row) => row.faculty_id).filter((id): id is string => Boolean(id))),
+  ];
+  const departmentIds = [
+    ...new Set(
+      rows.flatMap((row) => row.department_ids ?? []).filter((id) => id.trim().length > 0)
+    ),
+  ];
+
+  const [instructorScores, facultyScores, departmentScores] = await Promise.all([
+    pernrs.length
+      ? getEffectivenessScores({
+          snapshotDate,
+          dimensionType: "instructor",
+          instructorPernrs: pernrs,
+        })
+      : Promise.resolve([]),
+    facultyIds.length
+      ? getEffectivenessScores({
+          snapshotDate,
+          dimensionType: "faculty",
+          facultyIds,
+        })
+      : Promise.resolve([]),
+    departmentIds.length
+      ? getEffectivenessScores({
+          snapshotDate,
+          dimensionType: "department",
+          departmentIds,
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const instructorMap = buildInstructorScoreMap(instructorScores);
+  const facultyMap = new Map(facultyScores.map((row) => [row.dimension_id, row]));
+  const departmentMap = new Map(departmentScores.map((row) => [row.dimension_id, row]));
+
+  return rows.map((row) => ({
+    ...row,
+    ...resolveStaffEffectiveness(row, instructorMap, facultyMap, departmentMap),
+  }));
+}
+
+function withEmptyEffectiveness(
+  row: Omit<StaffListRow, "ei_score" | "ei_rating" | "ei_dimension_label">
+): StaffListRow {
+  return {
+    ...row,
+    ei_score: null,
+    ei_rating: null,
+    ei_dimension_label: null,
+  };
+}
 
 /**
  * Staff directory rows. When `facultyId` is set, only staff whose parent faculty matches.
@@ -185,7 +337,9 @@ export async function queryStaffList(options?: {
     [facultyId]
   );
 
-  return res.rows;
+  return attachStaffEffectivenessScores(
+    res.rows.map((row) => withEmptyEffectiveness(row))
+  );
 }
 
 export const UNREGISTERED_STAFF_PAGE_SIZE = 100;
@@ -362,6 +516,9 @@ export async function queryUnregisteredStaffList(options?: {
     department_ids: string[] | null;
     login_count: null;
     last_login_at: null;
+    ei_score: null;
+    ei_rating: null;
+    ei_dimension_label: null;
   };
 
   const listRes = await pool.query<UnregisteredRow>(
@@ -391,7 +548,10 @@ export async function queryUnregisteredStaffList(options?: {
        COALESCE(edp.department_names, ARRAY[]::text[]) AS department_names,
        COALESCE(edp.department_ids, ARRAY[]::varchar[]) AS department_ids,
        NULL::int AS login_count,
-       NULL::text AS last_login_at
+       NULL::text AS last_login_at,
+       NULL::numeric AS ei_score,
+       NULL::varchar AS ei_rating,
+       NULL::text AS ei_dimension_label
      FROM unregistered u
      LEFT JOIN primary_faculty_by_pernr pf ON pf.pernr_key = u.pernr_key
      LEFT JOIN enrollment_faculties_by_pernr ebp ON ebp.pernr_key = u.pernr_key
@@ -403,7 +563,9 @@ export async function queryUnregisteredStaffList(options?: {
   );
 
   return {
-    rows: listRes.rows,
+    rows: await attachStaffEffectivenessScores(
+      listRes.rows.map((row) => withEmptyEffectiveness(row))
+    ),
     total,
     page: safePage,
     pageSize,
