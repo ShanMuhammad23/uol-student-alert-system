@@ -7,7 +7,7 @@ export function Logo() {
     <div className="relative min-h-14 min-w-40 w-40">
       <Image
         src={logo}
-        fill
+        
         className="dark:hidden"
         alt="UOL | Student Early Alert System logo"
         role="presentation"
