@@ -346,7 +346,7 @@ export default async function SuperadminDashboardPage({
       </section>
 
       {/* ─── Intervention + Wellbeing + EI (one row) ─────────────── */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-2 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
           <SectionHeader
             title="Intervention Status"
@@ -378,7 +378,7 @@ export default async function SuperadminDashboardPage({
           </div>
         </div>
 
-        {/* <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
           <SectionHeader
             title="Faculty Effectiveness Index"
             action={
@@ -396,7 +396,7 @@ export default async function SuperadminDashboardPage({
           <div className="mt-4">
             <FacultyEffectivenessChart title="" data={facultyEiChartData} />
           </div>
-        </div> */}
+        </div>
       </section>
 
       {/* ─── Alert snapshot (full width, collapsible, closed by default) ─ */}

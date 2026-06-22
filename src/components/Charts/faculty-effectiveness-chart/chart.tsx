@@ -90,17 +90,18 @@ export function FacultyEffectivenessChart({
       plotOptions: {
         bar: {
           horizontal: true,
-          barHeight: "70%",
+          barHeight: "2%",
           borderRadius: 4,
           distributed: true,
           dataLabels: {
             position: "top",
+            
           },
         },
       },
       dataLabels: {
         enabled: true,
-        offsetX: 6,
+        offsetX: 18,
         formatter: (_val: number, opts) => {
           const item = sorted[opts.dataPointIndex];
           if (!item) return "";
