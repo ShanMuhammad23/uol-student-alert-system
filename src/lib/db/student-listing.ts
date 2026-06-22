@@ -1,10 +1,7 @@
 import { pool } from "@/lib/db";
-import { getInterventionRecordStatsForRoleScope } from "@/data/intervention-store";
 import {
-  getInterventionStatsForRoleScopeFromDb,
   hasAssigneeStaffIdColumn,
   hasCaseTypeColumn,
-  type InterventionRoleScope,
 } from "@/lib/db/interventions";
 import {
   WELLBEING_RESOLUTION_BY_VALUE,
@@ -791,197 +788,85 @@ export function totalAlertsFromOverviewTotals(
   );
 }
 
+type ListingInterventionStatusCounts = {
+  int_all: number;
+  not_started: number;
+  initiated: number;
+  in_progress: number;
+  referred: number;
+  resolved: number;
+  no_action_required: number;
+};
+
+const INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL = `(gpa_alert_level IS NOT NULL OR attendance_alert_level IS NOT NULL)`;
+
+/** Per-student intervention buckets from the listing CTE — matches table filters and dropdown counts. */
+async function queryListingInterventionStatusCounts(
+  scope: SessionScope,
+  filters: ListingFilters
+): Promise<ListingInterventionStatusCounts | null> {
+  if (!pool) return null;
+  const interventionContext = await getInterventionContextColumns();
+  const wbOpts = await resolveWellbeingListingOptions(scope);
+  const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]), {
+    extendedDirectCases: wbOpts.extendedDirectCases,
+  });
+  const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext, wbOpts.globalIntervention)}
+      SELECT
+        COUNT(DISTINCT sap_id) FILTER (
+          WHERE (
+            (${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND (
+              latest_intervention_status IS NULL
+              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
+            ))
+            OR latest_intervention_status = ANY(
+              ARRAY['initiated', 'in-progress', 'referred', 'resolved', 'no-action-required']::text[]
+            )
+          )
+        )::int AS int_all,
+        COUNT(DISTINCT sap_id) FILTER (
+          WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL}
+            AND (
+              latest_intervention_status IS NULL
+              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
+            )
+        )::int AS not_started,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'initiated')::int AS initiated,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'in-progress')::int AS in_progress,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'referred')::int AS referred,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'resolved')::int AS resolved,
+        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'no-action-required')::int AS no_action_required
+      FROM base`;
+  const intRes = await pool.query<ListingInterventionStatusCounts>(
+    intSql,
+    intParts.params
+  );
+  return intRes.rows[0] ?? null;
+}
+
 /**
- * Intervention chart buckets aligned with overview KPI totals:
- * status counts from role-scoped interventions; Not Started = KPI alert sum − interventions.
+ * Intervention chart buckets aligned with the student listing:
+ * distinct in-alert students per latest intervention status (same as table filters).
  */
 export async function getInterventionChartCountsForScope(
   scope: SessionScope,
   filters: ListingFilters,
   overviewTotals: OverviewAlertTotals
 ): Promise<InterventionChartCounts | null> {
-  if (!scopeSupportsChartAlignedInterventionCounts(scope)) return null;
+  const iRow = await queryListingInterventionStatusCounts(scope, filters);
+  if (!iRow) return null;
 
-  const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
-  if (!roleScopeBase) return null;
-
-  const slice = listingEffectiveAlertSlice(filters);
-  const chartMode = listingInterventionChartMode(filters);
   const totalAlerts = totalAlertsFromOverviewTotals(overviewTotals, filters);
-  const { interventionTypes, alertLevel } = listingInterventionApiParams(
-    slice,
-    chartMode
-  );
-
-  const summed = {
-    initiated: 0,
-    inProgress: 0,
-    referred: 0,
-    resolved: 0,
-    noActionRequired: 0,
-    totalInterventionStudents: 0,
-  };
-
-  for (const interventionType of interventionTypes) {
-    const stats = await getInterventionRecordStatsForRoleScope({
-      ...roleScopeBase,
-      interventionType,
-      alertLevel: alertLevel ?? null,
-    });
-    summed.initiated += stats.initiated;
-    summed.inProgress += stats.inProgress;
-    summed.referred += stats.referred;
-    summed.resolved += stats.resolved;
-    summed.noActionRequired += stats.noActionRequired;
-    summed.totalInterventionStudents += stats.totalInterventionStudents;
-  }
-
-  const notStarted = Math.max(
-    0,
-    totalAlerts - summed.totalInterventionStudents
-  );
 
   return {
     totalAlerts,
-    notStarted,
-    initiated: summed.initiated,
-    inProgress: summed.inProgress,
-    referred: summed.referred,
-    resolved: summed.resolved,
-    noActionRequired: summed.noActionRequired,
+    notStarted: Number(iRow.not_started ?? 0),
+    initiated: Number(iRow.initiated ?? 0),
+    inProgress: Number(iRow.in_progress ?? 0),
+    referred: Number(iRow.referred ?? 0),
+    resolved: Number(iRow.resolved ?? 0),
+    noActionRequired: Number(iRow.no_action_required ?? 0),
   };
-}
-
-function totalAlertsFromInterventionCombo(
-  row: {
-    gpa_red_cnt: number;
-    gpa_yellow_cnt: number;
-    att_red_cnt: number;
-    att_yellow_cnt: number;
-  },
-  slice: ListingAlertSlice | null,
-  chartMode: "gpa" | "attendance" | "all"
-): number {
-  if (slice === "attendance_red") return Number(row.att_red_cnt ?? 0);
-  if (slice === "attendance_yellow") return Number(row.att_yellow_cnt ?? 0);
-  if (slice === "gpa_red") return Number(row.gpa_red_cnt ?? 0);
-  if (slice === "gpa_yellow") return Number(row.gpa_yellow_cnt ?? 0);
-  if (chartMode === "gpa") {
-    return Number(row.gpa_red_cnt ?? 0) + Number(row.gpa_yellow_cnt ?? 0);
-  }
-  if (chartMode === "attendance") {
-    return Number(row.att_red_cnt ?? 0) + Number(row.att_yellow_cnt ?? 0);
-  }
-  return (
-    Number(row.gpa_red_cnt ?? 0) +
-    Number(row.gpa_yellow_cnt ?? 0) +
-    Number(row.att_red_cnt ?? 0) +
-    Number(row.att_yellow_cnt ?? 0)
-  );
-}
-
-function listingInterventionApiParams(
-  slice: ListingAlertSlice | null,
-  chartMode: "gpa" | "attendance" | "all"
-): {
-  interventionTypes: ("attendance" | "gpa" | "all")[];
-  alertLevel: "warning" | "critical" | null;
-} {
-  if (slice === "attendance_red") {
-    return { interventionTypes: ["attendance"], alertLevel: "critical" };
-  }
-  if (slice === "attendance_yellow") {
-    return { interventionTypes: ["attendance"], alertLevel: "warning" };
-  }
-  if (slice === "gpa_red") {
-    return { interventionTypes: ["gpa"], alertLevel: "critical" };
-  }
-  if (slice === "gpa_yellow") {
-    return { interventionTypes: ["gpa"], alertLevel: "warning" };
-  }
-  if (chartMode === "gpa") {
-    return { interventionTypes: ["gpa"], alertLevel: null };
-  }
-  if (chartMode === "attendance") {
-    return { interventionTypes: ["attendance"], alertLevel: null };
-  }
-  return { interventionTypes: ["all"], alertLevel: null };
-}
-
-function scopeSupportsChartAlignedInterventionCounts(scope: SessionScope): boolean {
-  return (
-    scope.role === "superadmin" ||
-    scope.role === "dean" ||
-    scope.role === "hod" ||
-    scope.role === "instructor"
-  );
-}
-
-/**
- * Maps dashboard listing scope + master filters to `/api/interventions/status` DB params
- * (same shaping as `InterventionStatusChartClient`).
- */
-function buildInterventionRoleScopeBaseForListing(
-  scope: SessionScope,
-  filters: ListingFilters
-): Omit<InterventionRoleScope, "interventionType" | "alertLevel"> | null {
-  const deptFromMaster = filters.department_ids?.filter(Boolean);
-  const courseMaster = filters.course_ids?.filter(Boolean);
-  const instructorMaster = filters.instructor_ids?.filter(Boolean);
-
-  const mergedDept =
-    deptFromMaster?.length
-      ? deptFromMaster
-      : scope.role === "hod"
-        ? scope.department_ids?.filter(Boolean) ?? []
-        : null;
-
-  if (scope.role === "superadmin") {
-    return {
-      role: "superadmin",
-      facultyId: null,
-      departmentIds: mergedDept?.length ? mergedDept : null,
-      courseIds: courseMaster?.length ? courseMaster : null,
-      instructorIds: instructorMaster?.length ? instructorMaster : null,
-      staffId: null,
-    };
-  }
-  if (scope.role === "dean") {
-    const fid = String(scope.faculty_id ?? "").trim();
-    if (!fid) return null;
-    return {
-      role: "dean",
-      facultyId: fid,
-      departmentIds: mergedDept?.length ? mergedDept : null,
-      courseIds: courseMaster?.length ? courseMaster : null,
-      instructorIds: instructorMaster?.length ? instructorMaster : null,
-      staffId: null,
-    };
-  }
-  if (scope.role === "hod") {
-    if (!mergedDept?.length) return null;
-    return {
-      role: "hod",
-      facultyId: null,
-      departmentIds: mergedDept,
-      courseIds: courseMaster?.length ? courseMaster : null,
-      instructorIds: instructorMaster?.length ? instructorMaster : null,
-      staffId: null,
-    };
-  }
-  if (scope.role === "instructor") {
-    const sid = String(scope.staff_id ?? "").trim();
-    if (!sid) return null;
-    return {
-      role: "teacher",
-      facultyId: null,
-      departmentIds: mergedDept?.length ? mergedDept : null,
-      courseIds: courseMaster?.length ? courseMaster : null,
-      instructorIds: instructorMaster?.length ? instructorMaster : null,
-      staffId: sid,
-    };
-  }
-  return null;
 }
 
 /** Row counts per master-filter dropdown option; each group excludes its own filter so options reflect the rest of the filter stack. */
@@ -993,8 +878,6 @@ export async function getFilterDropdownCounts(
   const interventionContext = await getInterventionContextColumns();
 
   const zeroWellbeing = WELLBEING_RESOLUTION_OPTIONS.map(() => 0);
-
-  const eligibleSql = `(gpa_alert_level IS NOT NULL OR attendance_alert_level IS NOT NULL)`;
 
   try {
     const wbOpts = await resolveWellbeingListingOptions(scope);
@@ -1050,138 +933,16 @@ export async function getFilterDropdownCounts(
     }>(attSql, attParts.params);
     const aRow = attRes.rows[0];
 
-    const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]), {
-      extendedDirectCases: wbOpts.extendedDirectCases,
-    });
-
-    let iRow: {
-      int_all: number;
-      not_started: number;
-      initiated: number;
-      in_progress: number;
-      referred: number;
-      resolved: number;
-      no_action_required: number;
-    };
-
-    const roleScopeBase = scopeSupportsChartAlignedInterventionCounts(scope)
-      ? buildInterventionRoleScopeBaseForListing(scope, filters)
-      : null;
-
-    if (roleScopeBase) {
-      const alertTotalsSql = `${buildListingBaseCte(intParts.whereSql, interventionContext, wbOpts.globalIntervention)}
-      , intervention_combo AS (
-        SELECT
-          sap_id,
-          COALESCE(BOOL_OR(gpa_alert_level = 'critical'), false) AS gpa_red,
-          COALESCE(BOOL_OR(gpa_alert_level = 'warning'), false) AS gpa_yellow,
-          COALESCE(BOOL_OR(attendance_alert_level = 'critical'), false) AS att_red,
-          COALESCE(BOOL_OR(attendance_alert_level = 'warning'), false) AS att_yellow
-        FROM base
-        GROUP BY sap_id
-      )
-      SELECT
-        COUNT(*) FILTER (WHERE gpa_red)::int AS gpa_red_cnt,
-        COUNT(*) FILTER (WHERE gpa_yellow)::int AS gpa_yellow_cnt,
-        COUNT(*) FILTER (WHERE att_red)::int AS att_red_cnt,
-        COUNT(*) FILTER (WHERE att_yellow)::int AS att_yellow_cnt
-      FROM intervention_combo`;
-      const alertTotalsRes = await pool.query<{
-        gpa_red_cnt: number;
-        gpa_yellow_cnt: number;
-        att_red_cnt: number;
-        att_yellow_cnt: number;
-      }>(alertTotalsSql, intParts.params);
-      const comboRow = alertTotalsRes.rows[0]!;
-      const slice = listingEffectiveAlertSlice(filters);
-      const chartMode = listingInterventionChartMode(filters);
-      const totalAlerts = totalAlertsFromInterventionCombo(comboRow, slice, chartMode);
-      const { interventionTypes, alertLevel } = listingInterventionApiParams(
-        slice,
-        chartMode
-      );
-
-      const summed = {
+    const iRow =
+      (await queryListingInterventionStatusCounts(scope, filters)) ?? {
+        int_all: 0,
+        not_started: 0,
         initiated: 0,
-        inProgress: 0,
+        in_progress: 0,
         referred: 0,
         resolved: 0,
-        noActionRequired: 0,
-        totalInterventionStudents: 0,
+        no_action_required: 0,
       };
-      for (const interventionType of interventionTypes) {
-        const stats = await getInterventionStatsForRoleScopeFromDb({
-          ...roleScopeBase,
-          interventionType,
-          alertLevel: alertLevel ?? undefined,
-        });
-        summed.initiated += stats.initiated;
-        summed.inProgress += stats.inProgress;
-        summed.referred += stats.referred;
-        summed.resolved += stats.resolved;
-        summed.noActionRequired += stats.noActionRequired;
-        summed.totalInterventionStudents += stats.totalInterventionStudents;
-      }
-
-      const notStarted = Math.max(
-        0,
-        totalAlerts - summed.totalInterventionStudents
-      );
-      const bucketSum =
-        notStarted +
-        summed.initiated +
-        summed.inProgress +
-        summed.referred +
-        summed.resolved +
-        summed.noActionRequired;
-
-      iRow = {
-        int_all: bucketSum,
-        not_started: notStarted,
-        initiated: summed.initiated,
-        in_progress: summed.inProgress,
-        referred: summed.referred,
-        resolved: summed.resolved,
-        no_action_required: summed.noActionRequired,
-      };
-    } else {
-      const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext, wbOpts.globalIntervention)}
-      SELECT
-        COUNT(DISTINCT sap_id) FILTER (
-          WHERE (
-            (${eligibleSql} AND (
-              latest_intervention_status IS NULL
-              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
-            ))
-            OR latest_intervention_status = ANY(
-              ARRAY['initiated', 'in-progress', 'referred', 'resolved', 'no-action-required']::text[]
-            )
-          )
-        )::int AS int_all,
-        COUNT(DISTINCT sap_id) FILTER (
-          WHERE ${eligibleSql}
-            AND (
-              latest_intervention_status IS NULL
-              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
-            )
-        )::int AS not_started,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'initiated')::int AS initiated,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'in-progress')::int AS in_progress,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'referred')::int AS referred,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'resolved')::int AS resolved,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${eligibleSql} AND latest_intervention_status = 'no-action-required')::int AS no_action_required
-      FROM base`;
-      const intRes = await pool.query<{
-        int_all: number;
-        not_started: number;
-        initiated: number;
-        in_progress: number;
-        referred: number;
-        resolved: number;
-        no_action_required: number;
-      }>(intSql, intParts.params);
-      iRow = intRes.rows[0]!;
-    }
 
     let wellbeingAll = 0;
     let wellbeing = zeroWellbeing;

@@ -11,6 +11,10 @@ import type { EiRating } from "@/lib/effectiveness-scoring";
 import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
+import {
+  FacultyEffectivenessChart,
+  type FacultyEffectivenessChartItem,
+} from "@/components/Charts/faculty-effectiveness-chart/chart";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -266,6 +270,24 @@ export default async function SuperadminDashboardPage({
       { score: row.ei_score, rating: row.ei_rating },
     ])
   );
+
+  const facultyEiChartData: FacultyEffectivenessChartItem[] = facultyStats
+    .map((f) => {
+      const fei = feiByFacultyId.get(f.facultyId);
+      const name =
+        resolveFacultyNameFromIdOrName(
+          f.facultyId,
+          f.facultyName.replace("Faculty of ", "")
+        ) ?? f.facultyId;
+      return {
+        facultyId: f.facultyId,
+        name,
+        score: fei?.score ?? 0,
+        rating: fei?.rating ?? "D",
+        hasData: fei != null,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
   
   const validSelectedFaculty = facultyStats.some(
     (f) => f.facultyId === selectedFaculty
@@ -323,8 +345,8 @@ export default async function SuperadminDashboardPage({
         </div>
       </section>
 
-      {/* ─── Intervention + Wellbeing (one row) ───────────────────── */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* ─── Intervention + Wellbeing + EI (one row) ─────────────── */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
           <SectionHeader
             title="Intervention Status"
@@ -353,6 +375,26 @@ export default async function SuperadminDashboardPage({
           <SectionHeader title="Wellbeing Resolution" />
           <div className="mt-4">
             <StatusStackedChart title="" data={wellbeingChart} />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+          <SectionHeader
+            title="Faculty Effectiveness Index"
+            action={
+              <Link
+                href="/dashboard/superadmin/effectiveness"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+              >
+                View Details
+                <svg className="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            }
+          />
+          <div className="mt-4">
+            <FacultyEffectivenessChart title="" data={facultyEiChartData} />
           </div>
         </div>
       </section>

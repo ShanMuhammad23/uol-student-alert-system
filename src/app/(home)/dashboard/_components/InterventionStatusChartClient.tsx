@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
+import type { FilterDropdownCounts } from "@/lib/db/student-listing";
 import type {
   AppUser,
   MasterFilterParams,
@@ -29,22 +30,30 @@ type Props = {
 };
 
 type InterventionCounts = {
+  notStarted: number;
   initiated: number;
   inProgress: number;
   referred: number;
   resolved: number;
   noActionRequired: number;
-  totalInterventionStudents: number;
 };
 
 const EMPTY_COUNTS: InterventionCounts = {
+  notStarted: 0,
   initiated: 0,
   inProgress: 0,
   referred: 0,
   resolved: 0,
   noActionRequired: 0,
-  totalInterventionStudents: 0,
 };
+
+function normalizeDimFiltersForApi(
+  filters: AlertDimensionFilter[] | undefined
+): AlertDimensionFilter[] | undefined {
+  if (!filters?.length) return undefined;
+  if (filters.includes("all")) return undefined;
+  return filters;
+}
 
 function sliceDescription(slice: InterventionChartSlice | null): string | null {
   if (!slice) return null;
@@ -64,26 +73,13 @@ export function InterventionStatusChartClient({
   gpaFilters: gpaFiltersProp,
   attendanceFilters: attendanceFiltersProp,
   selectedAlert,
-  yellowGpa = 0,
-  redGpa = 0,
-  yellowAttendance = 0,
-  redAttendance = 0,
   filterApiRoleScope,
 }: Props): JSX.Element {
-  type ChartMode = "attendance" | "gpa" | "all";
   const dashboardFilter = useDashboardFilter();
 
   const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
   const setGpaFilters = dashboardFilter?.setGpaFilters;
   const setInterventionFilters = dashboardFilter?.setInterventionFilters;
-
-  const chartMode = useMemo<ChartMode>(() => {
-    if (dashboardFilter?.gpaFilters?.length) return "gpa";
-    if (dashboardFilter?.attendanceFilters?.length) return "attendance";
-    if (selectedAlert === "gpa") return "gpa";
-    if (selectedAlert === "attendance") return "attendance";
-    return "all";
-  }, [dashboardFilter?.gpaFilters, dashboardFilter?.attendanceFilters, selectedAlert]);
 
   const masterFilter =
     dashboardFilter?.masterFilter ?? masterFilterProp ?? {};
@@ -110,145 +106,46 @@ export function InterventionStatusChartClient({
     useState<InterventionCounts>(EMPTY_COUNTS);
   const [loading, setLoading] = useState(false);
 
-  const interventionTypesForDb = useMemo<("attendance" | "gpa" | "all")[]>(() => {
-    if (
-      effectiveSlice === "attendance_yellow" ||
-      effectiveSlice === "attendance_red"
-    ) {
-      return ["attendance"];
-    }
-    if (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") {
-      return ["gpa"];
-    }
-    if (chartMode === "gpa") return ["gpa"];
-    if (chartMode === "attendance") return ["attendance"];
-    return ["all"];
-  }, [effectiveSlice, chartMode]);
-
-  const interventionTypesKey = useMemo(
-    () => interventionTypesForDb.slice().sort().join(","),
-    [interventionTypesForDb]
-  );
-
-  const totalAlerts = useMemo(() => {
-    if (effectiveSlice === "attendance_yellow") return yellowAttendance;
-    if (effectiveSlice === "attendance_red") return redAttendance;
-    if (effectiveSlice === "gpa_yellow") return yellowGpa;
-    if (effectiveSlice === "gpa_red") return redGpa;
-    if (chartMode === "gpa") return yellowGpa + redGpa;
-    if (chartMode === "attendance") return yellowAttendance + redAttendance;
-    return yellowAttendance + redAttendance + yellowGpa + redGpa;
-  }, [
-    effectiveSlice,
-    yellowAttendance,
-    redAttendance,
-    chartMode,
-    yellowGpa,
-    redGpa,
-  ]);
-
-  const alertLevelForRequest = useMemo<"warning" | "critical" | null>(() => {
-    if (effectiveSlice === "attendance_yellow" || effectiveSlice === "gpa_yellow") {
-      return "warning";
-    }
-    if (effectiveSlice === "attendance_red" || effectiveSlice === "gpa_red") {
-      return "critical";
-    }
-    return null;
-  }, [effectiveSlice]);
-
-  const facultyIdForRequest =
-    user?.role === "dean" ? user.faculty_id ?? null : null;
-  const staffIdForRequest =
-    user?.role === "teacher" || user?.role === "instructor"
-      ? user.id ?? null
-      : null;
-  const courseIdsForRequest =
-    user?.role === "teacher" || user?.role === "instructor"
-      ? user.course_ids ?? null
-      : null;
-  const departmentIdsForRequest =
-    user?.role === "hod" ? user.department_ids ?? null : null;
-  const scopedDepartmentIdsForRequest =
-    masterFilter.department_ids?.length
-      ? masterFilter.department_ids
-      : departmentIdsForRequest;
-  const scopedCourseIdsForRequest =
-    masterFilter.course_ids?.length
-      ? masterFilter.course_ids
-      : courseIdsForRequest;
-  const scopedInstructorIdsForRequest =
-    masterFilter.instructor_ids?.length ? masterFilter.instructor_ids : null;
-
-  const departmentIdsKey = useMemo(() => {
-    if (user?.role !== "hod") return "";
-    return (user?.department_ids ?? []).join(",");
-  }, [user?.role, user?.department_ids]);
-  const courseIdsKey = useMemo(() => {
-    if (user?.role !== "teacher" && user?.role !== "instructor") return "";
-    return (user?.course_ids ?? []).join(",");
-  }, [user?.role, user?.course_ids]);
-
   useEffect(() => {
     if (!user?.role) return;
 
     const controller = new AbortController();
     const t = window.setTimeout(() => {
       setLoading(true);
-      const roleScope =
-        user.role === "teacher" || user.role === "instructor"
-          ? "teacher"
-          : user.role === "superadmin"
-            ? "superadmin"
-            : (user.role as "dean" | "hod");
+      const filters = {
+        department_ids: masterFilter.department_ids,
+        programs: masterFilter.programs,
+        instructor_ids: masterFilter.instructor_ids,
+        course_ids: masterFilter.course_ids,
+        batches: masterFilter.batches,
+        selected_alert:
+          selectedAlert && selectedAlert !== "all" ? selectedAlert : undefined,
+        attendanceFilters: normalizeDimFiltersForApi(attendanceFilters),
+        gpaFilters: normalizeDimFiltersForApi(gpaFilters),
+      };
 
-      const fetchCountsForType = async (
-        interventionType: "attendance" | "gpa" | "all"
-      ) =>
-        fetch("/api/interventions/status", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            role: roleScope,
-            interventionType,
-            alertLevel: alertLevelForRequest,
-            countRecords: true,
-            facultyId: facultyIdForRequest,
-            departmentIds: scopedDepartmentIdsForRequest,
-            courseIds: scopedCourseIdsForRequest,
-            instructorIds: scopedInstructorIdsForRequest,
-            staffId: staffIdForRequest,
-          }),
-          signal: controller.signal,
-        }).then(async (res) => {
-          if (!res.ok) throw new Error("Failed to load intervention counts");
-          return (await res.json()) as Promise<{
-            initiated?: number;
-            inProgress?: number;
-            referred?: number;
-            resolved?: number;
-            noActionRequired?: number;
-            totalInterventionStudents?: number;
-          }>;
-        });
-
-      Promise.all(interventionTypesForDb.map(fetchCountsForType))
-        .then((countResults) => {
-          const summed = countResults.reduce<InterventionCounts>(
-            (acc, counts) => ({
-              initiated: acc.initiated + (counts.initiated ?? 0),
-              inProgress: acc.inProgress + (counts.inProgress ?? 0),
-              referred: acc.referred + (counts.referred ?? 0),
-              resolved: acc.resolved + (counts.resolved ?? 0),
-              noActionRequired:
-                acc.noActionRequired + (counts.noActionRequired ?? 0),
-              totalInterventionStudents:
-                acc.totalInterventionStudents +
-                (counts.totalInterventionStudents ?? 0),
-            }),
-            EMPTY_COUNTS
-          );
-          setInterventionCounts(summed);
+      fetch("/api/dashboard/filter-counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          filters,
+          ...(filterApiRoleScope ? { roleScope: filterApiRoleScope } : {}),
+        }),
+      })
+        .then((res) =>
+          res.ok ? res.json() : Promise.reject(new Error("counts"))
+        )
+        .then((body: FilterDropdownCounts) => {
+          const c = body.intervention;
+          setInterventionCounts({
+            notStarted: c.not_started ?? 0,
+            initiated: c.initiated ?? 0,
+            inProgress: c.in_progress ?? 0,
+            referred: c.referred ?? 0,
+            resolved: c.resolved ?? 0,
+            noActionRequired: c.no_action_required ?? 0,
+          });
         })
         .catch((err) => {
           if (err.name === "AbortError") return;
@@ -265,16 +162,14 @@ export function InterventionStatusChartClient({
     };
   }, [
     user?.role,
-    facultyIdForRequest,
-    departmentIdsKey,
-    courseIdsKey,
-    staffIdForRequest,
-    interventionTypesKey,
-    alertLevelForRequest,
     masterFilterKey,
-    scopedDepartmentIdsForRequest?.join(","),
-    scopedCourseIdsForRequest?.join(","),
-    scopedInstructorIdsForRequest?.join(","),
+    gpaFiltersKey,
+    attendanceFiltersKey,
+    selectedAlert,
+    filterApiRoleScope?.role,
+    filterApiRoleScope?.facultyId,
+    filterApiRoleScope?.departmentIds?.join(","),
+    filterApiRoleScope?.pernr,
   ]);
 
   const clearSegmentFilters = () => {
@@ -300,23 +195,7 @@ export function InterventionStatusChartClient({
   };
 
   const { initiated, inProgress, referred, resolved, noActionRequired, notStarted } =
-    useMemo(() => {
-      const totalInterventionStudents =
-        interventionCounts.totalInterventionStudents ||
-        interventionCounts.initiated +
-          interventionCounts.inProgress +
-          interventionCounts.referred +
-          interventionCounts.resolved +
-          interventionCounts.noActionRequired;
-      return {
-        initiated: interventionCounts.initiated,
-        inProgress: interventionCounts.inProgress,
-        referred: interventionCounts.referred,
-        resolved: interventionCounts.resolved,
-        noActionRequired: interventionCounts.noActionRequired,
-        notStarted: Math.max(0, totalAlerts - totalInterventionStudents),
-      };
-    }, [interventionCounts, totalAlerts]);
+    interventionCounts;
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
