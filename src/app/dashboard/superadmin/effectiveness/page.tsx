@@ -22,6 +22,7 @@ async function loadFacultyEffectiveness() {
   const facultyIds = faculties.map((f) => f.id);
 
   const emptyInterventionStats: InterventionRoleScopeStats = {
+    notStarted: 0,
     initiated: 0,
     inProgress: 0,
     referred: 0,

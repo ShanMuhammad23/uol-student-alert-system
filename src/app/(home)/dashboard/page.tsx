@@ -282,7 +282,6 @@ export default async function Home({ searchParams }: PropsType) {
             <InterventionStatusChartClient
               title="Outreach & Intervention"
               user={effectiveUser}
-              masterFilter={masterFilter}
               gpaFilters={gpaFilters}
               attendanceFilters={attendanceFilters}
               selectedAlert={selectedAlert}
@@ -290,7 +289,6 @@ export default async function Home({ searchParams }: PropsType) {
               redGpa={redGpa.value}
               yellowAttendance={yellowAttendance.value}
               redAttendance={redAttendance.value}
-              filterApiRoleScope={filterApiRoleScope}
             />
           </div>
           <div className="col-span-12 md:col-span-4 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">

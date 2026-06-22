@@ -851,6 +851,7 @@ export type InterventionRoleScope = {
 };
 
 export type InterventionRoleScopeStats = {
+  notStarted: number;
   initiated: number;
   inProgress: number;
   referred: number;
@@ -874,6 +875,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
   // Old DBs may not have intervention_type; treat missing column as 'attendance'.
   if (!hasType && wantsGpa) {
     return {
+      notStarted: 0,
       initiated: 0,
       inProgress: 0,
       referred: 0,
@@ -885,6 +887,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
 
   if (!pool) {
     return {
+      notStarted: 0,
       initiated: 0,
       inProgress: 0,
       referred: 0,
@@ -970,6 +973,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
     );
 
     const countsSuper = {
+      notStarted: 0,
       initiated: 0,
       inProgress: 0,
       referred: 0,
@@ -978,7 +982,9 @@ export async function getInterventionStatsForRoleScopeFromDb(
     };
     for (const row of resSuper.rows) {
       const n = Number(row.cnt) || 0;
-      if (row.status === "initiated") countsSuper.initiated = n;
+      if (row.status === "not_started" || row.status === "not-started") {
+        countsSuper.notStarted = n;
+      } else if (row.status === "initiated") countsSuper.initiated = n;
       else if (row.status === "in-progress") countsSuper.inProgress = n;
       else if (row.status === "referred") countsSuper.referred = n;
       else if (row.status === "resolved") countsSuper.resolved = n;
@@ -986,6 +992,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
         countsSuper.noActionRequired = n;
     }
     const totalSuper =
+      countsSuper.notStarted +
       countsSuper.initiated +
       countsSuper.inProgress +
       countsSuper.referred +
@@ -1003,14 +1010,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
 
   if (params.role === "dean") {
     if (!params.facultyId) {
-      return {
-        initiated: 0,
-        inProgress: 0,
-        referred: 0,
-        resolved: 0,
-        noActionRequired: 0,
-        totalInterventionStudents: 0,
-      };
+      return EMPTY_ROLE_SCOPE_STATS;
     }
     const mappedFacultyId =
       FACULTY_ID_TO_ENROLLMENT_FAC_ID[params.facultyId] ?? params.facultyId;
@@ -1019,14 +1019,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
   } else if (params.role === "hod") {
     const deptIds = params.departmentIds ?? [];
     if (!deptIds.length) {
-      return {
-        initiated: 0,
-        inProgress: 0,
-        referred: 0,
-        resolved: 0,
-        noActionRequired: 0,
-        totalInterventionStudents: 0,
-      };
+      return EMPTY_ROLE_SCOPE_STATS;
     }
     args = [...args, deptIds];
     whereParts.push(`department_id = ANY($${args.length})`);
@@ -1037,14 +1030,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
       args = [...args, courseIds];
       whereParts.push(`course_id = ANY($${args.length})`);
     } else if (!params.staffId) {
-      return {
-        initiated: 0,
-        inProgress: 0,
-        referred: 0,
-        resolved: 0,
-        noActionRequired: 0,
-        totalInterventionStudents: 0,
-      };
+      return EMPTY_ROLE_SCOPE_STATS;
     } else {
       // Backward-compatible fallback if course IDs are unavailable.
       args = [...args, params.staffId];
@@ -1116,37 +1102,14 @@ export async function getInterventionStatsForRoleScopeFromDb(
     wantsAlertFilter ? [...args, params.alertLevel as any] : args
   );
 
-  const counts = {
-    initiated: 0,
-    inProgress: 0,
-    referred: 0,
-    resolved: 0,
-    noActionRequired: 0,
-  };
-
-  for (const row of res.rows) {
-    const n = Number(row.cnt) || 0;
-    if (row.status === "initiated") counts.initiated = n;
-    else if (row.status === "in-progress") counts.inProgress = n;
-    else if (row.status === "referred") counts.referred = n;
-    else if (row.status === "resolved") counts.resolved = n;
-    else if (row.status === "no-action-required") counts.noActionRequired = n;
-  }
-
-  const totalInterventionStudents =
-    counts.initiated +
-    counts.inProgress +
-    counts.referred +
-    counts.resolved +
-    counts.noActionRequired;
-
-  return { ...counts, totalInterventionStudents };
+  return roleScopeCountsFromStatusRows(res.rows);
 }
 
 function roleScopeCountsFromStatusRows(
   rows: { status: string; cnt: string | number }[]
 ): InterventionRoleScopeStats {
   const counts = {
+    notStarted: 0,
     initiated: 0,
     inProgress: 0,
     referred: 0,
@@ -1155,13 +1118,16 @@ function roleScopeCountsFromStatusRows(
   };
   for (const row of rows) {
     const n = Number(row.cnt) || 0;
-    if (row.status === "initiated") counts.initiated = n;
+    if (row.status === "not_started" || row.status === "not-started") {
+      counts.notStarted = n;
+    } else if (row.status === "initiated") counts.initiated = n;
     else if (row.status === "in-progress") counts.inProgress = n;
     else if (row.status === "referred") counts.referred = n;
     else if (row.status === "resolved") counts.resolved = n;
     else if (row.status === "no-action-required") counts.noActionRequired = n;
   }
   const totalInterventionStudents =
+    counts.notStarted +
     counts.initiated +
     counts.inProgress +
     counts.referred +
@@ -1171,6 +1137,7 @@ function roleScopeCountsFromStatusRows(
 }
 
 const EMPTY_ROLE_SCOPE_STATS: InterventionRoleScopeStats = {
+  notStarted: 0,
   initiated: 0,
   inProgress: 0,
   referred: 0,

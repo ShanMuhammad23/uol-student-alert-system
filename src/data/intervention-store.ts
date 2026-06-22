@@ -392,6 +392,7 @@ export async function getInterventionStatsForRoleScope(
   });
 
   const out = {
+    notStarted: 0,
     initiated: 0,
     inProgress: 0,
     referred: 0,
@@ -399,7 +400,8 @@ export async function getInterventionStatsForRoleScope(
     noActionRequired: 0,
   };
   for (const r of latestRecords) {
-    if (r.status === "initiated") out.initiated += 1;
+    if (r.status === "not_started" || r.status === "not-started") out.notStarted += 1;
+    else if (r.status === "initiated") out.initiated += 1;
     else if (r.status === "in-progress") out.inProgress += 1;
     else if (r.status === "referred") out.referred += 1;
     else if (r.status === "resolved") out.resolved += 1;
@@ -409,6 +411,7 @@ export async function getInterventionStatsForRoleScope(
   return {
     ...out,
     totalInterventionStudents:
+      out.notStarted +
       out.initiated +
       out.inProgress +
       out.referred +
@@ -442,6 +445,7 @@ export async function getInterventionRecordStatsForRoleScope(
   });
 
   const out = {
+    notStarted: 0,
     initiated: 0,
     inProgress: 0,
     referred: 0,
@@ -449,7 +453,8 @@ export async function getInterventionRecordStatsForRoleScope(
     noActionRequired: 0,
   };
   for (const r of records) {
-    if (r.status === "initiated") out.initiated += 1;
+    if (r.status === "not_started" || r.status === "not-started") out.notStarted += 1;
+    else if (r.status === "initiated") out.initiated += 1;
     else if (r.status === "in-progress") out.inProgress += 1;
     else if (r.status === "referred") out.referred += 1;
     else if (r.status === "resolved") out.resolved += 1;
@@ -459,6 +464,7 @@ export async function getInterventionRecordStatsForRoleScope(
   return {
     ...out,
     totalInterventionStudents:
+      out.notStarted +
       out.initiated +
       out.inProgress +
       out.referred +

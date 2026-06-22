@@ -1,7 +1,9 @@
 import { pool } from "@/lib/db";
+import { getInterventionRecordStatsForRoleScope } from "@/data/intervention-store";
 import {
   hasAssigneeStaffIdColumn,
   hasCaseTypeColumn,
+  type InterventionRoleScope,
 } from "@/lib/db/interventions";
 import {
   WELLBEING_RESOLUTION_BY_VALUE,
@@ -845,28 +847,149 @@ async function queryListingInterventionStatusCounts(
 }
 
 /**
- * Intervention chart buckets aligned with the student listing:
- * distinct in-alert students per latest intervention status (same as table filters).
+ * Intervention chart buckets: every intervention row by status (matches interventions list).
  */
 export async function getInterventionChartCountsForScope(
   scope: SessionScope,
   filters: ListingFilters,
   overviewTotals: OverviewAlertTotals
 ): Promise<InterventionChartCounts | null> {
-  const iRow = await queryListingInterventionStatusCounts(scope, filters);
-  if (!iRow) return null;
+  const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
+  if (!roleScopeBase) return null;
 
+  const slice = listingEffectiveAlertSlice(filters);
+  const chartMode = listingInterventionChartMode(filters);
   const totalAlerts = totalAlertsFromOverviewTotals(overviewTotals, filters);
+  const { interventionTypes, alertLevel } = listingInterventionApiParams(
+    slice,
+    chartMode
+  );
+
+  const summed = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+    noActionRequired: 0,
+    totalRecords: 0,
+  };
+
+  for (const interventionType of interventionTypes) {
+    const stats = await getInterventionRecordStatsForRoleScope({
+      ...roleScopeBase,
+      interventionType,
+      alertLevel: alertLevel ?? null,
+    });
+    summed.initiated += stats.initiated;
+    summed.inProgress += stats.inProgress;
+    summed.referred += stats.referred;
+    summed.resolved += stats.resolved;
+    summed.noActionRequired += stats.noActionRequired;
+    summed.totalRecords += stats.totalInterventionStudents;
+  }
+
+  const notStarted = Math.max(0, totalAlerts - summed.totalRecords);
 
   return {
     totalAlerts,
-    notStarted: Number(iRow.not_started ?? 0),
-    initiated: Number(iRow.initiated ?? 0),
-    inProgress: Number(iRow.in_progress ?? 0),
-    referred: Number(iRow.referred ?? 0),
-    resolved: Number(iRow.resolved ?? 0),
-    noActionRequired: Number(iRow.no_action_required ?? 0),
+    notStarted,
+    initiated: summed.initiated,
+    inProgress: summed.inProgress,
+    referred: summed.referred,
+    resolved: summed.resolved,
+    noActionRequired: summed.noActionRequired,
   };
+}
+
+function listingInterventionApiParams(
+  slice: ListingAlertSlice | null,
+  chartMode: "gpa" | "attendance" | "all"
+): {
+  interventionTypes: ("attendance" | "gpa" | "all")[];
+  alertLevel: "warning" | "critical" | null;
+} {
+  if (slice === "attendance_red") {
+    return { interventionTypes: ["attendance"], alertLevel: "critical" };
+  }
+  if (slice === "attendance_yellow") {
+    return { interventionTypes: ["attendance"], alertLevel: "warning" };
+  }
+  if (slice === "gpa_red") {
+    return { interventionTypes: ["gpa"], alertLevel: "critical" };
+  }
+  if (slice === "gpa_yellow") {
+    return { interventionTypes: ["gpa"], alertLevel: "warning" };
+  }
+  if (chartMode === "gpa") {
+    return { interventionTypes: ["gpa"], alertLevel: null };
+  }
+  if (chartMode === "attendance") {
+    return { interventionTypes: ["attendance"], alertLevel: null };
+  }
+  return { interventionTypes: ["all"], alertLevel: null };
+}
+
+function buildInterventionRoleScopeBaseForListing(
+  scope: SessionScope,
+  filters: ListingFilters
+): Omit<InterventionRoleScope, "interventionType" | "alertLevel"> | null {
+  const deptFromMaster = filters.department_ids?.filter(Boolean);
+  const courseMaster = filters.course_ids?.filter(Boolean);
+  const instructorMaster = filters.instructor_ids?.filter(Boolean);
+
+  const mergedDept =
+    deptFromMaster?.length
+      ? deptFromMaster
+      : scope.role === "hod"
+        ? scope.department_ids?.filter(Boolean) ?? []
+        : null;
+
+  if (scope.role === "superadmin") {
+    return {
+      role: "superadmin",
+      facultyId: null,
+      departmentIds: mergedDept?.length ? mergedDept : null,
+      courseIds: courseMaster?.length ? courseMaster : null,
+      instructorIds: instructorMaster?.length ? instructorMaster : null,
+      staffId: null,
+    };
+  }
+  if (scope.role === "dean") {
+    const fid = String(scope.faculty_id ?? "").trim();
+    if (!fid) return null;
+    return {
+      role: "dean",
+      facultyId: fid,
+      departmentIds: mergedDept?.length ? mergedDept : null,
+      courseIds: courseMaster?.length ? courseMaster : null,
+      instructorIds: instructorMaster?.length ? instructorMaster : null,
+      staffId: null,
+    };
+  }
+  if (scope.role === "hod") {
+    if (!mergedDept?.length) return null;
+    return {
+      role: "hod",
+      facultyId: null,
+      departmentIds: mergedDept,
+      courseIds: courseMaster?.length ? courseMaster : null,
+      instructorIds: instructorMaster?.length ? instructorMaster : null,
+      staffId: null,
+    };
+  }
+  if (scope.role === "instructor") {
+    const sid = String(scope.staff_id ?? "").trim();
+    if (!sid) return null;
+    return {
+      role: "teacher",
+      facultyId: null,
+      departmentIds: mergedDept?.length ? mergedDept : null,
+      courseIds: courseMaster?.length ? courseMaster : null,
+      instructorIds: instructorMaster?.length ? instructorMaster : null,
+      staffId: sid,
+    };
+  }
+  return null;
 }
 
 /** Row counts per master-filter dropdown option; each group excludes its own filter so options reflect the rest of the filter stack. */
