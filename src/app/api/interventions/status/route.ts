@@ -4,7 +4,10 @@ import {
   getLatestInterventionStatusMap,
 } from "@/data/intervention-store";
 import { getInterventionStatsForStudents } from "@/data/intervention-store";
-import { getInterventionStatsForRoleScope } from "@/data/intervention-store";
+import {
+  getInterventionRecordStatsForRoleScope,
+  getInterventionStatsForRoleScope,
+} from "@/data/intervention-store";
 
 export async function GET() {
   const statusMap = await getAllLatestInterventionStatuses();
@@ -32,6 +35,8 @@ export async function POST(req: Request) {
       courseIds?: string[] | null;
       instructorIds?: string[] | null;
       staffId?: string | null;
+      /** When true, count every intervention row (interventions list). Default: latest per student. */
+      countRecords?: boolean;
     };
 
     if (
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
         roleScope.role === "teacher" ||
         roleScope.role === "superadmin")
     ) {
-      const stats = await getInterventionStatsForRoleScope({
+      const scopeParams = {
         role: roleScope.role,
         interventionType: roleScope.interventionType,
         alertLevel: roleScope.alertLevel ?? null,
@@ -51,7 +56,10 @@ export async function POST(req: Request) {
         courseIds: roleScope.courseIds ?? null,
         instructorIds: roleScope.instructorIds ?? null,
         staffId: roleScope.staffId ?? null,
-      });
+      };
+      const stats = roleScope.countRecords
+        ? await getInterventionRecordStatsForRoleScope(scopeParams)
+        : await getInterventionStatsForRoleScope(scopeParams);
       return NextResponse.json(stats, { status: 200 });
     }
 

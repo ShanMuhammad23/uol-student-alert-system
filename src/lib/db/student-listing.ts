@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db";
-import { getInterventionStatsForRoleScope } from "@/data/intervention-store";
+import { getInterventionRecordStatsForRoleScope } from "@/data/intervention-store";
 import {
   getInterventionStatsForRoleScopeFromDb,
   hasAssigneeStaffIdColumn,
@@ -823,7 +823,7 @@ export async function getInterventionChartCountsForScope(
   };
 
   for (const interventionType of interventionTypes) {
-    const stats = await getInterventionStatsForRoleScope({
+    const stats = await getInterventionRecordStatsForRoleScope({
       ...roleScopeBase,
       interventionType,
       alertLevel: alertLevel ?? null,

@@ -1143,6 +1143,206 @@ export async function getInterventionStatsForRoleScopeFromDb(
   return { ...counts, totalInterventionStudents };
 }
 
+function roleScopeCountsFromStatusRows(
+  rows: { status: string; cnt: string | number }[]
+): InterventionRoleScopeStats {
+  const counts = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+    noActionRequired: 0,
+  };
+  for (const row of rows) {
+    const n = Number(row.cnt) || 0;
+    if (row.status === "initiated") counts.initiated = n;
+    else if (row.status === "in-progress") counts.inProgress = n;
+    else if (row.status === "referred") counts.referred = n;
+    else if (row.status === "resolved") counts.resolved = n;
+    else if (row.status === "no-action-required") counts.noActionRequired = n;
+  }
+  const totalInterventionStudents =
+    counts.initiated +
+    counts.inProgress +
+    counts.referred +
+    counts.resolved +
+    counts.noActionRequired;
+  return { ...counts, totalInterventionStudents };
+}
+
+const EMPTY_ROLE_SCOPE_STATS: InterventionRoleScopeStats = {
+  initiated: 0,
+  inProgress: 0,
+  referred: 0,
+  resolved: 0,
+  noActionRequired: 0,
+  totalInterventionStudents: 0,
+};
+
+/**
+ * Counts every intervention row by status (matches superadmin interventions list).
+ * Unlike `getInterventionStatsForRoleScopeFromDb`, does not dedupe to latest per student.
+ */
+export async function getInterventionRecordStatsForRoleScopeFromDb(
+  params: InterventionRoleScope
+): Promise<InterventionRoleScopeStats> {
+  const hasType = await hasInterventionTypeColumn();
+  const hasAlertLevel = await hasAlertLevelColumn();
+  const wantsGpa = params.interventionType === "gpa";
+  const usesTypeParam = hasType && params.interventionType !== "all";
+
+  if (!hasType && wantsGpa) return EMPTY_ROLE_SCOPE_STATS;
+  if (!pool) return EMPTY_ROLE_SCOPE_STATS;
+
+  const wantsAlertFilterGlobal =
+    hasAlertLevel && params.alertLevel != null ? true : false;
+
+  if (params.role === "superadmin") {
+    const typeWhereSql = usesTypeParam
+      ? params.interventionType === "gpa"
+        ? "(intervention_type = $1 OR intervention_type = 'both')"
+        : "(COALESCE(intervention_type, 'attendance') = $1 OR intervention_type = 'both')"
+      : "TRUE";
+    const argsSuper: unknown[] = usesTypeParam ? [params.interventionType] : [];
+    const wherePartsSuper: string[] = [];
+
+    const facultyId = String(params.facultyId ?? "").trim();
+    if (facultyId) {
+      argsSuper.push(facultyId);
+      wherePartsSuper.push(`faculty_id = $${argsSuper.length}`);
+    }
+    const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+    if (departmentIds.length) {
+      argsSuper.push(departmentIds);
+      wherePartsSuper.push(`department_id = ANY($${argsSuper.length}::text[])`);
+    }
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      argsSuper.push(courseIds);
+      wherePartsSuper.push(`course_id = ANY($${argsSuper.length}::text[])`);
+    }
+    const instructorIds = (params.instructorIds ?? []).filter(Boolean);
+    if (instructorIds.length) {
+      argsSuper.push(instructorIds);
+      wherePartsSuper.push(
+        `EXISTS (
+          SELECT 1
+          FROM student_enrollment_current e
+          WHERE e.is_active = TRUE
+            AND e.sap_id = interventions.student_sap_id
+            AND e.course_id = interventions.course_id
+            AND e.instructor_pernr = ANY($${argsSuper.length}::text[])
+        )`
+      );
+    }
+
+    const scopedWhereSuper = wherePartsSuper.length
+      ? `${typeWhereSql} AND ${wherePartsSuper.join(" AND ")}`
+      : typeWhereSql;
+    const outerIdx = argsSuper.length + 1;
+    const alertSql = wantsAlertFilterGlobal
+      ? ` AND alert_level = $${outerIdx}`
+      : "";
+
+    const resSuper = await pool.query<{ status: string; cnt: string }>(
+      `
+      SELECT status, COUNT(*)::int AS cnt
+      FROM interventions
+      WHERE ${scopedWhereSuper}${alertSql}
+      GROUP BY status
+      `,
+      wantsAlertFilterGlobal
+        ? [...argsSuper, params.alertLevel as string]
+        : argsSuper
+    );
+
+    return roleScopeCountsFromStatusRows(resSuper.rows);
+  }
+
+  const whereParts: string[] = [];
+  let args: unknown[] = usesTypeParam ? [params.interventionType] : [];
+  const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
+    FAC_ENG: "50000172",
+    FAC_MGT: "50000172",
+  };
+
+  if (params.role === "dean") {
+    if (!params.facultyId) return EMPTY_ROLE_SCOPE_STATS;
+    const mappedFacultyId =
+      FACULTY_ID_TO_ENROLLMENT_FAC_ID[params.facultyId] ?? params.facultyId;
+    args = [...args, mappedFacultyId];
+    whereParts.push(`faculty_id = $${args.length}`);
+  } else if (params.role === "hod") {
+    const deptIds = params.departmentIds ?? [];
+    if (!deptIds.length) return EMPTY_ROLE_SCOPE_STATS;
+    args = [...args, deptIds];
+    whereParts.push(`department_id = ANY($${args.length})`);
+  } else {
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      args = [...args, courseIds];
+      whereParts.push(`course_id = ANY($${args.length})`);
+    } else if (!params.staffId) {
+      return EMPTY_ROLE_SCOPE_STATS;
+    } else {
+      args = [...args, params.staffId];
+      whereParts.push(`staff_id = $${args.length}`);
+    }
+  }
+
+  const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+  if (departmentIds.length && params.role !== "hod") {
+    args = [...args, departmentIds];
+    whereParts.push(`department_id = ANY($${args.length})`);
+  }
+
+  const courseIds = (params.courseIds ?? []).filter(Boolean);
+  if (courseIds.length && params.role !== "teacher") {
+    args = [...args, courseIds];
+    whereParts.push(`course_id = ANY($${args.length})`);
+  }
+
+  const instructorIds = (params.instructorIds ?? []).filter(Boolean);
+  if (instructorIds.length) {
+    args = [...args, instructorIds];
+    whereParts.push(
+      `EXISTS (
+        SELECT 1
+        FROM student_enrollment_current e
+        WHERE e.is_active = TRUE
+          AND e.sap_id = interventions.student_sap_id
+          AND e.course_id = interventions.course_id
+          AND e.instructor_pernr = ANY($${args.length}::text[])
+      )`
+    );
+  }
+
+  const whereSql = whereParts.length ? whereParts.join(" AND ") : "TRUE";
+  const interventionTypeFilterSql = usesTypeParam
+    ? params.interventionType === "gpa"
+      ? "(intervention_type = $1 OR intervention_type = 'both') AND "
+      : "(COALESCE(intervention_type, 'attendance') = $1 OR intervention_type = 'both') AND "
+    : "";
+  const wantsAlertFilter =
+    hasAlertLevel && params.alertLevel != null ? true : false;
+  const outerPlaceholderIndex = args.length + 1;
+  const alertSql = wantsAlertFilter
+    ? ` AND alert_level = $${outerPlaceholderIndex}`
+    : "";
+
+  const res = await pool.query<{ status: string; cnt: string }>(
+    `
+    SELECT status, COUNT(*)::int AS cnt
+    FROM interventions
+    WHERE ${interventionTypeFilterSql}${whereSql}${alertSql}
+    GROUP BY status
+    `,
+    wantsAlertFilter ? [...args, params.alertLevel as string] : args
+  );
+
+  return roleScopeCountsFromStatusRows(res.rows);
+}
+
 export type InterventionListFilters = {
   facultyId?: string | null;
   departmentId?: string | null;

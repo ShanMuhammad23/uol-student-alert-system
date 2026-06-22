@@ -14,6 +14,7 @@ import {
   getInterventionsByStudentSapIdFromDb,
   getLatestInterventionStatusMapFromDb,
   getInterventionStatsForStudentsFromDb,
+  getInterventionRecordStatsForRoleScopeFromDb,
   getInterventionStatsForRoleScopeFromDb,
   updateInterventionByIdFromDb,
   type InterventionRoleScope,
@@ -398,6 +399,56 @@ export async function getInterventionStatsForRoleScope(
     noActionRequired: 0,
   };
   for (const r of latestRecords) {
+    if (r.status === "initiated") out.initiated += 1;
+    else if (r.status === "in-progress") out.inProgress += 1;
+    else if (r.status === "referred") out.referred += 1;
+    else if (r.status === "resolved") out.resolved += 1;
+    else if (r.status === "no-action-required") out.noActionRequired += 1;
+  }
+
+  return {
+    ...out,
+    totalInterventionStudents:
+      out.initiated +
+      out.inProgress +
+      out.referred +
+      out.resolved +
+      out.noActionRequired,
+  };
+}
+
+/** Every intervention row by status (matches superadmin interventions list). */
+export async function getInterventionRecordStatsForRoleScope(
+  params: InterventionRoleScope
+): Promise<InterventionRoleScopeStatsCounts> {
+  if (pool) {
+    return getInterventionRecordStatsForRoleScopeFromDb(params);
+  }
+
+  const stored = readStore();
+  const records = stored.filter((r) => {
+    if (params.interventionType === "gpa" && r.intervention_type !== "gpa" && r.intervention_type !== "both") {
+      return false;
+    }
+    if (
+      params.interventionType === "attendance" &&
+      r.intervention_type !== "attendance" &&
+      r.intervention_type !== "both"
+    ) {
+      return false;
+    }
+    if (params.alertLevel != null && r.alert_level !== params.alertLevel) return false;
+    return true;
+  });
+
+  const out = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+    noActionRequired: 0,
+  };
+  for (const r of records) {
     if (r.status === "initiated") out.initiated += 1;
     else if (r.status === "in-progress") out.inProgress += 1;
     else if (r.status === "referred") out.referred += 1;

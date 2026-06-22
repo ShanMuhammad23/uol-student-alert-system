@@ -212,6 +212,7 @@ export function InterventionStatusChartClient({
             role: roleScope,
             interventionType,
             alertLevel: alertLevelForRequest,
+            countRecords: true,
             facultyId: facultyIdForRequest,
             departmentIds: scopedDepartmentIdsForRequest,
             courseIds: scopedCourseIdsForRequest,
