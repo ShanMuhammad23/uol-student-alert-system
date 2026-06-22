@@ -7,6 +7,7 @@ import { getInterventionStatsForStudents } from "@/data/intervention-store";
 import {
   getInterventionRecordStatsForRoleScope,
   getInterventionStatsForRoleScope,
+  getAlertedWithoutInterventionCountForRoleScope,
 } from "@/data/intervention-store";
 
 export async function GET() {
@@ -60,6 +61,11 @@ export async function POST(req: Request) {
       const stats = roleScope.countRecords
         ? await getInterventionRecordStatsForRoleScope(scopeParams)
         : await getInterventionStatsForRoleScope(scopeParams);
+      if (roleScope.countRecords) {
+        const notStarted =
+          await getAlertedWithoutInterventionCountForRoleScope(scopeParams);
+        return NextResponse.json({ ...stats, notStarted }, { status: 200 });
+      }
       return NextResponse.json(stats, { status: 200 });
     }
 

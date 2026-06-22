@@ -15,6 +15,7 @@ import {
   getLatestInterventionStatusMapFromDb,
   getInterventionStatsForStudentsFromDb,
   getInterventionRecordStatsForRoleScopeFromDb,
+  getAlertedWithoutInterventionCountForRoleScopeFromDb,
   getInterventionStatsForRoleScopeFromDb,
   updateInterventionByIdFromDb,
   type InterventionRoleScope,
@@ -471,6 +472,16 @@ export async function getInterventionRecordStatsForRoleScope(
       out.resolved +
       out.noActionRequired,
   };
+}
+
+/** Alert rows in scope with no intervention row for that student in the same scope. */
+export async function getAlertedWithoutInterventionCountForRoleScope(
+  params: InterventionRoleScope
+): Promise<number> {
+  if (pool) {
+    return getAlertedWithoutInterventionCountForRoleScopeFromDb(params);
+  }
+  return 0;
 }
 
 /**

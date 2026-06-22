@@ -1310,6 +1310,172 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
   return roleScopeCountsFromStatusRows(res.rows);
 }
 
+const FACULTY_ID_TO_INTERVENTION_FAC_ID: Record<string, string> = {
+  FAC_ENG: "50000172",
+  FAC_MGT: "50000172",
+};
+
+function buildAlertRowFilterSql(
+  params: InterventionRoleScope
+): string {
+  if (params.interventionType === "gpa") {
+    if (params.alertLevel === "warning") {
+      return "a.gpa_alert_level = 'warning'";
+    }
+    if (params.alertLevel === "critical") {
+      return "a.gpa_alert_level = 'critical'";
+    }
+    return "a.gpa_alert_level IS NOT NULL";
+  }
+  if (params.interventionType === "attendance") {
+    if (params.alertLevel === "warning") {
+      return "a.attendance_alert_level = 'warning'";
+    }
+    if (params.alertLevel === "critical") {
+      return "a.attendance_alert_level = 'critical'";
+    }
+    return "a.attendance_alert_level IS NOT NULL";
+  }
+  if (params.alertLevel === "warning") {
+    return "(a.gpa_alert_level = 'warning' OR a.attendance_alert_level = 'warning')";
+  }
+  if (params.alertLevel === "critical") {
+    return "(a.gpa_alert_level = 'critical' OR a.attendance_alert_level = 'critical')";
+  }
+  return "(a.gpa_alert_level IS NOT NULL OR a.attendance_alert_level IS NOT NULL)";
+}
+
+function buildInterventionExistsScopeSql(
+  params: InterventionRoleScope,
+  args: unknown[]
+): string | null {
+  if (params.role === "dean") {
+    if (!params.facultyId) return null;
+    const mappedFacultyId =
+      FACULTY_ID_TO_INTERVENTION_FAC_ID[params.facultyId] ?? params.facultyId;
+    args.push(mappedFacultyId);
+    return `i.faculty_id = $${args.length}`;
+  }
+  if (params.role === "hod") {
+    const deptIds = params.departmentIds ?? [];
+    if (!deptIds.length) return null;
+    args.push(deptIds);
+    return `i.department_id = ANY($${args.length}::text[])`;
+  }
+  if (params.role === "teacher") {
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      args.push(courseIds);
+      return `i.course_id = ANY($${args.length}::text[])`;
+    }
+    if (!params.staffId) return null;
+    args.push(params.staffId);
+    return `i.staff_id = $${args.length}`;
+  }
+  if (params.role === "superadmin") {
+    const parts: string[] = [];
+    const facultyId = String(params.facultyId ?? "").trim();
+    if (facultyId) {
+      args.push(facultyId);
+      parts.push(`i.faculty_id = $${args.length}`);
+    }
+    const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+    if (departmentIds.length) {
+      args.push(departmentIds);
+      parts.push(`i.department_id = ANY($${args.length}::text[])`);
+    }
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      args.push(courseIds);
+      parts.push(`i.course_id = ANY($${args.length}::text[])`);
+    }
+    return parts.length ? parts.join(" AND ") : "TRUE";
+  }
+  return null;
+}
+
+function buildEnrollmentScopeSql(
+  params: InterventionRoleScope,
+  args: unknown[]
+): string | null {
+  const parts = ["e.is_active = TRUE"];
+  if (params.role === "dean") {
+    if (!params.facultyId) return null;
+    const mappedFacultyId =
+      FACULTY_ID_TO_INTERVENTION_FAC_ID[params.facultyId] ?? params.facultyId;
+    args.push(mappedFacultyId);
+    parts.push(`e.faculty_id = $${args.length}`);
+  } else if (params.role === "hod") {
+    const deptIds = params.departmentIds ?? [];
+    if (!deptIds.length) return null;
+    args.push(deptIds);
+    parts.push(`e.department_id = ANY($${args.length}::text[])`);
+  } else if (params.role === "teacher") {
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (!courseIds.length) return null;
+    args.push(courseIds);
+    parts.push(`e.course_id = ANY($${args.length}::text[])`);
+  }
+
+  const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+  if (departmentIds.length && params.role !== "hod") {
+    args.push(departmentIds);
+    parts.push(`e.department_id = ANY($${args.length}::text[])`);
+  }
+  const courseIds = (params.courseIds ?? []).filter(Boolean);
+  if (courseIds.length && params.role !== "teacher") {
+    args.push(courseIds);
+    parts.push(`e.course_id = ANY($${args.length}::text[])`);
+  }
+  const instructorIds = (params.instructorIds ?? []).filter(Boolean);
+  if (instructorIds.length) {
+    args.push(instructorIds);
+    parts.push(`e.instructor_pernr = ANY($${args.length}::text[])`);
+  }
+
+  return parts.join(" AND ");
+}
+
+/**
+ * Alert rows in role scope with no matching row in `interventions` for that student
+ * (same faculty/department/course scope as intervention record counts).
+ */
+export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
+  params: InterventionRoleScope
+): Promise<number> {
+  if (!pool) return 0;
+
+  const args: unknown[] = [];
+  const enrollmentScope = buildEnrollmentScopeSql(params, args);
+  const interventionScope = buildInterventionExistsScopeSql(params, args);
+  if (!enrollmentScope || !interventionScope) return 0;
+
+  const alertFilter = buildAlertRowFilterSql(params);
+  const res = await pool.query<{ cnt: string }>(
+    `
+    SELECT COUNT(*)::int AS cnt
+    FROM student_enrollment_current e
+    INNER JOIN student_alert_current a
+      ON a.sap_id = e.sap_id
+     AND a.course_id = e.course_id
+     AND a.section_code = e.section_code
+     AND a.event_package_id = e.event_package_id
+    WHERE ${enrollmentScope}
+      AND ${alertFilter}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM interventions i
+        WHERE COALESCE(NULLIF(REGEXP_REPLACE(TRIM(i.student_sap_id), '^0+', ''), ''), '0')
+            = COALESCE(NULLIF(REGEXP_REPLACE(TRIM(e.sap_id), '^0+', ''), ''), '0')
+          AND ${interventionScope}
+      )
+    `,
+    args
+  );
+
+  return Number(res.rows[0]?.cnt ?? 0);
+}
+
 export type InterventionListFilters = {
   facultyId?: string | null;
   departmentId?: string | null;

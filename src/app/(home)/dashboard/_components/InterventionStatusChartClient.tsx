@@ -60,10 +60,6 @@ export function InterventionStatusChartClient({
   gpaFilters: gpaFiltersProp,
   attendanceFilters: attendanceFiltersProp,
   selectedAlert,
-  yellowGpa = 0,
-  redGpa = 0,
-  yellowAttendance = 0,
-  redAttendance = 0,
 }: Props): JSX.Element {
   type ChartMode = "attendance" | "gpa" | "all";
   const dashboardFilter = useDashboardFilter();
@@ -91,23 +87,6 @@ export function InterventionStatusChartClient({
     if (gpaFilters.includes("yellow")) return "gpa_yellow";
     return null;
   }, [attendanceFilters, gpaFilters]);
-
-  const totalAlerts = useMemo(() => {
-    if (effectiveSlice === "attendance_yellow") return yellowAttendance;
-    if (effectiveSlice === "attendance_red") return redAttendance;
-    if (effectiveSlice === "gpa_yellow") return yellowGpa;
-    if (effectiveSlice === "gpa_red") return redGpa;
-    if (chartMode === "gpa") return yellowGpa + redGpa;
-    if (chartMode === "attendance") return yellowAttendance + redAttendance;
-    return yellowAttendance + redAttendance + yellowGpa + redGpa;
-  }, [
-    effectiveSlice,
-    yellowAttendance,
-    redAttendance,
-    chartMode,
-    yellowGpa,
-    redGpa,
-  ]);
 
   const interventionType = useMemo<"attendance" | "gpa" | "all">(() => {
     if (
@@ -182,25 +161,17 @@ export function InterventionStatusChartClient({
         .then(async (res) => {
           if (!res.ok) throw new Error("Failed to load intervention counts");
           return (await res.json()) as {
+            notStarted?: number;
             initiated?: number;
             inProgress?: number;
             referred?: number;
             resolved?: number;
             noActionRequired?: number;
-            totalInterventionStudents?: number;
           };
         })
         .then((counts) => {
-          const totalRecords =
-            counts.totalInterventionStudents ??
-            (counts.initiated ?? 0) +
-              (counts.inProgress ?? 0) +
-              (counts.referred ?? 0) +
-              (counts.resolved ?? 0) +
-              (counts.noActionRequired ?? 0);
-
           setInterventionCounts({
-            notStarted: Math.max(0, totalAlerts - totalRecords),
+            notStarted: counts.notStarted ?? 0,
             initiated: counts.initiated ?? 0,
             inProgress: counts.inProgress ?? 0,
             referred: counts.referred ?? 0,
@@ -230,7 +201,6 @@ export function InterventionStatusChartClient({
     courseIds?.join(","),
     interventionType,
     alertLevel,
-    totalAlerts,
   ]);
 
   const clearSegmentFilters = () => {

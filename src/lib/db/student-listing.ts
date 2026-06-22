@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db";
-import { getInterventionRecordStatsForRoleScope } from "@/data/intervention-store";
+import { getInterventionRecordStatsForRoleScope, getAlertedWithoutInterventionCountForRoleScope } from "@/data/intervention-store";
 import {
   hasAssigneeStaffIdColumn,
   hasCaseTypeColumn,
@@ -888,7 +888,11 @@ export async function getInterventionChartCountsForScope(
     summed.totalRecords += stats.totalInterventionStudents;
   }
 
-  const notStarted = Math.max(0, totalAlerts - summed.totalRecords);
+  const notStarted = await getAlertedWithoutInterventionCountForRoleScope({
+    ...roleScopeBase,
+    interventionType: interventionTypes[0] ?? "all",
+    alertLevel: alertLevel ?? null,
+  });
 
   return {
     totalAlerts,
