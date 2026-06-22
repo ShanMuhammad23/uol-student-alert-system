@@ -8,8 +8,10 @@ import { useEffect, useMemo, useState } from "react";
 import { NAV_DATA, type NavSection } from "./data";
 import { ArrowLeftIcon, ChevronUp, HomeIcon, User } from "./icons";
 import { MenuItem } from "./menu-item";
+import { House, Brain, UserRound, TrendingUpDown, CalendarSync } from "lucide-react";
 import { useSidebarContext } from "./sidebar-context";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
+
 import { signOut } from "@/app/auth/actions";
 
 type SidebarProps = {
@@ -28,27 +30,27 @@ export function Sidebar({ user }: SidebarProps) {
           items: [
             {
               title: "Dashboard",
-              icon: HomeIcon,
+              icon: House,
               url: "/dashboard/superadmin",
             },
             {
               title: "Wellbeing Dashboard",
-              icon: HomeIcon,
+              icon: Brain,
               url: "/dashboard/wellbeing/admin",
             },
             {
               title: "Staff",
-              icon: User,
+              icon: UserRound,
               url: "/dashboard/superadmin/staff",
             },
             {
               title: "Automation",
-              icon: User,
+              icon: CalendarSync,
               url: "/dashboard/superadmin/automation",
             },
             {
               title: "Effectiveness",
-              icon: HomeIcon,
+              icon: TrendingUpDown,
               url: "/dashboard/superadmin/effectiveness",
             },
           ],

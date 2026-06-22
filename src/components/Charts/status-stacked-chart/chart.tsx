@@ -66,7 +66,7 @@ export function StatusStackedChart({
       stacked: true,
       fontFamily: "Satoshi, sans-serif",
       height: 200,
-      toolbar: { show: false },
+      toolbar: { show: true },
     },
     title: {
       text: title,
@@ -92,8 +92,8 @@ export function StatusStackedChart({
     },
     dataLabels: {
       enabled: true,
-      offsetY: 0,
-      formatter: (val: number) => (val > 0 ? String(val) : ""),
+      offsetY: -4,
+      formatter: (val: number) => (val > 0 ? String(val) : "0"),
       style: {
         fontSize: "11px",
         fontWeight: "bold",

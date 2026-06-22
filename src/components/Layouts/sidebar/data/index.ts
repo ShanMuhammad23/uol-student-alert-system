@@ -6,12 +6,12 @@ export type NavSubItem = { title: string; url: string };
 export type NavItem =
   | {
       title: string;
-      icon: (props: PropsType) => React.ReactElement;
+      icon: (props: PropsType) => React.ReactNode;
       url: string;
     }
   | {
       title: string;
-      icon: (props: PropsType) => React.ReactElement;
+      icon: (props: PropsType) => React.ReactNode;
       items: NavSubItem[];
     };
 

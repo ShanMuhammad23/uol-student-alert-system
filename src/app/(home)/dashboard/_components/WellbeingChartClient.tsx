@@ -99,6 +99,11 @@ export function WellbeingChartClient({
 
   return (
     <>
+    {data.open.length === 0 && data.closed.length === 0 && (
+      <p className="px-2 py-8 text-center text-sm text-neutral-500">
+        No wellbeing data found.
+      </p>
+    )}
       {isLoading ? (
         <p className="px-2 py-8 text-center text-sm text-neutral-500">
           Loading wellbeing data...

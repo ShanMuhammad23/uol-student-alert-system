@@ -449,12 +449,7 @@ export function TopChannelsTableClient({
         className
       )}
     >
-      {rows.length === 0 ? (
-        <div className="mt-6 rounded-md border border-dashed border-stroke py-8 text-center text-dark-6 dark:border-dark-3">
-          No student data found.
-        </div>
-      ) : (
-        <div className="mt-4">
+      <div className="mt-4">
           {isWellbeingScreen && (
             <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-white">
               Referred interventions, direct internal/external cases, or a case closed by wellbeing
@@ -638,7 +633,17 @@ export function TopChannelsTableClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
+              {rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={isWellbeingScreen ? 12 : 10}
+                    className="py-8 text-center text-dark-6 dark:text-white"
+                  >
+                    No student data found for the current search/filter.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row) => {
                 const rowKey = `${row.sapId}-${row.courseId}-${row.sectionCode ?? ""}-${row.eventPackageId ?? ""}-${row.programTitle ?? ""}-${row.instructorName ?? ""}`;
                 const alertLevel = row.attendanceAlertLevel;
                 const attendanceColorClass =
@@ -686,7 +691,7 @@ export function TopChannelsTableClient({
                         ? "text-dark dark:text-white"
                         : "text-dark-6 dark:text-white";
 
-                return (
+                  return (
                   <TableRow
                     key={rowKey}
                     className="text-center text-base font-medium text-dark dark:text-white"
@@ -855,8 +860,9 @@ export function TopChannelsTableClient({
                       )}
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                  );
+                })
+              )}
             </TableBody>
           </Table>
           {totalResults > 0 && rowsPerPage !== "all" && (
@@ -903,8 +909,7 @@ export function TopChannelsTableClient({
               </div>
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

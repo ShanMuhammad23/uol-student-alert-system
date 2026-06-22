@@ -122,7 +122,7 @@ export function HeaderEffectivenessCard({ user }: { user?: AppUser | null }) {
                   style={{ color: gradeCfg.color }}
                 >
                    {Math.round(summary.eiScore)}
-                  <span className="ml-1.5 text-xs font-bold">{summary.eiRating}</span>
+                  <span className="ml-1.5 text-lg font-bold">{summary.eiRating} ( {EI_GRADE_LABELS[summary.eiRating]})</span>
                 </p>
                 <p className="mt-0.5 max-w-[140px] truncate text-[10px] text-slate-500 dark:text-slate-400">
                   {summary.label}

@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export function Logo() {
   return (
-    <div className="relative h-14 w-40">
+    <div className="relative min-h-14 min-w-40 w-40">
       <Image
         src={logo}
         fill

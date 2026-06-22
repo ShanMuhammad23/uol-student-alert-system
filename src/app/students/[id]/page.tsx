@@ -553,7 +553,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
       />
           </div>
 
-          <AlertHistoryStepper entries={alertDailyHistory} variant="hero" />
+         
         </div>
       </div>
 

@@ -41,13 +41,14 @@ export function InterventionStatusChart({
       fontSize: "16px",
       fontWeight: "bold",
       color: titleColor,
+      
     },
   },
     colors,
     chart: {
       fontFamily: "Satoshi, sans-serif",
       type: "bar",
-      height: 200,
+      height: 500,
       toolbar: {
         show: false,
       },
