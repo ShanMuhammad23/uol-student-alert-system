@@ -108,8 +108,8 @@ export function InterventionStatusChart({
     },
     legend: {
       show:false,
-      position: "top",
-      horizontalAlign: "left",
+      position: "bottom",
+      horizontalAlign: "center",
       fontFamily: "Satoshi",
     },
     grid: {

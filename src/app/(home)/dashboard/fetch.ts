@@ -1,10 +1,15 @@
 import { getStudentsForRole, getCoursesForRole, getDepartmentsForRole } from "@/lib/role";
 import type { User } from "@/lib/role";
-import { getLatestInterventionStatusMap } from "@/data/intervention-store";
+import {
+  getLatestInterventionStatusMap,
+} from "@/data/intervention-store";
 import { getWellbeingChartDataForStudents } from "@/lib/db/wellbeing";
 import type { StatusStackedChartData } from "@/components/Charts/status-stacked-chart/chart";
 import {
+  getInterventionChartCountsForScope,
+  getDistinctAlertSapIdsForScope,
   getDistinctSapIdsForScope,
+  totalAlertsFromOverviewTotals,
   type SessionScope as ListingSessionScope,
 } from "@/lib/db/student-listing";
 import { pool } from "@/lib/db";
@@ -3499,6 +3504,75 @@ export async function getStudentsByAlert(
   return { students, total, page, pageSize, totalPages };
 }
 
+function listingScopeFromUser(user?: AppUser | null): ListingSessionScope {
+  const role =
+    user?.role === "teacher"
+      ? "instructor"
+      : user?.role === "instructor" ||
+          user?.role === "dean" ||
+          user?.role === "hod" ||
+          user?.role === "wellbeing" ||
+          user?.role === "wellbeing-head" ||
+          user?.role === "wellbeing-counseller" ||
+          user?.role === "superadmin"
+        ? user.role
+        : "superadmin";
+  return {
+    role,
+    staff_id: user?.id ?? null,
+    faculty_id: user?.faculty_id ?? null,
+    department_ids: user?.department_ids ?? null,
+    pernr: user?.sap_id?.trim() || null,
+  };
+}
+
+/** Unique SAP IDs for students with any GPA or attendance alert, matching overview/listing filters. */
+export async function getAlertStudentSapIds(
+  user?: AppUser | null,
+  masterFilter?: MasterFilterParams,
+  gpaFilters?: AlertDimensionFilter[],
+  attendanceFilters?: AlertDimensionFilter[]
+): Promise<string[]> {
+  const scope = listingScopeFromUser(user);
+  const listingFilters = {
+    department_ids: masterFilter?.department_ids,
+    programs: masterFilter?.programs,
+    instructor_ids: masterFilter?.instructor_ids,
+    course_ids: masterFilter?.course_ids,
+    batches: masterFilter?.batches,
+    gpaFilters,
+    attendanceFilters,
+  };
+
+  if (pool) {
+    try {
+      return await getDistinctAlertSapIdsForScope(scope, listingFilters);
+    } catch {
+      // Fall back to enrollment-based calculation.
+    }
+  }
+
+  const data = await getDataFromEnrollment();
+  const { students: allStudents } = data;
+  const hasValidUser =
+    user && VALID_ROLES.includes(user.role as (typeof VALID_ROLES)[number]);
+  let students = hasValidUser
+    ? (getStudentsForRole(user as User, allStudents) as Student[])
+    : allStudents;
+  students = applyMasterFilter(students, masterFilter, data);
+  students = applyGpaAttendanceFilter(students, gpaFilters, attendanceFilters);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of students) {
+    if (s.gpa.alert_level == null && s.attendance.alert_level == null) continue;
+    if (seen.has(s.sap_id)) continue;
+    seen.add(s.sap_id);
+    out.push(s.sap_id);
+  }
+  return out;
+}
+
 export type InterventionChartDataPoint = { x: string; y: number };
 
 export type InterventionChartResult = {
@@ -3513,104 +3587,62 @@ export async function getInterventionChartData(
   gpaFilters?: AlertDimensionFilter[],
   attendanceFilters?: AlertDimensionFilter[],
 ): Promise<InterventionChartResult> {
-  // 1) Total alerts (yellow + red) using same logic as Attendance card
   const overview = await getOverviewData(
     user,
     masterFilter,
     gpaFilters,
-    attendanceFilters,
+    attendanceFilters
   );
-  const totalAlertStudents =
-    (overview.yellowAttendance?.value ?? 0) +
-    (overview.redAttendance?.value ?? 0);
+  const overviewTotals = {
+    yellowGpa: overview.yellowGpa?.value ?? 0,
+    redGpa: overview.redGpa?.value ?? 0,
+    yellowAttendance: overview.yellowAttendance?.value ?? 0,
+    redAttendance: overview.redAttendance?.value ?? 0,
+  };
 
-  // 2) Read interventions table and aggregate latest status per student (role scoped)
-  let notStarted = 0;
-  let initiated = 0;
-  let inProgress = 0;
-  let referred = 0;
-  let resolved = 0;
-  let noActionRequired = 0;
+  const scope = listingScopeFromUser(user);
+  const listingFilters = {
+    department_ids: masterFilter?.department_ids,
+    programs: masterFilter?.programs,
+    instructor_ids: masterFilter?.instructor_ids,
+    course_ids: masterFilter?.course_ids,
+    batches: masterFilter?.batches,
+    gpaFilters,
+    attendanceFilters,
+  };
 
-  if (pool) {
-    const whereParts: string[] = [];
-    const params: any[] = [];
+  const counts = await getInterventionChartCountsForScope(
+    scope,
+    listingFilters,
+    overviewTotals
+  );
 
-    if (user?.role === "dean" && user.faculty_id) {
-      whereParts.push("faculty_id = $1");
-      params.push(user.faculty_id);
-    } else if (user?.role === "hod" && user.department_ids?.length) {
-      whereParts.push("department_id = ANY($1)");
-      params.push(user.department_ids);
-    } else if (user?.role === "instructor") {
-      whereParts.push("staff_id = $1");
-      params.push(user.id);
-    }
-
-    const whereClause = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
-
-    const res = await pool.query<{
-      student_sap_id: string;
-      status: string | null;
-    }>(
-      `
-      WITH latest AS (
-        SELECT DISTINCT ON (student_sap_id)
-          student_sap_id,
-          status
-        FROM interventions
-        ${whereClause}
-        ORDER BY student_sap_id, performed_at DESC
-      )
-      SELECT student_sap_id, status
-      FROM latest
-      `,
-      params,
-    );
-
-    console.log("[InterventionChart] interventions", res.rows.length);
-
-    for (const row of res.rows) {
-      const status = row.status;
-      if (!status) continue;
-      if (status === "initiated") initiated += 1;
-      else if (status === "in-progress") inProgress += 1;
-      else if (status === "referred") referred += 1;
-      else if (status === "resolved") resolved += 1;
-      else if (status === "no-action-required") noActionRequired += 1;
-      else {
-        // Unknown status: treat as initiated bucket by default.
-        initiated += 1;
-      }
-    }
-
-    // 3) Not Started = Total Alerts (yellow+red) − total interventions count
-    const totalInterventionStudents =
-      initiated + inProgress + referred + resolved + noActionRequired;
-    notStarted = Math.max(
-      0,
-      totalAlertStudents - totalInterventionStudents,
-    );
-  } else {
-    notStarted = totalAlertStudents;
-  }
+  const totalAlerts =
+    counts?.totalAlerts ??
+    totalAlertsFromOverviewTotals(overviewTotals, listingFilters);
+  const notStarted = counts?.notStarted ?? totalAlerts;
+  const initiated = counts?.initiated ?? 0;
+  const inProgress = counts?.inProgress ?? 0;
+  const referred = counts?.referred ?? 0;
+  const resolved = counts?.resolved ?? 0;
+  const noActionRequired = counts?.noActionRequired ?? 0;
 
   const statusColors: Record<string, string> = {
-    "Not Started": "#DE2649",
-    "No Action Required": "#64748B",
-    Initiated: "#B5B126",
-    "In-Progress": "#DBBE0F",
-    Referred: "#9C5A99",
-    Resolved: "#477061",
+    "N.S": "#DE2649",
+    "N.A.R": "#64748B",
+    I: "#B5B126",
+    "IP": "#DBBE0F",
+    "RES": "#9C5A99",
+    "REF": "#477061",
   };
 
   const data: InterventionChartDataPoint[] = [
-    { x: "Not Started", y: notStarted },
-    { x: "No Action Required", y: noActionRequired },
-    { x: "Initiated", y: initiated },
-    { x: "In-Progress", y: inProgress },
-    { x: "Resolved", y: resolved },
-    { x: "Referred", y: referred },
+    { x: "N.S", y: notStarted },
+    { x: "N.A.R", y: noActionRequired },
+    { x: "I", y: initiated },
+    { x: "IP", y: inProgress },
+    { x: "RES", y: resolved },
+    { x: "REF", y: referred },
   ];
 
   return {
@@ -3626,25 +3658,7 @@ export async function getWellbeingChartData(
   gpaFilters?: AlertDimensionFilter[],
   attendanceFilters?: AlertDimensionFilter[]
 ): Promise<StatusStackedChartData> {
-  const role =
-    user?.role === "teacher"
-      ? "instructor"
-      : user?.role === "instructor" ||
-          user?.role === "dean" ||
-          user?.role === "hod" ||
-          user?.role === "wellbeing" ||
-          user?.role === "wellbeing-head" ||
-          user?.role === "wellbeing-counseller" ||
-          user?.role === "superadmin"
-        ? user.role
-        : "superadmin";
-  const scope: ListingSessionScope = {
-    role,
-    staff_id: user?.id ?? null,
-    faculty_id: user?.faculty_id ?? null,
-    department_ids: user?.department_ids ?? null,
-    pernr: user?.sap_id?.trim() || null,
-  };
+  const scope = listingScopeFromUser(user);
   const sapIds = await getDistinctSapIdsForScope(scope, {
     department_ids: masterFilter?.department_ids,
     programs: masterFilter?.programs,

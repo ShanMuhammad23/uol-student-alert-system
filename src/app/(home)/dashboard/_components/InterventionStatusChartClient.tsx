@@ -10,7 +10,6 @@ import type {
   AlertDimensionFilter,
 } from "../fetch";
 import { useDashboardFilter } from "./DashboardFilterContext";
-import { useInterventionCohortStats } from "./InterventionCohortStatsContext";
 import type { InterventionChartSlice } from "./InterventionSliceContext";
 import type { FilterApiRoleScope } from "./master-filter";
 
@@ -22,12 +21,29 @@ type Props = {
   attendanceFilters?: AlertDimensionFilter[];
   /** Which overview card is active (`attendance` or `gpa`), used for chart totals. */
   selectedAlert?: string;
-  /** Used when selectedAlert === "gpa" and no slice is selected. */
   yellowGpa?: number;
   redGpa?: number;
   yellowAttendance?: number;
   redAttendance?: number;
   filterApiRoleScope?: FilterApiRoleScope | null;
+};
+
+type InterventionCounts = {
+  initiated: number;
+  inProgress: number;
+  referred: number;
+  resolved: number;
+  noActionRequired: number;
+  totalInterventionStudents: number;
+};
+
+const EMPTY_COUNTS: InterventionCounts = {
+  initiated: 0,
+  inProgress: 0,
+  referred: 0,
+  resolved: 0,
+  noActionRequired: 0,
+  totalInterventionStudents: 0,
 };
 
 function sliceDescription(slice: InterventionChartSlice | null): string | null {
@@ -55,26 +71,15 @@ export function InterventionStatusChartClient({
   filterApiRoleScope,
 }: Props): JSX.Element {
   type ChartMode = "attendance" | "gpa" | "all";
-  type InterventionCounts = {
-    initiated: number;
-    inProgress: number;
-    referred: number;
-    resolved: number;
-    noActionRequired: number;
-  };
   const dashboardFilter = useDashboardFilter();
-  const { stats: cohortStatsBySlice } = useInterventionCohortStats();
 
   const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
   const setGpaFilters = dashboardFilter?.setGpaFilters;
   const setInterventionFilters = dashboardFilter?.setInterventionFilters;
 
   const chartMode = useMemo<ChartMode>(() => {
-    // If the user explicitly filtered alert dimensions, prioritize that.
     if (dashboardFilter?.gpaFilters?.length) return "gpa";
     if (dashboardFilter?.attendanceFilters?.length) return "attendance";
-
-    // Otherwise, fall back to the page-level selected alert.
     if (selectedAlert === "gpa") return "gpa";
     if (selectedAlert === "attendance") return "attendance";
     return "all";
@@ -86,7 +91,6 @@ export function InterventionStatusChartClient({
   const attendanceFilters =
     dashboardFilter?.attendanceFilters ?? attendanceFiltersProp ?? [];
 
-  // Keys help prevent effects from re-firing due to array/object identity changes.
   const masterFilterKey = useMemo(() => JSON.stringify(masterFilter ?? {}), [masterFilter]);
   const gpaFiltersKey = useMemo(() => JSON.stringify(gpaFilters ?? []), [gpaFilters]);
   const attendanceFiltersKey = useMemo(
@@ -95,7 +99,6 @@ export function InterventionStatusChartClient({
   );
 
   const effectiveSlice: InterventionChartSlice | null = useMemo(() => {
-    // Red has precedence over yellow if both are present.
     if (attendanceFilters.includes("red")) return "attendance_red";
     if (attendanceFilters.includes("yellow")) return "attendance_yellow";
     if (gpaFilters.includes("red")) return "gpa_red";
@@ -103,82 +106,9 @@ export function InterventionStatusChartClient({
     return null;
   }, [attendanceFilters, gpaFilters]);
 
-  const [interventionCounts, setInterventionCounts] = useState<InterventionCounts>({
-    initiated: 0,
-    inProgress: 0,
-    referred: 0,
-    resolved: 0,
-    noActionRequired: 0,
-  });
-
-  const [gpaCohortSapIds, setGpaCohortSapIds] = useState<string[] | null>(
-    null
-  );
-  const [gpaCohortLoading, setGpaCohortLoading] = useState(false);
-
-  useEffect(() => {
-    if (
-      effectiveSlice !== "gpa_yellow" &&
-      effectiveSlice !== "gpa_red"
-    ) {
-      setGpaCohortSapIds(null);
-      setGpaCohortLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const t = window.setTimeout(() => {
-      const segment = effectiveSlice === "gpa_red" ? "red" : "yellow";
-      setGpaCohortLoading(true);
-      setGpaCohortSapIds(null);
-
-      fetch("/api/dashboard/gpa-alert-sap-ids", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          segment,
-          masterFilter:
-            masterFilter && Object.keys(masterFilter).length > 0
-              ? masterFilter
-              : undefined,
-          gpaFilters: gpaFilters?.length ? gpaFilters : undefined,
-          attendanceFilters: attendanceFilters?.length
-            ? attendanceFilters
-            : undefined,
-          ...(filterApiRoleScope ? { roleScope: filterApiRoleScope } : {}),
-        }),
-        signal: controller.signal,
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("gpa cohort");
-          return res.json() as Promise<{ sapIds?: string[] }>;
-        })
-        .then((body) => {
-          setGpaCohortSapIds(body.sapIds ?? []);
-        })
-        .catch((err) => {
-          if (err.name === "AbortError") return;
-          setGpaCohortSapIds([]);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setGpaCohortLoading(false);
-        });
-    }, 200);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(t);
-    };
-  }, [
-    effectiveSlice,
-    masterFilterKey,
-    gpaFiltersKey,
-    attendanceFiltersKey,
-    filterApiRoleScope?.role,
-    filterApiRoleScope?.facultyId,
-    filterApiRoleScope?.departmentIds?.join(","),
-    filterApiRoleScope?.pernr,
-  ]);
+  const [interventionCounts, setInterventionCounts] =
+    useState<InterventionCounts>(EMPTY_COUNTS);
+  const [loading, setLoading] = useState(false);
 
   const interventionTypesForDb = useMemo<("attendance" | "gpa" | "all")[]>(() => {
     if (
@@ -203,10 +133,8 @@ export function InterventionStatusChartClient({
   const totalAlerts = useMemo(() => {
     if (effectiveSlice === "attendance_yellow") return yellowAttendance;
     if (effectiveSlice === "attendance_red") return redAttendance;
-    if (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") {
-      return gpaCohortSapIds?.length ?? 0;
-    }
-    // No slice selected: use overview-card totals.
+    if (effectiveSlice === "gpa_yellow") return yellowGpa;
+    if (effectiveSlice === "gpa_red") return redGpa;
     if (chartMode === "gpa") return yellowGpa + redGpa;
     if (chartMode === "attendance") return yellowAttendance + redAttendance;
     return yellowAttendance + redAttendance + yellowGpa + redGpa;
@@ -214,7 +142,6 @@ export function InterventionStatusChartClient({
     effectiveSlice,
     yellowAttendance,
     redAttendance,
-    gpaCohortSapIds,
     chartMode,
     yellowGpa,
     redGpa,
@@ -229,28 +156,6 @@ export function InterventionStatusChartClient({
     }
     return null;
   }, [effectiveSlice]);
-
-  const clearSegmentFilters = () => {
-    setAttendanceFilters?.([]);
-    setGpaFilters?.([]);
-    setInterventionFilters?.([]);
-  };
-
-  const statusToFilterValue = (status: string): string | null => {
-    if (status === "Not Started") return "not_started";
-    if (status === "Not Required") return "no_action_required";
-    if (status === "Initiated") return "initiated";
-    if (status === "In-Progress") return "in_progress";
-    if (status === "Resolved") return "resolved";
-    if (status === "Referred") return "referred";
-    return null;
-  };
-
-  const handleStatusColumnClick = (status: string) => {
-    const filterValue = statusToFilterValue(status);
-    if (!filterValue) return;
-    setInterventionFilters?.([filterValue]);
-  };
 
   const facultyIdForRequest =
     user?.role === "dean" ? user.faculty_id ?? null : null;
@@ -285,12 +190,11 @@ export function InterventionStatusChartClient({
   }, [user?.role, user?.course_ids]);
 
   useEffect(() => {
-    if (effectiveSlice != null) return;
-
     if (!user?.role) return;
 
     const controller = new AbortController();
     const t = window.setTimeout(() => {
+      setLoading(true);
       const roleScope =
         user.role === "teacher" || user.role === "instructor"
           ? "teacher"
@@ -323,6 +227,7 @@ export function InterventionStatusChartClient({
             referred?: number;
             resolved?: number;
             noActionRequired?: number;
+            totalInterventionStudents?: number;
           }>;
         });
 
@@ -336,26 +241,20 @@ export function InterventionStatusChartClient({
               resolved: acc.resolved + (counts.resolved ?? 0),
               noActionRequired:
                 acc.noActionRequired + (counts.noActionRequired ?? 0),
+              totalInterventionStudents:
+                acc.totalInterventionStudents +
+                (counts.totalInterventionStudents ?? 0),
             }),
-            {
-              initiated: 0,
-              inProgress: 0,
-              referred: 0,
-              resolved: 0,
-              noActionRequired: 0,
-            }
+            EMPTY_COUNTS
           );
           setInterventionCounts(summed);
         })
         .catch((err) => {
           if (err.name === "AbortError") return;
-          setInterventionCounts({
-            initiated: 0,
-            inProgress: 0,
-            referred: 0,
-            resolved: 0,
-            noActionRequired: 0,
-          });
+          setInterventionCounts(EMPTY_COUNTS);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
         });
     }, 200);
 
@@ -364,7 +263,6 @@ export function InterventionStatusChartClient({
       window.clearTimeout(t);
     };
   }, [
-    effectiveSlice,
     user?.role,
     facultyIdForRequest,
     departmentIdsKey,
@@ -373,37 +271,51 @@ export function InterventionStatusChartClient({
     interventionTypesKey,
     alertLevelForRequest,
     masterFilterKey,
+    scopedDepartmentIdsForRequest?.join(","),
+    scopedCourseIdsForRequest?.join(","),
+    scopedInstructorIdsForRequest?.join(","),
   ]);
 
-  useEffect(() => {
-    if (effectiveSlice == null) return;
-    const c = cohortStatsBySlice[effectiveSlice];
-    setInterventionCounts({
-      initiated: c.initiated,
-      inProgress: c.inProgress,
-      referred: c.referred,
-      resolved: c.resolved,
-      noActionRequired: c.noActionRequired,
-    });
-  }, [effectiveSlice, cohortStatsBySlice]);
+  const clearSegmentFilters = () => {
+    setAttendanceFilters?.([]);
+    setGpaFilters?.([]);
+    setInterventionFilters?.([]);
+  };
+
+  const statusToFilterValue = (status: string): string | null => {
+    if (status === "Not Started") return "not_started";
+    if (status === "Not Required") return "no_action_required";
+    if (status === "Initiated") return "initiated";
+    if (status === "In-Progress") return "in_progress";
+    if (status === "Resolved") return "resolved";
+    if (status === "Referred") return "referred";
+    return null;
+  };
+
+  const handleStatusColumnClick = (status: string) => {
+    const filterValue = statusToFilterValue(status);
+    if (!filterValue) return;
+    setInterventionFilters?.([filterValue]);
+  };
 
   const { initiated, inProgress, referred, resolved, noActionRequired, notStarted } =
     useMemo(() => {
-    const totalInterventionStudents =
-      interventionCounts.initiated +
-      interventionCounts.inProgress +
-      interventionCounts.referred +
-      interventionCounts.resolved +
-      interventionCounts.noActionRequired;
-    return {
-      initiated: interventionCounts.initiated,
-      inProgress: interventionCounts.inProgress,
-      referred: interventionCounts.referred,
-      resolved: interventionCounts.resolved,
-      noActionRequired: interventionCounts.noActionRequired,
-      notStarted: Math.max(0, totalAlerts - totalInterventionStudents),
-    };
-  }, [interventionCounts, totalAlerts]);
+      const totalInterventionStudents =
+        interventionCounts.totalInterventionStudents ||
+        interventionCounts.initiated +
+          interventionCounts.inProgress +
+          interventionCounts.referred +
+          interventionCounts.resolved +
+          interventionCounts.noActionRequired;
+      return {
+        initiated: interventionCounts.initiated,
+        inProgress: interventionCounts.inProgress,
+        referred: interventionCounts.referred,
+        resolved: interventionCounts.resolved,
+        noActionRequired: interventionCounts.noActionRequired,
+        notStarted: Math.max(0, totalAlerts - totalInterventionStudents),
+      };
+    }, [interventionCounts, totalAlerts]);
 
   const statusColors: Record<string, string> = {
     "Not Started": "#DE2649",
@@ -433,8 +345,7 @@ export function InterventionStatusChartClient({
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
               {subtitle}
             </p>
-          ) : null
-          }
+          ) : null}
         </div>
         {effectiveSlice != null && (
           <button
@@ -446,8 +357,7 @@ export function InterventionStatusChartClient({
           </button>
         )}
       </div>
-      {gpaCohortLoading &&
-      (effectiveSlice === "gpa_yellow" || effectiveSlice === "gpa_red") ? (
+      {loading ? (
         <p className="px-2 py-8 text-center text-sm text-neutral-500">
           Loading cohort…
         </p>
@@ -459,7 +369,6 @@ export function InterventionStatusChartClient({
           onStatusClick={handleStatusColumnClick}
         />
       )}
-     
     </div>
   );
 }

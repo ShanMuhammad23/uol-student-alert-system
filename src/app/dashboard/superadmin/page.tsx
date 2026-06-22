@@ -146,10 +146,10 @@ function FacultyCard({
             ({faculty.total.toLocaleString()})
           </p>
         </div>
-        <div className="absolute top-0 right-0 flex items-end">
+        <div className="absolute top-0 right-0 flex items-end rounded-tr-xl ">
           {fei && gradeConfig ? (
             <span
-              className="rounded-tr-xl rounded-bl-lg px-2.5 py-1 text-xs font-bold tabular-nums"
+              className="  px-2.5 py-1 text-xs font-bold tabular-nums"
               style={{
                 background: gradeConfig.color,
                 color: "#fff",
@@ -160,7 +160,7 @@ function FacultyCard({
           ) : null}
           <span
             className={cn(
-              "shrink-0 px-2.5 py-1 text-xs font-bold tabular-nums",
+              "shrink-0 px-2.5 py-1 text-xs font-bold tabular-nums rounded-tr-xl",
               fei ? "rounded-bl-lg" : "rounded-tr-xl",
               alertRate > 10
                 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
@@ -215,7 +215,8 @@ function FacultyCard({
 // ─── Section Header ────────────────────────────────────────────────
 function SectionHeader({ 
   title, 
-  action 
+  action ,
+
 }: { 
   title: string; 
   action?: React.ReactNode 
@@ -370,7 +371,18 @@ export default async function SuperadminDashboardPage({
 
       {/* ─── Faculties Grid ──────────────────────────────────────── */}
       <section>
-        <SectionHeader title="Faculty Overview" />
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Faculty Overview</h2>
+          <div className="flex items-center gap-2">
+            <span className="bg-green-500 text-white px-2 py-1 rounded-md"> ≥ 90 A (Excellent)</span>
+            <span className="bg-yellow-500 text-white px-2 py-1 rounded-md"> ≥ 75 &lt; 90 B (Satisfactory)</span>
+            <span className="bg-orange-500 text-white px-2 py-1 rounded-md"> ≥ 50 &lt; 75 C (Needs Improvement)</span>
+            <span className="bg-red-500 text-white px-2 py-1 rounded-md"> &lt; 50 D (Unsatisfactory)</span>
+
+          </div>
+
+        </div>
+        <hr className="my-4 border-slate-200 dark:border-slate-700" />
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {facultyStats.map((f) => (
             <FacultyCard key={f.facultyId} faculty={f} fei={feiByFacultyId.get(f.facultyId) ?? null} />

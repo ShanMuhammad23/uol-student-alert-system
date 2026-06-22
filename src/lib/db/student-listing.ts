@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { getInterventionStatsForRoleScope } from "@/data/intervention-store";
 import {
   getInterventionStatsForRoleScopeFromDb,
   hasAssigneeStaffIdColumn,
@@ -750,6 +751,107 @@ function listingInterventionChartMode(
   return "all";
 }
 
+export type OverviewAlertTotals = {
+  yellowGpa: number;
+  redGpa: number;
+  yellowAttendance: number;
+  redAttendance: number;
+};
+
+export type InterventionChartCounts = {
+  totalAlerts: number;
+  notStarted: number;
+  initiated: number;
+  inProgress: number;
+  referred: number;
+  resolved: number;
+  noActionRequired: number;
+};
+
+/** Sum of overview KPI alert counts; matches `totalAlertsFromInterventionCombo` / dashboard cards. */
+export function totalAlertsFromOverviewTotals(
+  totals: OverviewAlertTotals,
+  filters: ListingFilters
+): number {
+  const slice = listingEffectiveAlertSlice(filters);
+  const chartMode = listingInterventionChartMode(filters);
+  if (slice === "attendance_red") return totals.redAttendance;
+  if (slice === "attendance_yellow") return totals.yellowAttendance;
+  if (slice === "gpa_red") return totals.redGpa;
+  if (slice === "gpa_yellow") return totals.yellowGpa;
+  if (chartMode === "gpa") return totals.redGpa + totals.yellowGpa;
+  if (chartMode === "attendance") {
+    return totals.redAttendance + totals.yellowAttendance;
+  }
+  return (
+    totals.redGpa +
+    totals.yellowGpa +
+    totals.redAttendance +
+    totals.yellowAttendance
+  );
+}
+
+/**
+ * Intervention chart buckets aligned with overview KPI totals:
+ * status counts from role-scoped interventions; Not Started = KPI alert sum − interventions.
+ */
+export async function getInterventionChartCountsForScope(
+  scope: SessionScope,
+  filters: ListingFilters,
+  overviewTotals: OverviewAlertTotals
+): Promise<InterventionChartCounts | null> {
+  if (!scopeSupportsChartAlignedInterventionCounts(scope)) return null;
+
+  const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
+  if (!roleScopeBase) return null;
+
+  const slice = listingEffectiveAlertSlice(filters);
+  const chartMode = listingInterventionChartMode(filters);
+  const totalAlerts = totalAlertsFromOverviewTotals(overviewTotals, filters);
+  const { interventionTypes, alertLevel } = listingInterventionApiParams(
+    slice,
+    chartMode
+  );
+
+  const summed = {
+    initiated: 0,
+    inProgress: 0,
+    referred: 0,
+    resolved: 0,
+    noActionRequired: 0,
+    totalInterventionStudents: 0,
+  };
+
+  for (const interventionType of interventionTypes) {
+    const stats = await getInterventionStatsForRoleScope({
+      ...roleScopeBase,
+      interventionType,
+      alertLevel: alertLevel ?? null,
+    });
+    summed.initiated += stats.initiated;
+    summed.inProgress += stats.inProgress;
+    summed.referred += stats.referred;
+    summed.resolved += stats.resolved;
+    summed.noActionRequired += stats.noActionRequired;
+    summed.totalInterventionStudents += stats.totalInterventionStudents;
+  }
+
+  const notStarted = Math.max(
+    0,
+    totalAlerts - summed.totalInterventionStudents
+  );
+
+  return {
+    totalAlerts,
+    notStarted,
+    initiated: summed.initiated,
+    inProgress: summed.inProgress,
+    referred: summed.referred,
+    resolved: summed.resolved,
+    noActionRequired: summed.noActionRequired,
+  };
+}
+
 function totalAlertsFromInterventionCombo(
   row: {
     gpa_red_cnt: number;
@@ -1196,6 +1298,28 @@ export async function getDistinctSapIdsForScope(
   });
   const sql = `
     ${buildListingBaseCte(whereSql, interventionContext, wbOpts.globalIntervention)}
+    SELECT DISTINCT sap_id FROM base
+  `;
+  const res = await pool.query<{ sap_id: string }>(sql, params);
+  return res.rows.map((r) => r.sap_id);
+}
+
+/** Distinct SAP IDs for students with any GPA or attendance alert (same scope/filters as the listing). */
+export async function getDistinctAlertSapIdsForScope(
+  scope: SessionScope,
+  filters: ListingFilters
+): Promise<string[]> {
+  if (!pool) return [];
+  const interventionContext = await getInterventionContextColumns();
+  const wbOpts = await resolveWellbeingListingOptions(scope);
+  const { whereSql, params } = buildWhere(scope, filters, undefined, {
+    extendedDirectCases: wbOpts.extendedDirectCases,
+  });
+  const alertWhereSql = whereSql
+    ? `${whereSql} AND ${INTERVENTION_ELIGIBLE_SQL}`
+    : `WHERE e.is_active = TRUE AND ${INTERVENTION_ELIGIBLE_SQL}`;
+  const sql = `
+    ${buildListingBaseCte(alertWhereSql, interventionContext, wbOpts.globalIntervention)}
     SELECT DISTINCT sap_id FROM base
   `;
   const res = await pool.query<{ sap_id: string }>(sql, params);
