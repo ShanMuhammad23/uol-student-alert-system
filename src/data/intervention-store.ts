@@ -474,7 +474,7 @@ export async function getInterventionRecordStatsForRoleScope(
   };
 }
 
-/** Alert rows in scope with no intervention row for that student in the same scope. */
+/** Distinct students with an alert and no intervention on the alerted course in scope. */
 export async function getAlertedWithoutInterventionCountForRoleScope(
   params: InterventionRoleScope
 ): Promise<number> {

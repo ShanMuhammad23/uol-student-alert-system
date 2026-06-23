@@ -26,7 +26,6 @@ import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersSta
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
 import { InterventionCohortStatsProvider } from "./_components/InterventionCohortStatsContext";
 import { ScrollToTopButton } from "./_components/ScrollToTopButton";
-
 function parseMultiParam(
   value: string | string[] | undefined
 ): string[] {

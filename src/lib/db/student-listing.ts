@@ -3,6 +3,8 @@ import { getInterventionRecordStatsForRoleScope, getAlertedWithoutInterventionCo
 import {
   hasAssigneeStaffIdColumn,
   hasCaseTypeColumn,
+  buildInterventionRecordScopeSql,
+  interventionMatchesAlertedEnrollmentSql,
   type InterventionRoleScope,
 } from "@/lib/db/interventions";
 import {
@@ -118,7 +120,6 @@ export type StudentListingResult = {
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100000;
-const NOT_STARTED_INTERVENTION_STATUSES = ["not_started", "not-started"] as const;
 const INTERVENTION_ELIGIBLE_SQL =
   "(a.gpa_alert_level IS NOT NULL OR a.attendance_alert_level IS NOT NULL)";
 type InterventionContextColumns = {
@@ -161,6 +162,62 @@ function normalizeInterventionFilters(filters?: string[]): string[] | undefined 
       )
     );
   return mapped.length ? mapped : undefined;
+}
+
+/** Match enrollment rows to intervention records (chart / interventions list semantics). */
+function buildInterventionRecordStatusExistsSql(
+  scope: SessionScope,
+  filters: ListingFilters,
+  statuses: string[],
+  params: unknown[],
+  hasSectionCode: boolean
+): string | null {
+  const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
+  if (!roleScopeBase || !statuses.length) return null;
+
+  const existsParts: string[] = [];
+
+  params.push(statuses);
+  existsParts.push(`i.status = ANY($${params.length}::text[])`);
+
+  const courseMatchSql = interventionMatchesAlertedEnrollmentSql({
+    hasSectionCode,
+    interventionAlias: "i",
+    enrollmentAlias: "e",
+  });
+  existsParts.unshift(courseMatchSql);
+
+  const scopeSql = buildInterventionRecordScopeSql("i", roleScopeBase, params);
+  if (!scopeSql) return null;
+  existsParts.push(scopeSql);
+
+  return `EXISTS (SELECT 1 FROM interventions i WHERE ${existsParts.join(" AND ")})`;
+}
+
+/** No intervention row for this enrollment's alerted course (chart "Not Started" semantics). */
+function buildNoInterventionForAlertedCourseSql(
+  scope: SessionScope,
+  filters: ListingFilters,
+  params: unknown[],
+  hasSectionCode: boolean
+): string | null {
+  const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
+  if (!roleScopeBase) return null;
+
+  const courseMatchSql = interventionMatchesAlertedEnrollmentSql({
+    hasSectionCode,
+    interventionAlias: "i",
+    enrollmentAlias: "e",
+  });
+  const scopeSql = buildInterventionRecordScopeSql("i", roleScopeBase, params);
+  if (!scopeSql) return null;
+
+  return `NOT EXISTS (
+    SELECT 1
+    FROM interventions i
+    WHERE ${courseMatchSql}
+      AND (${scopeSql})
+  )`;
 }
 
 function buildAlertLevelClause(
@@ -304,7 +361,10 @@ function buildWhere(
   scope: SessionScope,
   filters: ListingFilters,
   skip?: Set<ListingWhereSkip>,
-  wellbeingOpts?: { extendedDirectCases: boolean }
+  wellbeingOpts?: {
+    extendedDirectCases: boolean;
+    hasInterventionSectionCode?: boolean;
+  }
 ): BaseQueryParts {
   const params: unknown[] = [];
   const where: string[] = ["e.is_active = TRUE"];
@@ -446,37 +506,39 @@ function buildWhere(
     if (interventionFilters?.length) {
       const wantsNotStarted = interventionFilters.includes("not_started");
       const statuses = interventionFilters.filter((s) => s !== "not_started");
-      if (wantsNotStarted && statuses.length) {
-        params.push(statuses);
-        const statusesParamIndex = params.length;
-        params.push([...NOT_STARTED_INTERVENTION_STATUSES]);
-        const notStartedParamIndex = params.length;
-        where.push(
-          `(
-            (
-              ${INTERVENTION_ELIGIBLE_SQL}
-              AND (
-                latest.latest_intervention_status IS NULL
-                OR latest.latest_intervention_status = ANY($${notStartedParamIndex}::text[])
-              )
+      const recordExistsSql =
+        statuses.length > 0
+          ? buildInterventionRecordStatusExistsSql(
+              scope,
+              filters,
+              statuses,
+              params,
+              wellbeingOpts?.hasInterventionSectionCode === true
             )
-            OR latest.latest_intervention_status = ANY($${statusesParamIndex}::text[])
-          )`
+          : null;
+      const noInterventionSql = wantsNotStarted
+        ? buildNoInterventionForAlertedCourseSql(
+            scope,
+            filters,
+            params,
+            wellbeingOpts?.hasInterventionSectionCode === true
+          )
+        : null;
+      if (wantsNotStarted && statuses.length) {
+        const notStartedSql = noInterventionSql
+          ? `(${INTERVENTION_ELIGIBLE_SQL} AND ${noInterventionSql})`
+          : null;
+        where.push(
+          recordExistsSql && notStartedSql
+            ? `(${notStartedSql} OR ${recordExistsSql})`
+            : notStartedSql ?? recordExistsSql ?? "1=0"
         );
       } else if (wantsNotStarted) {
-        params.push([...NOT_STARTED_INTERVENTION_STATUSES]);
-        where.push(
-          `(
-            ${INTERVENTION_ELIGIBLE_SQL}
-            AND (
-              latest.latest_intervention_status IS NULL
-              OR latest.latest_intervention_status = ANY($${params.length}::text[])
-            )
-          )`
-        );
-      } else {
-        params.push(statuses);
-        where.push(`latest.latest_intervention_status = ANY($${params.length}::text[])`);
+        if (noInterventionSql) {
+          where.push(`(${INTERVENTION_ELIGIBLE_SQL} AND ${noInterventionSql})`);
+        }
+      } else if (recordExistsSql) {
+        where.push(recordExistsSql);
       }
     }
   }
@@ -790,64 +852,9 @@ export function totalAlertsFromOverviewTotals(
   );
 }
 
-type ListingInterventionStatusCounts = {
-  int_all: number;
-  not_started: number;
-  initiated: number;
-  in_progress: number;
-  referred: number;
-  resolved: number;
-  no_action_required: number;
-};
-
-const INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL = `(gpa_alert_level IS NOT NULL OR attendance_alert_level IS NOT NULL)`;
-
-/** Per-student intervention buckets from the listing CTE — matches table filters and dropdown counts. */
-async function queryListingInterventionStatusCounts(
-  scope: SessionScope,
-  filters: ListingFilters
-): Promise<ListingInterventionStatusCounts | null> {
-  if (!pool) return null;
-  const interventionContext = await getInterventionContextColumns();
-  const wbOpts = await resolveWellbeingListingOptions(scope);
-  const intParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["intervention"]), {
-    extendedDirectCases: wbOpts.extendedDirectCases,
-  });
-  const intSql = `${buildListingBaseCte(intParts.whereSql, interventionContext, wbOpts.globalIntervention)}
-      SELECT
-        COUNT(DISTINCT sap_id) FILTER (
-          WHERE (
-            (${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND (
-              latest_intervention_status IS NULL
-              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
-            ))
-            OR latest_intervention_status = ANY(
-              ARRAY['initiated', 'in-progress', 'referred', 'resolved', 'no-action-required']::text[]
-            )
-          )
-        )::int AS int_all,
-        COUNT(DISTINCT sap_id) FILTER (
-          WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL}
-            AND (
-              latest_intervention_status IS NULL
-              OR latest_intervention_status = ANY(ARRAY['not_started', 'not-started']::text[])
-            )
-        )::int AS not_started,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'initiated')::int AS initiated,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'in-progress')::int AS in_progress,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'referred')::int AS referred,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'resolved')::int AS resolved,
-        COUNT(DISTINCT sap_id) FILTER (WHERE ${INTERVENTION_ELIGIBLE_FOR_COUNTS_SQL} AND latest_intervention_status = 'no-action-required')::int AS no_action_required
-      FROM base`;
-  const intRes = await pool.query<ListingInterventionStatusCounts>(
-    intSql,
-    intParts.params
-  );
-  return intRes.rows[0] ?? null;
-}
-
 /**
  * Intervention chart buckets: every intervention row by status (matches interventions list).
+ * Also used for master-filter dropdown counts.
  */
 export async function getInterventionChartCountsForScope(
   scope: SessionScope,
@@ -1060,16 +1067,37 @@ export async function getFilterDropdownCounts(
     }>(attSql, attParts.params);
     const aRow = attRes.rows[0];
 
-    const iRow =
-      (await queryListingInterventionStatusCounts(scope, filters)) ?? {
-        int_all: 0,
-        not_started: 0,
-        initiated: 0,
-        in_progress: 0,
-        referred: 0,
-        resolved: 0,
-        no_action_required: 0,
-      };
+    const chartCounts = await getInterventionChartCountsForScope(scope, filters, {
+      yellowGpa: 0,
+      redGpa: 0,
+      yellowAttendance: 0,
+      redAttendance: 0,
+    });
+    const interventionCounts = chartCounts
+      ? {
+          int_all:
+            chartCounts.notStarted +
+            chartCounts.initiated +
+            chartCounts.inProgress +
+            chartCounts.referred +
+            chartCounts.resolved +
+            chartCounts.noActionRequired,
+          not_started: chartCounts.notStarted,
+          initiated: chartCounts.initiated,
+          in_progress: chartCounts.inProgress,
+          referred: chartCounts.referred,
+          resolved: chartCounts.resolved,
+          no_action_required: chartCounts.noActionRequired,
+        }
+      : {
+          int_all: 0,
+          not_started: 0,
+          initiated: 0,
+          in_progress: 0,
+          referred: 0,
+          resolved: 0,
+          no_action_required: 0,
+        };
 
     let wellbeingAll = 0;
     let wellbeing = zeroWellbeing;
@@ -1143,13 +1171,13 @@ export async function getFilterDropdownCounts(
         good: Number(aRow?.good ?? 0),
       },
       intervention: {
-        all: Number(iRow?.int_all ?? 0),
-        not_started: Number(iRow?.not_started ?? 0),
-        initiated: Number(iRow?.initiated ?? 0),
-        in_progress: Number(iRow?.in_progress ?? 0),
-        referred: Number(iRow?.referred ?? 0),
-        resolved: Number(iRow?.resolved ?? 0),
-        no_action_required: Number(iRow?.no_action_required ?? 0),
+        all: Number(interventionCounts.int_all ?? 0),
+        not_started: Number(interventionCounts.not_started ?? 0),
+        initiated: Number(interventionCounts.initiated ?? 0),
+        in_progress: Number(interventionCounts.in_progress ?? 0),
+        referred: Number(interventionCounts.referred ?? 0),
+        resolved: Number(interventionCounts.resolved ?? 0),
+        no_action_required: Number(interventionCounts.no_action_required ?? 0),
       },
       wellbeingAll,
       wellbeing,
@@ -1183,6 +1211,7 @@ export async function getDistinctSapIdsForScope(
   const wbOpts = await resolveWellbeingListingOptions(scope);
   const { whereSql, params } = buildWhere(scope, filters, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
+    hasInterventionSectionCode: interventionContext.hasSectionCode,
   });
   const sql = `
     ${buildListingBaseCte(whereSql, interventionContext, wbOpts.globalIntervention)}
@@ -1202,6 +1231,7 @@ export async function getDistinctAlertSapIdsForScope(
   const wbOpts = await resolveWellbeingListingOptions(scope);
   const { whereSql, params } = buildWhere(scope, filters, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
+    hasInterventionSectionCode: interventionContext.hasSectionCode,
   });
   const alertWhereSql = whereSql
     ? `${whereSql} AND ${INTERVENTION_ELIGIBLE_SQL}`
@@ -1231,10 +1261,11 @@ export async function getStudentListing(
   const uniqueStudentsForTotal = request.uniqueStudentsForTotal === true;
 
   const wbOpts = await resolveWellbeingListingOptions(scope);
+  const interventionContext = await getInterventionContextColumns();
   const { whereSql, params } = buildWhere(scope, request.filters ?? {}, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
+    hasInterventionSectionCode: interventionContext.hasSectionCode,
   });
-  const interventionContext = await getInterventionContextColumns();
   const baseCte = buildListingBaseCte(whereSql, interventionContext, wbOpts.globalIntervention);
 
   const countSql = uniqueStudentsForTotal

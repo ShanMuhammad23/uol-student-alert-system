@@ -1315,6 +1315,115 @@ const FACULTY_ID_TO_INTERVENTION_FAC_ID: Record<string, string> = {
   FAC_MGT: "50000172",
 };
 
+/** Role + master-filter scope for matching rows in `interventions` (chart record counts). */
+export function buildInterventionRecordScopeSql(
+  alias: string,
+  params: Omit<InterventionRoleScope, "interventionType" | "alertLevel">,
+  args: unknown[]
+): string | null {
+  const col = (name: string) => `${alias}.${name}`;
+  const parts: string[] = [];
+
+  if (params.role === "dean") {
+    if (!params.facultyId) return null;
+    const mappedFacultyId =
+      FACULTY_ID_TO_INTERVENTION_FAC_ID[params.facultyId] ?? params.facultyId;
+    args.push(mappedFacultyId);
+    parts.push(`${col("faculty_id")} = $${args.length}`);
+  } else if (params.role === "hod") {
+    const deptIds = params.departmentIds ?? [];
+    if (!deptIds.length) return null;
+    args.push(deptIds);
+    parts.push(`${col("department_id")} = ANY($${args.length}::text[])`);
+  } else if (params.role === "teacher") {
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      args.push(courseIds);
+      parts.push(`${col("course_id")} = ANY($${args.length}::text[])`);
+    } else if (!params.staffId) {
+      return null;
+    } else {
+      args.push(params.staffId);
+      parts.push(`${col("staff_id")} = $${args.length}`);
+    }
+  } else if (params.role === "superadmin") {
+    const facultyId = String(params.facultyId ?? "").trim();
+    if (facultyId) {
+      args.push(facultyId);
+      parts.push(`${col("faculty_id")} = $${args.length}`);
+    }
+    const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+    if (departmentIds.length) {
+      args.push(departmentIds);
+      parts.push(`${col("department_id")} = ANY($${args.length}::text[])`);
+    }
+    const courseIds = (params.courseIds ?? []).filter(Boolean);
+    if (courseIds.length) {
+      args.push(courseIds);
+      parts.push(`${col("course_id")} = ANY($${args.length}::text[])`);
+    }
+    if (!parts.length) return "TRUE";
+  } else {
+    return null;
+  }
+
+  const departmentIds = (params.departmentIds ?? []).filter(Boolean);
+  if (departmentIds.length && params.role !== "hod") {
+    args.push(departmentIds);
+    parts.push(`${col("department_id")} = ANY($${args.length}::text[])`);
+  }
+
+  const courseIds = (params.courseIds ?? []).filter(Boolean);
+  if (courseIds.length && params.role !== "teacher") {
+    args.push(courseIds);
+    parts.push(`${col("course_id")} = ANY($${args.length}::text[])`);
+  }
+
+  const instructorIds = (params.instructorIds ?? []).filter(Boolean);
+  if (instructorIds.length) {
+    args.push(instructorIds);
+    parts.push(
+      `EXISTS (
+        SELECT 1
+        FROM student_enrollment_current e_scope
+        WHERE e_scope.is_active = TRUE
+          AND e_scope.sap_id = ${col("student_sap_id")}
+          AND e_scope.course_id = ${col("course_id")}
+          AND e_scope.instructor_pernr = ANY($${args.length}::text[])
+      )`
+    );
+  }
+
+  return parts.length ? parts.join(" AND ") : "TRUE";
+}
+
+function normalizeSapIdCompareSql(left: string, right: string): string {
+  return `COALESCE(NULLIF(REGEXP_REPLACE(TRIM(${left}), '^0+', ''), ''), '0')
+      = COALESCE(NULLIF(REGEXP_REPLACE(TRIM(${right}), '^0+', ''), ''), '0')`;
+}
+
+/** Intervention row tied to the enrollment/alert course (listing join semantics). */
+export function interventionMatchesAlertedEnrollmentSql(opts: {
+  hasSectionCode: boolean;
+  interventionAlias?: string;
+  enrollmentAlias?: string;
+}): string {
+  const i = opts.interventionAlias ?? "i";
+  const e = opts.enrollmentAlias ?? "e";
+  const sectionSql = opts.hasSectionCode
+    ? `AND (
+         COALESCE(NULLIF(TRIM(${i}.section_code), ''), '') = ''
+         OR COALESCE(${i}.section_code, '') = COALESCE(${e}.section_code, '')
+       )`
+    : "";
+  return `${normalizeSapIdCompareSql(`${i}.student_sap_id`, `${e}.sap_id`)}
+      AND (
+        COALESCE(NULLIF(TRIM(${i}.course_id), ''), '') = ''
+        OR ${i}.course_id = ${e}.course_id
+      )
+      ${sectionSql}`;
+}
+
 function buildAlertRowFilterSql(
   params: InterventionRoleScope
 ): string {
@@ -1349,49 +1458,7 @@ function buildInterventionExistsScopeSql(
   params: InterventionRoleScope,
   args: unknown[]
 ): string | null {
-  if (params.role === "dean") {
-    if (!params.facultyId) return null;
-    const mappedFacultyId =
-      FACULTY_ID_TO_INTERVENTION_FAC_ID[params.facultyId] ?? params.facultyId;
-    args.push(mappedFacultyId);
-    return `i.faculty_id = $${args.length}`;
-  }
-  if (params.role === "hod") {
-    const deptIds = params.departmentIds ?? [];
-    if (!deptIds.length) return null;
-    args.push(deptIds);
-    return `i.department_id = ANY($${args.length}::text[])`;
-  }
-  if (params.role === "teacher") {
-    const courseIds = (params.courseIds ?? []).filter(Boolean);
-    if (courseIds.length) {
-      args.push(courseIds);
-      return `i.course_id = ANY($${args.length}::text[])`;
-    }
-    if (!params.staffId) return null;
-    args.push(params.staffId);
-    return `i.staff_id = $${args.length}`;
-  }
-  if (params.role === "superadmin") {
-    const parts: string[] = [];
-    const facultyId = String(params.facultyId ?? "").trim();
-    if (facultyId) {
-      args.push(facultyId);
-      parts.push(`i.faculty_id = $${args.length}`);
-    }
-    const departmentIds = (params.departmentIds ?? []).filter(Boolean);
-    if (departmentIds.length) {
-      args.push(departmentIds);
-      parts.push(`i.department_id = ANY($${args.length}::text[])`);
-    }
-    const courseIds = (params.courseIds ?? []).filter(Boolean);
-    if (courseIds.length) {
-      args.push(courseIds);
-      parts.push(`i.course_id = ANY($${args.length}::text[])`);
-    }
-    return parts.length ? parts.join(" AND ") : "TRUE";
-  }
-  return null;
+  return buildInterventionRecordScopeSql("i", params, args);
 }
 
 function buildEnrollmentScopeSql(
@@ -1437,23 +1504,29 @@ function buildEnrollmentScopeSql(
 }
 
 /**
- * Alert rows in role scope with no matching row in `interventions` for that student
- * (same faculty/department/course scope as intervention record counts).
+ * Distinct students in the latest alert snapshot with at least one alert and no
+ * intervention recorded against that alerted course (scoped to role/master filters).
  */
 export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
   params: InterventionRoleScope
 ): Promise<number> {
   if (!pool) return 0;
 
+  const hasSectionCode = await hasSectionCodeColumn();
   const args: unknown[] = [];
   const enrollmentScope = buildEnrollmentScopeSql(params, args);
-  const interventionScope = buildInterventionExistsScopeSql(params, args);
+  const interventionScope = buildInterventionRecordScopeSql("i", params, args);
   if (!enrollmentScope || !interventionScope) return 0;
 
   const alertFilter = buildAlertRowFilterSql(params);
+  const courseMatchSql = interventionMatchesAlertedEnrollmentSql({
+    hasSectionCode,
+    interventionAlias: "i",
+    enrollmentAlias: "e",
+  });
   const res = await pool.query<{ cnt: string }>(
     `
-    SELECT COUNT(*)::int AS cnt
+    SELECT COUNT(DISTINCT e.sap_id)::int AS cnt
     FROM student_enrollment_current e
     INNER JOIN student_alert_current a
       ON a.sap_id = e.sap_id
@@ -1465,9 +1538,8 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
       AND NOT EXISTS (
         SELECT 1
         FROM interventions i
-        WHERE COALESCE(NULLIF(REGEXP_REPLACE(TRIM(i.student_sap_id), '^0+', ''), ''), '0')
-            = COALESCE(NULLIF(REGEXP_REPLACE(TRIM(e.sap_id), '^0+', ''), ''), '0')
-          AND ${interventionScope}
+        WHERE ${courseMatchSql}
+          AND (${interventionScope})
       )
     `,
     args
