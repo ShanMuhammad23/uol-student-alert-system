@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { mapSessionToAppUser } from "@/app/(home)/dashboard/fetch";
 import {
-  getIntervenedStudentsOpenOutOfAlertCounts,
+  getIntervenedStudentsOpenOutOfAlertData,
   type InterventionReminderScope,
 } from "@/lib/db/intervention-open-out-of-alert";
 
@@ -40,8 +40,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const counts = await getIntervenedStudentsOpenOutOfAlertCounts(scope);
-    return NextResponse.json(counts);
+    const data = await getIntervenedStudentsOpenOutOfAlertData(scope);
+    return NextResponse.json(data);
   } catch (error) {
     console.error("header-intervention-reminder:", error);
     return NextResponse.json(

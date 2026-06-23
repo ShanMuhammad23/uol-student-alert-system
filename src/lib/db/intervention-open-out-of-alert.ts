@@ -12,6 +12,17 @@ export type InterventionOpenOutOfAlertCounts = {
   totalIntervenedCount: number;
 };
 
+export type InterventionOpenOutOfAlertRow = {
+  sapId: string;
+  studentName: string;
+  addedByName: string;
+  status: string;
+};
+
+export type InterventionOpenOutOfAlertData = InterventionOpenOutOfAlertCounts & {
+  rows: InterventionOpenOutOfAlertRow[];
+};
+
 const OPEN_STATUSES = ["initiated", "in-progress", "referred"] as const;
 
 function pushScopeParam(scope: InterventionReminderScope, params: unknown[]): number {
@@ -54,8 +65,18 @@ function alertEnrollmentScopeSql(
 export async function getIntervenedStudentsOpenOutOfAlertCounts(
   scope: InterventionReminderScope
 ): Promise<InterventionOpenOutOfAlertCounts> {
+  const data = await getIntervenedStudentsOpenOutOfAlertData(scope);
+  return {
+    openOutOfAlertCount: data.openOutOfAlertCount,
+    totalIntervenedCount: data.totalIntervenedCount,
+  };
+}
+
+export async function getIntervenedStudentsOpenOutOfAlertData(
+  scope: InterventionReminderScope
+): Promise<InterventionOpenOutOfAlertData> {
   if (!pool) {
-    return { openOutOfAlertCount: 0, totalIntervenedCount: 0 };
+    return { openOutOfAlertCount: 0, totalIntervenedCount: 0, rows: [] };
   }
 
   const params: unknown[] = [];
@@ -66,12 +87,7 @@ export async function getIntervenedStudentsOpenOutOfAlertCounts(
   const enrollmentScope = enrollmentScopeSql(scope, scopeParamIdx);
   const alertEnrollmentScope = alertEnrollmentScopeSql(scope, scopeParamIdx, "e2");
 
-  try {
-    const res = await pool.query<{
-      open_out_of_alert_count: number;
-      total_intervened_count: number;
-    }>(
-      `
+  const baseCte = `
       WITH scoped_students AS (
         SELECT DISTINCT e.sap_id
         FROM student_enrollment_current e
@@ -79,8 +95,11 @@ export async function getIntervenedStudentsOpenOutOfAlertCounts(
       ),
       latest_intervention AS (
         SELECT DISTINCT ON (i.student_sap_id)
+          i.id,
           i.student_sap_id,
-          i.status
+          i.status,
+          i.staff_id,
+          i.performed_at
         FROM interventions i
         JOIN scoped_students ss ON ss.sap_id = i.student_sap_id
         ORDER BY i.student_sap_id, i.performed_at DESC
@@ -101,7 +120,15 @@ export async function getIntervenedStudentsOpenOutOfAlertCounts(
             AND ${alertEnrollmentScope}
             AND a.overall_alert_level IN ('warning', 'critical')
         )
-      )
+      )`;
+
+  try {
+    const countRes = await pool.query<{
+      open_out_of_alert_count: number;
+      total_intervened_count: number;
+    }>(
+      `
+      ${baseCte}
       SELECT
         COUNT(*) FILTER (
           WHERE li.status = ANY($${openStatusIdx}::text[])
@@ -114,12 +141,48 @@ export async function getIntervenedStudentsOpenOutOfAlertCounts(
       params
     );
 
-    const row = res.rows[0];
+    const listRes = await pool.query<{
+      sap_id: string;
+      student_name: string;
+      added_by_name: string;
+      status: string;
+    }>(
+      `
+      ${baseCte},
+      listed AS (
+        SELECT
+          li.student_sap_id AS sap_id,
+          COALESCE(NULLIF(TRIM(st.full_name), ''), li.student_sap_id) AS student_name,
+          COALESCE(NULLIF(TRIM(s.name), ''), '—') AS added_by_name,
+          li.status,
+          li.performed_at
+        FROM latest_intervention li
+        INNER JOIN out_of_alert oa ON oa.sap_id = li.student_sap_id
+        LEFT JOIN students st ON st.sap_id = li.student_sap_id
+        LEFT JOIN staff s ON s.id = li.staff_id
+        WHERE li.status = ANY($${openStatusIdx}::text[])
+      )
+      SELECT sap_id, student_name, added_by_name, status
+      FROM listed
+      ORDER BY performed_at DESC
+      `,
+      params
+    );
+
+    const countRow = countRes.rows[0];
+    const rows: InterventionOpenOutOfAlertRow[] = listRes.rows.map((r) => ({
+      sapId: String(r.sap_id),
+      studentName: String(r.student_name ?? r.sap_id),
+      addedByName: String(r.added_by_name ?? "—"),
+      status: String(r.status ?? ""),
+    }));
+
     return {
-      openOutOfAlertCount: Number(row?.open_out_of_alert_count ?? 0),
-      totalIntervenedCount: Number(row?.total_intervened_count ?? 0),
+      openOutOfAlertCount: Number(countRow?.open_out_of_alert_count ?? 0),
+      totalIntervenedCount: Number(countRow?.total_intervened_count ?? 0),
+      rows,
     };
   } catch {
-    return { openOutOfAlertCount: 0, totalIntervenedCount: 0 };
+    return { openOutOfAlertCount: 0, totalIntervenedCount: 0, rows: [] };
   }
 }
