@@ -1402,6 +1402,22 @@ function normalizeSapIdCompareSql(left: string, right: string): string {
       = COALESCE(NULLIF(REGEXP_REPLACE(TRIM(${right}), '^0+', ''), ''), '0')`;
 }
 
+/** Course match allowing optional `|program` suffix (e.g. ISL04203|11 ↔ ISL04203). */
+export function interventionCourseMatchesEnrollmentSql(opts: {
+  interventionAlias?: string;
+  enrollmentAlias?: string;
+}): string {
+  const i = opts.interventionAlias ?? "i";
+  const e = opts.enrollmentAlias ?? "e";
+  const iBase = `SPLIT_PART(COALESCE(NULLIF(TRIM(${i}.course_id), ''), ''), '|', 1)`;
+  const eBase = `SPLIT_PART(COALESCE(NULLIF(TRIM(${e}.course_id), ''), ''), '|', 1)`;
+  return `(
+    COALESCE(NULLIF(TRIM(${i}.course_id), ''), '') = ''
+    OR ${i}.course_id = ${e}.course_id
+    OR ${iBase} = ${eBase}
+  )`;
+}
+
 /** Intervention row tied to the enrollment/alert course (listing join semantics). */
 export function interventionMatchesAlertedEnrollmentSql(opts: {
   hasSectionCode: boolean;
@@ -1417,10 +1433,23 @@ export function interventionMatchesAlertedEnrollmentSql(opts: {
        )`
     : "";
   return `${normalizeSapIdCompareSql(`${i}.student_sap_id`, `${e}.sap_id`)}
-      AND (
-        COALESCE(NULLIF(TRIM(${i}.course_id), ''), '') = ''
-        OR ${i}.course_id = ${e}.course_id
-      )
+      AND ${interventionCourseMatchesEnrollmentSql({ interventionAlias: i, enrollmentAlias: e })}
+      ${sectionSql}`;
+}
+
+/** Same student + course (+ section); used for table filters so rows match displayed status. */
+export function strictInterventionEnrollmentMatchSql(opts: {
+  hasSectionCode: boolean;
+  interventionAlias?: string;
+  enrollmentAlias?: string;
+}): string {
+  const i = opts.interventionAlias ?? "i";
+  const e = opts.enrollmentAlias ?? "e";
+  const sectionSql = opts.hasSectionCode
+    ? `AND COALESCE(${i}.section_code, '') = COALESCE(${e}.section_code, '')`
+    : "";
+  return `${normalizeSapIdCompareSql(`${i}.student_sap_id`, `${e}.sap_id`)}
+      AND ${i}.course_id = ${e}.course_id
       ${sectionSql}`;
 }
 

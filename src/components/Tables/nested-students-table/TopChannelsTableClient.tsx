@@ -356,8 +356,7 @@ export function TopChannelsTableClient({
         totalUniqueStudents?: number;
       }) => {
         const incomingRows = Array.isArray(body.rows) ? body.rows : [];
-        // Defensive client-side guard: render only active enrollments.
-        setRows(incomingRows.filter((row) => row.isActive !== false));
+        setRows(incomingRows);
         setTotalResults(Number(body.total ?? 0));
         setTotalUniqueStudents(
           (body.totalUniqueStudents ?? (body as any).total_unique_students) == null
