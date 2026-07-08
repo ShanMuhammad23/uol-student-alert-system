@@ -265,9 +265,9 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
 const defaultMonitoringParams = (): MonitoringParams => ({
   Campus: process.env.SAP_CAMPUS ?? "11",
   PYear: process.env.SAP_PYEAR ?? "2026",
-  PSess: process.env.SAP_PSESS ?? "001",
-  Begda: process.env.SAP_BEGDA ?? "20260120",
-  Endda: process.env.SAP_ENDDA ?? "20260520",
+  PSess: process.env.SAP_PSESS ?? "002",
+  Begda: process.env.SAP_BEGDA ?? "20260601",
+  Endda: process.env.SAP_ENDDA ?? "20260920",
 });
 
 /**

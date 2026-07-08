@@ -375,8 +375,8 @@ export async function runStudentSync(
     Campus: campus,
     PYear: pYear,
     PSess: pSess,
-    Begda: process.env.SAP_BEGDA ?? "20260120",
-    Endda: process.env.SAP_ENDDA ?? "20260520",
+    Begda: process.env.SAP_BEGDA ?? "20260601",
+    Endda: process.env.SAP_ENDDA ?? "20260920",
   });
 
   const filteredEnrollments = enrollmentRows.filter((row) => {

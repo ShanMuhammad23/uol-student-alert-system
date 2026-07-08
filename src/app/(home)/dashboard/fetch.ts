@@ -1247,10 +1247,10 @@ async function getDataFromEnrollment(): Promise<DataJson> {
   if (useSap) {
     try {
       const campus = process.env.SAP_CAMPUS ?? "11";
-      const year = process.env.SAP_PYEAR ?? "2023";
-      const session = process.env.SAP_PSESS ?? "001";
-      const begda = process.env.SAP_BEGDA ?? "20230120";
-      const endda = process.env.SAP_ENDDA ?? "20230520";
+      const year = process.env.SAP_PYEAR ?? "2026";
+      const session = process.env.SAP_PSESS ?? "002";
+      const begda = process.env.SAP_BEGDA ?? "20260601";
+      const endda = process.env.SAP_ENDDA ?? "20260920";
       const monitoringEntries = await fetchMonitoringEntries({
         Campus: campus,
         PYear: year,

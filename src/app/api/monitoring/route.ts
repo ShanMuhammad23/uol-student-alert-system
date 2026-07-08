@@ -7,9 +7,9 @@ export async function GET(req: NextRequest) {
 
     const Campus = searchParams.get("Campus") ?? process.env.SAP_CAMPUS ?? "11";
     const PYear = searchParams.get("PYear") ?? process.env.SAP_PYEAR ?? "2026";
-    const PSess = searchParams.get("PSess") ?? process.env.SAP_PSESS ?? "001";
-    const Begda = searchParams.get("Begda") ?? process.env.SAP_BEGDA ?? "20260120";
-    const Endda = searchParams.get("Endda") ?? process.env.SAP_ENDDA ?? "20260520";
+    const PSess = searchParams.get("PSess") ?? process.env.SAP_PSESS ?? "002";
+    const Begda = searchParams.get("Begda") ?? process.env.SAP_BEGDA ?? "20260601";
+    const Endda = searchParams.get("Endda") ?? process.env.SAP_ENDDA ?? "20260920";
 
     const entries = await fetchMonitoringEntries({
       Campus,

@@ -375,9 +375,9 @@ export async function NestedStudentsTable({
   if (useSapNested) {
     const Campus = process.env.SAP_CAMPUS ?? "11";
     const PYear = process.env.SAP_PYEAR ?? "2026";
-    const PSess = process.env.SAP_PSESS ?? "001";
-    const Begda = process.env.SAP_BEGDA ?? "20260120";
-    const Endda = process.env.SAP_ENDDA ?? "20260520";
+    const PSess = process.env.SAP_PSESS ?? "002";
+    const Begda = process.env.SAP_BEGDA ?? "20260601";
+    const Endda = process.env.SAP_ENDDA ?? "20260920";
 
     const entries = await fetchMonitoringEntries({
       Campus,

@@ -282,7 +282,7 @@ async function main() {
   const campus = normalize(process.env.SAP_CAMPUS || "11");
   const facCode = normalize(process.env.SAP_FAC_CODE || "1123");
   const startYear = normalize(process.env.GPA_IMPORT_START_YEAR || "2026");
-  const startPerid = normalizePerid(process.env.GPA_IMPORT_START_PERID || "001");
+  const startPerid = normalizePerid(process.env.GPA_IMPORT_START_PERID || "002");
   const semesterCount = Number(process.env.GPA_IMPORT_SEMESTER_COUNT || 4);
   const top = Number(process.env.GPA_IMPORT_TOP || 250000);
   const baseUrl = normalize(process.env.SAP_ENROLLMENT_BASE_URL || DEFAULT_BASE_URL);
