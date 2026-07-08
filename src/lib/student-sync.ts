@@ -320,7 +320,7 @@ export async function runStudentSync(
   const date = snapshotDate ?? new Date().toISOString().slice(0, 10);
   const campus = (process.env.SAP_CAMPUS ?? "11").trim();
   const pYear = (process.env.SAP_PYEAR ?? "2026").trim();
-  const pSess = (process.env.SAP_PSESS ?? "001").trim();
+  const pSess = (process.env.SAP_PSESS ?? "002").trim();
   const requestedFacultyCodes = (options?.enrollmentFacultyCodes ?? [])
     .map((v) => String(v).trim())
     .filter(Boolean);
