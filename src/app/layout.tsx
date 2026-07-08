@@ -56,12 +56,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           mappedFacultyId;
 
         const total = await pool.query<{ total_students: number | string | null }>(
-          `SELECT COALESCE(SUM(total_students), 0) AS total_students
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date = $1
-             AND dimension_type = 'faculty'
-             AND dimension_id = $2`,
-          [latestSnapshotDate, mappedFacultyId]
+          `SELECT COUNT(DISTINCT sap_id)::int AS total_students
+           FROM student_enrollment_current
+           WHERE is_active = TRUE
+             AND faculty_id = $1`,
+          [mappedFacultyId]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (user.role === "hod" && user.department_ids?.length) {
@@ -71,12 +70,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         );
         screenHeading = names.rows.map((r) => r.name).join(", ");
         const total = await pool.query<{ total_students: number | string | null }>(
-          `SELECT COALESCE(SUM(total_students), 0) AS total_students
-           FROM alert_counts_by_dimension
-           WHERE snapshot_date = $1
-             AND dimension_type = 'department'
-             AND dimension_id = ANY($2::varchar[])`,
-          [latestSnapshotDate, user.department_ids]
+          `SELECT COUNT(DISTINCT sap_id)::int AS total_students
+           FROM student_enrollment_current
+           WHERE is_active = TRUE
+             AND department_id = ANY($1::varchar[])`,
+          [user.department_ids]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
       } else if (user.role === "teacher" || user.role === "instructor") {

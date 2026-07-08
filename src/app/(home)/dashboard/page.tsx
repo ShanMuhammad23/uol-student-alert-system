@@ -74,14 +74,18 @@ export default async function Home({ searchParams }: PropsType) {
   const facultyParam = Array.isArray(params.faculty)
     ? params.faculty[0]
     : params.faculty;
+  const facultyParamTrimmed = facultyParam?.trim() ?? "";
+  const emulatedFacultyId = /^\d+$/.test(facultyParamTrimmed)
+    ? facultyParamTrimmed
+    : null;
 
   // When superadmin navigates from the faculties tiles, emulate dean view.
   const effectiveUser =
     user.role === "superadmin" &&
     asParam === "dean" &&
-    typeof facultyParam === "string" &&
-    facultyParam.trim().length > 0
-      ? { ...user, role: "dean" as const, faculty_id: facultyParam.trim() }
+    typeof emulatedFacultyId === "string" &&
+    emulatedFacultyId.length > 0
+      ? { ...user, role: "dean" as const, faculty_id: emulatedFacultyId }
       : user;
 
   const departmentIds = parseMultiParam(params.department);

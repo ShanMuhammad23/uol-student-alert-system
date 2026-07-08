@@ -14,6 +14,7 @@ const FACULTY_NAME_FALLBACK: Record<string, string> = {
   "50000177": "Allied Health Sciences",
 };
 
+
 function getFallbackFacultyName(raw: string): string | null {
   if (FACULTY_NAME_FALLBACK[raw]) return FACULTY_NAME_FALLBACK[raw];
   if (/^Faculty\s+\d+$/i.test(raw)) {

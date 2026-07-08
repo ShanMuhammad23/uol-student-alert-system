@@ -1000,21 +1000,37 @@ async function getOverviewDataFromDb(
 ) {
   if (!pool) return null;
   const scope = getDbScope(user, masterFilter);
-  const params: unknown[] = [scope.dimensionType];
-  let where = `snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL}) AND dimension_type = $1`;
+  const params: unknown[] = [];
+  const dimColumn: Record<
+    "faculty" | "department" | "program" | "course" | "instructor",
+    string
+  > = {
+    faculty: "e.faculty_id",
+    department: "e.department_id",
+    program: "e.program_id",
+    course: "e.course_id",
+    instructor: "e.instructor_pernr",
+  };
+  const where: string[] = ["e.is_active = TRUE"];
   if (scope.ids?.length) {
     params.push(scope.ids);
-    where += ` AND dimension_id = ANY($2)`;
+    where.push(`${dimColumn[scope.dimensionType]} = ANY($${params.length}::text[])`);
   }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const res = await pool.query<DbOverviewRow>(
     `SELECT
-       COALESCE(SUM(total_students), 0) AS total_students,
-       COALESCE(SUM(yellow_gpa), 0) AS yellow_gpa,
-       COALESCE(SUM(red_gpa), 0) AS red_gpa,
-       COALESCE(SUM(yellow_attendance), 0) AS yellow_attendance,
-       COALESCE(SUM(red_attendance), 0) AS red_attendance
-     FROM alert_counts_by_dimension
-     WHERE ${where}`,
+       COUNT(DISTINCT e.sap_id)::int AS total_students,
+       COUNT(DISTINCT CASE WHEN COALESCE(a.gpa_alert_level, '') = 'warning' THEN e.sap_id END)::int AS yellow_gpa,
+       COUNT(DISTINCT CASE WHEN COALESCE(a.gpa_alert_level, '') = 'critical' THEN e.sap_id END)::int AS red_gpa,
+       COUNT(DISTINCT CASE WHEN COALESCE(a.attendance_alert_level, '') = 'warning' THEN e.sap_id END)::int AS yellow_attendance,
+       COUNT(DISTINCT CASE WHEN COALESCE(a.attendance_alert_level, '') = 'critical' THEN e.sap_id END)::int AS red_attendance
+     FROM student_enrollment_current e
+     LEFT JOIN student_alert_current a
+       ON a.sap_id = e.sap_id
+      AND a.course_id = e.course_id
+      AND a.section_code = e.section_code
+      AND a.event_package_id = e.event_package_id
+     ${whereSql}`,
     params
   );
   if (!res.rows.length) return null;
@@ -2468,8 +2484,8 @@ export async function getSuperadminFacultyStats(): Promise<FacultyStats[]> {
   if (pool) {
     try {
       const res = await pool.query<{
-        dimension_id: string;
-        dimension_name: string;
+        faculty_id: string;
+        faculty_name: string;
         total_students: number | string | null;
         yellow_gpa: number | string | null;
         red_gpa: number | string | null;
@@ -2477,21 +2493,28 @@ export async function getSuperadminFacultyStats(): Promise<FacultyStats[]> {
         red_attendance: number | string | null;
       }>(
         `SELECT
-           dimension_id,
-           dimension_name,
-           total_students,
-           yellow_gpa,
-           red_gpa,
-           yellow_attendance,
-           red_attendance
-         FROM alert_counts_by_dimension
-         WHERE snapshot_date = (${LATEST_ALERT_COUNTS_SNAPSHOT_SQL})
-           AND dimension_type = 'faculty'
-         ORDER BY dimension_name ASC`
+           e.faculty_id,
+           COALESCE(NULLIF(TRIM(MAX(f.name)), ''), e.faculty_id) AS faculty_name,
+           COUNT(DISTINCT e.sap_id)::int AS total_students,
+           COUNT(DISTINCT CASE WHEN COALESCE(a.gpa_alert_level, '') = 'warning' THEN e.sap_id END)::int AS yellow_gpa,
+           COUNT(DISTINCT CASE WHEN COALESCE(a.gpa_alert_level, '') = 'critical' THEN e.sap_id END)::int AS red_gpa,
+           COUNT(DISTINCT CASE WHEN COALESCE(a.attendance_alert_level, '') = 'warning' THEN e.sap_id END)::int AS yellow_attendance,
+           COUNT(DISTINCT CASE WHEN COALESCE(a.attendance_alert_level, '') = 'critical' THEN e.sap_id END)::int AS red_attendance
+         FROM student_enrollment_current e
+         LEFT JOIN faculties f
+           ON f.id = e.faculty_id
+         LEFT JOIN student_alert_current a
+           ON a.sap_id = e.sap_id
+          AND a.course_id = e.course_id
+          AND a.section_code = e.section_code
+          AND a.event_package_id = e.event_package_id
+         WHERE e.is_active = TRUE
+         GROUP BY e.faculty_id
+         ORDER BY faculty_name ASC`
       );
       return res.rows.map((row) => ({
-        facultyId: row.dimension_id,
-        facultyName: row.dimension_name || row.dimension_id,
+        facultyId: row.faculty_id,
+        facultyName: row.faculty_name || row.faculty_id,
         total: toInt(row.total_students),
         yellowGpa: toInt(row.yellow_gpa),
         redGpa: toInt(row.red_gpa),
