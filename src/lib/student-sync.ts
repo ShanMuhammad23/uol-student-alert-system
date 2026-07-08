@@ -744,8 +744,9 @@ export async function runStudentSync(
       await pool.query(
         `UPDATE student_enrollment_current
          SET is_active = FALSE
-         WHERE faculty_id = ANY($1::text[])`,
-        [scopedFacultyIds]
+         WHERE faculty_id = ANY($1::text[])
+           AND campus_code = $2`,
+        [scopedFacultyIds, campus]
       );
     }
 
