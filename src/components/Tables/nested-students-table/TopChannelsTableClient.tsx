@@ -199,6 +199,7 @@ export function TopChannelsTableClient({
       pageSize,
       sortKey: sortConfig?.key ?? "name",
       sortDirection: sortConfig?.direction ?? "desc",
+      includeIntervenedStudents: true,
       roleScope,
       filters: {
         ...(masterFilter ?? {}),

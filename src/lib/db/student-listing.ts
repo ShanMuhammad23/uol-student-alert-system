@@ -55,6 +55,8 @@ export type ListingRequest = {
   pageSize?: number;
   sortKey?: ListingSortKey;
   sortDirection?: ListingSortDirection;
+  /** Include students with interventions even when not currently active/enrolled. */
+  includeIntervenedStudents?: boolean;
   /** When true, pagination/total is based on distinct students (sap_id). */
   uniqueStudents?: boolean;
   /** When true, also return distinct-student total without changing row shape. */
@@ -365,10 +367,16 @@ function buildWhere(
   wellbeingOpts?: {
     extendedDirectCases: boolean;
     hasInterventionSectionCode?: boolean;
+  },
+  options?: {
+    includeIntervenedStudents?: boolean;
   }
 ): BaseQueryParts {
   const params: unknown[] = [];
-  const where: string[] = ["e.is_active = TRUE"];
+  const includeIntervenedStudents = options?.includeIntervenedStudents === true;
+  const where: string[] = includeIntervenedStudents
+    ? ["(e.is_active = TRUE OR EXISTS (SELECT 1 FROM interventions ix WHERE ix.student_sap_id = e.sap_id))"]
+    : ["e.is_active = TRUE"];
 
   const normalizedIntervention =
     !skip?.has("intervention")
@@ -1349,6 +1357,8 @@ export async function getStudentListing(
   const whereParts = buildWhere(scope, request.filters ?? {}, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
     hasInterventionSectionCode: interventionContext.hasSectionCode,
+  }, {
+    includeIntervenedStudents: request.includeIntervenedStudents === true,
   });
   const baseCte = buildListingBaseCte(
     whereParts.whereSql,

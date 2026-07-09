@@ -1142,11 +1142,15 @@ export async function getOverviewData(
   const { students: allStudents } = data;
   const hasValidUser =
     user && VALID_ROLES.includes(user.role as (typeof VALID_ROLES)[number]);
-  let students = hasValidUser
+  let baseStudents = hasValidUser
     ? (getStudentsForRole(user as User, allStudents) as Student[])
     : allStudents;
-  students = applyMasterFilter(students, masterFilter, data);
-  students = applyGpaAttendanceFilter(students, gpaFilters, attendanceFilters);
+  baseStudents = applyMasterFilter(baseStudents, masterFilter, data);
+  let students = applyGpaAttendanceFilter(
+    [...baseStudents],
+    gpaFilters,
+    attendanceFilters
+  );
 
   let yellowGpa = 0;
   let redGpa = 0;
@@ -1167,7 +1171,7 @@ export async function getOverviewData(
   // For faculty (dean) views, define total students as:
   // sum of the student counts of every department under that faculty,
   // based on enrollment_data.json (unique students per department).
-  let totalStudents = students.length;
+  let totalStudents = baseStudents.length;
   if (user?.role === "dean" && user.faculty_id) {
     try {
       const deptStats = await getDepartmentStatsFromEnrollment(user.faculty_id);
@@ -1175,7 +1179,7 @@ export async function getOverviewData(
         totalStudents = deptStats.reduce((sum, d) => sum + d.total, 0);
       }
     } catch {
-      totalStudents = students.length;
+      totalStudents = baseStudents.length;
     }
   }
 

@@ -188,7 +188,7 @@ export default async function Home({ searchParams }: PropsType) {
     instructorCourseCount = instructorCourses.length;
   }
 
-  /** Superadmin ?as=dean&faculty=… — client APIs must scope like this, not as global superadmin. */
+  /** Superadmin ?as=dean&faculty=â€¦ â€” client APIs must scope like this, not as global superadmin. */
   const filterApiRoleScope =
     user.role === "superadmin" &&
     effectiveUser.role === "dean" &&
