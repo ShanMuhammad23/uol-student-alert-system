@@ -119,8 +119,7 @@ async function getEnrollmentForStudentSapId(
        LEFT JOIN programs p ON p.id = e.program_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
-         AND e.is_active = TRUE
-       ORDER BY e.course_id ASC, e.section_code ASC`,
+       ORDER BY e.is_active DESC NULLS LAST, e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
     return res.rows.map((r) => ({
@@ -188,8 +187,7 @@ async function getStudentProfileMetricRows(
         AND a.event_package_id = e.event_package_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
-         AND e.is_active = TRUE
-       ORDER BY e.course_id ASC, e.section_code ASC`,
+       ORDER BY e.is_active DESC NULLS LAST, e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
     return res.rows.map((r) => ({
