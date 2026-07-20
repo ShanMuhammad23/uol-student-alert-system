@@ -124,9 +124,6 @@ export default async function RootLayout({ children }: PropsWithChildren) {
       <body>
         <Providers>
           <NextTopLoader color="#5750F1" showSpinner={false} />
-          <div className="bg-red-500 text-white p-2 text-center">
-                <p className="text-base">Attendance alerts will activate after 25% of classes are held for Summer 2026. Portal login is active.</p>
-              </div>
           <div className="flex min-h-screen">
 
 
