@@ -2,6 +2,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { pool } from "@/lib/db";
+import type { EtlRunRow } from "@/lib/etl-run-types";
+
+export type { EtlRunRow } from "@/lib/etl-run-types";
 
 const LOG_DIR = path.join(process.cwd(), "logs");
 const LOG_FILE = path.join(LOG_DIR, "automation-etl.log");
@@ -96,6 +99,55 @@ export async function readAutomationLogs(lineLimit = 400): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+export async function listEtlRuns(limit = 50): Promise<EtlRunRow[]> {
+  if (!pool) return [];
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 50, 1), 200);
+  const res = await pool.query<{
+    id: string;
+    pipeline_name: string;
+    started_at: string;
+    completed_at: string | null;
+    status: EtlRunRow["status"];
+    source_rows_enrollment: string | number;
+    source_rows_attendance: string | number;
+    source_rows_monitoring: string | number;
+    produced_rows_current: string | number;
+    produced_rows_daily: string | number;
+    error_message: string | null;
+  }>(
+    `SELECT
+       id,
+       pipeline_name,
+       started_at::text AS started_at,
+       completed_at::text AS completed_at,
+       status,
+       source_rows_enrollment,
+       source_rows_attendance,
+       source_rows_monitoring,
+       produced_rows_current,
+       produced_rows_daily,
+       error_message
+     FROM etl_runs
+     ORDER BY started_at DESC, id DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+
+  return res.rows.map((row) => ({
+    id: Number(row.id),
+    pipelineName: row.pipeline_name,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    status: row.status,
+    sourceRowsEnrollment: Number(row.source_rows_enrollment ?? 0),
+    sourceRowsAttendance: Number(row.source_rows_attendance ?? 0),
+    sourceRowsMonitoring: Number(row.source_rows_monitoring ?? 0),
+    producedRowsCurrent: Number(row.produced_rows_current ?? 0),
+    producedRowsDaily: Number(row.produced_rows_daily ?? 0),
+    errorMessage: row.error_message,
+  }));
 }
 
 export async function getLastAlertSnapshotUpdateAt(): Promise<string | null> {

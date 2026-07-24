@@ -16,6 +16,7 @@ import { sendSmtpMail } from "@/lib/smtp";
 export type { MissingAttendanceReminderRow } from "@/lib/missing-attendance-reminder-types";
 
 export type RunMissingAttendanceRemindersOptions = {
+  /** When omitted/empty, reminders are sent for every faculty with enrollment on the snapshot date. */
   facultyId?: string;
   snapshotDate?: string;
   minMissingEntries?: number;
@@ -23,9 +24,11 @@ export type RunMissingAttendanceRemindersOptions = {
 };
 
 export type RunMissingAttendanceRemindersResult = {
-  runId: number | null;
+  runIds: number[];
   snapshotDate: string;
-  facultyId: string;
+  /** Null when the run covered all faculties. */
+  facultyId: string | null;
+  facultyIds: string[];
   candidates: number;
   sent: number;
   skippedNoEmail: number;
@@ -38,11 +41,11 @@ export type RunMissingAttendanceRemindersResult = {
     instructorPernr: string;
     courseCode: string;
     missingEntries: number;
+    facultyId: string;
     logId: number;
   }>;
 };
 
-const DEFAULT_FACULTY_ID = "50000172";
 const DEFAULT_MIN_MISSING = 4;
 /** Pause between SMTP sends to reduce bounce/rate-limit risk. */
 const INTER_EMAIL_DELAY_MS = 5000;
@@ -58,15 +61,34 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+async function listFacultyIdsForSnapshot(snapshotDate: string): Promise<string[]> {
+  if (!pool) return [];
+  const res = await pool.query<{ faculty_id: string }>(
+    `SELECT DISTINCT TRIM(ec.faculty_id) AS faculty_id
+     FROM student_enrollment_current ec
+     WHERE ec.is_active = TRUE
+       AND ec.snapshot_at::date = $1::date
+       AND ec.faculty_id IS NOT NULL
+       AND TRIM(ec.faculty_id) <> ''
+     ORDER BY 1`,
+    [snapshotDate]
+  );
+  return res.rows
+    .map((row) => String(row.faculty_id ?? "").trim())
+    .filter(Boolean);
+}
+
 export async function queryMissingAttendanceReminderCandidates(options?: {
-  facultyId?: string;
+  facultyId: string;
   snapshotDate?: string;
   minMissingEntries?: number;
   limit?: number;
 }): Promise<MissingAttendanceReminderRow[]> {
   if (!pool) return [];
 
-  const facultyId = (options?.facultyId ?? DEFAULT_FACULTY_ID).trim();
+  const facultyId = String(options?.facultyId ?? "").trim();
+  if (!facultyId) return [];
+
   const snapshotDate =
     options?.snapshotDate ?? new Date().toISOString().slice(0, 10);
   const minMissing = options?.minMissingEntries ?? DEFAULT_MIN_MISSING;
@@ -173,8 +195,7 @@ export async function queryMissingAttendanceReminderCandidates(options?: {
         String(row.course_title ?? "").trim() || courseCode || courseId,
       courseCode: courseCode || courseId,
       departmentId: String(row.department_id ?? "").trim(),
-      departmentName:
-        String(row.department_name ?? "").trim() || "—",
+      departmentName: String(row.department_name ?? "").trim() || "—",
       sectionCode: String(row.section_code ?? "").trim(),
       eventPackageId: String(row.event_package_id ?? "").trim(),
       studentsEnrolled: Number(row.students_enrolled ?? 0),
@@ -185,19 +206,26 @@ export async function queryMissingAttendanceReminderCandidates(options?: {
   });
 }
 
-export async function runMissingAttendanceReminders(
-  options?: RunMissingAttendanceRemindersOptions
-): Promise<RunMissingAttendanceRemindersResult> {
-  if (!pool) throw new Error("DATABASE_URL is not configured");
-
-  const facultyId = (options?.facultyId ?? DEFAULT_FACULTY_ID).trim();
-  const snapshotDate =
-    options?.snapshotDate ?? new Date().toISOString().slice(0, 10);
-  const minMissing = options?.minMissingEntries ?? DEFAULT_MIN_MISSING;
-  const dryRun = options?.dryRun ?? false;
-  const overrideTo = String(
-    process.env.MISSING_ATTENDANCE_OVERRIDE_TO ?? ""
-  ).trim();
+async function runMissingAttendanceRemindersForFaculty(input: {
+  facultyId: string;
+  snapshotDate: string;
+  minMissingEntries: number;
+  dryRun: boolean;
+  overrideTo: string;
+  /** Carry SMTP delay state across faculties in an all-faculty run. */
+  emailsAlreadySent: { count: number };
+}): Promise<Omit<RunMissingAttendanceRemindersResult, "facultyId" | "facultyIds" | "runIds"> & {
+  runId: number | null;
+  facultyId: string;
+}> {
+  const {
+    facultyId,
+    snapshotDate,
+    minMissingEntries: minMissing,
+    dryRun,
+    overrideTo,
+    emailsAlreadySent,
+  } = input;
 
   const allCandidates = await queryMissingAttendanceReminderCandidates({
     facultyId,
@@ -216,7 +244,10 @@ export async function runMissingAttendanceReminders(
       dryRun,
     });
   } catch (err) {
-    console.error("[missing-attendance-reminders] Failed to create run log:", err);
+    console.error(
+      `[missing-attendance-reminders] Failed to create run log for faculty ${facultyId}:`,
+      err
+    );
   }
 
   const sentDetails: RunMissingAttendanceRemindersResult["sentDetails"] = [];
@@ -267,7 +298,10 @@ export async function runMissingAttendanceReminders(
         sentAt: extra.sentAt ?? null,
       });
     } catch (err) {
-      console.error("[missing-attendance-reminders] Failed to insert email log:", err);
+      console.error(
+        "[missing-attendance-reminders] Failed to insert email log:",
+        err
+      );
       return null;
     }
   };
@@ -320,13 +354,14 @@ export async function runMissingAttendanceReminders(
           instructorPernr: row.instructorPernr,
           courseCode: row.courseCode,
           missingEntries: row.missingEntries,
+          facultyId,
           logId: logId ?? 0,
         });
         continue;
       }
 
       try {
-        if (sent > 0) {
+        if (emailsAlreadySent.count > 0 || sent > 0) {
           await sleep(INTER_EMAIL_DELAY_MS);
         }
         await sendSmtpMail({
@@ -346,12 +381,14 @@ export async function runMissingAttendanceReminders(
         });
         if (instructorKey) sentInstructorKeys.add(instructorKey);
         sent += 1;
+        emailsAlreadySent.count += 1;
         sentDetails.push({
           to,
           subject,
           instructorPernr: row.instructorPernr,
           courseCode: row.courseCode,
           missingEntries: row.missingEntries,
+          facultyId,
           logId: logId ?? 0,
         });
       } catch (err) {
@@ -387,7 +424,7 @@ export async function runMissingAttendanceReminders(
         });
       } catch (err) {
         console.error(
-          "[missing-attendance-reminders] Failed to finalize run log:",
+          `[missing-attendance-reminders] Failed to finalize run log for faculty ${facultyId}:`,
           err
         );
       }
@@ -399,6 +436,82 @@ export async function runMissingAttendanceReminders(
     snapshotDate,
     facultyId,
     candidates: allCandidates.length,
+    sent,
+    skippedNoEmail,
+    skippedDuplicateInstructor,
+    failed,
+    dryRun,
+    sentDetails,
+  };
+}
+
+export async function runMissingAttendanceReminders(
+  options?: RunMissingAttendanceRemindersOptions
+): Promise<RunMissingAttendanceRemindersResult> {
+  if (!pool) throw new Error("DATABASE_URL is not configured");
+
+  const requestedFacultyId = options?.facultyId?.trim() || null;
+  const snapshotDate =
+    options?.snapshotDate ?? new Date().toISOString().slice(0, 10);
+  const minMissing = options?.minMissingEntries ?? DEFAULT_MIN_MISSING;
+  const dryRun = options?.dryRun ?? false;
+  const overrideTo = String(
+    process.env.MISSING_ATTENDANCE_OVERRIDE_TO ?? ""
+  ).trim();
+
+  const facultyIds = requestedFacultyId
+    ? [requestedFacultyId]
+    : await listFacultyIdsForSnapshot(snapshotDate);
+
+  if (!facultyIds.length) {
+    return {
+      runIds: [],
+      snapshotDate,
+      facultyId: requestedFacultyId,
+      facultyIds: [],
+      candidates: 0,
+      sent: 0,
+      skippedNoEmail: 0,
+      skippedDuplicateInstructor: 0,
+      failed: 0,
+      dryRun,
+      sentDetails: [],
+    };
+  }
+
+  const emailsAlreadySent = { count: 0 };
+  const runIds: number[] = [];
+  const sentDetails: RunMissingAttendanceRemindersResult["sentDetails"] = [];
+  let candidates = 0;
+  let sent = 0;
+  let skippedNoEmail = 0;
+  let skippedDuplicateInstructor = 0;
+  let failed = 0;
+
+  for (const facultyId of facultyIds) {
+    const result = await runMissingAttendanceRemindersForFaculty({
+      facultyId,
+      snapshotDate,
+      minMissingEntries: minMissing,
+      dryRun,
+      overrideTo,
+      emailsAlreadySent,
+    });
+    if (result.runId != null) runIds.push(result.runId);
+    candidates += result.candidates;
+    sent += result.sent;
+    skippedNoEmail += result.skippedNoEmail;
+    skippedDuplicateInstructor += result.skippedDuplicateInstructor;
+    failed += result.failed;
+    sentDetails.push(...result.sentDetails);
+  }
+
+  return {
+    runIds,
+    snapshotDate,
+    facultyId: requestedFacultyId,
+    facultyIds,
+    candidates,
     sent,
     skippedNoEmail,
     skippedDuplicateInstructor,

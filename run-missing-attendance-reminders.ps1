@@ -1,7 +1,8 @@
 param(
   [string]$AppBaseUrl = "http://127.0.0.1:3000",
   [string]$CronSecret = "",
-  [string]$FacultyId = "50000175",
+  # Empty = all faculties with enrollment on snapshot date
+  [string]$FacultyId = "",
   [int]$MinMissing = 4,
   [switch]$DryRun,
   [int]$RetryCount = 3,
@@ -18,23 +19,35 @@ if (-not $CronSecret) {
   throw "CRON_SECRET is required (parameter or env)."
 }
 
+if (-not $FacultyId -and $env:MISSING_ATTENDANCE_FACULTY_ID) {
+  $FacultyId = $env:MISSING_ATTENDANCE_FACULTY_ID
+}
+
 $endpoint = "/api/cron/missing-attendance-reminders"
 $queryJoin = if ($endpoint.Contains("?")) { "&" } else { "?" }
-$url = "$($AppBaseUrl.TrimEnd('/'))$endpoint$queryJoin" +
-  "facultyId=$([uri]::EscapeDataString($FacultyId))" +
-  "&minMissing=$MinMissing" +
-  $(if ($DryRun) { "&dryRun=1" } else { "" })
+$query = "minMissing=$MinMissing"
+if ($FacultyId) {
+  $query = "facultyId=$([uri]::EscapeDataString($FacultyId))&$query"
+}
+if ($DryRun) {
+  $query = "$query&dryRun=1"
+}
+$url = "$($AppBaseUrl.TrimEnd('/'))$endpoint$queryJoin$query"
 
-$payload = @{
-  facultyId         = $FacultyId
+$payloadObj = @{
   minMissingEntries = $MinMissing
   dryRun            = [bool]$DryRun
-} | ConvertTo-Json -Compress
+}
+if ($FacultyId) {
+  $payloadObj.facultyId = $FacultyId
+}
+$payload = $payloadObj | ConvertTo-Json -Compress
 
 $attempt = 1
 while ($attempt -le $RetryCount) {
+  $scope = if ($FacultyId) { "faculty=$FacultyId" } else { "all faculties" }
   Write-Host ""
-  Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Calling $url (attempt $attempt/$RetryCount)"
+  Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Calling $url ($scope, attempt $attempt/$RetryCount)"
 
   try {
     $headers = @{

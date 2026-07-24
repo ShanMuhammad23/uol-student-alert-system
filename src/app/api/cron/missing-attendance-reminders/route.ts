@@ -52,11 +52,12 @@ export async function POST(req: NextRequest) {
       // Allow empty body for cron calls.
     }
 
+    // Empty / omitted facultyId = all faculties with enrollment on snapshot date.
     const facultyId =
       queryFacultyId ||
       bodyFacultyId ||
       process.env.MISSING_ATTENDANCE_FACULTY_ID?.trim() ||
-      "50000172";
+      undefined;
     const snapshotDate =
       querySnapshotDate ||
       bodySnapshotDate ||

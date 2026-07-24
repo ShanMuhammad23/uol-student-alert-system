@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_BASE_URL="${APP_BASE_URL:-http://127.0.0.1:3002}"
 CRON_SECRET="${CRON_SECRET:-}"
-FACULTY_ID="${MISSING_ATTENDANCE_FACULTY_ID:-50000172}"
+FACULTY_ID="${MISSING_ATTENDANCE_FACULTY_ID:-}"
 MIN_MISSING="${MISSING_ATTENDANCE_MIN_MISSING:-4}"
 DRY_RUN="${MISSING_ATTENDANCE_DRY_RUN:-false}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-10}"
@@ -43,12 +43,19 @@ load_env_file() {
   done < "${env_file}"
 }
 
+load_env_file "${ETL_ENV_FILE}"
+
+# Re-read after loading .env so file values take effect.
+CRON_SECRET="${CRON_SECRET:-}"
+APP_BASE_URL="${APP_BASE_URL:-http://127.0.0.1:3002}"
+FACULTY_ID="${MISSING_ATTENDANCE_FACULTY_ID:-}"
+MIN_MISSING="${MISSING_ATTENDANCE_MIN_MISSING:-4}"
+DRY_RUN="${MISSING_ATTENDANCE_DRY_RUN:-false}"
+
 if [[ -z "${CRON_SECRET}" ]]; then
   echo "ERROR: CRON_SECRET is required" >&2
   exit 1
 fi
-
-load_env_file "${ETL_ENV_FILE}"
 
 mkdir -p "${LOG_DIR}"
 LOG_FILE="${LOG_DIR}/missing-attendance-$(date +%Y-%m-%d).log"
@@ -62,20 +69,35 @@ log() {
 }
 
 endpoint="/api/cron/missing-attendance-reminders"
-delimiter='?'
-[[ "${endpoint}" == *\?* ]] && delimiter='&'
-dry_run_param=""
-if [[ "${DRY_RUN}" == "1" || "${DRY_RUN}" == "true" || "${DRY_RUN}" == "TRUE" ]]; then
-  dry_run_param="&dryRun=1"
+query="minMissing=${MIN_MISSING}"
+if [[ -n "${FACULTY_ID}" ]]; then
+  query="facultyId=$(printf '%s' "${FACULTY_ID}" | sed 's/ /%20/g')&${query}"
 fi
-url="${APP_BASE_URL%/}${endpoint}${delimiter}facultyId=${FACULTY_ID}&minMissing=${MIN_MISSING}${dry_run_param}"
-payload="$(printf '{"facultyId":"%s","minMissingEntries":%s,"dryRun":%s}' \
-  "${FACULTY_ID}" "${MIN_MISSING}" \
-  "$( [[ "${DRY_RUN}" == "1" || "${DRY_RUN}" == "true" || "${DRY_RUN}" == "TRUE" ]] && echo true || echo false )")"
+if [[ "${DRY_RUN}" == "1" || "${DRY_RUN}" == "true" || "${DRY_RUN}" == "TRUE" ]]; then
+  query="${query}&dryRun=1"
+fi
+url="${APP_BASE_URL%/}${endpoint}?${query}"
+
+dry_run_json="false"
+if [[ "${DRY_RUN}" == "1" || "${DRY_RUN}" == "true" || "${DRY_RUN}" == "TRUE" ]]; then
+  dry_run_json="true"
+fi
+
+if [[ -n "${FACULTY_ID}" ]]; then
+  payload="$(printf '{"facultyId":"%s","minMissingEntries":%s,"dryRun":%s}' \
+    "${FACULTY_ID}" "${MIN_MISSING}" "${dry_run_json}")"
+else
+  payload="$(printf '{"minMissingEntries":%s,"dryRun":%s}' \
+    "${MIN_MISSING}" "${dry_run_json}")"
+fi
 
 attempt=1
 while (( attempt <= RETRY_COUNT )); do
-  log "Calling ${url} (attempt ${attempt}/${RETRY_COUNT})"
+  if [[ -n "${FACULTY_ID}" ]]; then
+    log "Calling ${url} (faculty=${FACULTY_ID}, attempt ${attempt}/${RETRY_COUNT})"
+  else
+    log "Calling ${url} (all faculties, attempt ${attempt}/${RETRY_COUNT})"
+  fi
   response="$(curl -sS \
     --connect-timeout "${CURL_CONNECT_TIMEOUT}" \
     --max-time "${CURL_MAX_TIME}" \

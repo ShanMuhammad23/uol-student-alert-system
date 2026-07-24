@@ -1,6 +1,11 @@
 import { pool } from "@/lib/db";
 import type { MissingAttendanceReminderRow } from "@/lib/missing-attendance-reminder-types";
+import type {
+  MissingAttendanceReminderEmailLog,
+  MissingAttendanceReminderRunLog,
+} from "@/lib/missing-attendance-reminder-log-types";
 
+export type { MissingAttendanceReminderEmailLog, MissingAttendanceReminderRunLog };
 export type MissingAttendanceReminderEmailStatus =
   | "sent"
   | "dry_run"
@@ -145,4 +150,132 @@ export async function insertMissingAttendanceReminderEmail(
     ]
   );
   return Number(res.rows[0]?.id);
+}
+
+export async function listMissingAttendanceReminderRuns(
+  limit = 50
+): Promise<MissingAttendanceReminderRunLog[]> {
+  if (!pool) return [];
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 50, 1), 200);
+  const res = await pool.query<{
+    id: string;
+    faculty_id: string;
+    snapshot_date: string;
+    min_missing_entries: number;
+    dry_run: boolean;
+    candidates_count: number;
+    sent_count: number;
+    skipped_no_email: number;
+    skipped_duplicate: number;
+    failed_count: number;
+    status: MissingAttendanceReminderRunLog["status"];
+    error_message: string | null;
+    started_at: string;
+    completed_at: string | null;
+  }>(
+    `SELECT
+       id,
+       faculty_id,
+       snapshot_date::text AS snapshot_date,
+       min_missing_entries,
+       dry_run,
+       candidates_count,
+       sent_count,
+       skipped_no_email,
+       skipped_duplicate,
+       failed_count,
+       status,
+       error_message,
+       started_at::text AS started_at,
+       completed_at::text AS completed_at
+     FROM missing_attendance_reminder_runs
+     ORDER BY started_at DESC, id DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+
+  return res.rows.map((row) => ({
+    id: Number(row.id),
+    facultyId: row.faculty_id,
+    snapshotDate: row.snapshot_date,
+    minMissingEntries: Number(row.min_missing_entries ?? 0),
+    dryRun: Boolean(row.dry_run),
+    candidatesCount: Number(row.candidates_count ?? 0),
+    sentCount: Number(row.sent_count ?? 0),
+    skippedNoEmail: Number(row.skipped_no_email ?? 0),
+    skippedDuplicate: Number(row.skipped_duplicate ?? 0),
+    failedCount: Number(row.failed_count ?? 0),
+    status: row.status,
+    errorMessage: row.error_message,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+  }));
+}
+
+export async function listMissingAttendanceReminderEmailsForRun(
+  runId: number,
+  limit = 500
+): Promise<MissingAttendanceReminderEmailLog[]> {
+  if (!pool) return [];
+  const safeRunId = Math.trunc(runId);
+  if (!Number.isFinite(safeRunId) || safeRunId <= 0) return [];
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 500, 1), 2000);
+
+  const res = await pool.query<{
+    id: string;
+    run_id: string;
+    status: MissingAttendanceReminderEmailLog["status"];
+    instructor_pernr: string | null;
+    instructor_name: string | null;
+    recipient_email: string | null;
+    course_code: string | null;
+    course_name: string | null;
+    department_name: string | null;
+    missing_entries: number;
+    email_subject: string | null;
+    error_message: string | null;
+    cc_recipients: string | null;
+    sent_at: string | null;
+    created_at: string;
+  }>(
+    `SELECT
+       id,
+       run_id,
+       status,
+       instructor_pernr,
+       instructor_name,
+       recipient_email,
+       course_code,
+       course_name,
+       department_name,
+       missing_entries,
+       email_subject,
+       error_message,
+       cc_recipients,
+       sent_at::text AS sent_at,
+       created_at::text AS created_at
+     FROM missing_attendance_reminder_emails
+     WHERE run_id = $1
+     ORDER BY created_at ASC, id ASC
+     LIMIT $2`,
+    [safeRunId, safeLimit]
+  );
+
+  return res.rows.map((row) => ({
+    id: Number(row.id),
+    runId: Number(row.run_id),
+    status: row.status,
+    instructorPernr: row.instructor_pernr,
+    instructorName: row.instructor_name,
+    recipientEmail: row.recipient_email,
+    courseCode: row.course_code,
+    courseName: row.course_name,
+    departmentName: row.department_name,
+    missingEntries: Number(row.missing_entries ?? 0),
+    emailSubject: row.email_subject,
+    errorMessage: row.error_message,
+    ccRecipients: row.cc_recipients,
+    sentAt: row.sent_at,
+    createdAt: row.created_at,
+  }));
 }
