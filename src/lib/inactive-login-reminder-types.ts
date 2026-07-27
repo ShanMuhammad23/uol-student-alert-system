@@ -8,4 +8,8 @@ export type InactiveLoginReminderRow = {
   lastLoginAt: Date | null;
   lastLoginDisplay: string;
   neverLoggedIn: boolean;
+  role: string | null;
+  pseudoRole: string | null;
+  actualRole: string | null;
+  departmentIds: string[];
 };
