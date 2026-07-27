@@ -216,13 +216,19 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
 
     const held = toNumber(e.Held);
     const missed = toNumber(e.AttDiff);
-    const attended = toNumber(e.Att) || held - missed;
+    const marked = toNumber(e.Att);
+    const attended = marked || held - missed;
     const pct = toNumber(e.AttEnter);
 
     const averageAttendance = stats?.averageAttendance ?? pct;
     const deviation = pct - averageAttendance;
     const totalStudentsInClass = stats?.totalStudents ?? 0;
-    const attLevel = getAttendanceAlertLevel(pct, averageAttendance, held);
+    const attLevel = getAttendanceAlertLevel(
+      pct,
+      averageAttendance,
+      held,
+      marked > 0 ? marked : held
+    );
 
     const emptyHistory: GpaHistoryEntry[] = [];
 

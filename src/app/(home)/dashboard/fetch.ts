@@ -312,6 +312,8 @@ export type Student = {
   instructor_name?: string;
   attendance: {
     total_classes_held: number;
+    /** Sessions with attendance posted (SAP Att). Optional for legacy in-memory rows. */
+    attendance_marked_classes?: number;
     classes_attended: number;
     attendance_percentage: number;
     class_average_attendance: number;
@@ -1311,7 +1313,8 @@ function applyAttendanceAlertThreshold(student: Student): void {
   student.attendance.alert_level = getAttendanceAlertLevel(
     att.attendance_percentage,
     att.class_average_attendance,
-    att.total_classes_held
+    att.total_classes_held,
+    att.attendance_marked_classes
   );
 }
 

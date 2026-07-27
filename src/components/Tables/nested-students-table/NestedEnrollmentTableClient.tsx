@@ -396,6 +396,7 @@ export function NestedEnrollmentTableClient({
             ? getAttendanceAlertLevel(
                 summary.percentage,
                 classAvg,
+                summary.totalHeld,
                 summary.attendanceMarked,
               )
             : null;
@@ -514,6 +515,7 @@ export function NestedEnrollmentTableClient({
             ? getAttendanceAlertLevel(
                 summary.percentage,
                 classAvg,
+                summary.totalHeld,
                 summary.attendanceMarked,
               )
           : null;
@@ -1012,6 +1014,7 @@ export function NestedEnrollmentTableClient({
                                               ? getAttendanceAlertLevel(
                                                   summary.percentage,
                                                   classAvg,
+                                                  summary.totalHeld,
                                                   summary.attendanceMarked,
                                                 )
                                               : null;

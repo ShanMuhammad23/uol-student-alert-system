@@ -142,7 +142,8 @@ export function StudentMetricsClient({
         getAttendanceAlertLevel(
           Number(r.attendancePercentage ?? NaN),
           selectedClassAverage ?? r.classAverageAttendance ?? null,
-          r.attendanceMarkedClasses ?? r.totalClassesHeld
+          r.totalClassesHeld,
+          r.attendanceMarkedClasses
         )
       )
       .filter((level): level is "critical" | "warning" => level != null);

@@ -869,7 +869,12 @@ export async function runStudentSync(
       const attendanceLevel =
         attendancePct == null
           ? null
-          : getAttendanceAlertLevel(attendancePct, classAvg, attendanceMarked);
+          : getAttendanceAlertLevel(
+              attendancePct,
+              classAvg,
+              totalHeld,
+              attendanceMarked
+            );
       // GPA trend map is SGPA-based for alerting.
       const gpaTrend = gpaTrendMap[row.sapId];
       const gpaCurrent = gpaTrend?.current ?? null;
