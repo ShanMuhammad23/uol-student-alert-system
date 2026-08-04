@@ -79,6 +79,10 @@ export function InterventionFormWithAction({
     setError(null);
     setSuccess(null);
     try {
+      if (data.status === "resolved" && !data.remarks.trim()) {
+        throw new Error("Remarks are required when status is Resolved.");
+      }
+
       if (mode === "wellbeing") {
         const wellbeingStatus =
           data.status === "resolved" || data.status === "no-action-required"

@@ -581,6 +581,114 @@ export async function queryFaculties(): Promise<FacultyRow[]> {
   return res.rows;
 }
 
+export type LoginTrendDailyPoint = {
+  date: string;
+  label: string;
+  logins: number;
+};
+
+export type LoginTrendFacultyPoint = {
+  faculty_id: string;
+  faculty_name: string;
+  total_staff: number;
+  logged_in_7d: number;
+  login_pct: number;
+};
+
+export type StaffLoginTrendData = {
+  daily: LoginTrendDailyPoint[];
+  byFaculty: LoginTrendFacultyPoint[];
+};
+
+function formatLoginTrendDayLabel(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00`);
+  if (!Number.isFinite(d.getTime())) return isoDate;
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/**
+ * Login trend from staff.last_login_at (no event history).
+ * Both daily + faculty % use the same window: last 7 calendar days (Asia/Karachi),
+ * and only staff with a faculty_id — so daily totals match faculty logged-in sums.
+ */
+export async function queryStaffLoginTrend(): Promise<StaffLoginTrendData> {
+  const empty: StaffLoginTrendData = { daily: [], byFaculty: [] };
+  if (!pool) return empty;
+
+  const timeZone = "Asia/Karachi";
+
+  const [dailyRes, facultyRes] = await Promise.all([
+    pool.query<{ login_date: string; logins: number }>(
+      `WITH days AS (
+         SELECT generate_series(
+           ((NOW() AT TIME ZONE $1)::date - 6),
+           (NOW() AT TIME ZONE $1)::date,
+           '1 day'::interval
+         )::date AS login_date
+       )
+       SELECT
+         d.login_date::text AS login_date,
+         COUNT(s.id)::int AS logins
+       FROM days d
+       LEFT JOIN staff s
+         ON s.faculty_id IS NOT NULL
+        AND s.last_login_at IS NOT NULL
+        AND (s.last_login_at AT TIME ZONE $1)::date = d.login_date
+       GROUP BY d.login_date
+       ORDER BY d.login_date`,
+      [timeZone]
+    ),
+    pool.query<{
+      faculty_id: string;
+      faculty_name: string;
+      total_staff: number;
+      logged_in_7d: number;
+    }>(
+      `SELECT
+         f.id AS faculty_id,
+         f.name AS faculty_name,
+         COUNT(s.id)::int AS total_staff,
+         COUNT(s.id) FILTER (
+           WHERE s.last_login_at IS NOT NULL
+             AND (s.last_login_at AT TIME ZONE $1)::date
+                 >= ((NOW() AT TIME ZONE $1)::date - 6)
+         )::int AS logged_in_7d
+       FROM faculties f
+       INNER JOIN staff s ON s.faculty_id = f.id
+       GROUP BY f.id, f.name
+       HAVING COUNT(s.id) > 0
+       ORDER BY f.name ASC`,
+      [timeZone]
+    ),
+  ]);
+
+  const daily: LoginTrendDailyPoint[] = dailyRes.rows.map((row) => ({
+    date: row.login_date,
+    label: formatLoginTrendDayLabel(row.login_date),
+    logins: Number(row.logins) || 0,
+  }));
+
+  const byFaculty: LoginTrendFacultyPoint[] = facultyRes.rows.map((row) => {
+    const total = Number(row.total_staff) || 0;
+    const loggedIn = Number(row.logged_in_7d) || 0;
+    const login_pct =
+      total > 0 ? Math.round((loggedIn / total) * 1000) / 10 : 0;
+    return {
+      faculty_id: row.faculty_id,
+      faculty_name: row.faculty_name,
+      total_staff: total,
+      logged_in_7d: loggedIn,
+      login_pct,
+    };
+  });
+
+  return { daily, byFaculty };
+}
+
 export async function queryDepartments(): Promise<DepartmentRow[]> {
   if (!pool) return [];
   const res = await pool.query<DepartmentRow>(

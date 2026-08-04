@@ -543,6 +543,10 @@ const InterventionForm = ({
         }
       }
 
+      if (status === "resolved" && !remarks.trim()) {
+        throw new Error("Remarks are required when status is Resolved.");
+      }
+
       const submitResult = await onSubmit({
         date,
         interventionType,
@@ -772,13 +776,18 @@ const InterventionForm = ({
       {/* 5. Remarks */}
       <div>
         <label className="mb-3 block text-body-sm font-medium text-dark dark:text-white">
-          Remarks
+          Remarks{status === "resolved" ? " *" : ""}
         </label>
         <textarea
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
           rows={4}
-          placeholder="Enter remarks..."
+          required={status === "resolved"}
+          placeholder={
+            status === "resolved"
+              ? "Enter remarks (required for Resolved)..."
+              : "Enter remarks..."
+          }
           className="w-full overflow-y-auto rounded-lg border-[1.5px] border-stroke bg-transparent px-5.5 py-3 text-dark outline-none transition [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:focus:border-primary placeholder:text-dark-6"
         />
       </div>

@@ -63,7 +63,54 @@ export type StaffRow = {
   reset_otp_expires_at?: Date | null;
   login_count?: number | null;
   last_login_at?: Date | null;
+  is_visible?: boolean | null;
+  reminder_modal_html?: string | null;
+  reminder_modal_cta?: string | null;
 };
+
+export type StaffReminderModal = {
+  isVisible: boolean;
+  reminderModalHtml: string | null;
+  reminderModalCta: string | null;
+};
+
+/** Reminder modal payload for a staff user (null if not found / DB unavailable). */
+export async function getStaffReminderModal(
+  staffId: string
+): Promise<StaffReminderModal | null> {
+  if (!pool) return null;
+  const res = await pool.query<{
+    is_visible: boolean;
+    reminder_modal_html: string | null;
+    reminder_modal_cta: string | null;
+  }>(
+    `SELECT is_visible, reminder_modal_html, reminder_modal_cta
+     FROM staff
+     WHERE id = $1
+     LIMIT 1`,
+    [staffId]
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  return {
+    isVisible: Boolean(row.is_visible),
+    reminderModalHtml: row.reminder_modal_html ?? null,
+    reminderModalCta: row.reminder_modal_cta ?? null,
+  };
+}
+
+/** Hide reminder modal for a staff user (sets is_visible = false). */
+export async function dismissStaffReminderModal(staffId: string): Promise<boolean> {
+  if (!pool) return false;
+  const res = await pool.query(
+    `UPDATE staff
+     SET is_visible = FALSE,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [staffId]
+  );
+  return res.rowCount === 1;
+}
 
 /** Get staff by primary key. Returns null if not found or DB not configured. */
 export async function getStaffById(staffId: string): Promise<StaffRow | null> {

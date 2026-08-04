@@ -981,6 +981,36 @@ export async function runStudentSync(
       );
     }
 
+    // GPA is student-level: keep every course row for a student consistent, including
+    // enrollments not touched by a partial sync (prevents stale 0.00 critical rows).
+    for (const [sapId, trend] of Object.entries(gpaTrendMap)) {
+      const gpaCurrent = trend.current ?? null;
+      const gpaPrevious = trend.previous ?? null;
+      const gpaChange = trend.change ?? null;
+      const gpaDrop = Math.abs(Math.min(0, gpaChange ?? 0));
+      const gpaLevel: "warning" | "critical" | null =
+        gpaDrop >= SGPA_CRITICAL_DROP
+          ? "critical"
+          : gpaDrop >= SGPA_WARNING_DROP
+            ? "warning"
+            : null;
+      await pool.query(
+        `UPDATE student_alert_current
+         SET gpa_current = $2,
+             gpa_previous = $3,
+             gpa_change = $4,
+             gpa_alert_level = $5::varchar,
+             overall_alert_level = CASE
+               WHEN attendance_alert_level = 'critical' OR $5::varchar = 'critical' THEN 'critical'
+               WHEN attendance_alert_level = 'warning' OR $5::varchar = 'warning' THEN 'warning'
+               ELSE 'none'
+             END,
+             updated_at = NOW()
+         WHERE sap_id = $1`,
+        [sapId, gpaCurrent, gpaPrevious, gpaChange, gpaLevel]
+      );
+    }
+
     await pool.query("COMMIT");
 
     let upsertedDailySnapshots = 0;

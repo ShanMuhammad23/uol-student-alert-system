@@ -41,6 +41,10 @@ export function GrantAccessDialog({
   onClose,
 }: Props) {
   const router = useRouter();
+  const [name, setName] = useState(staff.name.trim());
+  const [email, setEmail] = useState(staff.email.trim().toLowerCase());
+  const [pernr, setPernr] = useState(staff.pernr.trim());
+  const [password, setPassword] = useState(GRANT_ACCESS_DEFAULT_PASSWORD);
   const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole>("instructor");
   const [actualRoleForm, setActualRoleForm] = useState(() => {
     const fallback = getActualRoleFormOptionsForPseudo("instructor")[0]?.value ?? "";
@@ -54,32 +58,38 @@ export function GrantAccessDialog({
   );
 
   const showDepartments = pseudoRole === "hod";
-  const displayName = staff.name.trim() || "—";
-  const displayEmail = staff.email.trim().toLowerCase();
-  const displayPernr = staff.pernr.trim();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!displayName || displayName === "—") {
-      appToast.error("Instructor name is missing in enrollment data.");
+    const nextName = name.trim();
+    const nextEmail = email.trim().toLowerCase();
+    const nextPernr = pernr.trim();
+    const nextPassword = password.trim();
+
+    if (!nextName) {
+      appToast.error("Name is required.");
       return;
     }
-    if (!displayEmail) {
-      appToast.error("Instructor email is missing in enrollment data.");
+    if (!nextEmail) {
+      appToast.error("Email is required.");
       return;
     }
-    if (!displayPernr) {
-      appToast.error("PERNR is missing.");
+    if (!nextPernr) {
+      appToast.error("PERNR is required.");
+      return;
+    }
+    if (!nextPassword) {
+      appToast.error("Password is required.");
       return;
     }
 
     const form = e.currentTarget;
     const formData = new FormData(form);
-    formData.set("name", displayName);
-    formData.set("email", displayEmail);
-    formData.set("pernr", displayPernr);
-    formData.set("password", GRANT_ACCESS_DEFAULT_PASSWORD);
+    formData.set("name", nextName);
+    formData.set("email", nextEmail);
+    formData.set("pernr", nextPernr);
+    formData.set("password", nextPassword);
     formData.set("pseudo_role", pseudoRole);
     formData.set("actual_role", actualRoleForm);
 
@@ -132,7 +142,7 @@ export function GrantAccessDialog({
           <div>
             <h3 className="text-lg font-semibold text-dark dark:text-white">Grant Access</h3>
             <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
-              Set role and permissions. Account details are filled from enrollment.
+              Account details are pre-filled from enrollment and can be edited.
             </p>
           </div>
           <button
@@ -144,35 +154,51 @@ export function GrantAccessDialog({
           </button>
         </div>
 
-        <div className="mb-5 rounded-lg border border-stroke bg-gray-2/50 p-4 dark:border-dark-3 dark:bg-dark-2/50">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-dark-5 dark:text-dark-6">
-            Auto-filled from enrollment
-          </p>
-          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-dark-5 dark:text-dark-6">Name</dt>
-              <dd className="font-medium text-dark dark:text-white">{displayName}</dd>
-            </div>
-            <div>
-              <dt className="text-dark-5 dark:text-dark-6">Email</dt>
-              <dd className="font-medium text-dark dark:text-white">
-                {displayEmail || "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-dark-5 dark:text-dark-6">PERNR</dt>
-              <dd className="font-medium text-dark dark:text-white">{displayPernr || "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-dark-5 dark:text-dark-6">Initial password</dt>
-              <dd className="font-medium text-dark dark:text-white">
-                {GRANT_ACCESS_DEFAULT_PASSWORD}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Name *</label>
+            <input
+              name="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">Email *</label>
+            <input
+              name="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email"
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">PERNR *</label>
+            <input
+              name="pernr"
+              required
+              value={pernr}
+              onChange={(e) => setPernr(e.target.value)}
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">
+              Initial password *
+            </label>
+            <input
+              name="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            />
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-dark dark:text-white">Pseudo Role *</label>
             <select

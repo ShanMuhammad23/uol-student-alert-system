@@ -1397,7 +1397,7 @@ export function buildInterventionRecordScopeSql(
   return parts.length ? parts.join(" AND ") : "TRUE";
 }
 
-function normalizeSapIdCompareSql(left: string, right: string): string {
+export function normalizeSapIdCompareSql(left: string, right: string): string {
   return `COALESCE(NULLIF(REGEXP_REPLACE(TRIM(${left}), '^0+', ''), ''), '0')
       = COALESCE(NULLIF(REGEXP_REPLACE(TRIM(${right}), '^0+', ''), ''), '0')`;
 }

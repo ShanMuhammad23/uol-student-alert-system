@@ -118,6 +118,7 @@ export function DeanDepartmentStats({
             ? masterFilterDepartmentIds.includes(d.departmentId)
             : selectedDepartmentId === d.departmentId;
         return (
+      
           <button
             key={d.departmentId}
             type="button"
@@ -184,12 +185,14 @@ export function DeanDepartmentStats({
               </span>
               {" · "}
               Att Missing{" "}
-              <span className=" font-bold">{attendanceMissing}</span>{" "}
+              <span className=" font-bold text-primary">{attendanceMissing}</span>{" "}
               of{" "}
-              <span className=" font-bold">{attendanceClassesHeld}</span>{" "}
+              <span className=" font-bold text-primary">{attendanceClassesHeld}</span>{" "}
         
             </span>
           </button>
+          
+         
         );
       })}
           </div>

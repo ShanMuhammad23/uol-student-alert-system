@@ -161,9 +161,9 @@ export function DeanInstructorStats({
            
             {" |"}
             Att Missing{" "}
-            <span className="text-red-500 font-bold">{attendanceMissing}</span>{" "}
+            <span className="text-primary font-bold">{attendanceMissing}</span>{" "}
             of{" "}
-            <span className="text-red-500 font-bold">{attendanceClassesHeld}</span>{" "}
+            <span className="text-primary font-bold">{attendanceClassesHeld}</span>{" "}
             
           </span>
         </button>

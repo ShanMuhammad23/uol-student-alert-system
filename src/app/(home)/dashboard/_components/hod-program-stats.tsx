@@ -136,8 +136,8 @@ export function HodProgramStats({
               {" | "}
               <span className={cn("text-red-500 font-bold", p.redGpa > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{p.redGpa}</span>
               {" · "}
-              Att Missing <span className="text-red-500 font-bold">{attendanceMissing}</span> of{" "}
-              <span className="text-red-500 font-bold">{attendanceClassesHeld}</span> 
+              Att Missing <span className="text-primary font-bold">{attendanceMissing}</span> of{" "}
+              <span className="text-primary font-bold">{attendanceClassesHeld}</span> 
             </span>
           </button>
         );

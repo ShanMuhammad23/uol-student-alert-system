@@ -142,6 +142,15 @@ export function TopChannelsTableClient({
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  const hasGpaAlertFilter = Boolean(
+    gpaFilters?.some((f) => f === "red" || f === "yellow")
+  );
+  const hasAttendanceAlertFilter = Boolean(
+    attendanceFilters?.some((f) => f === "red" || f === "yellow")
+  );
+  const gpaDrilldown = hasGpaAlertFilter && !hasAttendanceAlertFilter;
+  const effectiveUniqueStudents = uniqueStudents || gpaDrilldown;
+
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => {
       if (current?.key === key) {
@@ -186,20 +195,33 @@ export function TopChannelsTableClient({
     pageSize: number,
     opts: { uniqueStudents?: boolean; uniqueStudentsForTotal?: boolean }
   ) => {
-    const us = opts.uniqueStudents === true;
-    const usft = us ? false : opts.uniqueStudentsForTotal !== false;
     const normalizedAttendanceFilters =
       attendanceFilters?.includes("all" as AlertDimensionFilter)
         ? undefined
         : attendanceFilters;
     const normalizedGpaFilters =
       gpaFilters?.includes("all" as AlertDimensionFilter) ? undefined : gpaFilters;
+    const hasGpaAlertFilter = Boolean(
+      normalizedGpaFilters?.some((f) => f === "red" || f === "yellow")
+    );
+    const hasAttendanceAlertFilter = Boolean(
+      normalizedAttendanceFilters?.some((f) => f === "red" || f === "yellow")
+    );
+    const hasExplicitInterventionFilters = Boolean(
+      interventionFilters?.length &&
+        !interventionFilters.every((v) => v === "all")
+    );
+    // SGPA is student-level (stamped on every course row). Match overview card:
+    // distinct active students, net of closed GPA interventions.
+    const gpaDrilldown = hasGpaAlertFilter && !hasAttendanceAlertFilter;
+    const us = opts.uniqueStudents === true || gpaDrilldown;
+    const usft = us ? false : opts.uniqueStudentsForTotal !== false;
     return {
       page,
       pageSize,
       sortKey: sortConfig?.key ?? "name",
       sortDirection: sortConfig?.direction ?? "desc",
-      includeIntervenedStudents: true,
+      includeIntervenedStudents: gpaDrilldown ? false : true,
       roleScope,
       filters: {
         ...(masterFilter ?? {}),
@@ -210,6 +232,8 @@ export function TopChannelsTableClient({
             ? classStatusFilters.filter((v) => v !== "all")
             : undefined,
         interventionFilters,
+        excludeClosedAlertInterventions:
+          gpaDrilldown && !hasExplicitInterventionFilters ? "gpa" : undefined,
         resolutionFilters:
           resolutionFilters?.length && !resolutionFilters.includes("all")
             ? resolutionFilters.filter((v) => v !== "all")
@@ -454,7 +478,7 @@ export function TopChannelsTableClient({
             <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-white">
               Referred interventions, direct internal/external cases, or a case closed by wellbeing
               (wellbeing_cases). Case type and assignee reflect the latest intervention row.
-              {uniqueStudents ? " One row per student." : ""}
+              {effectiveUniqueStudents ? " One row per student." : ""}
             </div>
           )}
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-dark-6 dark:text-white">
@@ -490,7 +514,7 @@ export function TopChannelsTableClient({
                   <span className="font-semibold text-dark dark:text-white">
                     {startItem.toLocaleString()}-{endItem.toLocaleString()}
                   </span>{" "}
-                  {uniqueStudents ? "students out of" : "rows out of"}{" "}
+                  {effectiveUniqueStudents ? "students out of" : "rows out of"}{" "}
                   <span className="font-semibold text-dark dark:text-white">
                     {totalResults.toLocaleString()}
                   </span>

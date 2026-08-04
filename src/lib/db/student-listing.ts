@@ -6,6 +6,7 @@ import {
   buildInterventionRecordScopeSql,
   interventionCourseMatchesEnrollmentSql,
   interventionMatchesAlertedEnrollmentSql,
+  normalizeSapIdCompareSql,
   type InterventionRoleScope,
 } from "@/lib/db/interventions";
 import { FACULTY_ID_TO_ENROLLMENT_FAC_ID } from "@/lib/enrollment/constants";
@@ -28,6 +29,12 @@ export type ListingFilters = {
   classStatusFilters?: string[];
   gpaFilters?: AlertDimensionFilter[];
   interventionFilters?: string[];
+  /**
+   * When set (and interventionFilters empty), exclude students whose latest
+   * intervention of this type is resolved / no-action-required — matches overview
+   * card net (gross − closed) for SGPA/Attendance drill-downs.
+   */
+  excludeClosedAlertInterventions?: "gpa" | "attendance";
   /** Wellbeing resolution keys (see `WELLBEING_RESOLUTION_OPTIONS`). */
   resolutionFilters?: string[];
   /** Dashboard overview segment (`selected_alert` URL param); aligns intervention totals with the chart when GPA/Attendance dropdowns are empty. */
@@ -510,6 +517,26 @@ function buildWhere(
   if (!skip?.has("gpa")) {
     const gpaClause = buildAlertLevelClause("a.gpa_alert_level", filters.gpaFilters, params);
     if (gpaClause) where.push(gpaClause);
+  }
+
+  const excludeClosed = filters.excludeClosedAlertInterventions;
+  if (
+    (excludeClosed === "gpa" || excludeClosed === "attendance") &&
+    !normalizedIntervention?.length
+  ) {
+    const typeSql =
+      excludeClosed === "gpa"
+        ? `(i.intervention_type = 'gpa' OR i.intervention_type = 'both')`
+        : `(COALESCE(i.intervention_type, 'attendance') = 'attendance' OR i.intervention_type = 'both')`;
+    // Match overview net KPI: drop students whose latest typed intervention is closed.
+    where.push(`COALESCE((
+      SELECT i.status
+      FROM interventions i
+      WHERE ${normalizeSapIdCompareSql("i.student_sap_id", "e.sap_id")}
+        AND ${typeSql}
+      ORDER BY i.performed_at DESC NULLS LAST
+      LIMIT 1
+    ), '') NOT IN ('resolved', 'no-action-required')`);
   }
 
   const search = String(filters.search ?? "").trim();

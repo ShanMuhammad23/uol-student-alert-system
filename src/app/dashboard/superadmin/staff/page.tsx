@@ -1,5 +1,6 @@
 import { StaffDirectoryPanelClient } from "@/app/dashboard/superadmin/staff/_components/StaffDirectoryPanelClient";
 import { UnregisteredStaffPanelClient } from "@/app/dashboard/superadmin/staff/_components/UnregisteredStaffPanelClient";
+import { LoginTrendPanelClient } from "./_components/LoginTrendPanelClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
@@ -7,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   queryStaffList,
   queryUnregisteredStaffList,
+  queryStaffLoginTrend,
   queryFaculties,
   queryDepartments,
   type DepartmentRow,
@@ -14,11 +16,12 @@ import {
 
 export type { DepartmentRow };
 
-type StaffTab = "directory" | "add" | "unregistered";
+type StaffTab = "directory" | "add" | "unregistered" | "login-trend";
 
 function resolveStaffTab(tab: string | undefined): StaffTab {
   if (tab === "add") return "add";
   if (tab === "unregistered") return "unregistered";
+  if (tab === "login-trend") return "login-trend";
   return "directory";
 }
 
@@ -40,19 +43,23 @@ export default async function SuperadminStaffPage(props: {
   const unregisteredDepartmentId = searchParams.department?.trim() || null;
   const unregisteredSearch = searchParams.q?.trim() ?? "";
 
-  const [staff, unregisteredStaff, faculties, departments] = await Promise.all([
-    activeTab === "directory" ? queryStaffList() : Promise.resolve([]),
-    activeTab === "unregistered"
-      ? queryUnregisteredStaffList({
-          page: unregisteredPage,
-          facultyId: unregisteredFacultyId,
-          departmentId: unregisteredDepartmentId,
-          search: unregisteredSearch || null,
-        })
-      : Promise.resolve(null),
-    queryFaculties(),
-    queryDepartments(),
-  ]);
+  const [staff, unregisteredStaff, loginTrend, faculties, departments] =
+    await Promise.all([
+      activeTab === "directory" ? queryStaffList() : Promise.resolve([]),
+      activeTab === "unregistered"
+        ? queryUnregisteredStaffList({
+            page: unregisteredPage,
+            facultyId: unregisteredFacultyId,
+            departmentId: unregisteredDepartmentId,
+            search: unregisteredSearch || null,
+          })
+        : Promise.resolve(null),
+      activeTab === "login-trend"
+        ? queryStaffLoginTrend()
+        : Promise.resolve(null),
+      queryFaculties(),
+      queryDepartments(),
+    ]);
 
   const successMessage =
     searchParams.success === "updated"
@@ -141,6 +148,20 @@ export default async function SuperadminStaffPage(props: {
             )}
           </a>
           <a
+            href="?tab=login-trend"
+            className={cn(
+              "relative px-4 py-3 text-sm font-medium transition-colors",
+              activeTab === "login-trend"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            )}
+          >
+            Login Trend
+            {activeTab === "login-trend" && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
+            )}
+          </a>
+          <a
             href="?tab=add"
             className={cn(
               "relative px-4 py-3 text-sm font-medium transition-colors",
@@ -189,6 +210,11 @@ export default async function SuperadminStaffPage(props: {
           departmentId={unregisteredDepartmentId}
           search={unregisteredSearch}
           createStaff={createStaffMember}
+        />
+      ) : activeTab === "login-trend" && loginTrend ? (
+        <LoginTrendPanelClient
+          daily={loginTrend.daily}
+          byFaculty={loginTrend.byFaculty}
         />
       ) : (
         <StaffDirectoryPanelClient

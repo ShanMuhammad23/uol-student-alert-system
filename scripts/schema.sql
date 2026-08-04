@@ -121,6 +121,11 @@ BEGIN
   END IF;
 END
 $$;
+ALTER TABLE staff
+  ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS reminder_modal_html TEXT,
+  ADD COLUMN IF NOT EXISTS reminder_modal_cta TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
 CREATE INDEX IF NOT EXISTS idx_staff_actual_role ON staff(actual_role);
 CREATE INDEX IF NOT EXISTS idx_staff_pseudo_role ON staff(pseudo_role);

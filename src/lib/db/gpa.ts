@@ -43,6 +43,11 @@ function getSemesterSortRank(key: string): number | null {
   return year * 10 + termRank;
 }
 
+/** SGPA/CGPA of 0 is treated as incomplete placeholder data, not a real semester result. */
+function isUsableGpaValue(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
 function deriveTrendFromSemesters(
   semestersRaw: unknown,
   fallbackCurrent: number | null
@@ -57,14 +62,18 @@ function deriveTrendFromSemesters(
     for (const [k, raw] of Object.entries(semestersRaw as Record<string, unknown>)) {
       const rank = getSemesterSortRank(k);
       const value = parseNumeric(raw);
-      if (rank == null || value == null) continue;
+      if (rank == null || value == null || !isUsableGpaValue(value)) continue;
       entries.push({ rank, value });
     }
   }
 
   entries.sort((a, b) => b.rank - a.rank);
 
-  const current = entries[0]?.value ?? fallbackCurrent ?? null;
+  const fallback =
+    fallbackCurrent != null && isUsableGpaValue(fallbackCurrent)
+      ? fallbackCurrent
+      : null;
+  const current = entries[0]?.value ?? fallback ?? null;
   const previous = entries[1]?.value ?? null;
 
   if (current == null || previous == null) {
@@ -78,9 +87,10 @@ function deriveTrendFromSemesters(
 
   const change = Number((current - previous).toFixed(2));
   const drop = previous - current;
+  // Keep thresholds aligned with student-sync SGPA alert rules.
   let level: GpaTrendLevel = null;
-  if (drop > 0.9) level = "critical";
-  else if (drop >= 0.5) level = "warning";
+  if (drop >= 1.5) level = "critical";
+  else if (drop >= 1.0) level = "warning";
 
   return {
     current,

@@ -57,7 +57,7 @@ export function InstructorCourseStats({
   if (!list.length) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {(["attendance", "sgpa", "attendance-missing"] as const).map((metric) => (
           <button
@@ -120,8 +120,8 @@ export function InstructorCourseStats({
             <span className={cn("text-red-500 font-bold", c.redAttendance > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{c.redAttendance}</span>
            
             {" |"}
-            Att Missing <span className="text-red-500 font-bold">{attendanceMissing}</span> of{" "}
-            <span className="text-red-500 font-bold">{attendanceClassesHeld}</span> 
+            Att Missing <span className="text-primary font-bold">{attendanceMissing}</span> of{" "}
+            <span className="text-primary font-bold">{attendanceClassesHeld}</span> 
           </span>
         </button>
       )})}

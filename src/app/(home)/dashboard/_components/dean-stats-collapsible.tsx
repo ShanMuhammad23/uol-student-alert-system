@@ -93,7 +93,7 @@ function CollapsibleSection({
         </span>
       </button>
       {open && (
-        <div ref={contentRef} className="border-t border-stroke dark:border-stroke-dark px-1">
+        <div ref={contentRef} className="border-t border-stroke dark:border-stroke-dark px-1 bg-white">
           {children}
         </div>
       )}

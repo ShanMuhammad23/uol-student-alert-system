@@ -10,12 +10,13 @@ import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
 import { Providers } from "./providers";
 import { getCurrentUser, getLatestAlertCountsSnapshot } from "./(home)/dashboard/fetch";
-import { pool } from "@/lib/db";
+import { getStaffReminderModal, pool } from "@/lib/db";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import {
   getInstructorFacultyRollup,
   type InstructorFacultyRollupItem,
 } from "@/lib/instructor-faculty-rollup";
+import { ReminderModalHost } from "@/components/ReminderModal";
 
 const FACULTY_ID_TO_ENROLLMENT_FAC_ID: Record<string, string> = {
   FAC_ENG: "50000172",
@@ -36,6 +37,9 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   let totalStudents: number | undefined;
   let lastUpdated: string | null = null;
   let instructorFacultyRollup: InstructorFacultyRollupItem[] | undefined;
+  const reminderModal = user
+    ? await getStaffReminderModal(user.id)
+    : null;
 
   const latestSnapshot = await getLatestAlertCountsSnapshot();
   const latestSnapshotDate = latestSnapshot.snapshotDate;
@@ -136,9 +140,15 @@ export default async function RootLayout({ children }: PropsWithChildren) {
                 instructorFacultyRollup,
               }}
             >
-              
               {children}
             </AppShell>
+            {reminderModal ? (
+              <ReminderModalHost
+                isVisible={reminderModal.isVisible}
+                reminderModalHtml={reminderModal.reminderModalHtml}
+                reminderModalCta={reminderModal.reminderModalCta}
+              />
+            ) : null}
           </div>
         </Providers>
       </body>
