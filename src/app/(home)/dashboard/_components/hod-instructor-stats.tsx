@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BadgeCheck } from "lucide-react";
 import type { AppUser, InstructorStats } from "../fetch";
 import { cn } from "@/lib/utils";
 import { ChipSectionExpand } from "./ChipSectionExpand";
@@ -114,7 +115,7 @@ export function HodInstructorStats({
           type="button"
           onClick={() => onSelectInstructorId?.(i.instructorId)}
           className={cn(
-            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
+            "relative inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 pr-7 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
             hasAllCoursesClassAverageHundred &&
               "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-700/60",
             "min-w-[160px]",
@@ -122,6 +123,15 @@ export function HodInstructorStats({
               "border-2 border-primary dark:border-primary"
           )}
         >
+          {i.isRegisteredOnPortal ? (
+            <span
+              title="Registered trainer on portal"
+              aria-label="Registered trainer on portal"
+              className="absolute right-1.5 top-1.5 inline-flex text-emerald-600 dark:text-emerald-400"
+            >
+              <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2.25} />
+            </span>
+          ) : null}
           <span className="text-body-sm font-semibold text-dark dark:text-white">
               {i.instructorName.includes("0") ? "Online Class" : i.instructorName}{" "}
             <span className="text-body-base dark:text-white">({i.total})</span>

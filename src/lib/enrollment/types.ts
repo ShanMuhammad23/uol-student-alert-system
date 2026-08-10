@@ -56,6 +56,8 @@ export type InstructorStats = {
   attendanceMissing?: number;
   /** True only when every scoped class for the instructor has class average attendance = 100. */
   allCoursesClassAverageAttendanceHundred?: boolean;
+  /** True when this instructor pernr exists in the portal `staff` table. */
+  isRegisteredOnPortal?: boolean;
 };
 
 /** Minimal user shape for dean stats (avoids importing server-only fetch/auth). */

@@ -444,6 +444,33 @@ function toInt(value: number | string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Pernrs that already have a portal account in `staff` (matched on trimmed pernr). */
+async function getRegisteredStaffPernrSet(
+  pernrIds: string[]
+): Promise<Set<string>> {
+  const registered = new Set<string>();
+  if (!pool || !pernrIds.length) return registered;
+  const unique = Array.from(
+    new Set(pernrIds.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+  if (!unique.length) return registered;
+  try {
+    const res = await pool.query<{ pernr_key: string }>(
+      `SELECT DISTINCT TRIM(BOTH FROM s.pernr) AS pernr_key
+       FROM staff s
+       WHERE TRIM(BOTH FROM s.pernr) = ANY($1::text[])`,
+      [unique]
+    );
+    for (const row of res.rows) {
+      const key = String(row.pernr_key ?? "").trim();
+      if (key) registered.add(key);
+    }
+  } catch {
+    // Leave empty on failure; chips simply omit the trainer badge.
+  }
+  return registered;
+}
+
 const LATEST_ALERT_COUNTS_SNAPSHOT_SQL = `
   WITH per_snapshot AS (
     SELECT
@@ -2161,6 +2188,8 @@ export type InstructorStats = {
   attendanceClassesHeld?: number;
   /** True only when every scoped class for the instructor has class average attendance = 100. */
   allCoursesClassAverageAttendanceHundred?: boolean;
+  /** True when this instructor pernr exists in the portal `staff` table. */
+  isRegisteredOnPortal?: boolean;
 };
 
 /** Returns instructor stats from enrollment tables. */
@@ -2254,6 +2283,9 @@ export async function getDeanInstructorStats(
             instructorIds: options?.instructorIds,
           }
         );
+      const registeredPernrs = await getRegisteredStaffPernrSet(
+        rows.map((row) => row.dimension_id)
+      );
       return rows.map((row) => ({
         instructorId: row.dimension_id,
         instructorName: row.dimension_name,
@@ -2266,6 +2298,9 @@ export async function getDeanInstructorStats(
         attendanceClassesHeld: missingByInstructor.get(row.dimension_id)?.held ?? 0,
         allCoursesClassAverageAttendanceHundred:
           classAvgAllHundredByInstructor.get(row.dimension_id) ?? false,
+        isRegisteredOnPortal: registeredPernrs.has(
+          String(row.dimension_id ?? "").trim()
+        ),
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -2292,6 +2327,10 @@ export async function getDeanInstructorStats(
     const set = new Set(options.departmentIds);
     teachers = teachers.filter((t) => t.department_id && set.has(t.department_id));
   }
+
+  const registeredPernrs = await getRegisteredStaffPernrSet(
+    teachers.map((t) => t.id)
+  );
 
   return teachers.map((teacher) => {
     const courseIds = new Set(teacher.course_ids ?? []);
@@ -2321,6 +2360,7 @@ export async function getDeanInstructorStats(
             ?.class_average_attendance;
           return Number(classAvg) === 100;
         }),
+      isRegisteredOnPortal: registeredPernrs.has(String(teacher.id ?? "").trim()),
     };
   });
 }
@@ -2855,6 +2895,7 @@ export async function getHodInstructorStats(
           courseIds: options?.courseIds,
           instructorIds: options?.instructorIds,
         });
+      const registeredPernrs = await getRegisteredStaffPernrSet(instructorIds);
       return res.rows.map((teacher) => {
         const row = dbCounts.get(teacher.instructor_id);
         return {
@@ -2871,6 +2912,9 @@ export async function getHodInstructorStats(
             missingByInstructor.get(teacher.instructor_id)?.held ?? 0,
           allCoursesClassAverageAttendanceHundred:
             classAvgAllHundredByInstructor.get(teacher.instructor_id) ?? false,
+          isRegisteredOnPortal: registeredPernrs.has(
+            String(teacher.instructor_id ?? "").trim()
+          ),
         };
       });
     } catch {
@@ -2927,6 +2971,7 @@ export async function getHodInstructorStats(
           courseIds: options?.courseIds,
           instructorIds: options?.instructorIds,
         });
+      const registeredPernrs = await getRegisteredStaffPernrSet(instructorIds);
       return teachers.map((teacher) => {
         const row = dbCounts.get(teacher.id);
         return {
@@ -2941,12 +2986,19 @@ export async function getHodInstructorStats(
           attendanceClassesHeld: missingByInstructor.get(teacher.id)?.held ?? 0,
           allCoursesClassAverageAttendanceHundred:
             classAvgAllHundredByInstructor.get(teacher.id) ?? false,
+          isRegisteredOnPortal: registeredPernrs.has(
+            String(teacher.id ?? "").trim()
+          ),
         };
       });
     } catch {
       // Fall back to file-derived alert calculations if DB aggregate read fails.
     }
   }
+
+  const registeredPernrsFallback = await getRegisteredStaffPernrSet(
+    teachers.map((t) => t.id)
+  );
 
   return teachers.map((teacher) => {
     const courseIds = new Set(teacher.course_ids ?? []);
@@ -2976,6 +3028,9 @@ export async function getHodInstructorStats(
             ?.class_average_attendance;
           return Number(classAvg) === 100;
         }),
+      isRegisteredOnPortal: registeredPernrsFallback.has(
+        String(teacher.id ?? "").trim()
+      ),
     };
   });
 }
