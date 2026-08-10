@@ -189,10 +189,18 @@ const InterventionForm = ({
   const [replyToEmail, setReplyToEmail] = useState(senderEmail?.trim() ?? "");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBodyHtml, setEmailBodyHtml] = useState("");
+  const emailBodyRef = useRef<HTMLDivElement>(null);
+  const forceEmailBodySyncRef = useRef(false);
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  /** Programmatic body updates only — never rewrite DOM while the user is typing. */
+  const applyEmailBodyHtml = (html: string) => {
+    forceEmailBodySyncRef.current = true;
+    setEmailBodyHtml(html);
+  };
   const shouldShowEmailSection = mode === "intervention" && outreachMode === "email";
   const effectiveStatus = useMemo(() => {
     if (status) return status;
@@ -243,7 +251,7 @@ const InterventionForm = ({
     outreachModeRef.current = "";
     setEmailTemplateKey("");
     setEmailSubject("");
-    setEmailBodyHtml("");
+    applyEmailBodyHtml("");
     setRecipientEmail("");
     setIsEmailSectionOpen(false);
   }, [isNoActionRequiredSelected]);
@@ -254,7 +262,7 @@ const InterventionForm = ({
     if (mode === "intervention" && value !== "email") {
       setEmailTemplateKey("");
       setEmailSubject("");
-      setEmailBodyHtml("");
+      applyEmailBodyHtml("");
       setRecipientEmail("");
       setIsEmailSectionOpen(false);
     }
@@ -287,7 +295,7 @@ const InterventionForm = ({
     if (!shouldShowEmailSection && emailTemplateKey) {
       setEmailTemplateKey("");
       setEmailSubject("");
-      setEmailBodyHtml("");
+      applyEmailBodyHtml("");
     }
   }, [shouldShowEmailSection, emailTemplateKey]);
 
@@ -295,12 +303,12 @@ const InterventionForm = ({
     if (emailTemplateKey === "student_referral" && !canUseReferralTemplate) {
       setEmailTemplateKey("");
       setEmailSubject("");
-      setEmailBodyHtml("");
+      applyEmailBodyHtml("");
     }
     if (emailTemplateKey === "sos_check_in" && !canUseSosTemplate) {
       setEmailTemplateKey("");
       setEmailSubject("");
-      setEmailBodyHtml("");
+      applyEmailBodyHtml("");
     }
   }, [emailTemplateKey, canUseReferralTemplate, canUseSosTemplate]);
 
@@ -474,7 +482,7 @@ const InterventionForm = ({
         SOS_CHECK_IN_EMAIL_TEMPLATE
       );
       setEmailSubject(t.subject);
-      setEmailBodyHtml(t.body);
+      applyEmailBodyHtml(t.body);
       return;
     }
     setRecipientEmail("");
@@ -485,7 +493,7 @@ const InterventionForm = ({
       STUDENT_REFERRAL_EMAIL_TEMPLATE
     );
     setEmailSubject(t.subject);
-    setEmailBodyHtml(t.body);
+    applyEmailBodyHtml(t.body);
   };
 
   const showReferralRecipientDropdown = emailTemplateKey === "student_referral";
@@ -498,8 +506,20 @@ const InterventionForm = ({
       SOS_CHECK_IN_EMAIL_TEMPLATE
     );
     setEmailSubject(t.subject);
-    setEmailBodyHtml(t.body);
+    applyEmailBodyHtml(t.body);
   }, [interventionType]);
+
+  // Sync template HTML into the contentEditable only on programmatic updates / mount.
+  // Do not rewrite while the user is typing — that resets the caret and steals focus.
+  useEffect(() => {
+    const el = emailBodyRef.current;
+    if (!el) return;
+    if (!forceEmailBodySyncRef.current && document.activeElement === el) return;
+    forceEmailBodySyncRef.current = false;
+    if (el.innerHTML !== emailBodyHtml) {
+      el.innerHTML = emailBodyHtml;
+    }
+  }, [emailBodyHtml, emailTemplateKey, isEmailSectionOpen]);
 
   const resetForm = () => {
     setDate("");
@@ -512,7 +532,7 @@ const InterventionForm = ({
     setRecipientEmail("");
     setReplyToEmail(senderEmail?.trim() ?? "");
     setEmailSubject("");
-    setEmailBodyHtml("");
+    applyEmailBodyHtml("");
     setSubmitMessage(null);
     setIsAdding(false);
     setIsSendingEmail(false);
@@ -570,7 +590,7 @@ const InterventionForm = ({
           recipientEmail: recipientEmail.trim(),
           replyToEmail: replyToEmail.trim(),
           subject: emailSubject.trim(),
-          bodyHtml: emailBodyHtml.trim(),
+          bodyHtml: (emailBodyRef.current?.innerHTML ?? emailBodyHtml).trim(),
         });
       }
 
@@ -895,13 +915,13 @@ const InterventionForm = ({
                   </label>
                   <div className=" dark:border-dark-3 dark:bg-dark-2">
                     <div
+                      ref={emailBodyRef}
                       contentEditable
                       suppressContentEditableWarning
                       onInput={(e) =>
                         setEmailBodyHtml((e.currentTarget as HTMLDivElement).innerHTML)
                       }
                       className="h-[420px] w-full overflow-auto  bg-white text-sm text-dark outline-none focus:ring-1 focus:ring-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
-                      dangerouslySetInnerHTML={{ __html: emailBodyHtml }}
                     />
                   </div>
                 </div>

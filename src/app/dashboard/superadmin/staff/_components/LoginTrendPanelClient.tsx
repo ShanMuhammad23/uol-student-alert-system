@@ -53,7 +53,7 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
   const theme = useChartTheme();
 
   const facultyChartData = [...byFaculty]
-    .sort((a, b) => b.login_pct - a.login_pct)
+    .sort((a, b) => b.logged_in_7d - a.logged_in_7d)
     .map((f) => {
       const resolved =
         resolveFacultyNameFromIdOrName(f.faculty_id, f.faculty_name) ??
@@ -66,6 +66,7 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
         loginPct: f.login_pct,
         loggedIn: f.logged_in_7d,
         total: f.total_staff,
+        label: `${f.logged_in_7d} (${f.login_pct}%)`,
       };
     });
 
@@ -148,10 +149,10 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800/50">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-            Faculty login %
+            Faculty logins
           </h2>
           <p className="mb-4 mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Staff logged in past 7 days ÷ total staff in faculty
+            Staff logged in past 7 days, sorted by count
           </p>
           {facultyChartData.length === 0 ? (
             <p className="py-12 text-center text-sm text-slate-500">No faculty staff data available.</p>
@@ -163,16 +164,15 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
               <BarChart
                 layout="vertical"
                 data={facultyChartData}
-                margin={{ top: 4, right: 36, bottom: 0, left: 4 }}
+                margin={{ top: 4, right: 56, bottom: 0, left: 4 }}
               >
                 <CartesianGrid stroke={theme.grid} horizontal={false} />
                 <XAxis
                   type="number"
-                  domain={[0, 100]}
+                  allowDecimals={false}
                   tick={theme.tick}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v) => `${v}%`}
                 />
                 <YAxis
                   type="category"
@@ -186,11 +186,11 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
                   contentStyle={theme.tooltip}
                   formatter={(value, _name, item) => {
                     const row = item?.payload as
-                      | { loggedIn?: number; total?: number; fullName?: string }
+                      | { loginPct?: number; total?: number }
                       | undefined;
                     return [
-                      `${Number(value) || 0}% (${row?.loggedIn ?? 0}/${row?.total ?? 0})`,
-                      "Login %",
+                      `${Number(value) || 0} (${row?.loginPct ?? 0}%) of ${row?.total ?? 0}`,
+                      "Logins",
                     ];
                   }}
                   labelFormatter={(_, payload) => {
@@ -198,11 +198,10 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
                     return row?.fullName ?? "";
                   }}
                 />
-                <Bar dataKey="loginPct" fill="#6366F1" radius={[0, 4, 4, 0]} maxBarSize={14}>
+                <Bar dataKey="loggedIn" fill="#6366F1" radius={[0, 4, 4, 0]} maxBarSize={14}>
                   <LabelList
-                    dataKey="loginPct"
+                    dataKey="label"
                     position="right"
-                    formatter={(v) => `${Number(v) || 0}%`}
                     style={{ fill: theme.textMuted, fontSize: 10 }}
                   />
                 </Bar>
