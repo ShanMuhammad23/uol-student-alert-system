@@ -320,6 +320,18 @@ function EnrollmentDashboardInner({
   const instructorCount = instructorStats?.length ?? 0;
   const courseCount = user.role === "dean" ? (deanCourseStats?.length ?? 0) : 0;
 
+  const deanInstructorTrainingCounts = useMemo(() => {
+    const list = instructorStats ?? [];
+    const trained = list.filter((i) => i.isRegisteredOnPortal).length;
+    return { trained, needTraining: list.length - trained };
+  }, [instructorStats]);
+
+  const hodInstructorTrainingCounts = useMemo(() => {
+    const list = hodInstructorStats ?? [];
+    const trained = list.filter((i) => i.isRegisteredOnPortal).length;
+    return { trained, needTraining: list.length - trained };
+  }, [hodInstructorStats]);
+
   const liveReturnToUrl = useMemo(() => {
     const base = new URL(returnToUrl, "http://localhost");
     const params = base.searchParams;
@@ -386,6 +398,8 @@ function EnrollmentDashboardInner({
               programCount={hodProgramCount}
               courseCount={hodCourseCount}
               instructorCount={hodInstructorCount}
+              instructorTrainedCount={hodInstructorTrainingCounts.trained}
+              instructorNeedTrainingCount={hodInstructorTrainingCounts.needTraining}
               selectedProgramId={localMasterFilter.programs?.[0]}
               selectedCourseId={localMasterFilter.course_ids?.[0]}
               programContent={
@@ -468,6 +482,8 @@ function EnrollmentDashboardInner({
               departmentCount={departmentCount}
               programCount={programCount}
               instructorCount={instructorCount}
+              instructorTrainedCount={deanInstructorTrainingCounts.trained}
+              instructorNeedTrainingCount={deanInstructorTrainingCounts.needTraining}
               courseCount={courseCount}
               onClearDepartmentFilters={() =>
                 applyMasterFilterUpdate((prev) => ({

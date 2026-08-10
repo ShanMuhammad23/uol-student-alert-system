@@ -9,7 +9,6 @@ import { ThemeToggleSwitch } from "./theme-toggle";
 import { UserInfo } from "./user-info";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
 import { HeaderEffectivenessCard } from "@/components/effectiveness/HeaderEffectivenessCard";
-import { HeaderInterventionReminderCard } from "@/components/dashboard/HeaderInterventionReminderCard";
 import { useEffect, useMemo, useState } from "react";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import type { InstructorFacultyRollupItem } from "@/lib/instructor-faculty-rollup";
@@ -20,6 +19,8 @@ type HeaderProps = {
   totalStudents?: number;
   lastUpdated?: string | null;
   instructorFacultyRollup?: InstructorFacultyRollupItem[];
+  trainedStaffCount?: number;
+  needTrainingCount?: number;
 };
 
 function formatLastUpdatedLabel(value?: string | null): string | null {
@@ -44,6 +45,8 @@ export function Header({
   totalStudents,
   lastUpdated,
   instructorFacultyRollup,
+  trainedStaffCount,
+  needTrainingCount,
 }: HeaderProps) {
   
   const { toggleSidebar, isMobile } = useSidebarContext();
@@ -55,6 +58,12 @@ export function Header({
     number | undefined
   >(undefined);
   const [emulatedLastUpdated, setEmulatedLastUpdated] = useState<string | null>(null);
+  const [emulatedTrainedStaffCount, setEmulatedTrainedStaffCount] = useState<
+    number | undefined
+  >(undefined);
+  const [emulatedNeedTrainingCount, setEmulatedNeedTrainingCount] = useState<
+    number | undefined
+  >(undefined);
 
   const asParam = searchParams.get("as");
   const emulatedFacultyId = searchParams.get("faculty");
@@ -70,6 +79,8 @@ export function Header({
       setEmulatedHeading(null);
       setEmulatedTotalStudents(undefined);
       setEmulatedLastUpdated(null);
+      setEmulatedTrainedStaffCount(undefined);
+      setEmulatedNeedTrainingCount(undefined);
       return;
     }
 
@@ -86,6 +97,8 @@ export function Header({
           screenHeading?: string;
           totalStudents?: number;
           lastUpdated?: string | null;
+          trainedStaffCount?: number;
+          needTrainingCount?: number;
         };
       })
       .then((data) => {
@@ -100,6 +113,16 @@ export function Header({
             : undefined
         );
         setEmulatedLastUpdated(data.lastUpdated ?? null);
+        setEmulatedTrainedStaffCount(
+          typeof data.trainedStaffCount === "number"
+            ? data.trainedStaffCount
+            : undefined
+        );
+        setEmulatedNeedTrainingCount(
+          typeof data.needTrainingCount === "number"
+            ? data.needTrainingCount
+            : undefined
+        );
       })
       .catch((err: unknown) => {
         if (
@@ -113,6 +136,8 @@ export function Header({
         setEmulatedHeading(normalizeFacultyName(emulatedFacultyId) ?? emulatedFacultyId);
         setEmulatedTotalStudents(undefined);
         setEmulatedLastUpdated(null);
+        setEmulatedTrainedStaffCount(undefined);
+        setEmulatedNeedTrainingCount(undefined);
       });
 
     return () => controller.abort();
@@ -134,6 +159,12 @@ export function Header({
   const resolvedLastUpdated = isSuperadminDeanMode
     ? emulatedLastUpdated ?? lastUpdated
     : lastUpdated;
+  const resolvedTrainedStaffCount = isSuperadminDeanMode
+    ? emulatedTrainedStaffCount
+    : trainedStaffCount;
+  const resolvedNeedTrainingCount = isSuperadminDeanMode
+    ? emulatedNeedTrainingCount
+    : needTrainingCount;
   const formattedLastUpdated = formatLastUpdatedLabel(resolvedLastUpdated);
   const shouldShowTotalStudents =
     typeof resolvedTotalStudents === "number" &&
@@ -142,6 +173,10 @@ export function Header({
       user?.role === "hod" ||
       user?.role === "teacher" ||
       user?.role === "instructor");
+  const shouldShowTrainingCounts =
+    typeof resolvedTrainedStaffCount === "number" &&
+    typeof resolvedNeedTrainingCount === "number" &&
+    (isSuperadminDeanMode || user?.role === "dean" || user?.role === "hod");
 
   const instructorFacultySummaryLine = useMemo(() => {
     if (!user || (user.role !== "instructor" && user.role !== "teacher")) {
@@ -195,6 +230,7 @@ export function Header({
                     </span>
                   )}
                 </p>
+              
                 {formattedLastUpdated && (
                   <p className="text-lg text-gray-600 dark:border-gray-300 dark:text-gray-300 border-l border-gray-300 pl-2">
                     Last updated: {formattedLastUpdated}
@@ -213,7 +249,15 @@ export function Header({
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 min-[375px]:gap-4">
-        <HeaderInterventionReminderCard user={user} />
+        <div className=" hidden shrink-0  border px-3 py-2 sm:flex bg-yellow-200 dark:bg-gray-800 rounded-lg flex-col ">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            {resolvedTrainedStaffCount} instructors Trained
+           
+          </p>
+         <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+          {resolvedNeedTrainingCount} instructors Need Training
+         </p>
+        </div>
         <HeaderEffectivenessCard user={user} />
 
         <ThemeToggleSwitch />

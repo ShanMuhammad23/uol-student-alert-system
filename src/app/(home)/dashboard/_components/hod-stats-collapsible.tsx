@@ -7,6 +7,8 @@ import { Maximize2 } from "lucide-react";
 type CollapsibleSectionProps = {
   title: string;
   count?: number;
+  trainedCount?: number;
+  needTrainingCount?: number;
   defaultOpen?: boolean;
   children: ReactNode;
 };
@@ -14,6 +16,8 @@ type CollapsibleSectionProps = {
 function CollapsibleSection({
   title,
   count,
+  trainedCount,
+  needTrainingCount,
   defaultOpen = false,
   children,
 }: CollapsibleSectionProps) {
@@ -42,13 +46,21 @@ function CollapsibleSection({
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">
-          <span>
-            {title}
-            {typeof count === "number" && (
-              <span className="ml-1 text-xs font-normal text-dark-6 dark:text-white">
-                ({count})
-              </span>
-            )}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span>
+              {title}
+              {typeof count === "number" && (
+                <span className="ml-1 text-xs font-normal text-dark-6 dark:text-white">
+                  ({count})
+                </span>
+              )}
+            </span>
+            {typeof trainedCount === "number" &&
+              typeof needTrainingCount === "number" && (
+                <span className="text-[11px] font-normal text-dark-6 dark:text-white/80">
+                  Trained {trainedCount} · Need Training {needTrainingCount}
+                </span>
+              )}
           </span>
           <button
             type="button"
@@ -102,6 +114,8 @@ type HodStatsCollapsibleProps = {
   programCount?: number;
   courseCount?: number;
   instructorCount?: number;
+  instructorTrainedCount?: number;
+  instructorNeedTrainingCount?: number;
 };
 
 export function HodStatsCollapsible({
@@ -113,6 +127,8 @@ export function HodStatsCollapsible({
   programCount,
   courseCount,
   instructorCount,
+  instructorTrainedCount,
+  instructorNeedTrainingCount,
 }: HodStatsCollapsibleProps) {
   return (
     <div className="mt-4  pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -133,6 +149,8 @@ export function HodStatsCollapsible({
       <CollapsibleSection
         title="Instructors"
         count={instructorCount}
+        trainedCount={instructorTrainedCount}
+        needTrainingCount={instructorNeedTrainingCount}
         defaultOpen={!!selectedProgramId || !!selectedCourseId}
       >
         {instructorContent}

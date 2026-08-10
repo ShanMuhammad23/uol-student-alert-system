@@ -5,6 +5,7 @@ import { pool } from "@/lib/db";
 import {
   getLatestAlertCountsSnapshot,
   getOverviewData,
+  getInstructorTrainingCounts,
 } from "@/app/(home)/dashboard/fetch";
 
 export async function GET(req: Request) {
@@ -55,10 +56,15 @@ export async function GET(req: Request) {
 
   const overview = await getOverviewData(emulatedDeanUser);
   const latestSnapshot = await getLatestAlertCountsSnapshot();
+  const training = await getInstructorTrainingCounts({
+    facultyIds: [facultyId],
+  });
 
   return NextResponse.json({
     screenHeading: heading,
     totalStudents: overview.totalStudents ?? 0,
     lastUpdated: latestSnapshot.createdAt ?? null,
+    trainedStaffCount: training.trained,
+    needTrainingCount: training.needTraining,
   });
 }

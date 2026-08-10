@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
 import { Providers } from "./providers";
-import { getCurrentUser, getLatestAlertCountsSnapshot } from "./(home)/dashboard/fetch";
+import { getCurrentUser, getLatestAlertCountsSnapshot, getInstructorTrainingCounts } from "./(home)/dashboard/fetch";
 import { getStaffReminderModal, pool } from "@/lib/db";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import {
@@ -37,6 +37,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   let totalStudents: number | undefined;
   let lastUpdated: string | null = null;
   let instructorFacultyRollup: InstructorFacultyRollupItem[] | undefined;
+  let trainedStaffCount: number | undefined;
+  let needTrainingCount: number | undefined;
   const reminderModal = user
     ? await getStaffReminderModal(user.id)
     : null;
@@ -67,6 +69,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           [mappedFacultyId]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
+        const training = await getInstructorTrainingCounts({
+          facultyIds: [mappedFacultyId],
+        });
+        trainedStaffCount = training.trained;
+        needTrainingCount = training.needTraining;
       } else if (user.role === "hod" && user.department_ids?.length) {
         const names = await pool.query<{ name: string }>(
           "SELECT name FROM departments WHERE id = ANY($1::varchar[]) ORDER BY name ASC",
@@ -81,6 +88,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           [user.department_ids]
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
+        const training = await getInstructorTrainingCounts({
+          departmentIds: user.department_ids,
+        });
+        trainedStaffCount = training.trained;
+        needTrainingCount = training.needTraining;
       } else if (user.role === "teacher" || user.role === "instructor") {
         screenHeading = user.name;
         const total = await pool.query<{ total_students: number | string | null }>(
@@ -120,6 +132,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     } catch {
       screenHeading = null;
       totalStudents = undefined;
+      trainedStaffCount = undefined;
+      needTrainingCount = undefined;
     }
   }
 
@@ -138,6 +152,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
                 totalStudents,
                 lastUpdated,
                 instructorFacultyRollup,
+                trainedStaffCount,
+                needTrainingCount,
               }}
             >
               {children}

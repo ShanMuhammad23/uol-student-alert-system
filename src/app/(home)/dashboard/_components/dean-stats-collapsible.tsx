@@ -7,6 +7,8 @@ import { Maximize2 } from "lucide-react";
 type CollapsibleSectionProps = {
   title: string;
   count?: number;
+  trainedCount?: number;
+  needTrainingCount?: number;
   defaultOpen?: boolean;
   onClear?: () => void;
   hasActiveFilters?: boolean;
@@ -16,6 +18,8 @@ type CollapsibleSectionProps = {
 function CollapsibleSection({
   title,
   count,
+  trainedCount,
+  needTrainingCount,
   defaultOpen = false,
   onClear,
   hasActiveFilters,
@@ -46,13 +50,21 @@ function CollapsibleSection({
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">
-          <span>
-            {title}
-            {typeof count === "number" && (
-              <span className="ml-1 text-base font-normal dark:text-white">
-                ({count})
-              </span>
-            )}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span>
+              {title}
+              {typeof count === "number" && (
+                <span className="ml-1 text-base font-normal dark:text-white">
+                  ({count})
+                </span>
+              )}
+            </span>
+            {typeof trainedCount === "number" &&
+              typeof needTrainingCount === "number" && (
+                <span className="text-[11px] font-normal text-white/90">
+                  Trained {trainedCount} · Need Training {needTrainingCount}
+                </span>
+              )}
           </span>
           {onClear && (
             <button
@@ -127,6 +139,8 @@ type DeanStatsCollapsibleProps = {
   departmentCount?: number;
   programCount?: number;
   instructorCount?: number;
+  instructorTrainedCount?: number;
+  instructorNeedTrainingCount?: number;
   courseCount?: number;
   onClearDepartmentFilters?: () => void;
   onClearProgramFilters?: () => void;
@@ -148,6 +162,8 @@ export function DeanStatsCollapsible({
   departmentCount,
   programCount,
   instructorCount,
+  instructorTrainedCount,
+  instructorNeedTrainingCount,
   courseCount,
   onClearDepartmentFilters,
   onClearProgramFilters,
@@ -193,6 +209,8 @@ export function DeanStatsCollapsible({
         <CollapsibleSection
           title="Instructor"
           count={instructorCount}
+          trainedCount={instructorTrainedCount}
+          needTrainingCount={instructorNeedTrainingCount}
           defaultOpen={!!selectedDepartmentId || !!selectedProgramId}
           onClear={onClearInstructorFilters}
           hasActiveFilters={hasInstructorFilters}

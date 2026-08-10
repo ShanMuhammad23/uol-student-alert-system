@@ -471,6 +471,66 @@ async function getRegisteredStaffPernrSet(
   return registered;
 }
 
+/** Distinct instructors in scope: how many are registered on the portal vs still need training. */
+export async function getInstructorTrainingCounts(scope: {
+  facultyIds?: string[];
+  departmentIds?: string[];
+}): Promise<{ total: number; trained: number; needTraining: number }> {
+  const empty = { total: 0, trained: 0, needTraining: 0 };
+  if (!pool) return empty;
+
+  const params: unknown[] = [];
+  const where: string[] = [
+    "e.is_active = TRUE",
+    "TRIM(BOTH FROM COALESCE(e.instructor_pernr, '')) <> ''",
+  ];
+
+  if (scope.facultyIds?.length) {
+    params.push(scope.facultyIds);
+    where.push(`e.faculty_id = ANY($${params.length}::text[])`);
+  }
+  if (scope.departmentIds?.length) {
+    params.push(scope.departmentIds);
+    where.push(`e.department_id = ANY($${params.length}::text[])`);
+  }
+  if (!scope.facultyIds?.length && !scope.departmentIds?.length) {
+    return empty;
+  }
+
+  try {
+    const res = await pool.query<{
+      total: number | string | null;
+      trained: number | string | null;
+    }>(
+      `WITH instructors AS (
+         SELECT DISTINCT TRIM(BOTH FROM e.instructor_pernr) AS pernr_key
+         FROM student_enrollment_current e
+         WHERE ${where.join(" AND ")}
+       )
+       SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (
+           WHERE EXISTS (
+             SELECT 1
+             FROM staff s
+             WHERE TRIM(BOTH FROM s.pernr) = instructors.pernr_key
+           )
+         )::int AS trained
+       FROM instructors`,
+      params
+    );
+    const total = toInt(res.rows[0]?.total);
+    const trained = toInt(res.rows[0]?.trained);
+    return {
+      total,
+      trained,
+      needTraining: Math.max(0, total - trained),
+    };
+  } catch {
+    return empty;
+  }
+}
+
 const LATEST_ALERT_COUNTS_SNAPSHOT_SQL = `
   WITH per_snapshot AS (
     SELECT

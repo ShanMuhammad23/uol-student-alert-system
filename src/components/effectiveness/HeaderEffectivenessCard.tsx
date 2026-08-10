@@ -9,7 +9,7 @@ import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
 import { Sheet } from "@/components/ui/sheet";
 import { EffectivenessDetailMulti } from "./EffectivenessDetailContent";
 import { cn } from "@/lib/utils";
-
+import { ArrowRightFromLine } from "lucide-react";
 type HeaderEffectivenessResponse = {
   snapshotDate: string;
   rows: EffectivenessScoreRow[];
@@ -107,6 +107,8 @@ export function HeaderEffectivenessCard({ user }: { user?: AppUser | null }) {
             ? { borderColor: `${gradeCfg.color}33`, background: gradeCfg.bg }
             : undefined
         }
+        onClick={() => setOpen(true)}
+    
       >
         <div className="flex items-center gap-3 relative">
           <div className="min-w-0">
@@ -130,14 +132,7 @@ export function HeaderEffectivenessCard({ user }: { user?: AppUser | null }) {
               <p className="text-xs text-slate-400">No data yet</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            disabled={!data?.rows?.length}
-            className="whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            See details
-          </button>
+          <ArrowRightFromLine className="w-4 h-4" />
         </div>
       </div>
 
