@@ -128,6 +128,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
            WHERE status = 'referred'`
         );
         totalStudents = Number(total.rows[0]?.total_students ?? 0);
+      } else if (user.role === "superadmin") {
+        const training = await getInstructorTrainingCounts();
+        trainedStaffCount = training.trained;
+        needTrainingCount = training.needTraining;
       }
     } catch {
       screenHeading = null;

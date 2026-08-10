@@ -248,16 +248,18 @@ export function Header({
         )}
       </div>
 
-      <div className="flex flex-1 items-center justify-end gap-2 min-[375px]:gap-4">
-        <div className=" hidden shrink-0  border px-3 py-2 sm:flex bg-yellow-200 dark:bg-gray-800 rounded-lg flex-col ">
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-            {resolvedTrainedStaffCount} instructors Trained
-           
-          </p>
-         <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-          {resolvedNeedTrainingCount} instructors Need Training
-         </p>
-        </div>
+        <div className="flex flex-1 items-center justify-end gap-2 min-[375px]:gap-4">
+        {typeof resolvedTrainedStaffCount === "number" &&
+          typeof resolvedNeedTrainingCount === "number" && (
+          <div className="hidden shrink-0 border px-3 py-2 sm:flex bg-yellow-200 dark:bg-gray-800 rounded-lg flex-col">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              {resolvedTrainedStaffCount} instructors Trained
+            </p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              {resolvedNeedTrainingCount} instructors Need Training
+            </p>
+          </div>
+        )}
         <HeaderEffectivenessCard user={user} />
 
         <ThemeToggleSwitch />
