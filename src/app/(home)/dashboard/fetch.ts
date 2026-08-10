@@ -471,11 +471,12 @@ async function getRegisteredStaffPernrSet(
   return registered;
 }
 
-/** Distinct instructors in scope: how many are registered on the portal vs still need training. */
+/** Distinct instructors in scope: how many are registered on the portal vs still need training.
+ *  Omit faculty/department filters to sum across all active enrollment instructors. */
 export async function getInstructorTrainingCounts(scope: {
   facultyIds?: string[];
   departmentIds?: string[];
-}): Promise<{ total: number; trained: number; needTraining: number }> {
+} = {}): Promise<{ total: number; trained: number; needTraining: number }> {
   const empty = { total: 0, trained: 0, needTraining: 0 };
   if (!pool) return empty;
 
@@ -492,9 +493,6 @@ export async function getInstructorTrainingCounts(scope: {
   if (scope.departmentIds?.length) {
     params.push(scope.departmentIds);
     where.push(`e.department_id = ANY($${params.length}::text[])`);
-  }
-  if (!scope.facultyIds?.length && !scope.departmentIds?.length) {
-    return empty;
   }
 
   try {

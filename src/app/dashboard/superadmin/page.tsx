@@ -5,6 +5,7 @@ import {
   getSuperadminAlertSnapshotTrend,
   getInterventionChartData,
   getWellbeingChartData,
+  getInstructorTrainingCounts,
 } from "@/app/(home)/dashboard/fetch";
 import { buildEffectivenessRows, getEffectivenessScores } from "@/lib/effectiveness";
 import type { EiRating } from "@/lib/effectiveness-scoring";
@@ -244,12 +245,14 @@ export default async function SuperadminDashboardPage({
   const resolvedSearchParams = await searchParams;
   const selectedFaculty = resolvedSearchParams.faculty?.trim() || "";
   
-  const [overview, facultyStats, interventionChart, wellbeingChart] = await Promise.all([
-    getOverviewData(user),
-    getSuperadminFacultyStats(),
-    getInterventionChartData(user),
-    getWellbeingChartData(user),
-  ]);
+  const [overview, facultyStats, interventionChart, wellbeingChart, trainingCounts] =
+    await Promise.all([
+      getOverviewData(user),
+      getSuperadminFacultyStats(),
+      getInterventionChartData(user),
+      getWellbeingChartData(user),
+      getInstructorTrainingCounts(),
+    ]);
 
   const facultyIds = facultyStats.map((f) => f.facultyId);
   let feiRows = facultyIds.length
@@ -306,13 +309,25 @@ export default async function SuperadminDashboardPage({
     <div className="mx-auto  space-y-8 pb-8">
       {/* ─── KPI Stats Row ───────────────────────────────────────── */}
       <section>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
           <MetricCard
             label="Total Students"
             value={totalStudents}
             tone="neutral"
             subtitle="Tracked cohort"
             percentBadge={totalStudents > 0 ? "100%" : null}
+          />
+          <MetricCard
+            label="Trained Staff"
+            value={trainingCounts.trained}
+            tone="emerald"
+            subtitle={`of ${trainingCounts.total.toLocaleString()} instructors`}
+          />
+          <MetricCard
+            label="Need Training"
+            value={trainingCounts.needTraining}
+            tone="yellow"
+            subtitle="Not registered on portal"
           />
           <MetricCard
             label="Att. Yellow"
