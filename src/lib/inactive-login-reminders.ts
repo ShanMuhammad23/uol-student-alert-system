@@ -137,6 +137,9 @@ export async function queryInactiveLoginReminderCandidates(options?: {
          -- Logged in before, but inactive for N days
          OR s.last_login_at < NOW() - ($1::int * INTERVAL '1 day')
        )
+       AND LOWER(TRIM(COALESCE(s.actual_role, ''))) NOT IN ('dean', 'superadmin')
+       AND LOWER(TRIM(COALESCE(s.role, ''))) <> 'superadmin'
+       AND LOWER(TRIM(COALESCE(s.pseudo_role, ''))) <> 'superadmin'
        ${facultySql}
      ORDER BY s.last_login_at ASC NULLS FIRST, s.name ASC
      ${limitSql}`,
@@ -180,14 +183,21 @@ function resolveActingRole(row: InactiveLoginReminderRow): string | null {
   return row.pseudoRole || row.role || null;
 }
 
+function normalizeRole(value: string | null | undefined): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function isSuperadmin(row: InactiveLoginReminderRow): boolean {
-  const directRole = String(row.role ?? "")
-    .trim()
-    .toLowerCase();
-  const actingRole = String(resolveActingRole(row) ?? "")
-    .trim()
-    .toLowerCase();
-  return directRole === "superadmin" || actingRole === "superadmin";
+  return (
+    normalizeRole(row.actualRole) === "superadmin" ||
+    normalizeRole(row.role) === "superadmin" ||
+    normalizeRole(resolveActingRole(row)) === "superadmin"
+  );
+}
+
+/** Skip real deans (`actual_role`) and superadmins. Coordinators acting as dean still get reminders. */
+function shouldSkipInactiveLoginReminder(row: InactiveLoginReminderRow): boolean {
+  return normalizeRole(row.actualRole) === "dean" || isSuperadmin(row);
 }
 
 /**
@@ -389,7 +399,7 @@ export async function runInactiveLoginReminders(
 
   try {
     for (const row of allCandidates) {
-      if (isSuperadmin(row)) {
+      if (shouldSkipInactiveLoginReminder(row)) {
         continue;
       }
 
@@ -426,9 +436,6 @@ export async function runInactiveLoginReminders(
         : undefined;
 
       const pendingActions = await fetchPendingActionsForStaff(row);
-      if (pendingActions.length <= 0) {
-        continue;
-      }
       const subject = buildInactiveLoginReminderEmailSubject(pendingActions.length > 0);
       const html = buildInactiveLoginReminderEmailHtml({
         userName: row.staffName,

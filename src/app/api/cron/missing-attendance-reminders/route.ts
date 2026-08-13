@@ -52,16 +52,14 @@ export async function POST(req: NextRequest) {
       // Allow empty body for cron calls.
     }
 
-    // Empty / omitted facultyId = all faculties with enrollment on snapshot date.
+    // Empty / omitted facultyId = all faculties with current-semester enrollment.
     const facultyId =
       queryFacultyId ||
       bodyFacultyId ||
       process.env.MISSING_ATTENDANCE_FACULTY_ID?.trim() ||
       undefined;
     const snapshotDate =
-      querySnapshotDate ||
-      bodySnapshotDate ||
-      new Date().toISOString().slice(0, 10);
+      querySnapshotDate || bodySnapshotDate || undefined;
     const minMissingEntries = parsePositiveInt(
       queryMinMissing ?? (bodyMinMissing != null ? String(bodyMinMissing) : null),
       parsePositiveInt(process.env.MISSING_ATTENDANCE_MIN_MISSING ?? "4", 4)

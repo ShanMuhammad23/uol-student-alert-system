@@ -12,7 +12,7 @@ import { HeaderEffectivenessCard } from "@/components/effectiveness/HeaderEffect
 import { useEffect, useMemo, useState } from "react";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import type { InstructorFacultyRollupItem } from "@/lib/instructor-faculty-rollup";
-
+import { HeaderInterventionReminderCard } from "@/components/dashboard/HeaderInterventionReminderCard";
 type HeaderProps = {
   user?: AppUser | null;
   screenHeading?: string | null;
@@ -260,6 +260,7 @@ export function Header({
             </p>
           </div>
         )}
+        <HeaderInterventionReminderCard user={user} />
         <HeaderEffectivenessCard user={user} />
 
         <ThemeToggleSwitch />
