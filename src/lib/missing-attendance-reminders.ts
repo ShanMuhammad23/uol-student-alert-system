@@ -721,27 +721,51 @@ export async function runMissingAttendanceReminders(
     process.env.MISSING_ATTENDANCE_OVERRIDE_TO ?? ""
   ).trim();
 
+  // Cron used to pin snapshot_at::date = today. ETL usually lands the previous
+  // evening, so 07:00 jobs matched zero rows. Use the date only when it actually
+  // has current-semester enrollment; otherwise fall back to latest active term.
+  let snapshotFilter = requestedSnapshotDate;
+  if (snapshotFilter) {
+    const facultiesOnRequestedDate = await listFacultyIdsForCurrentTerm({
+      termYear,
+      termSession,
+      snapshotDate: snapshotFilter,
+    });
+    if (!facultiesOnRequestedDate.length) {
+      console.info(
+        `[missing-attendance-reminders] No current-term enrollment on snapshot ${snapshotFilter}; falling back to latest active ${termYear}/${termSession} data`
+      );
+      snapshotFilter = null;
+    }
+  }
+
   const snapshotDate = await resolveSnapshotDateForLogs({
     termYear,
     termSession,
-    snapshotDate: requestedSnapshotDate,
+    snapshotDate: snapshotFilter,
     facultyId: requestedFacultyId,
   });
 
   const sanityCheck = await sanityCheckMissingAttendanceReminders({
     facultyId: requestedFacultyId,
-    snapshotDate: requestedSnapshotDate,
+    snapshotDate: snapshotFilter,
     minMissingEntries: minMissing,
     termYear,
     termSession,
   });
+  if (requestedSnapshotDate && !snapshotFilter) {
+    sanityCheck.warnings.unshift(
+      `Snapshot ${requestedSnapshotDate} had no current-semester rows; used latest active ${termYear}/${termSession} snapshot ${snapshotDate} instead.`
+    );
+  }
   if (sanityCheck.warnings.length) {
     console.info(
       "[missing-attendance-reminders] sanity check",
       JSON.stringify({
         termYear,
         termSession,
-        snapshotDate: requestedSnapshotDate,
+        snapshotDate: snapshotFilter,
+        requestedSnapshotDate,
         warnings: sanityCheck.warnings,
         previousTermClassCount: sanityCheck.previousTermClassCount,
         previousTermCandidateInstructorsIgnored:
@@ -757,7 +781,7 @@ export async function runMissingAttendanceReminders(
     : await listFacultyIdsForCurrentTerm({
         termYear,
         termSession,
-        snapshotDate: requestedSnapshotDate,
+        snapshotDate: snapshotFilter,
       });
 
   const emptyResult = (): RunMissingAttendanceRemindersResult => ({
@@ -794,7 +818,7 @@ export async function runMissingAttendanceReminders(
     const result = await runMissingAttendanceRemindersForFaculty({
       facultyId,
       snapshotDate,
-      requestedSnapshotDate,
+      requestedSnapshotDate: snapshotFilter,
       minMissingEntries: minMissing,
       termYear,
       termSession,
