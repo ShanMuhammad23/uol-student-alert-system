@@ -75,17 +75,30 @@ export function useAttendanceAlerts(
         typeof c.CrCode === "string" ? c.CrCode : String(c.CrCode ?? ""),
       );
       const sec = String(c.SecCode ?? "").trim();
-      const key = `${course}__${sec}`;
+      const classType = String(c.ClassType ?? "").trim().toLowerCase();
+      const teacher = String(c.TeacherName ?? "").trim().toLowerCase();
       const heldRaw = c.Held ?? c.ToDate;
       const held =
         typeof heldRaw === "number" ? heldRaw : Number(heldRaw ?? 0) || 0;
       const markedRaw = c.Att;
       const marked =
         typeof markedRaw === "number" ? markedRaw : Number(markedRaw ?? 0) || 0;
-      if (sec) heldBySection.set(key, held);
-      if (sec) {
-        const cur = markedBySection.get(key) ?? 0;
-        if (marked > cur) markedBySection.set(key, marked);
+      const keys = [
+        sec && classType && teacher ? `${course}__${sec}__${classType}__${teacher}` : null,
+        sec && classType ? `${course}__${sec}__${classType}` : null,
+        sec && teacher ? `${course}__${sec}__teacher__${teacher}` : null,
+        sec ? `${course}__${sec}` : null,
+      ].filter((k): k is string => Boolean(k));
+      for (const key of keys) {
+        // Specific keys (class type / teacher) always win; do not let LECT/LAB overwrite each other.
+        if (key === `${course}__${sec}`) continue;
+        heldBySection.set(key, held);
+        markedBySection.set(key, marked);
+      }
+      if (sec && !classType && !teacher) {
+        const key = `${course}__${sec}`;
+        heldBySection.set(key, held);
+        markedBySection.set(key, marked);
       }
       const curH = heldByCourse.get(course) ?? 0;
       if (held > curH) heldByCourse.set(course, held);

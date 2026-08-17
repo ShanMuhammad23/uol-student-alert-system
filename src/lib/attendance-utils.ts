@@ -127,9 +127,22 @@ export async function getAttendanceSummariesForEnrollments(
     const courseNorm = normalizeCourseCode(
       typeof e.CrCode === "string" ? e.CrCode : String(e.CrCode ?? "")
     );
-    const courseSectionKey = `${courseNorm}__${section}`;
+    const classType = String(
+      (e as unknown as { ClassType?: string }).ClassType ?? ""
+    )
+      .trim()
+      .toLowerCase();
+    const teacher = String(e.Teacher ?? "")
+      .trim()
+      .toLowerCase();
+    const lookupKeys = [
+      classType && teacher ? `${courseNorm}__${section}__${classType}__${teacher}` : null,
+      classType ? `${courseNorm}__${section}__${classType}` : null,
+      teacher ? `${courseNorm}__${section}__teacher__${teacher}` : null,
+      `${courseNorm}__${section}`,
+    ].filter((k): k is string => Boolean(k));
     const totalHeldRaw =
-      classesHeldByCourseSection.get(courseSectionKey) ??
+      lookupKeys.map((k) => classesHeldByCourseSection.get(k)).find((v) => v != null) ??
       classesHeldByCourse?.get(courseNorm) ??
       0;
     const totalHeld =
@@ -138,7 +151,7 @@ export async function getAttendanceSummariesForEnrollments(
         : Number(totalHeldRaw) || 0;
 
     const markedRaw =
-      attendanceMarkedByCourseSection.get(courseSectionKey) ??
+      lookupKeys.map((k) => attendanceMarkedByCourseSection.get(k)).find((v) => v != null) ??
       attendanceMarkedByCourse?.get(courseNorm) ??
       0;
     const attendanceMarked =

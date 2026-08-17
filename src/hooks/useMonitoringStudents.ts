@@ -18,6 +18,9 @@ export type MonitoringClassSummary = {
   ToDate: number;
   /** When present, same semantics as SAP Held (sessions run). */
   Held?: number;
+  ClassType?: string;
+  TeacherName?: string;
+  EObjid?: string;
 };
 
 export type MonitoringResponse = {

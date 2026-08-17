@@ -24,14 +24,26 @@ export async function GET(req: NextRequest) {
     type ClassKey = string;
     const byClass = new Map<
       ClassKey,
-      { CrCode: string; SecCode: string; Att: number; ToDate: number; Held: number }
+      {
+        CrCode: string;
+        SecCode: string;
+        ClassType: string;
+        TeacherName: string;
+        EObjid: string;
+        Att: number;
+        ToDate: number;
+        Held: number;
+      }
     >();
 
     for (const e of entries) {
       const code = String(e.CrCode ?? "");
       const sec = String(e.SecCode ?? "");
       if (!code || !sec) continue;
-      const key: ClassKey = `${code}__${sec}`;
+      const classType = String(e.ClassType ?? "").trim();
+      const teacherName = String(e.TeacherName ?? "").trim();
+      const eObjid = String(e.EObjid ?? "").trim();
+      const key: ClassKey = `${code}__${sec}__${classType}__${teacherName}__${eObjid}`;
       const rawToDate = e.ToDate;
       const toDate =
         typeof rawToDate === "number"
@@ -53,22 +65,16 @@ export async function GET(req: NextRequest) {
           : rawAtt != null
           ? Number(rawAtt) || 0
           : 0;
-      const existing = byClass.get(key);
-      if (!existing) {
-        byClass.set(key, {
-          CrCode: code,
-          SecCode: sec,
-          Att: att,
-          ToDate: toDate,
-          Held: held,
-        });
-      } else {
-        if (att > existing.Att) existing.Att = att;
-        if (toDate > existing.ToDate) {
-          existing.ToDate = toDate;
-        }
-        if (held > existing.Held) existing.Held = held;
-      }
+      byClass.set(key, {
+        CrCode: code,
+        SecCode: sec,
+        ClassType: classType,
+        TeacherName: teacherName,
+        EObjid: eObjid,
+        Att: att,
+        ToDate: toDate,
+        Held: held,
+      });
     }
 
     const classes = Array.from(byClass.values());

@@ -129,6 +129,7 @@ export async function fetchMonitoringEntries(
   }
 
   return entries;
+
 }
 
 type MonitoringCacheEntry = {

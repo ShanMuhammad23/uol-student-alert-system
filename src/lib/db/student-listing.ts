@@ -62,7 +62,11 @@ export type ListingRequest = {
   pageSize?: number;
   sortKey?: ListingSortKey;
   sortDirection?: ListingSortDirection;
-  /** Include students with interventions even when not currently active/enrolled. */
+  /**
+   * Include inactive enrollment rows only when an intervention is linked to
+   * that subject (student + course). Inactive subjects with no linked
+   * intervention are omitted.
+   */
   includeIntervenedStudents?: boolean;
   /** When true, pagination/total is based on distinct students (sap_id). */
   uniqueStudents?: boolean;
@@ -201,12 +205,28 @@ function buildNoInterventionForAlertedCourseSql(
   )`;
 }
 
+/** Inactive enrollments are kept only when an intervention is tied to this subject. */
+function buildSubjectLinkedInterventionExistsSql(hasSectionCode: boolean): string {
+  const matchSql = interventionMatchesAlertedEnrollmentSql({
+    hasSectionCode,
+    interventionAlias: "ix",
+    enrollmentAlias: "e",
+  });
+  return `EXISTS (
+    SELECT 1
+    FROM interventions ix
+    WHERE ${matchSql}
+      AND COALESCE(NULLIF(TRIM(ix.course_id), ''), '') <> ''
+  )`;
+}
+
 function buildInterventionStatusExistsSql(
   scope: SessionScope,
   filters: ListingFilters,
   hasSectionCode: boolean,
   statuses: string[],
-  params: unknown[]
+  params: unknown[],
+  options?: { requireLinkedCourse?: boolean }
 ): string | null {
   const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
   if (!roleScopeBase) return null;
@@ -221,12 +241,17 @@ function buildInterventionStatusExistsSql(
     interventionAlias: "i",
     enrollmentAlias: "e",
   });
+  const linkedCourseSql =
+    options?.requireLinkedCourse === true
+      ? `AND COALESCE(NULLIF(TRIM(i.course_id), ''), '') <> ''`
+      : "";
   return `EXISTS (
     SELECT 1
     FROM interventions i
     WHERE ${matchSql}
       AND i.status = ANY($${statusIdx}::text[])
       AND (${scopeSql})
+      ${linkedCourseSql}
   )`;
 }
 
@@ -381,8 +406,9 @@ function buildWhere(
 ): BaseQueryParts {
   const params: unknown[] = [];
   const includeIntervenedStudents = options?.includeIntervenedStudents === true;
+  const hasSectionCode = wellbeingOpts?.hasInterventionSectionCode === true;
   const where: string[] = includeIntervenedStudents
-    ? ["(e.is_active = TRUE OR EXISTS (SELECT 1 FROM interventions ix WHERE ix.student_sap_id = e.sap_id))"]
+    ? [`(e.is_active = TRUE OR ${buildSubjectLinkedInterventionExistsSql(hasSectionCode)})`]
     : ["e.is_active = TRUE"];
 
   const normalizedIntervention =
@@ -561,7 +587,6 @@ function buildWhere(
     if (interventionFilters?.length) {
       const wantsNotStarted = interventionFilters.includes("not_started");
       const statuses = interventionFilters.filter((s) => s !== "not_started");
-      const hasSectionCode = wellbeingOpts?.hasInterventionSectionCode === true;
 
       const statusFilterSql =
         statuses.length > 0
@@ -573,13 +598,26 @@ function buildWhere(
               params
             )
           : null;
+      const linkedStatusFilterSql =
+        statusFilterSql && includeIntervenedStudents
+          ? buildInterventionStatusExistsSql(
+              scope,
+              filters,
+              hasSectionCode,
+              statuses,
+              params,
+              { requireLinkedCourse: true }
+            )
+          : null;
 
       const noInterventionSql = wantsNotStarted
         ? buildNoInterventionForAlertedCourseSql(scope, filters, params, hasSectionCode)
         : null;
 
       if (statusFilterSql) {
-        where[0] = `(e.is_active = TRUE OR ${statusFilterSql})`;
+        where[0] = includeIntervenedStudents
+          ? `(e.is_active = TRUE OR ${linkedStatusFilterSql ?? statusFilterSql})`
+          : "e.is_active = TRUE";
       }
 
       if (wantsNotStarted && statuses.length) {

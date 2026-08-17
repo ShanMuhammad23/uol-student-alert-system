@@ -3,7 +3,10 @@ import path from "path";
 import { XMLParser } from "fast-xml-parser";
 import { pool } from "@/lib/db";
 import { upsertStudentAlertDailySnapshot } from "@/lib/alert-daily-snapshot";
-import { fetchMonitoringEntries } from "@/lib/sap-monitoring";
+import {
+  fetchMonitoringEntries,
+  type MonitoringEntry,
+} from "@/lib/sap-monitoring";
 import { getGpaTrendMapBySapIds } from "@/lib/db/gpa";
 import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
 
@@ -135,13 +138,135 @@ function normalizeLooseText(value: string | null | undefined): string {
     .replace(/\s+/g, " ");
 }
 
-/** SAP monitoring uniqueness: normalized course + section + CrHr (credit hours). */
-function buildCourseSectionCreditKey(
+type MonitoringHeldPosted = {
+  held: number;
+  marked: number;
+  classTypeKey: string;
+  teacherKey: string;
+};
+
+function monitoringClassKey(
   courseNorm: string,
   sectionCode: string,
-  creditHoursKey: string
+  classTypeKey: string,
+  teacherKey: string
 ): string {
-  return [courseNorm, sectionCode, creditHoursKey || "na"].join("__");
+  return [courseNorm, sectionCode, classTypeKey || "na", teacherKey || "na"].join("__");
+}
+
+function toHeldMarked(entry: MonitoringEntry): { held: number; marked: number } {
+  const heldRaw = entry.Held ?? entry.ToDate;
+  const held = typeof heldRaw === "number" ? heldRaw : Number(heldRaw ?? 0) || 0;
+  const markedRaw = entry.Att;
+  const marked =
+    typeof markedRaw === "number" ? markedRaw : Number(markedRaw ?? 0) || 0;
+  return { held, marked };
+}
+
+function pickUniqueMonitoringRow(
+  rows: MonitoringHeldPosted[] | undefined
+): MonitoringHeldPosted | null {
+  if (!rows?.length) return null;
+  if (rows.length === 1) return rows[0]!;
+  const first = rows[0]!;
+  const sameCounts = rows.every(
+    (row) => row.held === first.held && row.marked === first.marked
+  );
+  return sameCounts ? first : null;
+}
+
+/**
+ * LECT and LAB (and different teachers) are separate SAP monitoring rows even when
+ * they share course, section, and credit hours. Never key only by course+section+CrHr.
+ */
+function indexMonitoringEntries(entries: MonitoringEntry[]) {
+  const byFull = new Map<string, MonitoringHeldPosted>();
+  const byClassType = new Map<string, MonitoringHeldPosted[]>();
+  const byTeacher = new Map<string, MonitoringHeldPosted[]>();
+
+  for (const entry of entries) {
+    const course = normalizeCourseCode(String(entry.CrCode ?? ""));
+    const section = String(entry.SecCode ?? "").trim();
+    if (!course || !section) continue;
+    const classTypeKey = normalizeLooseText(String(entry.ClassType ?? ""));
+    const teacherKey = normalizeLooseText(String(entry.TeacherName ?? ""));
+    const rec: MonitoringHeldPosted = {
+      ...toHeldMarked(entry),
+      classTypeKey,
+      teacherKey,
+    };
+    byFull.set(monitoringClassKey(course, section, classTypeKey, teacherKey), rec);
+
+    const classTypeMapKey = [course, section, classTypeKey || "na"].join("__");
+    const classTypeRows = byClassType.get(classTypeMapKey) ?? [];
+    classTypeRows.push(rec);
+    byClassType.set(classTypeMapKey, classTypeRows);
+
+    const teacherMapKey = [course, section, teacherKey || "na"].join("__");
+    const teacherRows = byTeacher.get(teacherMapKey) ?? [];
+    teacherRows.push(rec);
+    byTeacher.set(teacherMapKey, teacherRows);
+  }
+
+  return {
+    resolve(
+      courseNorm: string,
+      sectionCode: string,
+      classTypeKey: string,
+      teacherKey: string
+    ): MonitoringHeldPosted & { avgKey: string } {
+      const fullKey = monitoringClassKey(
+        courseNorm,
+        sectionCode,
+        classTypeKey,
+        teacherKey
+      );
+      const full = byFull.get(fullKey);
+      if (full) return { ...full, avgKey: fullKey };
+
+      if (classTypeKey) {
+        const byType = pickUniqueMonitoringRow(
+          byClassType.get([courseNorm, sectionCode, classTypeKey].join("__"))
+        );
+        if (byType) {
+          return {
+            ...byType,
+            avgKey: monitoringClassKey(
+              courseNorm,
+              sectionCode,
+              byType.classTypeKey,
+              byType.teacherKey
+            ),
+          };
+        }
+      }
+
+      if (teacherKey) {
+        const byName = pickUniqueMonitoringRow(
+          byTeacher.get([courseNorm, sectionCode, teacherKey].join("__"))
+        );
+        if (byName) {
+          return {
+            ...byName,
+            avgKey: monitoringClassKey(
+              courseNorm,
+              sectionCode,
+              byName.classTypeKey,
+              byName.teacherKey
+            ),
+          };
+        }
+      }
+
+      return {
+        held: 0,
+        marked: 0,
+        classTypeKey,
+        teacherKey,
+        avgKey: fullKey,
+      };
+    },
+  };
 }
 
 function buildAttendanceAbsenceKey(
@@ -398,23 +523,7 @@ export async function runStudentSync(
     validCourses.has(normalizeCourseCode(String(row.CrCode ?? "")))
   );
 
-  type MonitoringHeldPosted = { held: number; marked: number };
-  const monitoringByCourseSectionCredit = new Map<string, MonitoringHeldPosted>();
-  for (const entry of monitoringEntries) {
-    const course = normalizeCourseCode(String(entry.CrCode ?? ""));
-    const section = String(entry.SecCode ?? "").trim();
-    const creditHoursKey = normalizeCreditHours(entry.CrHr) || "na";
-    if (!course || !section) continue;
-    const heldRaw = entry.Held ?? entry.ToDate;
-    const held =
-      typeof heldRaw === "number" ? heldRaw : Number(heldRaw ?? 0) || 0;
-    const markedRaw = entry.Att;
-    const marked =
-      typeof markedRaw === "number" ? markedRaw : Number(markedRaw ?? 0) || 0;
-    const k = buildCourseSectionCreditKey(course, section, creditHoursKey);
-    monitoringByCourseSectionCredit.set(k, { held, marked });
-    // SAP aligns monitoring `EObjid` with attendance `EventId` for the same scheduled class (not SapNo).
-  }
+  const monitoringIndex = indexMonitoringEntries(monitoringEntries);
 
   const absencesByEnrollmentClassKey = new Map<string, number>();
   /** Same absence rows, keyed only by sap + course + event package (ClassType often missing on enrollment). */
@@ -486,6 +595,7 @@ export async function runStudentSync(
     creditHoursKey: string;
     degreeKey: string;
     originalEventPackageId: string;
+    monitoringAvgKey: string;
   };
 
   const prepared: EnrollmentPrepared[] = [];
@@ -499,20 +609,24 @@ export async function runStudentSync(
     const facultyId = String(row.FacId ?? "").trim();
     const departmentId = String(row.DeptId ?? row.DeptCode ?? "").trim();
     const departmentCode = String(row.DeptCode ?? row.DeptId ?? "").trim();
-    const classTypeKey = String(row.ClassType ?? "").trim().toLowerCase();
+    const classTypeKey = normalizeLooseText(String(row.ClassType ?? ""));
+    const instructorName = String(row.Teacher ?? "").trim();
+    const teacherKey = normalizeLooseText(instructorName);
     const degreeKey = normalizeCode(String(row.DegreeCode ?? "").trim());
     if (!sapId || !courseRaw || !courseNorm || !sectionCode || !originalEventPackageId || !facultyId || !departmentId) {
       continue;
     }
     const enrollmentCreditKey = normalizeCreditHours(row.CrCreditHrs) || "na";
-    const monitoringRowKey = buildCourseSectionCreditKey(
+    const pair = monitoringIndex.resolve(
       courseNorm,
       sectionCode,
-      enrollmentCreditKey
+      classTypeKey,
+      teacherKey
     );
-    const pair =
-      monitoringByCourseSectionCredit.get(monitoringRowKey) ?? { held: 0, marked: 0 };
-    const eventPackageId = `${originalEventPackageId}__${enrollmentCreditKey}`;
+    const classTypeForPackage = classTypeKey || pair.classTypeKey;
+    const eventPackageId = classTypeForPackage
+      ? `${originalEventPackageId}__${enrollmentCreditKey}__${classTypeForPackage}`
+      : `${originalEventPackageId}__${enrollmentCreditKey}`;
     const dedupeKey = `${sapId}__${courseRaw}__${sectionCode}__${eventPackageId}`;
     if (seenEnrollmentKeys.has(dedupeKey)) continue;
     seenEnrollmentKeys.add(dedupeKey);
@@ -532,7 +646,7 @@ export async function runStudentSync(
       eventPackageId,
       originalEventPackageId,
       instructorPernr: String(row.Pernr ?? "").trim() || null,
-      instructorName: String(row.Teacher ?? "").trim() || null,
+      instructorName: instructorName || null,
       instructorEmail: String(row.Email ?? "").trim() || null,
       termYear: String(row.Peryr ?? pYear).trim(),
       termSession: String(row.Perid ?? pSess).trim(),
@@ -543,6 +657,7 @@ export async function runStudentSync(
       classTypeKey,
       creditHoursKey: enrollmentCreditKey,
       degreeKey,
+      monitoringAvgKey: pair.avgKey,
     });
 
     const enrollClassKey = buildAttendanceAbsenceKey(
@@ -572,7 +687,7 @@ export async function runStudentSync(
       absencesByCoursePackage.get(absencePackageKey) ??
       absencesByEnrollmentClassKey.get(enrollFallbackClassKey) ??
       0;
-    // Monitoring: Held → total_classes_held, Att → attendance_marked_classes (same credit-hours key as SAP CrHr).
+    // Monitoring: Held → total_classes_held, Att → attendance_marked_classes (LECT/LAB/teacher-specific).
     const attended = Math.max(0, attendanceMarked - absences);
     const pct =
       attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
@@ -583,12 +698,12 @@ export async function runStudentSync(
     );
     if (pct != null && Number.isFinite(pct)) {
       classSumByCourseSectionCredit.set(
-        monitoringRowKey,
-        (classSumByCourseSectionCredit.get(monitoringRowKey) ?? 0) + pct
+        pair.avgKey,
+        (classSumByCourseSectionCredit.get(pair.avgKey) ?? 0) + pct
       );
       classCountByCourseSectionCredit.set(
-        monitoringRowKey,
-        (classCountByCourseSectionCredit.get(monitoringRowKey) ?? 0) + 1
+        pair.avgKey,
+        (classCountByCourseSectionCredit.get(pair.avgKey) ?? 0) + 1
       );
     }
   }
@@ -838,13 +953,12 @@ export async function runStudentSync(
         row.originalEventPackageId,
         "na"
       );
-      const monitoringRowKey = buildCourseSectionCreditKey(
+      const pair = monitoringIndex.resolve(
         courseNorm,
         row.sectionCode,
-        row.creditHoursKey
+        row.classTypeKey,
+        normalizeLooseText(row.instructorName)
       );
-      const pair =
-        monitoringByCourseSectionCredit.get(monitoringRowKey) ?? { held: 0, marked: 0 };
       const totalHeld = pair.held;
       const attendanceMarked = pair.marked;
       const enrollByEnrollmentClassTypeKey = buildAttendanceAbsenceKey(
@@ -865,7 +979,7 @@ export async function runStudentSync(
       const attended = Math.max(0, attendanceMarked - absences);
       const attendancePct =
         attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
-      const classAvg = classAvgByCourseSectionCredit.get(monitoringRowKey) ?? null;
+      const classAvg = classAvgByCourseSectionCredit.get(row.monitoringAvgKey) ?? null;
       const attendanceLevel =
         attendancePct == null
           ? null
