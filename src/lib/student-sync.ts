@@ -1,7 +1,6 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { XMLParser } from "fast-xml-parser";
-import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
 import { upsertStudentAlertDailySnapshot } from "@/lib/alert-daily-snapshot";
 import {
@@ -1110,7 +1109,7 @@ export async function runStudentSync(
             ? "warning"
             : null;
       await pool.query(
-        `UPDATE student_alert_current a
+        `UPDATE student_alert_current
          SET gpa_current = $2,
              gpa_previous = $3,
              gpa_change = $4,
@@ -1121,13 +1120,7 @@ export async function runStudentSync(
                ELSE 'none'
              END,
              updated_at = NOW()
-         FROM student_enrollment_current e
-         WHERE a.sap_id = $1
-           AND a.sap_id = e.sap_id
-           AND a.course_id = e.course_id
-           AND a.section_code = e.section_code
-           AND a.event_package_id = e.event_package_id
-           AND ${enrolledInCurrentTermSql("e")}`,
+         WHERE sap_id = $1`,
         [sapId, gpaCurrent, gpaPrevious, gpaChange, gpaLevel]
       );
     }

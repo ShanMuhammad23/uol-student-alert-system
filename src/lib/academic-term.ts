@@ -102,28 +102,13 @@ export function enrolledInCurrentTermSql(alias = ""): string {
 }
 
 /**
- * Keep one enrollment snapshot per subject when pulling historical
- * (inactive / prior-term) intervention rows. Package suffixes like `__lect`
- * vs `__4` are treated as the same SAP package.
+ * Current-term active rows, or a subject that has a linked intervention.
+ * Keep this cheap: correlated snapshot MAX() subqueries here hang listings at scale.
  */
-export function latestSubjectSnapshotSql(alias = "e"): string {
-  return `${alias}.snapshot_at IS NOT DISTINCT FROM (
-    SELECT MAX(e2.snapshot_at)
-    FROM student_enrollment_current e2
-    WHERE e2.sap_id = ${alias}.sap_id
-      AND e2.course_id = ${alias}.course_id
-      AND COALESCE(e2.section_code, '') = COALESCE(${alias}.section_code, '')
-      AND SPLIT_PART(COALESCE(e2.event_package_id, ''), '__', 1)
-        = SPLIT_PART(COALESCE(${alias}.event_package_id, ''), '__', 1)
-  )`;
-}
-
-/** Current-term active rows, or a subject that has a linked intervention. */
 export function currentOrIntervenedEnrollmentSql(opts: {
   alias?: string;
   interventionExistsSql: string;
 }): string {
   const alias = opts.alias ?? "e";
-  return `(${enrolledInCurrentTermSql(alias)}
-    OR (${opts.interventionExistsSql} AND ${latestSubjectSnapshotSql(alias)}))`;
+  return `(${enrolledInCurrentTermSql(alias)} OR (${opts.interventionExistsSql}))`;
 }
