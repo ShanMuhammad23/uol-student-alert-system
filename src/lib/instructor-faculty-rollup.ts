@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import {
   resolveFacultyNameFromIdOrName,
   toShortFacultyName,
@@ -33,7 +34,7 @@ export async function getInstructorFacultyRollup(
        COUNT(DISTINCT e.sap_id)::bigint AS student_count
      FROM student_enrollment_current e
      LEFT JOIN faculties f ON f.id = e.faculty_id
-     WHERE e.is_active = TRUE
+     WHERE ${enrolledInCurrentTermSql("e")}
        AND e.faculty_id IS NOT NULL
        AND TRIM(COALESCE(e.instructor_pernr, '')) <> ''
        AND TRIM(e.instructor_pernr) = TRIM($1)

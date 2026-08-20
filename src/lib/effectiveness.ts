@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import type { EiCriterionCode } from "@/lib/ei-metric-definitions";
 import {
@@ -43,7 +44,7 @@ const BUILD_EFFECTIVENESS_SQL = `
       COALESCE(NULLIF(TRIM(f.name), ''), e.faculty_id) AS dimension_name
     FROM student_enrollment_current e
     LEFT JOIN faculties f ON f.id = e.faculty_id
-    WHERE e.is_active = TRUE
+    WHERE ${enrolledInCurrentTermSql("e")}
       AND e.faculty_id IS NOT NULL
       AND e.faculty_id <> ''
       AND e.faculty_id = ANY($2::text[])
@@ -57,7 +58,7 @@ const BUILD_EFFECTIVENESS_SQL = `
       COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name
     FROM student_enrollment_current e
     LEFT JOIN departments d ON d.id = e.department_id
-    WHERE e.is_active = TRUE
+    WHERE ${enrolledInCurrentTermSql("e")}
       AND e.department_id IS NOT NULL
       AND e.department_id <> ''
       AND e.faculty_id = ANY($2::text[])
@@ -75,7 +76,7 @@ const BUILD_EFFECTIVENESS_SQL = `
       ) AS dimension_name
     FROM student_enrollment_current e
     LEFT JOIN staff s ON s.pernr = e.instructor_pernr
-    WHERE e.is_active = TRUE
+    WHERE ${enrolledInCurrentTermSql("e")}
       AND e.instructor_pernr IS NOT NULL
       AND e.instructor_pernr <> ''
       AND e.faculty_id = ANY($2::text[])
@@ -94,7 +95,7 @@ const BUILD_EFFECTIVENESS_SQL = `
       e.event_package_id
     FROM dim_keys p
     JOIN student_enrollment_current e
-      ON e.is_active = TRUE
+      ON ${enrolledInCurrentTermSql("e")}
      AND e.sap_id IN (
        SELECT sap_id FROM enrollment_dim ed
        WHERE ed.dimension_type = p.dimension_type AND ed.dimension_id = p.dimension_id
@@ -126,7 +127,7 @@ const BUILD_EFFECTIVENESS_SQL = `
     FROM departments d
     JOIN student_enrollment_current e
       ON e.department_id = d.id
-     AND e.is_active = TRUE
+     AND ${enrolledInCurrentTermSql("e")}
      AND e.faculty_id = ANY($2::text[])
     JOIN staff s ON s.pernr = e.instructor_pernr
     WHERE d.faculty_id = ANY($2::text[])
@@ -152,7 +153,7 @@ const BUILD_EFFECTIVENESS_SQL = `
       s.last_login_at
     FROM staff s
     JOIN student_enrollment_current e ON e.instructor_pernr = s.pernr
-    WHERE e.is_active = TRUE
+    WHERE ${enrolledInCurrentTermSql("e")}
       AND e.faculty_id = ANY($2::text[])
       AND s.pernr IS NOT NULL
       AND s.pernr <> ''

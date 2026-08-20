@@ -5,7 +5,6 @@ import {
   getSuperadminAlertSnapshotTrend,
   getInterventionChartData,
   getWellbeingChartData,
-  getInstructorTrainingCounts,
 } from "@/app/(home)/dashboard/fetch";
 import { buildEffectivenessRows, getEffectivenessScores } from "@/lib/effectiveness";
 import type { EiRating } from "@/lib/effectiveness-scoring";
@@ -69,7 +68,7 @@ function MetricCard({
 
   return (
     <div className={cn(
-      "relative overflow-hidden rounded-xl border p-5 transition-all hover:shadow-md",
+      "relative h-full overflow-hidden rounded-xl border p-5 transition-all hover:shadow-md",
       toneStyles[tone]
     )}>
       {/* Subtle top accent bar */}
@@ -102,6 +101,102 @@ function MetricCard({
         {subtitle ? (
           <p className="mt-1.5 text-xs font-medium text-slate-600/90 dark:text-slate-300/90">{subtitle}</p>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AlertMetric({
+  label,
+  value,
+  tone,
+  subtitle,
+  percentBadge,
+}: {
+  label: string;
+  value: number;
+  tone: "yellow" | "red";
+  subtitle: string;
+  percentBadge: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-3 py-2.5",
+        tone === "yellow"
+          ? "bg-amber-50/90 dark:bg-amber-950/30"
+          : "bg-red-50/90 dark:bg-red-950/30"
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p
+          className={cn(
+            "text-[10px] font-bold uppercase tracking-wide",
+            tone === "yellow"
+              ? "text-amber-800 dark:text-amber-200"
+              : "text-red-800 dark:text-red-200"
+          )}
+        >
+          {label}
+        </p>
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums",
+            tone === "yellow"
+              ? "bg-amber-200/90 text-amber-950 dark:bg-amber-950/60 dark:text-amber-100"
+              : "bg-red-200/90 text-red-950 dark:bg-red-950/60 dark:text-red-100"
+          )}
+        >
+          {percentBadge}
+        </span>
+      </div>
+      <p
+        className={cn(
+          "mt-1 text-2xl font-bold tabular-nums tracking-tight",
+          tone === "yellow"
+            ? "text-amber-600 dark:text-amber-400"
+            : "text-red-600 dark:text-red-400"
+        )}
+      >
+        {value.toLocaleString()}
+      </p>
+      <p className="mt-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+        {subtitle}
+      </p>
+    </div>
+  );
+}
+
+function AlertGroupCard({
+  title,
+  yellow,
+  red,
+}: {
+  title: string;
+  yellow: { value: number; subtitle: string; percentBadge: string };
+  red: { value: number; subtitle: string; percentBadge: string };
+}) {
+  return (
+    <div className="relative h-full overflow-hidden rounded-xl border border-slate-200 bg-white p-5 transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800/50">
+      <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-amber-400 to-red-500" />
+      <p className="pt-1 text-sm font-bold uppercase leading-snug tracking-wide text-slate-800 dark:text-white">
+        {title}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <AlertMetric
+          label="Yellow"
+          value={yellow.value}
+          tone="yellow"
+          subtitle={yellow.subtitle}
+          percentBadge={yellow.percentBadge}
+        />
+        <AlertMetric
+          label="Red"
+          value={red.value}
+          tone="red"
+          subtitle={red.subtitle}
+          percentBadge={red.percentBadge}
+        />
       </div>
     </div>
   );
@@ -245,13 +340,12 @@ export default async function SuperadminDashboardPage({
   const resolvedSearchParams = await searchParams;
   const selectedFaculty = resolvedSearchParams.faculty?.trim() || "";
   
-  const [overview, facultyStats, interventionChart, wellbeingChart, trainingCounts] =
+  const [overview, facultyStats, interventionChart, wellbeingChart] =
     await Promise.all([
       getOverviewData(user),
       getSuperadminFacultyStats(),
       getInterventionChartData(user),
       getWellbeingChartData(user),
-      getInstructorTrainingCounts(),
     ]);
 
   const facultyIds = facultyStats.map((f) => f.facultyId);
@@ -309,7 +403,7 @@ export default async function SuperadminDashboardPage({
     <div className="mx-auto  space-y-8 pb-8">
       {/* ─── KPI Stats Row ───────────────────────────────────────── */}
       <section>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <MetricCard
             label="Total Students"
             value={totalStudents}
@@ -317,45 +411,31 @@ export default async function SuperadminDashboardPage({
             subtitle="Tracked cohort"
             percentBadge={totalStudents > 0 ? "100%" : null}
           />
-          <MetricCard
-            label="Trained Staff"
-            value={trainingCounts.trained}
-            tone="emerald"
-            subtitle={`of ${trainingCounts.total.toLocaleString()} instructors`}
+          <AlertGroupCard
+            title="Attendance Alerts"
+            yellow={{
+              value: overview.yellowAttendance?.value ?? 0,
+              subtitle: "20% < CA",
+              percentBadge: shareOfTotal(overview.yellowAttendance?.value ?? 0),
+            }}
+            red={{
+              value: overview.redAttendance?.value ?? 0,
+              subtitle: "≤60%",
+              percentBadge: shareOfTotal(overview.redAttendance?.value ?? 0),
+            }}
           />
-          <MetricCard
-            label="Need Training"
-            value={trainingCounts.needTraining}
-            tone="yellow"
-            subtitle="Not registered on portal"
-          />
-          <MetricCard
-            label="Att. Yellow"
-            value={overview.yellowAttendance?.value ?? 0}
-            tone="yellow"
-            subtitle="20% < CA"
-            percentBadge={shareOfTotal(overview.yellowAttendance?.value ?? 0)}
-          />
-          <MetricCard
-            label="Att. Red"
-            value={overview.redAttendance?.value ?? 0}
-            tone="red"
-            subtitle="≤60%"
-            percentBadge={shareOfTotal(overview.redAttendance?.value ?? 0)}
-          />
-          <MetricCard
-            label="SGPA Yellow"
-            value={overview.yellowGpa?.value ?? 0}
-            tone="yellow"
-            subtitle="1.0 Drop"
-            percentBadge={shareOfTotal(overview.yellowGpa?.value ?? 0)}
-          />
-          <MetricCard
-            label="SGPA Red"
-            value={overview.redGpa?.value ?? 0}
-            tone="red"
-            subtitle="1.5 Drop"
-            percentBadge={shareOfTotal(overview.redGpa?.value ?? 0)}
+          <AlertGroupCard
+            title="SGPA Alerts"
+            yellow={{
+              value: overview.yellowGpa?.value ?? 0,
+              subtitle: "1.0 Drop",
+              percentBadge: shareOfTotal(overview.yellowGpa?.value ?? 0),
+            }}
+            red={{
+              value: overview.redGpa?.value ?? 0,
+              subtitle: "1.5 Drop",
+              percentBadge: shareOfTotal(overview.redGpa?.value ?? 0),
+            }}
           />
         </div>
       </section>

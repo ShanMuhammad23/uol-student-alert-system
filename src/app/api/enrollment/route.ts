@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export async function GET() {
        LEFT JOIN departments d ON d.id = e.department_id
        LEFT JOIN programs p ON p.id = e.program_id
        LEFT JOIN courses c ON c.id = e.course_id
-       WHERE e.is_active = TRUE`
+       WHERE ${enrolledInCurrentTermSql("e")}`
     );
     return NextResponse.json(
       res.rows.map((r) => ({

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
+import {
+  currentOrIntervenedEnrollmentSql,
+} from "@/lib/academic-term";
 import { pool } from "@/lib/db";
+import { subjectLinkedInterventionExistsSql } from "@/lib/db/interventions";
 
 function classTypeFromEventPackage(value: string | null): string {
   const raw = String(value ?? "").trim();
@@ -121,7 +125,14 @@ export async function GET(req: Request) {
         AND COALESCE(TRIM(a.section_code), '') = COALESCE(TRIM(ec.section_code), '')
         AND COALESCE(TRIM(a.event_package_id), '') = COALESCE(TRIM(ec.event_package_id), '')
        WHERE ec.sap_id = $1
-         AND ec.is_active = TRUE
+         AND ${currentOrIntervenedEnrollmentSql({
+           alias: "ec",
+           interventionExistsSql: subjectLinkedInterventionExistsSql({
+             hasSectionCode: true,
+             interventionAlias: "ix",
+             enrollmentAlias: "ec",
+           }),
+         })}
          AND (
            l.status IS NOT NULL
            OR a.attendance_alert_level IS NOT NULL

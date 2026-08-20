@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
+import { formatAcademicTermLabel } from "@/lib/academic-term";
 import {
   getEnrollmentAttendanceKey,
   normalizeCourseCode,
@@ -29,6 +30,9 @@ type Props = {
     attendancePercentage: number | null;
     classAverageAttendance: number | null;
     attendanceAlertLevel: "warning" | "critical" | null;
+    termLabel?: string | null;
+    isCurrentTerm?: boolean;
+    isActive?: boolean;
   }[];
   selectedCourseCode?: string;
   selectedSection?: string;
@@ -37,6 +41,7 @@ type Props = {
   attendanceAlertLevel?: "critical" | "warning" | null;
   /** No single course focus (e.g. wellbeing external direct case). */
   noFocusedCourse?: boolean;
+  currentlyEnrolled?: boolean;
 };
 
 export function StudentCourseAttendanceDetails({
@@ -48,6 +53,7 @@ export function StudentCourseAttendanceDetails({
   monitoringClassAverage = null,
   attendanceAlertLevel = null,
   noFocusedCourse = false,
+  currentlyEnrolled = true,
 }: Props) {
   const {
     attendanceSummaries,
@@ -133,6 +139,11 @@ export function StudentCourseAttendanceDetails({
         selectedLabel: selected
           ? `${selected.courseTitle ?? selected.courseId}${
               selected.sectionCode ? ` (${selected.sectionCode})` : ""
+            }${
+              selected.termLabel &&
+              (currentlyEnrolled === false || selected.isCurrentTerm === false)
+                ? ` · ${selected.termLabel}`
+                : ""
             }`
           : null,
         selectedInstructorName: selected?.instructorName ?? null,
@@ -199,6 +210,7 @@ export function StudentCourseAttendanceDetails({
     selectedSection,
     noFocusedCourse,
     overallAttendance,
+    currentlyEnrolled,
   ]);
   const tableRows = useMemo(
     () =>
@@ -334,11 +346,17 @@ export function StudentCourseAttendanceDetails({
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
             Attendance details (courses)
           </h4>
+          {!currentlyEnrolled ? (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Historical intervention subject — semester is shown for each course.
+            </p>
+          ) : null}
           <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white/50 dark:border-gray-700 dark:bg-gray-900/20">
             <table className="min-w-full text-left text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800">
                   <th className="px-4 py-2 font-semibold">Course - Code</th>
+                  <th className="px-4 py-2 font-semibold">Semester</th>
                   <th className="px-4 py-2 font-semibold">Instructor</th>
                   <th className="px-4 py-2 font-semibold text-center">
                     Attendance
@@ -394,6 +412,12 @@ export function StudentCourseAttendanceDetails({
                           (r.CrCode ?? "—")}
                       </td>
                       <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                        {formatAcademicTermLabel(
+                          String((r as { Peryr?: string }).Peryr ?? ""),
+                          String((r as { Perid?: string }).Perid ?? "")
+                        ) ?? "—"}
+                      </td>
+                      <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
                         {r.Teacher ?? "—"}
                       </td>
                       <td
@@ -441,6 +465,9 @@ export function StudentCourseAttendanceDetails({
                         {(r.courseTitle ?? r.courseId ?? "—") +
                           " - " +
                           (r.courseId ?? "—")}
+                      </td>
+                      <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                        {r.termLabel ?? "—"}
                       </td>
                       <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
                         {r.instructorName ?? "—"}

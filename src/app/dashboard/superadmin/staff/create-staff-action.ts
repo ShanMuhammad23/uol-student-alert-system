@@ -1,6 +1,7 @@
 "use server";
 
 import { pool } from "@/lib/db";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { isInstructorPernrInEnrollment } from "@/lib/db/staff-enrollment";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { hash } from "bcryptjs";
@@ -66,7 +67,7 @@ export async function validateStaffFields(
            ELSE EXISTS (
              SELECT 1
              FROM student_enrollment_current e
-             WHERE e.is_active = TRUE
+             WHERE ${enrolledInCurrentTermSql("e")}
                AND e.instructor_pernr IS NOT NULL
                AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
            )
@@ -76,7 +77,7 @@ export async function validateStaffFields(
            ELSE (
              SELECT NULLIF(TRIM(MAX(e.instructor_name)), '')
              FROM student_enrollment_current e
-             WHERE e.is_active = TRUE
+             WHERE ${enrolledInCurrentTermSql("e")}
                AND e.instructor_pernr IS NOT NULL
                AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
            )
@@ -86,7 +87,7 @@ export async function validateStaffFields(
            ELSE (
              SELECT NULLIF(TRIM(LOWER(MAX(e.instructor_email))), '')
              FROM student_enrollment_current e
-             WHERE e.is_active = TRUE
+             WHERE ${enrolledInCurrentTermSql("e")}
                AND e.instructor_pernr IS NOT NULL
                AND TRIM(BOTH FROM e.instructor_pernr) = TRIM(BOTH FROM $2::text)
            )

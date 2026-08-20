@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 
 /** Returns true if `pernr` appears as an instructor on at least one active enrollment row. */
 export async function isInstructorPernrInEnrollment(
@@ -13,7 +14,7 @@ export async function isInstructorPernrInEnrollment(
     SELECT EXISTS (
       SELECT 1
       FROM student_enrollment_current e
-      WHERE e.is_active = TRUE
+      WHERE ${enrolledInCurrentTermSql("e")}
         AND e.instructor_pernr IS NOT NULL
         AND TRIM(BOTH FROM e.instructor_pernr) = $1
     ) AS ok

@@ -11,6 +11,7 @@ import type { PropsWithChildren } from "react";
 import { Providers } from "./providers";
 import { getCurrentUser, getLatestAlertCountsSnapshot, getInstructorTrainingCounts } from "./(home)/dashboard/fetch";
 import { getStaffReminderModal, pool } from "@/lib/db";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import {
   getInstructorFacultyRollup,
@@ -64,7 +65,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         const total = await pool.query<{ total_students: number | string | null }>(
           `SELECT COUNT(DISTINCT sap_id)::int AS total_students
            FROM student_enrollment_current
-           WHERE is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql()}
              AND faculty_id = $1`,
           [mappedFacultyId]
         );
@@ -83,7 +84,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         const total = await pool.query<{ total_students: number | string | null }>(
           `SELECT COUNT(DISTINCT sap_id)::int AS total_students
            FROM student_enrollment_current
-           WHERE is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql()}
              AND department_id = ANY($1::varchar[])`,
           [user.department_ids]
         );
@@ -98,7 +99,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         const total = await pool.query<{ total_students: number | string | null }>(
           `SELECT COUNT(DISTINCT sap_id)::int AS total_students
            FROM student_enrollment_current
-           WHERE is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql()}
              AND TRIM(COALESCE(instructor_pernr, '')) <> ''
              AND TRIM(instructor_pernr) = TRIM($1)`,
           [user.sap_id]

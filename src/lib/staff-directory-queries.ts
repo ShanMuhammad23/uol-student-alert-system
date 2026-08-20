@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import {
   getEffectivenessScores,
   getLatestEffectivenessSnapshotDate,
@@ -235,7 +236,7 @@ export async function queryStaffList(options?: {
          fac.name AS faculty_name
        FROM student_enrollment_current e
        INNER JOIN faculties fac ON fac.id = e.faculty_id
-       WHERE e.is_active = TRUE
+       WHERE ${enrolledInCurrentTermSql("e")}
          AND e.instructor_pernr IS NOT NULL
          AND TRIM(BOTH FROM e.instructor_pernr) <> ''
          AND e.faculty_id IS NOT NULL
@@ -255,7 +256,7 @@ export async function queryStaffList(options?: {
          d.name AS department_name
        FROM student_enrollment_current e
        INNER JOIN departments d ON d.id = e.department_id
-       WHERE e.is_active = TRUE
+       WHERE ${enrolledInCurrentTermSql("e")}
          AND e.instructor_pernr IS NOT NULL
          AND TRIM(BOTH FROM e.instructor_pernr) <> ''
          AND e.department_id IS NOT NULL
@@ -390,7 +391,7 @@ export async function queryUnregisteredStaffList(options?: {
       OR EXISTS (
         SELECT 1
         FROM student_enrollment_current ef
-        WHERE ef.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("ef")}
           AND ef.instructor_pernr IS NOT NULL
           AND TRIM(BOTH FROM ef.instructor_pernr) = u.pernr_key
           AND ef.faculty_id = ${facultyParam}::varchar
@@ -401,7 +402,7 @@ export async function queryUnregisteredStaffList(options?: {
       OR EXISTS (
         SELECT 1
         FROM student_enrollment_current ed
-        WHERE ed.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("ed")}
           AND ed.instructor_pernr IS NOT NULL
           AND TRIM(BOTH FROM ed.instructor_pernr) = u.pernr_key
           AND ed.department_id = ${departmentParam}::varchar
@@ -422,7 +423,7 @@ export async function queryUnregisteredStaffList(options?: {
         fac.name AS faculty_name
       FROM student_enrollment_current e
       INNER JOIN faculties fac ON fac.id = e.faculty_id
-      WHERE e.is_active = TRUE
+      WHERE ${enrolledInCurrentTermSql("e")}
         AND e.instructor_pernr IS NOT NULL
         AND TRIM(BOTH FROM e.instructor_pernr) <> ''
         AND e.faculty_id IS NOT NULL
@@ -442,7 +443,7 @@ export async function queryUnregisteredStaffList(options?: {
         d.name AS department_name
       FROM student_enrollment_current e
       INNER JOIN departments d ON d.id = e.department_id
-      WHERE e.is_active = TRUE
+      WHERE ${enrolledInCurrentTermSql("e")}
         AND e.instructor_pernr IS NOT NULL
         AND TRIM(BOTH FROM e.instructor_pernr) <> ''
         AND e.department_id IS NOT NULL
@@ -461,7 +462,7 @@ export async function queryUnregisteredStaffList(options?: {
         NULLIF(TRIM(MAX(e.instructor_name)), '') AS name,
         COALESCE(NULLIF(TRIM(LOWER(MAX(e.instructor_email))), ''), '') AS email
       FROM student_enrollment_current e
-      WHERE e.is_active = TRUE
+      WHERE ${enrolledInCurrentTermSql("e")}
         AND e.instructor_pernr IS NOT NULL
         AND TRIM(BOTH FROM e.instructor_pernr) <> ''
       GROUP BY TRIM(BOTH FROM e.instructor_pernr)

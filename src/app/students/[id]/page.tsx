@@ -10,6 +10,14 @@ import {
 import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentMetricsClient } from "./_components/StudentMetricsClient";
 import { pool } from "@/lib/db";
+import {
+  currentOrIntervenedEnrollmentSql,
+  formatAcademicTermLabel,
+  getCurrentAcademicTerm,
+  isCurrentAcademicTerm,
+  isDateInCurrentTerm,
+} from "@/lib/academic-term";
+import { subjectLinkedInterventionExistsSql } from "@/lib/db/interventions";
 import { getWellbeingCounsellorEmailOptions } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
@@ -74,7 +82,21 @@ type StudentProfileMetricRow = {
   attendanceAlertLevel: "warning" | "critical" | null;
   gpaCurrent: number | null;
   gpaAlertLevel: "warning" | "critical" | null;
+  termYear: string | null;
+  termSession: string | null;
+  termLabel: string | null;
+  isActive: boolean;
+  isCurrentTerm: boolean;
 };
+
+const PROFILE_ENROLLMENT_VISIBILITY_SQL = currentOrIntervenedEnrollmentSql({
+  alias: "e",
+  interventionExistsSql: subjectLinkedInterventionExistsSql({
+    hasSectionCode: true,
+    interventionAlias: "ix",
+    enrollmentAlias: "e",
+  }),
+});
 
 async function getEnrollmentForStudentSapId(
   sapId: string
@@ -97,6 +119,9 @@ async function getEnrollmentForStudentSapId(
       section_code: string | null;
       instructor_name: string | null;
       instructor_pernr: string | null;
+      term_year: string | null;
+      term_session: string | null;
+      is_active: boolean | null;
     }>(
       `SELECT
          e.sap_id,
@@ -113,12 +138,16 @@ async function getEnrollmentForStudentSapId(
          c.title AS course_title,
          NULLIF(e.section_code, '') AS section_code,
          e.instructor_name,
-         e.instructor_pernr
+         e.instructor_pernr,
+         NULLIF(TRIM(e.term_year), '') AS term_year,
+         NULLIF(TRIM(e.term_session), '') AS term_session,
+         e.is_active
        FROM student_enrollment_current e
        LEFT JOIN departments d ON d.id = e.department_id
        LEFT JOIN programs p ON p.id = e.program_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
+         AND ${PROFILE_ENROLLMENT_VISIBILITY_SQL}
        ORDER BY e.is_active DESC NULLS LAST, e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
@@ -138,6 +167,9 @@ async function getEnrollmentForStudentSapId(
       Section: r.section_code ?? undefined,
       Teacher: r.instructor_name ?? undefined,
       Pernr: r.instructor_pernr ?? undefined,
+      Peryr: r.term_year ?? undefined,
+      Perid: r.term_session ?? undefined,
+      IsActive: r.is_active === true,
       Id: `${r.sap_id}-${r.course_id}-${r.section_code ?? ""}`,
     }));
   } catch {
@@ -164,6 +196,9 @@ async function getStudentProfileMetricRows(
       attendance_alert_level: "warning" | "critical" | null;
       gpa_current: number | null;
       gpa_alert_level: "warning" | "critical" | null;
+      term_year: string | null;
+      term_session: string | null;
+      is_active: boolean | null;
     }>(
       `SELECT
          e.course_id,
@@ -178,7 +213,10 @@ async function getStudentProfileMetricRows(
          a.class_average_attendance,
          a.attendance_alert_level,
          a.gpa_current,
-         a.gpa_alert_level
+         a.gpa_alert_level,
+         NULLIF(TRIM(e.term_year), '') AS term_year,
+         NULLIF(TRIM(e.term_session), '') AS term_session,
+         e.is_active
        FROM student_enrollment_current e
        LEFT JOIN student_alert_current a
          ON a.sap_id = e.sap_id
@@ -187,6 +225,7 @@ async function getStudentProfileMetricRows(
         AND a.event_package_id = e.event_package_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
+         AND ${PROFILE_ENROLLMENT_VISIBILITY_SQL}
        ORDER BY e.is_active DESC NULLS LAST, e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
@@ -208,6 +247,11 @@ async function getStudentProfileMetricRows(
       attendanceAlertLevel: r.attendance_alert_level,
       gpaCurrent: r.gpa_current == null ? null : Number(r.gpa_current),
       gpaAlertLevel: r.gpa_alert_level,
+      termYear: r.term_year,
+      termSession: r.term_session,
+      termLabel: formatAcademicTermLabel(r.term_year, r.term_session),
+      isActive: r.is_active === true,
+      isCurrentTerm: isCurrentAcademicTerm(r.term_year, r.term_session),
     }));
   } catch {
     return [];
@@ -324,6 +368,17 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     }),
   ]);
   if (!enrollmentRecords.length) notFound();
+  const currentlyEnrolled = dbMetricRows.some((row) => row.isActive && row.isCurrentTerm);
+  const currentTerm = getCurrentAcademicTerm();
+  const currentTermLabel = formatAcademicTermLabel(
+    currentTerm.termYear,
+    currentTerm.termSession
+  );
+  const hasSgpaInterventionThisTerm = interventionHistory.some(
+    (row) =>
+      (row.intervention_type === "gpa" || row.intervention_type === "both") &&
+      (isDateInCurrentTerm(row.date) || isDateInCurrentTerm(row.performed_at))
+  );
   const primaryEnrollment = enrollmentRecords[0] ?? null;
   const admissionLabel = formatAdmissionLabel(
     String(primaryEnrollment?.AdmSession ?? ""),
@@ -497,9 +552,23 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
             
             <div className="flex-1 text-white">
+              <div className="flex  gap-2">
               <h1 className="text-2xl font-bold sm:text-3xl">
                 {primaryEnrollment?.Name ?? sapIdFromUrl} ({primaryEnrollment.Section})
               </h1>
+              {!currentlyEnrolled ? (
+                <p className="p-2 ml-4 bg-amber-100 text-amber-800 rounded-md">
+                  Not enrolled in {currentTermLabel ?? "the current semester"}. Showing
+                  subject(s) with an intervention
+                  {focusedMetricRow?.termLabel || dbMetricRows[0]?.termLabel
+                    ? ` from ${focusedMetricRow?.termLabel ?? dbMetricRows[0]?.termLabel}`
+                    : ""}
+                  .
+                </p>
+              ) : null}
+              </div>
+             
+              
               <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-white">
                 <span className="flex  flex-col gap-1.5 border-r border-white/20 pr-4">
                   <span className="text-base">SAP ID:</span>
@@ -548,6 +617,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         gpaTrendSeries={gpaProfile?.semesters ?? []}
         cgpaTrendSeries={gpaProfile?.cgpaSemesters ?? []}
         noFocusedCourse={suppressCourseFocus}
+        currentlyEnrolled={currentlyEnrolled}
       />
           </div>
 
@@ -570,6 +640,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         cgpaTrendSeries={gpaProfile?.cgpaSemesters ?? []}
         selectedClassAverage={selectedClassAverage}
         noFocusedCourse={suppressCourseFocus}
+        currentlyEnrolled={currentlyEnrolled}
       />
 
       {/* Intervention History (table + Add Intervention dialog) */}
@@ -601,6 +672,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         currentUserRole={currentUserRole}
         currentUserPernr={currentUserPernr}
         directCaseMode={directCaseMode}
+        sgpaAlreadyRecordedThisTerm={hasSgpaInterventionThisTerm}
+        currentTermLabel={currentTermLabel}
       />
 
      

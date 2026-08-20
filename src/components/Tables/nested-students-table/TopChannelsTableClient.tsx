@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { formatAcademicTermLabel, isCurrentAcademicTerm } from "@/lib/academic-term";
 import { ArrowDownIcon, ArrowUpIcon } from "@/assets/icons";
 import { StudentProfileLink } from "./StudentProfileLink";
 import { TopChannelsSkeleton } from "./skeleton";
@@ -77,6 +78,8 @@ type TopTableRow = {
   assigneePernr?: string | null;
   courseStudentCount: number;
   isActive?: boolean;
+  termYear?: string | null;
+  termSession?: string | null;
 };
 
 function formatAdmissionLabel(
@@ -758,6 +761,14 @@ export function TopChannelsTableClient({
                     <TableCell className="!text-left text-sm">
                       <div className="flex flex-col gap-1">
                         <span>{row.courseId}-{row.courseTitle ?? row.courseId ?? "—"}</span>
+                        {row.isActive === false ||
+                        !isCurrentAcademicTerm(row.termYear, row.termSession) ? (
+                          <span className="text-xs text-amber-700 dark:text-amber-300">
+                            {formatAcademicTermLabel(row.termYear, row.termSession) ??
+                              "Prior semester"}{" "}
+                            (intervention)
+                          </span>
+                        ) : null}
                        <div className="flex items-center gap-1">
                        <span className="text-sm text-[#1f4a3d] dark:text-white">
                           {row.courseStudentCount ?? 0} students

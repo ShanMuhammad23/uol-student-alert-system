@@ -39,6 +39,8 @@ type Props = {
   mode?: "intervention" | "wellbeing";
   existingInterventionCount?: number;
   latestInterventionStatus?: string | null;
+  sgpaAlreadyRecordedThisTerm?: boolean;
+  currentTermLabel?: string | null;
 };
 
 export function InterventionFormWithAction({
@@ -67,6 +69,8 @@ export function InterventionFormWithAction({
   mode = "intervention",
   existingInterventionCount = 0,
   latestInterventionStatus = null,
+  sgpaAlreadyRecordedThisTerm = false,
+  currentTermLabel = null,
   onClose,
 }: Props & { onClose?: () => void }) {
   const router = useRouter();
@@ -81,6 +85,17 @@ export function InterventionFormWithAction({
     try {
       if (data.status === "resolved" && !data.remarks.trim()) {
         throw new Error("Remarks are required when status is Resolved.");
+      }
+      if (
+        mode === "intervention" &&
+        sgpaAlreadyRecordedThisTerm &&
+        (data.interventionType === "gpa" || data.interventionType === "both")
+      ) {
+        throw new Error(
+          `An SGPA intervention already exists for this student in ${
+            currentTermLabel ?? "the current semester"
+          }. SGPA is student-level, so only one SGPA intervention can be initiated per semester.`
+        );
       }
 
       if (mode === "wellbeing") {
@@ -170,6 +185,8 @@ export function InterventionFormWithAction({
         mode={mode}
         existingInterventionCount={existingInterventionCount}
         latestInterventionStatus={latestInterventionStatus}
+        sgpaAlreadyRecordedThisTerm={sgpaAlreadyRecordedThisTerm}
+        currentTermLabel={currentTermLabel}
         allowedInterventionTypes={
           mode === "intervention" && currentUserRole === "instructor"
             ? ["attendance"]

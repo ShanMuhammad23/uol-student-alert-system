@@ -18,9 +18,12 @@ import {
   getAlertedWithoutInterventionCountForRoleScopeFromDb,
   getInterventionStatsForRoleScopeFromDb,
   updateInterventionByIdFromDb,
+  DuplicateSgpaInterventionError,
+  interventionIncludesSgpa,
   type InterventionRoleScope,
   type InterventionRoleScopeStats,
 } from "@/lib/db/interventions";
+import { formatAcademicTermLabel, getCurrentAcademicTerm, isDateInCurrentTerm } from "@/lib/academic-term";
 import { insertWellbeingDirectCase } from "@/lib/db/wellbeing-direct-cases";
 
 /** Matches Intervention-Form fields for intervention history. */
@@ -223,6 +226,28 @@ async function getEnrollmentContextFromDb(
     attendanceAlertLevel: row.attendance_alert_level ?? null,
     gpaAlertLevel: row.gpa_alert_level ?? null,
   };
+}
+
+function assertUniqueSgpaInterventionInJsonStore(
+  studentSapId: string,
+  interventionType: string,
+  opts?: { excludeId?: string }
+): void {
+  if (!interventionIncludesSgpa(interventionType)) return;
+  const sap = String(studentSapId ?? "").trim();
+  const excludeId = String(opts?.excludeId ?? "").trim();
+  const term = getCurrentAcademicTerm();
+  const termLabel =
+    formatAcademicTermLabel(term.termYear, term.termSession) ?? "the current semester";
+  const duplicate = readStore().some((row) => {
+    if (excludeId && row.id === excludeId) return false;
+    if (String(row.student_sap_id ?? "").trim() !== sap) return false;
+    if (!interventionIncludesSgpa(row.intervention_type)) return false;
+    return isDateInCurrentTerm(row.date) || isDateInCurrentTerm(row.performed_at);
+  });
+  if (duplicate) {
+    throw new DuplicateSgpaInterventionError(termLabel);
+  }
 }
 
 function readStore(): InterventionRecord[] {
@@ -654,6 +679,7 @@ export async function recordIntervention(
     revalidatePath(`/students/${studentSapId}`);
     return interventionId;
   }
+  assertUniqueSgpaInterventionInJsonStore(studentSapId, data.intervention_type);
   const student = await getStudentBySapId(studentSapId);
   const alertLevel =
     data.intervention_type === "attendance"
@@ -857,6 +883,9 @@ export async function updateInterventionById(
   const idx = stored.findIndex((r) => r.id === id);
   if (idx === -1) return { studentSapId: null };
   const existing = stored[idx];
+  assertUniqueSgpaInterventionInJsonStore(existing.student_sap_id, data.intervention_type, {
+    excludeId: id,
+  });
   const updatedRow: InterventionRecord = {
     ...existing,
     date: data.date,

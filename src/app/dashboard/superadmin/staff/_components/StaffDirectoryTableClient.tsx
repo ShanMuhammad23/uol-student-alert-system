@@ -93,8 +93,7 @@ type DepartmentRow = {
 
 type SortKey =
   | "staff"
-  | "pseudo_role"
-  | "actual_role"
+  | "pseudo_actual"
   | "pernr"
   | "faculty"
   | "other_faculties"
@@ -261,10 +260,8 @@ export function StaffDirectoryTableClient({
       switch (sortKey) {
         case "staff":
           return row.name || row.email || row.pernr || "—";
-        case "pseudo_role":
-          return row.pseudo_role ?? row.role ?? "";
-        case "actual_role":
-          return row.actual_role ?? "";
+        case "pseudo_actual":
+          return `${row.pseudo_role ?? row.role ?? ""}\0${row.actual_role ?? ""}`;
         case "pernr":
           return row.pernr ?? "";
         case "faculty":
@@ -333,18 +330,11 @@ export function StaffDirectoryTableClient({
                   </button>
                 </TableHead>
                 {!isUnregistered && (
-                  <>
-                    <TableHead className="min-w-[100px]">
-                      <button type="button" onClick={() => toggleSort("pseudo_role")} className="inline-flex items-center gap-1">
-                        Pseudo Role <span className="text-xs">{sortIndicator("pseudo_role")}</span>
-                      </button>
-                    </TableHead>
-                    <TableHead className="min-w-[110px]">
-                      <button type="button" onClick={() => toggleSort("actual_role")} className="inline-flex items-center gap-1">
-                        Actual Role <span className="text-xs">{sortIndicator("actual_role")}</span>
-                      </button>
-                    </TableHead>
-                  </>
+                  <TableHead className="min-w-[160px]">
+                    <button type="button" onClick={() => toggleSort("pseudo_actual")} className="inline-flex items-center gap-1">
+                      Pseudo/actual <span className="text-xs">{sortIndicator("pseudo_actual")}</span>
+                    </button>
+                  </TableHead>
                 )}
               
                 <TableHead className="min-w-[160px]">
@@ -411,8 +401,8 @@ export function StaffDirectoryTableClient({
                     />
                   </TableCell>
                   {!isUnregistered && (
-                    <>
-                      <TableCell className="!text-left text-dark dark:text-white ">
+                    <TableCell className="!text-left text-dark dark:text-white">
+                      <div className="inline-flex flex-wrap items-center gap-1.5">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
                             row.pseudo_role ?? row.role
@@ -420,8 +410,7 @@ export function StaffDirectoryTableClient({
                         >
                           {formatRoleLabel(row.pseudo_role ?? row.role)}
                         </span>
-                      </TableCell>
-                      <TableCell className="!text-left text-dark-6">
+                        <span className="text-dark-5 dark:text-dark-6">/</span>
                         {row.actual_role ? (
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
@@ -433,10 +422,10 @@ export function StaffDirectoryTableClient({
                             {formatActualRoleDisplay(row.actual_role)}
                           </span>
                         ) : (
-                          "—"
+                          <span className="text-dark-6">—</span>
                         )}
-                      </TableCell>
-                    </>
+                      </div>
+                    </TableCell>
                   )}
                   
                   <TableCell className="!text-left text-dark-6">

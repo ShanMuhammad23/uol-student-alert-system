@@ -11,14 +11,13 @@ import {
   insertMissingAttendanceReminderEmail,
 } from "@/lib/db/missing-attendance-reminder-logs";
 import type { MissingAttendanceReminderRow } from "@/lib/missing-attendance-reminder-types";
+import {
+  getCurrentAcademicTerm,
+} from "@/lib/academic-term";
 import { sendSmtpMail } from "@/lib/smtp";
 
 export type { MissingAttendanceReminderRow } from "@/lib/missing-attendance-reminder-types";
-
-export type AcademicTerm = {
-  termYear: string;
-  termSession: string;
-};
+export { getCurrentAcademicTerm, type AcademicTerm } from "@/lib/academic-term";
 
 export type MissingAttendanceTermBreakdown = {
   termYear: string;
@@ -83,14 +82,6 @@ export type RunMissingAttendanceRemindersResult = {
 const DEFAULT_MIN_MISSING = 4;
 /** Pause between SMTP sends to reduce bounce/rate-limit risk. */
 const INTER_EMAIL_DELAY_MS = 5000;
-
-/** Same source of truth as student-sync / SAP monitoring (SAP_PYEAR + SAP_PSESS). */
-export function getCurrentAcademicTerm(): AcademicTerm {
-  return {
-    termYear: (process.env.SAP_PYEAR ?? "2026").trim(),
-    termSession: (process.env.SAP_PSESS ?? "002").trim().padStart(3, "0"),
-  };
-}
 
 function normalizeCourseCode(courseId: string): string {
   const raw = String(courseId ?? "").trim();

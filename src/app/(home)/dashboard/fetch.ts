@@ -12,6 +12,7 @@ import {
   totalAlertsFromOverviewTotals,
   type SessionScope as ListingSessionScope,
 } from "@/lib/db/student-listing";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
 import { authOptions } from "@/lib/auth-config";
 import { fetchMonitoringEntries, mapMonitoringToStudents, getMonitoringStudentsBySapId } from "@/lib/sap-monitoring";
@@ -88,7 +89,7 @@ async function readEnrollmentFile(): Promise<EnrollmentRecord[]> {
        LEFT JOIN departments d ON d.id = e.department_id
        LEFT JOIN programs p ON p.id = e.program_id
        LEFT JOIN courses c ON c.id = e.course_id
-       WHERE e.is_active = TRUE`
+       WHERE ${enrolledInCurrentTermSql("e")}`
     );
     return res.rows.map((r) => ({
       SapNo: r.sap_id,
@@ -482,7 +483,7 @@ export async function getInstructorTrainingCounts(scope: {
 
   const params: unknown[] = [];
   const where: string[] = [
-    "e.is_active = TRUE",
+    enrolledInCurrentTermSql("e"),
     "TRIM(BOTH FROM COALESCE(e.instructor_pernr, '')) <> ''",
   ];
 
@@ -683,7 +684,7 @@ async function getScopedDimensionCountsFromLive(
   const dimensionIdTextExpr = `COALESCE(${dimensionIdExpr}::text, '')`;
   const params: unknown[] = [];
   const where: string[] = [
-    "e.is_active = TRUE",
+    enrolledInCurrentTermSql("e"),
     `${dimensionIdTextExpr} <> ''`,
   ];
   if (scope.facultyIds?.length) {
@@ -809,7 +810,7 @@ async function getAttendanceMissingByDimension(
           : "e.instructor_pernr";
 
   const where: string[] = [
-    "e.is_active = TRUE",
+    enrolledInCurrentTermSql("e"),
     `${dimensionExpr} = ANY($1::text[])`,
   ];
   const params: unknown[] = [ids];
@@ -972,7 +973,7 @@ async function getInstructorClassAverageHundredByScope(
   if (!pool || !instructorIds.length) return map;
 
   const where: string[] = [
-    "e.is_active = TRUE",
+    enrolledInCurrentTermSql("e"),
     "e.instructor_pernr = ANY($1::text[])",
     "e.instructor_pernr IS NOT NULL",
     "e.instructor_pernr <> ''",
@@ -1098,7 +1099,7 @@ async function getOverviewDataFromDb(
     course: "e.course_id",
     instructor: "e.instructor_pernr",
   };
-  const where: string[] = ["e.is_active = TRUE"];
+  const where: string[] = [enrolledInCurrentTermSql("e")];
   if (scope.ids?.length) {
     params.push(scope.ids);
     where.push(`${dimColumn[scope.dimensionType]} = ANY($${params.length}::text[])`);
@@ -1164,7 +1165,7 @@ export async function getAttendanceCoverageData(
     instructor: "e.instructor_pernr",
   };
   const params: unknown[] = [];
-  const where: string[] = ["e.is_active = TRUE"];
+  const where: string[] = [enrolledInCurrentTermSql("e")];
   if (scope.ids?.length) {
     params.push(scope.ids);
     where.push(`${dimColumn[scope.dimensionType]} = ANY($${params.length}::text[])`);
@@ -1470,7 +1471,7 @@ async function getBatchFilterOptions(
   try {
     const params: unknown[] = [];
     const where: string[] = [
-      "e.is_active = TRUE",
+      enrolledInCurrentTermSql("e"),
       "NULLIF(TRIM(e.admission_year), '') IS NOT NULL",
     ];
 
@@ -1596,7 +1597,7 @@ export async function getMasterFilterOptions(
         }>(
           `SELECT DISTINCT sap_id, department_id, course_id, program_id, instructor_pernr
            FROM student_enrollment_current
-           WHERE is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql()}
              AND faculty_id = $1`,
           [enrollmentFacultyId]
         );
@@ -1702,7 +1703,7 @@ export async function getMasterFilterOptions(
         }>(
           `SELECT DISTINCT sap_id, course_id, program_id, instructor_pernr
            FROM student_enrollment_current
-           WHERE is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql()}
              AND department_id = ANY($1::text[])`,
           [user.department_ids]
         );
@@ -1805,7 +1806,7 @@ export async function getMasterFilterOptions(
         }>(
           `SELECT DISTINCT sap_id, department_id, course_id, program_id, instructor_pernr
            FROM student_enrollment_current
-           WHERE is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql()}
              AND instructor_pernr = $1`,
           [instructorPernr]
         );
@@ -2613,7 +2614,7 @@ export async function getSuperadminFacultyStats(): Promise<FacultyStats[]> {
           AND a.course_id = e.course_id
           AND a.section_code = e.section_code
           AND a.event_package_id = e.event_package_id
-         WHERE e.is_active = TRUE
+         WHERE ${enrolledInCurrentTermSql("e")}
          GROUP BY e.faculty_id
          ORDER BY faculty_name ASC`
       );
@@ -2853,7 +2854,7 @@ export async function getHodProgramStats(
          p.title AS program_title
        FROM student_enrollment_current e
        LEFT JOIN programs p ON p.id = e.program_id
-       WHERE e.is_active = TRUE
+       WHERE ${enrolledInCurrentTermSql("e")}
          AND e.department_id = ANY($1::text[])
          AND e.program_id IS NOT NULL
          AND e.program_id <> ''`,
@@ -2906,7 +2907,7 @@ export async function getHodInstructorStats(
     try {
       const params: unknown[] = [departmentIds];
       const where: string[] = [
-        "e.is_active = TRUE",
+        enrolledInCurrentTermSql("e"),
         "e.department_id = ANY($1::text[])",
         "e.instructor_pernr IS NOT NULL",
         "e.instructor_pernr <> ''",
@@ -3103,7 +3104,7 @@ export async function getHodCourseStats(
     try {
       const params: unknown[] = [departmentIds];
       const where: string[] = [
-        "e.is_active = TRUE",
+        enrolledInCurrentTermSql("e"),
         "e.department_id = ANY($1::text[])",
       ];
       if (options?.programIds?.length) {
@@ -3309,7 +3310,7 @@ export async function getInstructorCourseStats(
       if (!pernr) return [];
       const params: unknown[] = [pernr];
       const where: string[] = [
-        "e.is_active = TRUE",
+        enrolledInCurrentTermSql("e"),
         "e.instructor_pernr = $1",
       ];
       if (options?.courseIds?.length) {
@@ -3354,7 +3355,7 @@ export async function getInstructorCourseStats(
             AND a.course_id = e.course_id
             AND a.section_code = e.section_code
             AND a.event_package_id = e.event_package_id
-           WHERE e.is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql("e")}
              AND e.instructor_pernr = $1
              AND e.course_id = ANY($2::text[])
            GROUP BY e.course_id, COALESCE(NULLIF(TRIM(c.title), ''), e.course_id), e.sap_id
@@ -3446,7 +3447,7 @@ export async function getInstructorCourseStats(
             AND a.course_id = e.course_id
             AND a.section_code = e.section_code
             AND a.event_package_id = e.event_package_id
-           WHERE e.is_active = TRUE
+           WHERE ${enrolledInCurrentTermSql("e")}
              AND e.instructor_pernr = $1
              AND e.course_id = ANY($2::text[])
            GROUP BY e.course_id, COALESCE(NULLIF(TRIM(c.title), ''), e.course_id), e.sap_id

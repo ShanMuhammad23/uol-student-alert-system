@@ -1,3 +1,4 @@
+import { enrolledInCurrentTermSql, formatAcademicTermLabel, getCurrentAcademicTerm, getCurrentTermDateBounds } from "@/lib/academic-term";
 import { pool } from "./index";
 
 function normalizeSapId(value: string): string {
@@ -205,6 +206,69 @@ export async function ensureCourseExists(
 }
 
 /** Insert one intervention. Caller must ensure staff_id, department_id, course_id, faculty_id are valid. */
+export function interventionIncludesSgpa(
+  type?: string | null
+): boolean {
+  return type === "gpa" || type === "both";
+}
+
+export class DuplicateSgpaInterventionError extends Error {
+  constructor(termLabel: string) {
+    super(
+      `An SGPA intervention already exists for this student in ${termLabel}. SGPA is student-level, so only one SGPA intervention can be initiated per semester — update the existing case instead of adding another against a subject.`
+    );
+    this.name = "DuplicateSgpaInterventionError";
+  }
+}
+
+export async function assertUniqueSgpaInterventionForCurrentTerm(
+  sapId: string,
+  interventionType: string,
+  opts?: { excludeId?: string }
+): Promise<void> {
+  if (!interventionIncludesSgpa(interventionType)) return;
+  const term = getCurrentAcademicTerm();
+  const termLabel =
+    formatAcademicTermLabel(term.termYear, term.termSession) ?? "the current semester";
+  if (!pool) return;
+  const hasType = await hasInterventionTypeColumn();
+  if (!hasType) return;
+
+  const { start, end } = getCurrentTermDateBounds();
+  const excludeId = String(opts?.excludeId ?? "").trim() || null;
+  const res = await pool.query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM interventions i
+      WHERE ${normalizeSapIdCompareSql("i.student_sap_id", "$1")}
+        AND i.intervention_type IN ('gpa', 'both')
+        AND ($4::text IS NULL OR i.id <> $4)
+        AND (
+          COALESCE(i.date, (i.performed_at AT TIME ZONE 'UTC')::date)
+            BETWEEN $2::date AND $3::date
+          OR EXISTS (
+            SELECT 1
+            FROM student_enrollment_current e
+            WHERE ${normalizeSapIdCompareSql("e.sap_id", "i.student_sap_id")}
+              AND ${enrolledInCurrentTermSql("e")}
+              AND COALESCE(NULLIF(TRIM(i.course_id), ''), '') <> ''
+              AND (
+                i.course_id = e.course_id
+                OR SPLIT_PART(i.course_id, '|', 1) = SPLIT_PART(e.course_id, '|', 1)
+              )
+          )
+        )
+    ) AS exists
+    `,
+    [sapId, start, end, excludeId]
+  );
+  if (res.rows[0]?.exists === true) {
+    throw new DuplicateSgpaInterventionError(termLabel);
+  }
+}
+
+/** Insert one intervention. Caller must ensure staff_id, department_id, course_id, faculty_id are valid. */
 export async function insertIntervention(row: {
   id: string;
   student_sap_id: string;
@@ -225,6 +289,10 @@ export async function insertIntervention(row: {
   assignee_staff_id?: string | null;
 }): Promise<void> {
   if (!pool) throw new Error("Database not configured");
+  await assertUniqueSgpaInterventionForCurrentTerm(
+    row.student_sap_id,
+    row.intervention_type
+  );
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
   const hasSectionCode = await hasSectionCodeColumn();
@@ -705,6 +773,15 @@ export async function updateInterventionByIdFromDb(
   }
 ): Promise<{ student_sap_id: string } | null> {
   if (!pool) return null;
+  const existing = await pool.query<{ student_sap_id: string }>(
+    `SELECT student_sap_id FROM interventions WHERE id = $1 LIMIT 1`,
+    [id]
+  );
+  const sapId = existing.rows[0]?.student_sap_id;
+  if (!sapId) return null;
+  await assertUniqueSgpaInterventionForCurrentTerm(sapId, data.intervention_type, {
+    excludeId: id,
+  });
   const hasType = await hasInterventionTypeColumn();
   const res = await pool.query<{ student_sap_id: string }>(
     hasType
@@ -1386,7 +1463,7 @@ export function buildInterventionRecordScopeSql(
       `EXISTS (
         SELECT 1
         FROM student_enrollment_current e_scope
-        WHERE e_scope.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("e_scope")}
           AND e_scope.sap_id = ${col("student_sap_id")}
           AND e_scope.course_id = ${col("course_id")}
           AND e_scope.instructor_pernr = ANY($${args.length}::text[])
@@ -1415,6 +1492,27 @@ export function interventionCourseMatchesEnrollmentSql(opts: {
     COALESCE(NULLIF(TRIM(${i}.course_id), ''), '') = ''
     OR ${i}.course_id = ${e}.course_id
     OR ${iBase} = ${eBase}
+  )`;
+}
+
+/** True when this enrollment row is a student+course that has an intervention. */
+export function subjectLinkedInterventionExistsSql(opts: {
+  hasSectionCode: boolean;
+  interventionAlias?: string;
+  enrollmentAlias?: string;
+}): string {
+  const i = opts.interventionAlias ?? "ix";
+  const e = opts.enrollmentAlias ?? "e";
+  const matchSql = interventionMatchesAlertedEnrollmentSql({
+    hasSectionCode: opts.hasSectionCode,
+    interventionAlias: i,
+    enrollmentAlias: e,
+  });
+  return `EXISTS (
+    SELECT 1
+    FROM interventions ${i}
+    WHERE ${matchSql}
+      AND COALESCE(NULLIF(TRIM(${i}.course_id), ''), '') <> ''
   )`;
 }
 
@@ -1494,7 +1592,7 @@ function buildEnrollmentScopeSql(
   params: InterventionRoleScope,
   args: unknown[]
 ): string | null {
-  const parts = ["e.is_active = TRUE"];
+  const parts = [enrolledInCurrentTermSql("e")];
   if (params.role === "dean") {
     if (!params.facultyId) return null;
     const mappedFacultyId =

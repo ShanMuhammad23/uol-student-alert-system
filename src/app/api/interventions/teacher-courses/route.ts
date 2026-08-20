@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 
@@ -85,7 +86,7 @@ export async function GET(req: Request) {
            NULLIF(TRIM(ec.instructor_name), '') AS name,
            NULL::text AS email
          FROM student_enrollment_current ec
-         WHERE ec.is_active = TRUE
+         WHERE ${enrolledInCurrentTermSql("ec")}
            AND (
              LOWER(COALESCE(ec.instructor_name, '')) LIKE LOWER($1)
              OR LOWER(COALESCE(ec.instructor_pernr, '')) LIKE LOWER($1)
@@ -159,7 +160,7 @@ export async function GET(req: Request) {
         AND a.course_id = ec.course_id
         AND COALESCE(TRIM(a.section_code), '') = COALESCE(TRIM(ec.section_code), '')
         AND COALESCE(TRIM(a.event_package_id), '') = COALESCE(TRIM(ec.event_package_id), '')
-       WHERE ec.is_active = TRUE
+       WHERE ${enrolledInCurrentTermSql("ec")}
          AND (
            lbt.status IS NOT NULL
            OR (

@@ -1,11 +1,16 @@
 import { pool } from "@/lib/db";
 import { getInterventionRecordStatsForRoleScope, getAlertedWithoutInterventionCountForRoleScope } from "@/data/intervention-store";
 import {
+  currentOrIntervenedEnrollmentSql,
+  enrolledInCurrentTermSql,
+} from "@/lib/academic-term";
+import {
   hasAssigneeStaffIdColumn,
   hasCaseTypeColumn,
   buildInterventionRecordScopeSql,
   interventionCourseMatchesEnrollmentSql,
   interventionMatchesAlertedEnrollmentSql,
+  subjectLinkedInterventionExistsSql,
   normalizeSapIdCompareSql,
   type InterventionRoleScope,
 } from "@/lib/db/interventions";
@@ -121,6 +126,8 @@ export type StudentListingRow = {
   assigneePernr: string | null;
   courseStudentCount: number;
   isActive: boolean;
+  termYear: string | null;
+  termSession: string | null;
 };
 
 export type StudentListingResult = {
@@ -207,17 +214,19 @@ function buildNoInterventionForAlertedCourseSql(
 
 /** Inactive enrollments are kept only when an intervention is tied to this subject. */
 function buildSubjectLinkedInterventionExistsSql(hasSectionCode: boolean): string {
-  const matchSql = interventionMatchesAlertedEnrollmentSql({
+  return subjectLinkedInterventionExistsSql({
     hasSectionCode,
     interventionAlias: "ix",
     enrollmentAlias: "e",
   });
-  return `EXISTS (
-    SELECT 1
-    FROM interventions ix
-    WHERE ${matchSql}
-      AND COALESCE(NULLIF(TRIM(ix.course_id), ''), '') <> ''
-  )`;
+}
+
+function enrollmentVisibilitySql(hasSectionCode: boolean, includeIntervened: boolean): string {
+  if (!includeIntervened) return enrolledInCurrentTermSql("e");
+  return currentOrIntervenedEnrollmentSql({
+    alias: "e",
+    interventionExistsSql: buildSubjectLinkedInterventionExistsSql(hasSectionCode),
+  });
 }
 
 function buildInterventionStatusExistsSql(
@@ -407,9 +416,9 @@ function buildWhere(
   const params: unknown[] = [];
   const includeIntervenedStudents = options?.includeIntervenedStudents === true;
   const hasSectionCode = wellbeingOpts?.hasInterventionSectionCode === true;
-  const where: string[] = includeIntervenedStudents
-    ? [`(e.is_active = TRUE OR ${buildSubjectLinkedInterventionExistsSql(hasSectionCode)})`]
-    : ["e.is_active = TRUE"];
+  const where: string[] = [
+    enrollmentVisibilitySql(hasSectionCode, includeIntervenedStudents),
+  ];
 
   const normalizedIntervention =
     !skip?.has("intervention")
@@ -616,8 +625,11 @@ function buildWhere(
 
       if (statusFilterSql) {
         where[0] = includeIntervenedStudents
-          ? `(e.is_active = TRUE OR ${linkedStatusFilterSql ?? statusFilterSql})`
-          : "e.is_active = TRUE";
+          ? currentOrIntervenedEnrollmentSql({
+              alias: "e",
+              interventionExistsSql: linkedStatusFilterSql ?? statusFilterSql,
+            })
+          : enrolledInCurrentTermSql("e");
       }
 
       if (wantsNotStarted && statuses.length) {
@@ -834,7 +846,9 @@ function buildListingBaseCte(
             COALESCE(e.program_id, ''),
             COALESCE(e.event_package_id, '')
         ) AS course_student_count,
-        e.is_active
+        e.is_active,
+        e.term_year,
+        e.term_session
       FROM student_enrollment_current e
       LEFT JOIN student_alert_current a
         ON a.sap_id = e.sap_id
@@ -1369,6 +1383,8 @@ export async function getDistinctSapIdsForScope(
   const { whereSql, params } = buildWhere(scope, filters, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
     hasInterventionSectionCode: interventionContext.hasSectionCode,
+  }, {
+    includeIntervenedStudents: true,
   });
   const sql = `
     ${buildListingBaseCte(whereSql, interventionContext, wbOpts.globalIntervention)}
@@ -1392,7 +1408,7 @@ export async function getDistinctAlertSapIdsForScope(
   });
   const alertWhereSql = whereSql
     ? `${whereSql} AND ${INTERVENTION_ELIGIBLE_SQL}`
-    : `WHERE e.is_active = TRUE AND ${INTERVENTION_ELIGIBLE_SQL}`;
+    : `WHERE ${enrolledInCurrentTermSql("e")} AND ${INTERVENTION_ELIGIBLE_SQL}`;
   const sql = `
     ${buildListingBaseCte(alertWhereSql, interventionContext, wbOpts.globalIntervention)}
     SELECT DISTINCT sap_id FROM base
@@ -1507,7 +1523,9 @@ export async function getStudentListing(
       global_assignee_name,
       global_assignee_pernr,
       course_student_count,
-      is_active
+      is_active,
+      NULLIF(TRIM(term_year), '') AS term_year,
+      NULLIF(TRIM(term_session), '') AS term_session
     FROM ${uniqueStudents ? "ranked" : "base"}
     ${uniqueStudents ? "WHERE rn = 1" : ""}
     ORDER BY ${orderBy}
@@ -1545,6 +1563,8 @@ export async function getStudentListing(
     global_assignee_pernr: string | null;
     course_student_count: number;
     is_active: boolean | null;
+    term_year: string | null;
+    term_session: string | null;
   }>(listSql, listParams);
 
   return {
@@ -1588,6 +1608,8 @@ export async function getStudentListing(
       assigneePernr: row.global_assignee_pernr,
       courseStudentCount: parseNumber(row.course_student_count),
       isActive: row.is_active === true,
+      termYear: row.term_year,
+      termSession: row.term_session,
     })),
     total,
     totalUniqueStudents,

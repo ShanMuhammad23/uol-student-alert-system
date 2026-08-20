@@ -1,3 +1,4 @@
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
 
 export type InterventionReminderScope =
@@ -40,12 +41,12 @@ function pushScopeParam(scope: InterventionReminderScope, params: unknown[]): nu
 
 function enrollmentScopeSql(scope: InterventionReminderScope, paramIdx: number): string {
   if (scope.role === "dean") {
-    return `e.is_active = TRUE AND e.faculty_id = $${paramIdx}`;
+    return `${enrolledInCurrentTermSql("e")} AND e.faculty_id = $${paramIdx}`;
   }
   if (scope.role === "hod") {
-    return `e.is_active = TRUE AND e.department_id = ANY($${paramIdx}::text[])`;
+    return `${enrolledInCurrentTermSql("e")} AND e.department_id = ANY($${paramIdx}::text[])`;
   }
-  return `e.is_active = TRUE AND e.instructor_pernr = $${paramIdx}`;
+  return `${enrolledInCurrentTermSql("e")} AND e.instructor_pernr = $${paramIdx}`;
 }
 
 function alertEnrollmentScopeSql(
@@ -115,7 +116,7 @@ export async function getIntervenedStudentsOpenOutOfAlertData(
            AND a.course_id = e2.course_id
            AND a.section_code = e2.section_code
            AND a.event_package_id = e2.event_package_id
-          WHERE e2.is_active = TRUE
+          WHERE ${enrolledInCurrentTermSql("e2")}
             AND e2.sap_id = ss.sap_id
             AND ${alertEnrollmentScope}
             AND a.overall_alert_level IN ('warning', 'critical')

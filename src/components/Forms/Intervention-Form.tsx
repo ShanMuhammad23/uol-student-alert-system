@@ -87,6 +87,9 @@ type InterventionFormProps = {
   existingInterventionCount?: number;
   /** Latest recorded intervention status for this student in current scope. */
   latestInterventionStatus?: string | null;
+  /** True when this student already has an SGPA/Both intervention in the current semester. */
+  sgpaAlreadyRecordedThisTerm?: boolean;
+  currentTermLabel?: string | null;
 };
 
 function SelectField({
@@ -168,6 +171,8 @@ const InterventionForm = ({
   allowedInterventionTypes,
   existingInterventionCount = 0,
   latestInterventionStatus,
+  sgpaAlreadyRecordedThisTerm = false,
+  currentTermLabel = null,
 }: InterventionFormProps) => {
   const dateId = useId();
   const outreachId = useId();
@@ -228,17 +233,19 @@ const InterventionForm = ({
     ? 1
     : 0;
 
-  const effectiveTypeOptions = (allowedInterventionTypes?.length
-    ? TYPE_OPTIONS.filter((o) =>
-        allowedInterventionTypes.includes(o.value)
-      )
-    : TYPE_OPTIONS) as typeof TYPE_OPTIONS;
+  const effectiveTypeOptions = useMemo(() => {
+    const base = allowedInterventionTypes?.length
+      ? TYPE_OPTIONS.filter((o) => allowedInterventionTypes.includes(o.value))
+      : [...TYPE_OPTIONS];
+    if (mode === "wellbeing" || !sgpaAlreadyRecordedThisTerm) return base;
+    return base.filter((o) => o.value === "attendance");
+  }, [allowedInterventionTypes, mode, sgpaAlreadyRecordedThisTerm]);
 
   useEffect(() => {
-    if (!allowedInterventionTypes?.length) return;
-    if (allowedInterventionTypes.includes(interventionType)) return;
-    setInterventionType(allowedInterventionTypes[0] ?? "attendance");
-  }, [allowedInterventionTypes, interventionType]);
+    if (!effectiveTypeOptions.length) return;
+    if (effectiveTypeOptions.some((o) => o.value === interventionType)) return;
+    setInterventionType(effectiveTypeOptions[0]?.value ?? "attendance");
+  }, [effectiveTypeOptions, interventionType]);
 
   useEffect(() => {
     outreachModeRef.current = outreachMode;
@@ -714,6 +721,13 @@ const InterventionForm = ({
             </label>
           ))}
         </div>
+        {mode === "intervention" && sgpaAlreadyRecordedThisTerm ? (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            An SGPA intervention already exists for this student in{" "}
+            {currentTermLabel ?? "the current semester"}. SGPA is student-level, so
+            only one SGPA case can be initiated per semester.
+          </p>
+        ) : null}
         {mode === "wellbeing" && (
           <p className="text-xs text-dark-6 dark:text-white">
             In wellbeing mode, selected type maps to wellbeing category.

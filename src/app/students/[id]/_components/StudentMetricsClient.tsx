@@ -31,6 +31,9 @@ type Props = {
     attendanceAlertLevel: "warning" | "critical" | null;
     gpaCurrent: number | null;
     gpaAlertLevel: "warning" | "critical" | null;
+    termLabel?: string | null;
+    isCurrentTerm?: boolean;
+    isActive?: boolean;
   }[];
   selectedCourseCode?: string;
   selectedSection?: string;
@@ -43,6 +46,7 @@ type Props = {
   selectedClassAverage?: number | null;
   /** When true (e.g. wellbeing external direct case), do not treat a single course as selected. */
   noFocusedCourse?: boolean;
+  currentlyEnrolled?: boolean;
 };
 
 const EMPTY_ATTENDANCE = {
@@ -100,6 +104,7 @@ export function StudentMetricsClient({
   cgpaTrendSeries = [],
   selectedClassAverage = null,
   noFocusedCourse = false,
+  currentlyEnrolled = true,
 }: Props) {
   const isLoading = false;
   const studentRows = dbMetricRows;
@@ -317,6 +322,7 @@ export function StudentMetricsClient({
             null
           }
           noFocusedCourse={noFocusedCourse}
+          currentlyEnrolled={currentlyEnrolled}
         />
       </div>
 

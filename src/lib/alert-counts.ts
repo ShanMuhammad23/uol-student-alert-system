@@ -1,3 +1,4 @@
+import { enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
 
 export type AlertCountsRow = {
@@ -38,7 +39,7 @@ export async function buildAlertCountRows(
           COALESCE(NULLIF(TRIM(f.name), ''), e.faculty_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN faculties f ON f.id = e.faculty_id
-        WHERE e.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("e")}
           AND e.faculty_id IS NOT NULL
           AND e.faculty_id <> ''
           AND e.faculty_id = ANY($2::text[])
@@ -52,7 +53,7 @@ export async function buildAlertCountRows(
           COALESCE(NULLIF(TRIM(d.name), ''), e.department_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN departments d ON d.id = e.department_id
-        WHERE e.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("e")}
           AND e.department_id IS NOT NULL
           AND e.department_id <> ''
           AND e.faculty_id = ANY($2::text[])
@@ -66,7 +67,7 @@ export async function buildAlertCountRows(
           COALESCE(NULLIF(TRIM(p.title), ''), e.program_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN programs p ON p.id = e.program_id
-        WHERE e.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("e")}
           AND e.program_id IS NOT NULL
           AND e.program_id <> ''
           AND e.faculty_id = ANY($2::text[])
@@ -80,7 +81,7 @@ export async function buildAlertCountRows(
           COALESCE(NULLIF(TRIM(c.title), ''), e.course_id) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN courses c ON c.id = e.course_id
-        WHERE e.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("e")}
           AND e.course_id IS NOT NULL
           AND e.course_id <> ''
           AND e.faculty_id = ANY($2::text[])
@@ -98,7 +99,7 @@ export async function buildAlertCountRows(
           ) AS dimension_name
         FROM student_enrollment_current e
         LEFT JOIN staff s ON s.pernr = e.instructor_pernr
-        WHERE e.is_active = TRUE
+        WHERE ${enrolledInCurrentTermSql("e")}
           AND e.instructor_pernr IS NOT NULL
           AND e.instructor_pernr <> ''
           AND e.faculty_id = ANY($2::text[])
@@ -142,7 +143,7 @@ export async function buildAlertCountRows(
           ) AS attendance_has_critical
         FROM pop p
         LEFT JOIN student_enrollment_current e
-          ON e.is_active = TRUE
+          ON ${enrolledInCurrentTermSql("e")}
          AND e.sap_id = p.sap_id
          AND (
               (p.dimension_type = 'faculty' AND e.faculty_id = p.dimension_id) OR
