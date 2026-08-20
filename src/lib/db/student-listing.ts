@@ -1,6 +1,7 @@
 import { pool } from "@/lib/db";
 import { getInterventionRecordStatsForRoleScope, getAlertedWithoutInterventionCountForRoleScope } from "@/data/intervention-store";
 import {
+  cheapSubjectInterventionExistsSql,
   currentOrIntervenedEnrollmentSql,
   enrolledInCurrentTermSql,
 } from "@/lib/academic-term";
@@ -10,8 +11,6 @@ import {
   buildInterventionRecordScopeSql,
   interventionCourseMatchesEnrollmentSql,
   interventionMatchesAlertedEnrollmentSql,
-  subjectLinkedInterventionExistsSql,
-  normalizeSapIdCompareSql,
   type InterventionRoleScope,
 } from "@/lib/db/interventions";
 import { FACULTY_ID_TO_ENROLLMENT_FAC_ID } from "@/lib/enrollment/constants";
@@ -213,9 +212,8 @@ function buildNoInterventionForAlertedCourseSql(
 }
 
 /** Inactive enrollments are kept only when an intervention is tied to this subject. */
-function buildSubjectLinkedInterventionExistsSql(hasSectionCode: boolean): string {
-  return subjectLinkedInterventionExistsSql({
-    hasSectionCode,
+function buildSubjectLinkedInterventionExistsSql(_hasSectionCode: boolean): string {
+  return cheapSubjectInterventionExistsSql({
     interventionAlias: "ix",
     enrollmentAlias: "e",
   });
@@ -567,7 +565,7 @@ function buildWhere(
     where.push(`COALESCE((
       SELECT i.status
       FROM interventions i
-      WHERE ${normalizeSapIdCompareSql("i.student_sap_id", "e.sap_id")}
+      WHERE i.student_sap_id = e.sap_id
         AND ${typeSql}
       ORDER BY i.performed_at DESC NULLS LAST
       LIMIT 1
