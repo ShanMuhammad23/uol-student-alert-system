@@ -11,13 +11,13 @@ import type { EnrollmentRecord } from "@/lib/enrollment";
 import { StudentMetricsClient } from "./_components/StudentMetricsClient";
 import { pool } from "@/lib/db";
 import {
+  cheapSubjectInterventionExistsSql,
   currentOrIntervenedEnrollmentSql,
   formatAcademicTermLabel,
   getCurrentAcademicTerm,
   isCurrentAcademicTerm,
   isDateInCurrentTerm,
 } from "@/lib/academic-term";
-import { subjectLinkedInterventionExistsSql } from "@/lib/db/interventions";
 import { getWellbeingCounsellorEmailOptions } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
@@ -91,8 +91,7 @@ type StudentProfileMetricRow = {
 
 const PROFILE_ENROLLMENT_VISIBILITY_SQL = currentOrIntervenedEnrollmentSql({
   alias: "e",
-  interventionExistsSql: subjectLinkedInterventionExistsSql({
-    hasSectionCode: true,
+  interventionExistsSql: cheapSubjectInterventionExistsSql({
     interventionAlias: "ix",
     enrollmentAlias: "e",
   }),

@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import {
+  cheapSubjectInterventionExistsSql,
   currentOrIntervenedEnrollmentSql,
 } from "@/lib/academic-term";
 import { pool } from "@/lib/db";
-import { subjectLinkedInterventionExistsSql } from "@/lib/db/interventions";
 
 function classTypeFromEventPackage(value: string | null): string {
   const raw = String(value ?? "").trim();
@@ -127,8 +127,7 @@ export async function GET(req: Request) {
        WHERE ec.sap_id = $1
          AND ${currentOrIntervenedEnrollmentSql({
            alias: "ec",
-           interventionExistsSql: subjectLinkedInterventionExistsSql({
-             hasSectionCode: true,
+           interventionExistsSql: cheapSubjectInterventionExistsSql({
              interventionAlias: "ix",
              enrollmentAlias: "ec",
            }),

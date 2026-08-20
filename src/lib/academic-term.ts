@@ -90,20 +90,47 @@ function qualify(alias: string | undefined, column: string): string {
   return `${prefix}${column}`;
 }
 
-/** Active enrollment in the configured current semester. */
+/** Active enrollment in the configured current semester (index-friendly predicates). */
 export function enrolledInCurrentTermSql(alias = ""): string {
   const { termYear, termSession } = getCurrentAcademicTerm();
   const active = qualify(alias, "is_active");
   const yearCol = qualify(alias, "term_year");
   const sessionCol = qualify(alias, "term_session");
+  // Accept both padded (`002`) and unpadded (`2`) values stored in DB.
+  const unpadded = String(Number(termSession));
+  const sessionList =
+    unpadded === termSession || !Number.isFinite(Number(termSession))
+      ? `'${termSession}'`
+      : `'${termSession}', '${unpadded}'`;
   return `${active} = TRUE
-    AND TRIM(${yearCol}) = '${termYear}'
-    AND LPAD(TRIM(COALESCE(${sessionCol}, '')), 3, '0') = '${termSession}'`;
+    AND ${yearCol} = '${termYear}'
+    AND ${sessionCol} IN (${sessionList})`;
+}
+
+/**
+ * Cheap subject-linked intervention check for listing WHERE clauses.
+ * Avoid REGEXP_REPLACE / normalizeSapId on every enrollment row (that caused 504s).
+ */
+export function cheapSubjectInterventionExistsSql(opts?: {
+  interventionAlias?: string;
+  enrollmentAlias?: string;
+}): string {
+  const i = opts?.interventionAlias ?? "ix";
+  const e = opts?.enrollmentAlias ?? "e";
+  return `EXISTS (
+    SELECT 1
+    FROM interventions ${i}
+    WHERE ${i}.student_sap_id = ${e}.sap_id
+      AND COALESCE(NULLIF(TRIM(${i}.course_id), ''), '') <> ''
+      AND (
+        ${i}.course_id = ${e}.course_id
+        OR SPLIT_PART(${i}.course_id, '|', 1) = SPLIT_PART(${e}.course_id, '|', 1)
+      )
+  )`;
 }
 
 /**
  * Current-term active rows, or a subject that has a linked intervention.
- * Keep this cheap: correlated snapshot MAX() subqueries here hang listings at scale.
  */
 export function currentOrIntervenedEnrollmentSql(opts: {
   alias?: string;

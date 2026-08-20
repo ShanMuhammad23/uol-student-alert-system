@@ -241,24 +241,11 @@ export async function assertUniqueSgpaInterventionForCurrentTerm(
     SELECT EXISTS (
       SELECT 1
       FROM interventions i
-      WHERE ${normalizeSapIdCompareSql("i.student_sap_id", "$1")}
+      WHERE i.student_sap_id = $1
         AND i.intervention_type IN ('gpa', 'both')
         AND ($4::text IS NULL OR i.id <> $4)
-        AND (
-          COALESCE(i.date, (i.performed_at AT TIME ZONE 'UTC')::date)
-            BETWEEN $2::date AND $3::date
-          OR EXISTS (
-            SELECT 1
-            FROM student_enrollment_current e
-            WHERE ${normalizeSapIdCompareSql("e.sap_id", "i.student_sap_id")}
-              AND ${enrolledInCurrentTermSql("e")}
-              AND COALESCE(NULLIF(TRIM(i.course_id), ''), '') <> ''
-              AND (
-                i.course_id = e.course_id
-                OR SPLIT_PART(i.course_id, '|', 1) = SPLIT_PART(e.course_id, '|', 1)
-              )
-          )
-        )
+        AND COALESCE(i.date, (i.performed_at AT TIME ZONE 'UTC')::date)
+          BETWEEN $2::date AND $3::date
     ) AS exists
     `,
     [sapId, start, end, excludeId]
