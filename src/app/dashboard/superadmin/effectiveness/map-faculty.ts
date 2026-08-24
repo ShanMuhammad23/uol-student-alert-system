@@ -1,4 +1,5 @@
 import {
+  computeEiRating,
   normalizeDateString,
   type EffectivenessScoreRow,
   type EffectivenessTrendPoint,
@@ -31,7 +32,7 @@ export function mapRowToFacultyView(
     code: toFacultyCode(row.dimension_name),
     dimensionType: row.dimension_type,
     ei: Math.round(row.ei_score),
-    grade: row.ei_rating,
+    grade: computeEiRating(row.ei_score),
     criteria,
     loginRate: row.login_rate_pct ?? 0,
     attendancePost: row.attendance_posting_pct ?? 0,

@@ -160,9 +160,11 @@ function buildCriterion(
 }
 
 export function computeEiRating(eiScore: number): EiRating {
-  if (eiScore >= 90) return "A";
-  if (eiScore >= 75) return "B";
-  if (eiScore >= 50) return "C";
+  // Grade the integer shown in the UI (Math.round), so 89.5–89.9 displays as 90 · A.
+  const score = Math.round(eiScore);
+  if (score >= 90) return "A";
+  if (score >= 75) return "B";
+  if (score >= 50) return "C";
   return "D";
 }
 
