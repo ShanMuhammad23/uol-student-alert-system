@@ -163,7 +163,9 @@ function buildEmailHtml(
 
         <!-- Footer copy -->
         <tr>
+         
           <td style="padding:18px 24px 10px 24px;">
+            <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">This is an automated email. Please do not reply to this email.</p>
             <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;font-weight:700;">
               Support Contact
             </p>

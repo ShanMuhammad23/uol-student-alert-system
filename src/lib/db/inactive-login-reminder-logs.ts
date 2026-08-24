@@ -6,6 +6,8 @@ export type InactiveLoginReminderEmailStatus =
   | "dry_run"
   | "skipped_no_email"
   | "skipped_duplicate"
+  | "skipped_not_teaching"
+  | "skipped_no_pending_actions"
   | "failed";
 
 export type InsertInactiveLoginReminderEmailInput = {

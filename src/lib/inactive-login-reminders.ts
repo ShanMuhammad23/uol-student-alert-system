@@ -17,6 +17,7 @@ import {
   getInterventionStatsForRoleScopeFromDb,
 } from "@/lib/db/interventions";
 import { getWellbeingHeadDashboardData } from "@/lib/db/wellbeing-head-dashboard";
+import { getCurrentAcademicTerm } from "@/lib/academic-term";
 import type { InactiveLoginReminderRow } from "@/lib/inactive-login-reminder-types";
 import { sendSmtpMail } from "@/lib/smtp";
 
@@ -36,6 +37,8 @@ export type RunInactiveLoginRemindersResult = {
   sent: number;
   skippedNoEmail: number;
   skippedDuplicate: number;
+  skippedNotTeaching: number;
+  skippedNoPendingActions: number;
   failed: number;
   dryRun: boolean;
   sentDetails: Array<{
@@ -200,6 +203,47 @@ function shouldSkipInactiveLoginReminder(row: InactiveLoginReminderRow): boolean
   return normalizeRole(row.actualRole) === "dean" || isSuperadmin(row);
 }
 
+function isInstructorActingRole(row: InactiveLoginReminderRow): boolean {
+  const acting = normalizeRole(resolveActingRole(row));
+  return acting === "instructor" || acting === "teacher";
+}
+
+/**
+ * Instructors listed on at least one active current-semester enrollment row.
+ * Pernrs are matched as stored (trimmed); empty pernrs never qualify.
+ */
+async function getInstructorPernrsTeachingCurrentTerm(
+  pernrs: string[]
+): Promise<Set<string>> {
+  if (!pool) return new Set();
+  const unique = [
+    ...new Set(
+      pernrs
+        .map((value) => String(value ?? "").trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ];
+  if (!unique.length) return new Set();
+
+  const term = getCurrentAcademicTerm();
+  const res = await pool.query<{ instructor_pernr: string }>(
+    `SELECT DISTINCT LOWER(TRIM(ec.instructor_pernr)) AS instructor_pernr
+     FROM student_enrollment_current ec
+     WHERE ec.is_active = TRUE
+       AND TRIM(ec.term_year) = $1
+       AND LPAD(TRIM(COALESCE(ec.term_session, '')), 3, '0') = $2
+       AND LOWER(TRIM(ec.instructor_pernr)) = ANY($3::text[])
+       AND TRIM(ec.instructor_pernr) <> ''`,
+    [term.termYear, term.termSession, unique]
+  );
+
+  return new Set(
+    res.rows
+      .map((row) => String(row.instructor_pernr ?? "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
 /**
  * Fetch role-scoped pending action counts for a single staff member.
  * Returns only items with count > 0 so the email stays concise.
@@ -207,7 +251,7 @@ function shouldSkipInactiveLoginReminder(row: InactiveLoginReminderRow): boolean
 export async function fetchPendingActionsForStaff(
   row: InactiveLoginReminderRow
 ): Promise<PendingAction[]> {
-  const actingRole = resolveActingRole(row);
+  const actingRole = normalizeRole(resolveActingRole(row));
   const actions: PendingAction[] = [];
 
   try {
@@ -344,11 +388,20 @@ export async function runInactiveLoginReminders(
     console.error("[inactive-login-reminders] Failed to create run log:", err);
   }
 
+  const instructorPernrs = allCandidates
+    .filter(isInstructorActingRole)
+    .map((row) => row.staffPernr);
+  const teachingPernrs = await getInstructorPernrsTeachingCurrentTerm(
+    instructorPernrs
+  );
+
   const sentDetails: RunInactiveLoginRemindersResult["sentDetails"] = [];
   const sentStaffKeys = new Set<string>();
   let sent = 0;
   let skippedNoEmail = 0;
   let skippedDuplicate = 0;
+  let skippedNotTeaching = 0;
+  let skippedNoPendingActions = 0;
   let failed = 0;
   let runFailed = false;
   let runErrorMessage: string | null = null;
@@ -362,6 +415,8 @@ export async function runInactiveLoginReminders(
       | "dry_run"
       | "skipped_no_email"
       | "skipped_duplicate"
+      | "skipped_not_teaching"
+      | "skipped_no_pending_actions"
       | "failed",
     row: InactiveLoginReminderRow,
     extra: {
@@ -421,6 +476,19 @@ export async function runInactiveLoginReminders(
         continue;
       }
 
+      if (isInstructorActingRole(row)) {
+        const pernr = row.staffPernr.trim().toLowerCase();
+        if (!pernr || !teachingPernrs.has(pernr)) {
+          skippedNotTeaching += 1;
+          await logRow("skipped_not_teaching", row, {
+            recipientEmail: to,
+            errorMessage:
+              "Instructor is not assigned to a course in the current semester",
+          });
+          continue;
+        }
+      }
+
       const rawPortalUrl =
         process.env.INACTIVE_LOGIN_PORTAL_URL?.trim() ||
         process.env.APP_BASE_URL?.trim() ||
@@ -436,7 +504,16 @@ export async function runInactiveLoginReminders(
         : undefined;
 
       const pendingActions = await fetchPendingActionsForStaff(row);
-      const subject = buildInactiveLoginReminderEmailSubject(pendingActions.length > 0);
+      if (pendingActions.length === 0) {
+        skippedNoPendingActions += 1;
+        await logRow("skipped_no_pending_actions", row, {
+          recipientEmail: to,
+          errorMessage: "No pending alerts or interventions in role scope",
+        });
+        continue;
+      }
+
+      const subject = buildInactiveLoginReminderEmailSubject(true);
       const html = buildInactiveLoginReminderEmailHtml({
         userName: row.staffName,
         lastLoginAt: row.lastLoginDisplay,
@@ -538,6 +615,8 @@ export async function runInactiveLoginReminders(
     sent,
     skippedNoEmail,
     skippedDuplicate,
+    skippedNotTeaching,
+    skippedNoPendingActions,
     failed,
     dryRun,
     sentDetails,

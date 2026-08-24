@@ -85,9 +85,8 @@ export const MISSING_ATTENDANCE_EMAIL_TEMPLATE = `
             <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
               You are kindly requested to update the missing attendance entries no later than tomorrow.
             </p>
-            <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
-              Should you have already submitted the attendance, or if exceptional circumstances are preventing timely submission, please respond to this email with the relevant details.
-            </p>
+  
+            <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#374151;">This is an automated email. Please do not reply to this email.</p>
             <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
               For any technical difficulties accessing the portal, please contact <br/>
               <strong>
@@ -95,7 +94,7 @@ export const MISSING_ATTENDANCE_EMAIL_TEMPLATE = `
               Web Developer <br/>
               SPMO - The University of Lahore <br/>
               shan.muhammad@spmo.uol.edu.pk <br/> 
-             Cell:  03219720819 <br/>
+              Cell:  03219720819 <br/>
              </strong>
             </p>
             <p style="margin:0 0 20px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#374151;">
