@@ -423,6 +423,7 @@ const VALID_ROLES = ["dean", "hod", "teacher"] as const;
 
 type DbOverviewRow = {
   total_students: number | string | null;
+  students_with_alert: number | string | null;
   yellow_gpa: number | string | null;
   red_gpa: number | string | null;
   yellow_attendance: number | string | null;
@@ -1108,6 +1109,11 @@ async function getOverviewDataFromDb(
   const res = await pool.query<DbOverviewRow>(
     `SELECT
        COUNT(DISTINCT e.sap_id)::int AS total_students,
+       COUNT(DISTINCT CASE
+         WHEN COALESCE(a.gpa_alert_level, '') IN ('warning', 'critical')
+           OR COALESCE(a.attendance_alert_level, '') IN ('warning', 'critical')
+         THEN e.sap_id
+       END)::int AS students_with_alert,
        COUNT(DISTINCT CASE WHEN COALESCE(a.gpa_alert_level, '') = 'warning' THEN e.sap_id END)::int AS yellow_gpa,
        COUNT(DISTINCT CASE WHEN COALESCE(a.gpa_alert_level, '') = 'critical' THEN e.sap_id END)::int AS red_gpa,
        COUNT(DISTINCT CASE WHEN COALESCE(a.attendance_alert_level, '') = 'warning' THEN e.sap_id END)::int AS yellow_attendance,
@@ -1135,7 +1141,7 @@ async function getOverviewDataFromDb(
   );
   return {
     totalStudents: toInt(row.total_students),
-    earlyAlertCount: gpa.yellow + gpa.red + attendance.yellow + attendance.red,
+    earlyAlertCount: toInt(row.students_with_alert),
     yellowGpa: { value: gpa.yellow },
     redGpa: { value: gpa.red },
     yellowAttendance: { value: attendance.yellow },

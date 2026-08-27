@@ -9,6 +9,10 @@ import {
 import { buildEffectivenessRows, getEffectivenessScores } from "@/lib/effectiveness";
 import { computeEiRating, type EiRating } from "@/lib/effectiveness-scoring";
 import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
+import {
+  formatAcademicTermLabel,
+  getCurrentAcademicTerm,
+} from "@/lib/academic-term";
 import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
 import {
@@ -27,6 +31,8 @@ function MetricCard({
   tone,
   subtitle,
   percentBadge,
+  percentBadgeTone,
+  details,
 }: {
   label: string;
   value: number;
@@ -34,6 +40,8 @@ function MetricCard({
   subtitle?: string;
   /** Share of total students, shown as a pill (e.g. "12.4%"). */
   percentBadge?: string | null;
+  percentBadgeTone?: "neutral" | "yellow" | "red" | "emerald";
+  details?: { label: string; value: React.ReactNode }[];
 }) {
   const toneStyles = {
     neutral: "bg-slate-50 border-slate-200 text-slate-900 dark:bg-slate-800/50 dark:border-slate-700 dark:text-white",
@@ -88,7 +96,7 @@ function MetricCard({
             <span
               className={cn(
                 "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tabular-nums",
-                badgeStyles[tone]
+                badgeStyles[percentBadgeTone ?? tone]
               )}
             >
               {percentBadge}
@@ -100,6 +108,23 @@ function MetricCard({
         </p>
         {subtitle ? (
           <p className="mt-1.5 text-xs font-medium text-slate-600/90 dark:text-slate-300/90">{subtitle}</p>
+        ) : null}
+        {details?.length ? (
+          <dl className="mt-3 space-y-1.5 border-t border-slate-200/80 pt-3 dark:border-slate-600/70">
+            {details.map((item) => (
+              <div
+                key={item.label}
+                className="flex items-baseline justify-between gap-3"
+              >
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {item.label}
+                </dt>
+                <dd className="text-xs font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                  {item.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
         ) : null}
       </div>
     </div>
@@ -398,8 +423,27 @@ export default async function SuperadminDashboardPage({
   );
 
   const totalStudents = overview.totalStudents ?? 0;
+  const studentsWithAlert = overview.earlyAlertCount ?? 0;
+  const overallAlertPct =
+    totalStudents > 0 ? (studentsWithAlert / totalStudents) * 100 : 0;
   const shareOfTotal = (count: number) =>
     totalStudents > 0 ? `${((count / totalStudents) * 100).toFixed(1)}%` : "0.0%";
+
+  const currentTerm = getCurrentAcademicTerm();
+  const currentSemesterLabel =
+    formatAcademicTermLabel(currentTerm.termYear, currentTerm.termSession) ??
+    "Current semester";
+  const universityEi =
+    feiRows.length > 0
+      ? Math.round(
+          feiRows.reduce((sum, row) => sum + row.ei_score, 0) / feiRows.length
+        )
+      : null;
+  const universityEiRating =
+    universityEi != null ? computeEiRating(universityEi) : null;
+  const universityEiGradeConfig = universityEiRating
+    ? FEI_GRADE_CONFIG[universityEiRating]
+    : null;
 
   return (
     <div className="mx-auto  space-y-8 pb-8">
@@ -410,8 +454,42 @@ export default async function SuperadminDashboardPage({
             label="Total Students"
             value={totalStudents}
             tone="neutral"
-            subtitle="Tracked cohort"
-            percentBadge={totalStudents > 0 ? "100%" : null}
+            percentBadge={
+              totalStudents > 0
+                ? `${overallAlertPct.toFixed(1)}% alerts`
+                : null
+            }
+            percentBadgeTone={
+              overallAlertPct > 10
+                ? "red"
+                : overallAlertPct > 5
+                  ? "yellow"
+                  : "emerald"
+            }
+            details={[
+              {
+                label: "University EI",
+                value:
+                  universityEi != null && universityEiRating ? (
+                    <span
+                      className="tabular-nums"
+                      style={
+                        universityEiGradeConfig
+                          ? { color: universityEiGradeConfig.color }
+                          : undefined
+                      }
+                    >
+                      {universityEi} · {universityEiRating}
+                    </span>
+                  ) : (
+                    "—"
+                  ),
+              },
+              {
+                label: "Semester",
+                value: currentSemesterLabel,
+              },
+            ]}
           />
           <AlertGroupCard
             title="Attendance Alerts"

@@ -66,7 +66,7 @@ export default function SigninWithPassword() {
         open={unregisteredEmail != null}
         onClose={() => setUnregisteredEmail(null)}
       />
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
       {error ? (
         <p className="rounded-lg bg-red/10 px-3 py-2 text-sm text-red">
           {error}
@@ -89,7 +89,7 @@ export default function SigninWithPassword() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={cn(
-              "w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400",
+              "w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-4 text-base text-slate-900 placeholder:text-slate-400 md:text-sm",
               "outline-none transition-all duration-200",
               "focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20",
               "hover:border-slate-300"
@@ -125,7 +125,7 @@ export default function SigninWithPassword() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={cn(
-              "w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-11 text-sm text-slate-900 placeholder:text-slate-400",
+              "w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-11 text-base text-slate-900 placeholder:text-slate-400 md:text-sm",
               "outline-none transition-all duration-200",
               "focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20",
               "hover:border-slate-300"
@@ -136,7 +136,7 @@ export default function SigninWithPassword() {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+            className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-slate-400 transition-colors hover:text-slate-600"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>

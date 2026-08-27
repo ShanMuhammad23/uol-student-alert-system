@@ -147,7 +147,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
       <body>
         <Providers>
           <NextTopLoader color="#5750F1" showSpinner={false} />
-          <div className="flex min-h-screen">
+          <div className="flex min-h-[100dvh]">
 
 
             <AppShell

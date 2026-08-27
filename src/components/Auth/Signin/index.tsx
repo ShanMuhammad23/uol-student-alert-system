@@ -13,10 +13,10 @@ function AcademicDivider() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.9 }}
-      className="my-6 flex items-center gap-4"
+      className="my-4 flex items-center gap-4"
     >
       <div className="h-px flex-1 bg-slate-200" />
-      <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-slate-400 sm:text-xs">
         Or sign in with email
       </span>
       <div className="h-px flex-1 bg-slate-200" />
@@ -46,14 +46,14 @@ export default function Signin() {
     <section className="relative">
       {isContactModalOpen ? (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-dark/50 px-4"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-dark/50 px-4 py-6"
           role="dialog"
           aria-modal="true"
           aria-labelledby="contact-help-title"
           onClick={() => setIsContactModalOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-dark"
+            className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-dark"
             onClick={(e) => e.stopPropagation()}
           >
             <p
@@ -116,12 +116,12 @@ export default function Signin() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.3 }}
-        className="mt-6 text-center"
+        className="mt-4 text-center"
       >
         <button
           type="button"
           onClick={() => setIsContactModalOpen(true)}
-          className="text-xs text-slate-400 transition-colors hover:text-slate-600 hover:underline"
+          className="min-h-11 text-xs text-slate-400 transition-colors hover:text-slate-600 hover:underline"
         >
           Need help accessing your account? Contact Here
         </button>

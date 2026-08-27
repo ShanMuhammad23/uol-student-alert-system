@@ -556,10 +556,10 @@ export function TopChannelsTableClient({
             <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
               <TableRow className="border-none uppercase [&>th]:text-center [&>th]:bg-white [&>th]:dark:bg-gray-dark">
                 <TableHead
-                  className="min-w-[160px] !text-left cursor-pointer select-none"
+                  className="min-w-[160px] !text-left cursor-pointer select-none "
                   onClick={() => handleSort("name")}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 ">
                     <span>Name - SAPID</span>
                     {renderSortIcon("name")}
                   </div>
@@ -735,14 +735,14 @@ export function TopChannelsTableClient({
                           className="flex flex-col gap-1"
                           title="View profile"
                         >
-                          <span className="text-base font-medium text-green-500">
+                          <span className="text-xs sm:text-base font-medium text-green-500">
                             {row.studentName ?? "—"}
                           </span>
-                          <span className="text-sm text-[#1f4a3d] dark:text-white">
+                          <span className="text-xs sm:text-sm text-[#1f4a3d] dark:text-white">
                             SAPID: {row.sapId}
                           </span>
                           {admissionLabel ? (
-                            <span className="text-xs text-[#1f4a3d] dark:text-white">
+                            <span className="text-xs sm:text-sm text-[#1f4a3d] dark:text-white">
                               Adm: {admissionLabel}
                             </span>
                           ) : null}

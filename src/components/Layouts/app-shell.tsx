@@ -19,15 +19,17 @@ export function AppShell({ children, header }: AppShellProps) {
   return (
     <div
       className={
-        showHeader ? "w-full bg-gray-2 dark:bg-[#020d1a]" : "min-h-screen w-full"
+        showHeader
+          ? "w-full bg-gray-2 dark:bg-[#020d1a]"
+          : "min-h-[100dvh] w-full"
       }
     >
       {showHeader ? <Header {...header} /> : null}
       <main
         className={
           showHeader
-            ? "mx-auto w-full overflow-hidden px-8"
-            : "mx-auto min-h-screen w-full p-0"
+            ? "mx-auto w-full overflow-hidden sm:px-8 px-1"
+            : "mx-auto min-h-[100dvh] w-full p-0"
         }
       >
         {children}
