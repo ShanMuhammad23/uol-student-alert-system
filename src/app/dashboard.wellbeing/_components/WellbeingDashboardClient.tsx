@@ -7,11 +7,12 @@ import type {
   MasterFilterOptions,
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
+import { WellbeingChartsCollapsible } from "@/app/dashboard/wellbeing/_components/WellbeingChartsCollapsible";
+import { WellbeingDashboardHeader } from "@/app/dashboard/wellbeing/_components/WellbeingDashboardHeader";
 import { TopChannelsTableClient } from "@/components/Tables/nested-students-table/TopChannelsTableClient";
 import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options";
 import type { FilterDropdownCounts } from "@/lib/db/student-listing";
 import { WellbeingMasterFilter } from "./WellbeingMasterFilter";
-import { DirectWellbeingCaseForm } from "./DirectWellbeingCaseForm";
 
 type Props = {
   initialMasterFilter: MasterFilterParams;
@@ -53,7 +54,6 @@ export function WellbeingDashboardClient({
     useState<MasterFilterParams>(initialMasterFilter);
   const [resolutionFilters, setResolutionFilters] = useState<string[]>([]);
   const [counts, setCounts] = useState<FilterDropdownCounts | null>(null);
-  const [activeTab, setActiveTab] = useState<"caseload" | "direct">("caseload");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,51 +98,18 @@ export function WellbeingDashboardClient({
     return { openCases: open, closedCases: closed };
   }, [counts]);
 
+  const returnToUrl = asWellbeingScope
+    ? "/dashboard/wellbeing/counseller?as=wellbeing"
+    : "/dashboard/wellbeing/counseller";
+
   return (
     <div className="mt-4 space-y-4">
-      <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark dark:shadow-card">
-        <h1 className="text-2xl font-bold text-dark dark:text-white">
-           Caseload
-        </h1>
-        <p className="mt-1 text-sm text-dark-5 dark:text-dark-6">
-          Referred cases and dDirect cases.
-        </p>
-        <div className="mt-4 inline-flex rounded-lg border border-stroke p-1 dark:border-dark-3">
-          <button
-            type="button"
-            onClick={() => setActiveTab("caseload")}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-              activeTab === "caseload"
-                ? "bg-primary text-white"
-                : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white"
-            }`}
-          >
-            Referred
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("direct")}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-              activeTab === "direct"
-                ? "bg-primary text-white"
-                : "text-dark-6 hover:text-dark dark:text-white dark:hover:text-white"
-            }`}
-          >
-            Direct
-          </button>
-        </div>
-      </div>
+      <WellbeingDashboardHeader
+        title="Caseload"
+        description="Review referred cases and log a direct case."
+        returnToUrl={returnToUrl}
+      />
 
-      {activeTab === "direct" ? (
-        <DirectWellbeingCaseForm
-          returnToUrl={
-            asWellbeingScope
-              ? "/dashboard/wellbeing/counseller?as=wellbeing"
-              : "/dashboard/wellbeing/counseller"
-          }
-        />
-      ) : (
-        <>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card
           label="Referred Cases"
@@ -157,9 +124,13 @@ export function WellbeingDashboardClient({
         <Card label="Open Cases" value={openCases} tone="green" />
       </div>
 
-      <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
+      <WellbeingChartsCollapsible
+        title="Wellbeing Intervention & Resolution"
+        description="Open vs closed cases by resolution category"
+        className="bg-white shadow-1 dark:bg-gray-dark dark:shadow-card"
+      >
         <WellbeingChartClient title="Wellbeing Intervention & Resolution" />
-      </div>
+      </WellbeingChartsCollapsible>
       <WellbeingMasterFilter
         options={filterOptions}
         current={masterFilter}
@@ -171,17 +142,11 @@ export function WellbeingDashboardClient({
         onChangeResolutionFilters={setResolutionFilters}
       />
       <TopChannelsTableClient
-        returnToUrl={
-          asWellbeingScope
-            ? "/dashboard/wellbeing/counseller?as=wellbeing"
-            : "/dashboard/wellbeing/counseller"
-        }
+        returnToUrl={returnToUrl}
         uniqueStudents
         masterFilter={masterFilter}
         resolutionFilters={resolutionFilters}
       />
-        </>
-      )}
     </div>
   );
 }

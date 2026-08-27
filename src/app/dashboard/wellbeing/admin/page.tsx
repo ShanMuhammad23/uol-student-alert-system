@@ -5,6 +5,7 @@ import {
   getWellbeingAssignableStaff,
   getWellbeingHeadCaseListings,
 } from "@/lib/db/wellbeing-head-cases";
+import { WellbeingDashboardHeader } from "@/app/dashboard/wellbeing/_components/WellbeingDashboardHeader";
 import { WellbeingHeadSection } from "./_components/WellbeingHeadSection";
 import { WellbeingCaseTabs } from "./_components/WellbeingCaseTabs";
 
@@ -29,7 +30,11 @@ export default async function WellbeingAdminPage() {
 
   return (
     <div className="mt-4 space-y-4">
-    
+      <WellbeingDashboardHeader
+        title="Wellbeing Dashboard"
+        description="Assign cases and review overall, referred, and direct case status."
+        returnToUrl="/dashboard/wellbeing/admin"
+      />
 
       <WellbeingHeadSection
         title="Overall Status"
@@ -37,23 +42,20 @@ export default async function WellbeingAdminPage() {
         statMode="overall"
       />
 
-      <section className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
-       
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <WellbeingHeadSection
-            title="Referred Cases"
-            metrics={dashboardData.referredCases}
-            compact
-            statMode="referred"
-          />
-          <WellbeingHeadSection
-            title="Direct Cases"
-            metrics={dashboardData.directCases}
-            compact
-            statMode="direct"
-          />
-        </div>
-      </section>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <WellbeingHeadSection
+          title="Referred Cases"
+          metrics={dashboardData.referredCases}
+          compact
+          statMode="referred"
+        />
+        <WellbeingHeadSection
+          title="Direct Cases"
+          metrics={dashboardData.directCases}
+          compact
+          statMode="direct"
+        />
+      </div>
 
       <WellbeingCaseTabs
         referredCases={caseListings.referredCases}

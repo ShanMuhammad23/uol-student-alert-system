@@ -1,4 +1,5 @@
 import type { WellbeingHeadDashboardData } from "@/lib/db/wellbeing-head-dashboard";
+import { WellbeingChartsCollapsible } from "@/app/dashboard/wellbeing/_components/WellbeingChartsCollapsible";
 import { WellbeingHeadStackedChart } from "./WellbeingHeadStackedChart";
 import { WellbeingHeadStatCard } from "./WellbeingHeadStatCard";
 
@@ -38,7 +39,7 @@ export function WellbeingHeadSection({
 
   return (
     <section className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
-      <h2 className="text-xl font-semibold text-dark dark:text-white">{title}</h2>
+      <h2 className="mb-3 text-xl font-semibold text-dark dark:text-white">{title}</h2>
       <div className="flex gap-4">
         {statCards.map((card) => (
           <WellbeingHeadStatCard
@@ -49,19 +50,21 @@ export function WellbeingHeadSection({
           />
         ))}
       </div>
-      <div className='mt-4'>
-       
-
+      <WellbeingChartsCollapsible
+        title="Charts"
+        description="Category-wise and counsellor-wise open vs closed cases"
+        className="mt-4"
+      >
         <div
           className={
             compact
               ? "space-y-4"
-              : "space-y-4 lg:col-span-8 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0"
+              : "space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0"
           }
         >
           <div className="rounded-[10px] border border-stroke p-3 dark:border-dark-3">
             <WellbeingHeadStackedChart
-              title="All(Category-wise)"
+              title="All (Category-wise)"
               xAxis={metrics.categoryChart.categories}
               open={metrics.categoryChart.open}
               closed={metrics.categoryChart.closed}
@@ -69,14 +72,14 @@ export function WellbeingHeadSection({
           </div>
           <div className="rounded-[10px] border border-stroke p-3 dark:border-dark-3">
             <WellbeingHeadStackedChart
-              title="Counseller-wise"
+              title="Counsellor-wise"
               xAxis={metrics.counsellorChart.counsellors}
               open={metrics.counsellorChart.open}
               closed={metrics.counsellorChart.closed}
             />
           </div>
         </div>
-      </div>
+      </WellbeingChartsCollapsible>
     </section>
   );
 }
