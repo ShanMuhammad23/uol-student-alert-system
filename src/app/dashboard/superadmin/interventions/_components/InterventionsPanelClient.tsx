@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight, ClipboardList, RefreshCw } from "lucide-react";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import type { InterventionListItem, InterventionListStats } from "@/lib/db/interventions";
 import type { CourseRow, DepartmentRow, FacultyRow, ProgramRow } from "@/lib/staff-directory-queries";
@@ -32,15 +33,41 @@ function formatDate(value: string): string {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function formatInterventionType(type: InterventionListItem["intervention_type"]): string {
-  if (type === "gpa") return "GPA";
-  if (type === "both") return "Both";
-  return "Attendance";
-}
-
 function formatOutreachMode(mode: string): string {
   return mode.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(" ");
 }
+
+function studentInitials(name: string | null, sapId: string): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+  }
+  if (parts[0] && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+  return (sapId.trim().slice(0, 2) || "?").toUpperCase();
+}
+
+function TypeChip({ type }: { type: InterventionListItem["intervention_type"] }) {
+  const styles = {
+    attendance: "bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+    gpa: "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    both: "bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
+  } as const;
+  const labels = { attendance: "Attendance", gpa: "GPA", both: "Both" } as const;
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide",
+        styles[type]
+      )}
+    >
+      {labels[type]}
+    </span>
+  );
+}
+
+const TH_CLASS =
+  "h-11 whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 first:pl-5 last:pr-5 dark:text-slate-400";
+const TD_CLASS = "px-4 py-4 align-middle first:pl-5 last:pr-5";
 
 type Props = {
   faculties: FacultyRow[];
@@ -141,7 +168,7 @@ export function InterventionsPanelClient({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const selectClassName =
-    "h-11 w-full rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white";
+    "h-11 w-full rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white";
 
   return (
     <div className="space-y-6">
@@ -217,131 +244,201 @@ export function InterventionsPanelClient({
         onStatusSelect={setStatusFilter}
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            {loading ? "Loading…" : `${total.toLocaleString()} intervention${total === 1 ? "" : "s"}`}
-          </p>
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Intervention records</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              {loading
+                ? "Loading records…"
+                : `${total.toLocaleString()} ${total === 1 ? "result" : "results"}`}
+            </p>
+          </div>
           {error ? (
             <button
               type="button"
               onClick={() => void fetchInterventions()}
-              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+              className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-primary dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.06]"
             >
+              <RefreshCw className="size-3.5" aria-hidden />
               Retry
             </button>
           ) : null}
         </div>
 
         {error ? (
-          <p className="px-4 py-8 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="px-5 py-16 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Course</TableHead>
-                <TableHead>Faculty / Dept</TableHead>
-                <TableHead>Program</TableHead>
-                <TableHead>Outreach</TableHead>
-                <TableHead>Recorded by</TableHead>
+            <TableHeader className="bg-slate-50/80 dark:bg-white/[0.03]">
+              <TableRow className="border-slate-200/80 hover:bg-transparent dark:border-white/10">
+                <TableHead className={TH_CLASS}>Student</TableHead>
+                <TableHead className={TH_CLASS}>Date</TableHead>
+                <TableHead className={TH_CLASS}>Type</TableHead>
+                <TableHead className={TH_CLASS}>Status</TableHead>
+                <TableHead className={TH_CLASS}>Course</TableHead>
+                <TableHead className={TH_CLASS}>Faculty / Dept</TableHead>
+                <TableHead className={TH_CLASS}>Program</TableHead>
+                <TableHead className={TH_CLASS}>Outreach</TableHead>
+                <TableHead className={TH_CLASS}>Recorded by</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center text-slate-500">
-                    Loading interventions…
-                  </TableCell>
-                </TableRow>
+                Array.from({ length: 6 }).map((_, index) => (
+                  <TableRow
+                    key={`skeleton-${index}`}
+                    className="border-slate-100 dark:border-white/5 hover:bg-transparent"
+                  >
+                    <TableCell className={TD_CLASS} colSpan={9}>
+                      <div className="flex items-center gap-3">
+                        <div className="size-9 shrink-0 animate-pulse rounded-full bg-slate-100 dark:bg-white/10" />
+                        <div className="h-4 w-full max-w-xl animate-pulse rounded bg-slate-100 dark:bg-white/10" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
               ) : interventions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center text-slate-500">
-                    No interventions match the current filters.
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={9} className="px-5 py-16">
+                    <div className="flex flex-col items-center justify-center gap-2 text-center">
+                      <span className="flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500">
+                        <ClipboardList className="size-5" aria-hidden />
+                      </span>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        No interventions match the current filters
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Try another faculty, status, or course.
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                interventions.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Link
-                        href={`/students/${encodeURIComponent(row.student_sap_id)}`}
-                        className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
-                      >
-                        {row.student_name?.trim() || row.student_sap_id}
-                      </Link>
-                      <p className="text-xs text-slate-500">{row.student_sap_id}</p>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-xs">
-                      {formatDate(row.date)}
-                    </TableCell>
-                    <TableCell className="text-xs">{formatInterventionType(row.intervention_type)}</TableCell>
-                    <TableCell>
-                      <InterventionStatusBadge status={row.status} />
-                    </TableCell>
-                    <TableCell className="max-w-[160px] truncate text-xs" title={row.course_title ?? row.course_id ?? ""}>
-                      {row.course_id
-                        ? row.course_title
-                          ? `${row.course_id} — ${row.course_title}`
-                          : row.course_id
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="max-w-[140px] text-xs">
-                      <p className="truncate" title={row.faculty_name ?? ""}>
-                        {resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name ?? "") ??
-                          row.faculty_name ??
-                          "—"}
-                      </p>
-                      <p className="truncate text-slate-500" title={row.department_name ?? ""}>
-                        {row.department_name ?? "—"}
-                      </p>
-                    </TableCell>
-                    <TableCell className="max-w-[120px] truncate text-xs" title={row.program_title ?? ""}>
-                      {row.program_title ?? row.program_id ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs">{formatOutreachMode(row.outreach_mode)}</TableCell>
-                    <TableCell className="text-xs">{row.uploader_name ?? "—"}</TableCell>
-                  </TableRow>
-                ))
+                interventions.map((row) => {
+                  const facultyLabel =
+                    resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name ?? "") ??
+                    row.faculty_name ??
+                    "—";
+                  const courseLabel = row.course_id
+                    ? row.course_title
+                      ? `${row.course_id} — ${row.course_title}`
+                      : row.course_id
+                    : "—";
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className="border-slate-100 transition-colors hover:bg-slate-50/80 dark:border-white/5 dark:hover:bg-white/[0.04]"
+                    >
+                      <TableCell className={cn(TD_CLASS, "min-w-[200px]")}>
+                        <div className="flex items-center gap-3">
+                          <span
+                            aria-hidden
+                            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          >
+                            {studentInitials(row.student_name, row.student_sap_id)}
+                          </span>
+                          <div className="min-w-0">
+                            <Link
+                              href={`/students/${encodeURIComponent(row.student_sap_id)}`}
+                              className="block truncate font-medium text-slate-900 outline-none hover:text-emerald-700 hover:underline focus-visible:ring-2 focus-visible:ring-primary dark:text-white dark:hover:text-emerald-400"
+                            >
+                              {row.student_name?.trim() || row.student_sap_id}
+                            </Link>
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                              {row.student_sap_id}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className={cn(TD_CLASS, "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200")}>
+                        {formatDate(row.date)}
+                      </TableCell>
+                      <TableCell className={TD_CLASS}>
+                        <TypeChip type={row.intervention_type} />
+                      </TableCell>
+                      <TableCell className={TD_CLASS}>
+                        <InterventionStatusBadge status={row.status} />
+                      </TableCell>
+                      <TableCell className={cn(TD_CLASS, "max-w-[220px]")}>
+                        <p className="truncate text-sm text-slate-800 dark:text-slate-100" title={courseLabel}>
+                          {courseLabel}
+                        </p>
+                      </TableCell>
+                      <TableCell className={cn(TD_CLASS, "max-w-[200px]")}>
+                        <p className="truncate text-sm text-slate-800 dark:text-slate-100" title={facultyLabel}>
+                          {facultyLabel}
+                        </p>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400" title={row.department_name ?? ""}>
+                          {row.department_name ?? "—"}
+                        </p>
+                      </TableCell>
+                      <TableCell className={cn(TD_CLASS, "max-w-[180px]")}>
+                        <p
+                          className="truncate text-sm text-slate-800 dark:text-slate-100"
+                          title={row.program_title ?? row.program_id ?? ""}
+                        >
+                          {row.program_title ?? row.program_id ?? "—"}
+                        </p>
+                      </TableCell>
+                      <TableCell className={TD_CLASS}>
+                        <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                          {formatOutreachMode(row.outreach_mode)}
+                        </span>
+                      </TableCell>
+                      <TableCell className={cn(TD_CLASS, "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200")}>
+                        {row.uploader_name ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         )}
 
-        {!loading && totalPages > 1 ? (
-          <div className="flex items-center justify-between gap-4 border-t border-slate-200 px-4 py-3 dark:border-slate-700">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-sm font-medium",
-                page <= 1
-                  ? "cursor-not-allowed text-slate-400"
-                  : "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-              )}
-            >
-              Previous
-            </button>
-            <span className="text-sm text-slate-600 dark:text-slate-400">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-sm font-medium",
-                page >= totalPages
-                  ? "cursor-not-allowed text-slate-400"
-                  : "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-              )}
-            >
-              Next
-            </button>
+        {!loading && total > 0 ? (
+          <div className="flex flex-col gap-3 border-t border-slate-200/80 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Showing{" "}
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}
+              </span>{" "}
+              of {total.toLocaleString()}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className={cn(
+                  "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
+                  page <= 1
+                    ? "cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10"
+                    : "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.06]"
+                )}
+              >
+                <ChevronLeft className="size-4" aria-hidden />
+                Previous
+              </button>
+              <span className="min-w-20 text-center text-sm text-slate-600 dark:text-slate-400">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className={cn(
+                  "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
+                  page >= totalPages
+                    ? "cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10"
+                    : "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.06]"
+                )}
+              >
+                Next
+                <ChevronRight className="size-4" aria-hidden />
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

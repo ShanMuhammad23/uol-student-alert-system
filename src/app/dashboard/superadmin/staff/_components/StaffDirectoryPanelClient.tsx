@@ -197,7 +197,7 @@ export function StaffDirectoryPanelClient({
               setSelectedFaculty(e.target.value);
               setSelectedDepartment("all");
             }}
-            className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+            className="h-11 rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
           >
             <option value="all">All Faculties</option>
             {faculties.map((f) => (
@@ -211,7 +211,7 @@ export function StaffDirectoryPanelClient({
         <select
           value={selectedDepartment}
           onChange={(e) => setSelectedDepartment(e.target.value)}
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+          className="h-11 rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
         >
           <option value="all">All Departments</option>
           {filteredDepartments.map((d) => (
@@ -224,7 +224,7 @@ export function StaffDirectoryPanelClient({
         <select
           value={selectedRole}
           onChange={(e) => setSelectedRole(e.target.value as RoleFilterValue)}
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+          className="h-11 rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
         >
           {roleOptions.map((role) => (
             <option key={role.value} value={role.value}>
@@ -237,7 +237,7 @@ export function StaffDirectoryPanelClient({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name, email, or pernr"
-          className="h-11 rounded-lg border border-stroke bg-transparent px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
+          className="h-11 rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white"
         />
       </div>
 

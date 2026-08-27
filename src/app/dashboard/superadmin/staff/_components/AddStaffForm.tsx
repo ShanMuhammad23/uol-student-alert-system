@@ -178,51 +178,27 @@ function FormField({
         {required && <span className="text-red-400">*</span>}
       </label>
       <div className="relative">{children}</div>
-      
-      <AnimatePresence mode="wait">
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-1.5 text-xs font-medium text-red-400"
-          >
-            <AlertTriangle className="h-3 w-3 shrink-0" />
+
+      <div className="min-h-5">
+        {error ? (
+          <p className="flex items-start gap-1.5 text-xs font-medium text-red-400">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
             {error}
-          </motion.p>
-        )}
-        {warning && !error && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-1.5 text-xs font-medium text-amber-400"
-          >
-            <AlertTriangle className="h-3 w-3 shrink-0" />
+          </p>
+        ) : warning ? (
+          <p className="flex items-start gap-1.5 text-xs font-medium text-amber-400">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
             {warning}
-          </motion.p>
-        )}
-        {success && !error && !warning && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-1.5 text-xs font-medium text-emerald-400"
-          >
-            <CheckCircle2 className="h-3 w-3 shrink-0" />
+          </p>
+        ) : success ? (
+          <p className="flex items-start gap-1.5 text-xs font-medium text-emerald-400">
+            <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" />
             {success}
-          </motion.p>
-        )}
-        {info && !error && !warning && !success && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-xs text-slate-500 dark:text-slate-400"
-          >
-            {info}
-          </motion.p>
-        )}
-      </AnimatePresence>
+          </p>
+        ) : info ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400">{info}</p>
+        ) : null}
+      </div>
     </motion.div>
   );
 }
@@ -230,6 +206,14 @@ function FormField({
 /* ──────────────────────────────────────────────
    Select Component with Custom Styling
    ────────────────────────────────────────────── */
+type MenuRect = {
+  left: number;
+  width: number;
+  maxHeight: number;
+  top?: number;
+  bottom?: number;
+};
+
 function PremiumSelect({
   value,
   onChange,
@@ -237,7 +221,6 @@ function PremiumSelect({
   placeholder,
   disabled,
   icon: Icon,
-  multiple,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -245,25 +228,34 @@ function PremiumSelect({
   placeholder: string;
   disabled?: boolean;
   icon?: React.ElementType;
-  multiple?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const selectRef = useRef<HTMLDivElement>(null);
-  const [menuRect, setMenuRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuRect, setMenuRect] = useState<MenuRect | null>(null);
+
+  const updateRect = useCallback(() => {
+    const trigger = selectRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const gap = 8;
+    const viewportPad = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPad;
+    const spaceAbove = rect.top - gap - viewportPad;
+    const flip = spaceBelow < 200 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(320, flip ? spaceAbove : spaceBelow));
+    setMenuRect({
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      ...(flip
+        ? { bottom: window.innerHeight - rect.top + gap }
+        : { top: rect.bottom + gap }),
+    });
+  }, []);
 
   useLayoutEffect(() => {
-    if (!isOpen || !selectRef.current) return;
-
-    const updateRect = () => {
-      const rect = selectRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setMenuRect({
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: rect.width,
-      });
-    };
-
+    if (!isOpen) return;
     updateRect();
     window.addEventListener("resize", updateRect);
     window.addEventListener("scroll", updateRect, true);
@@ -271,74 +263,103 @@ function PremiumSelect({
       window.removeEventListener("resize", updateRect);
       window.removeEventListener("scroll", updateRect, true);
     };
+  }, [isOpen, options.length, updateRect]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (selectRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
+      }
+      setIsOpen(false);
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [isOpen]);
 
   return (
     <div ref={selectRef} className="relative">
-      <div
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => !disabled && setIsOpen((open) => !open)}
         className={cn(
-          "flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-all duration-200",
+          "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-all duration-200",
           "bg-white backdrop-blur-sm dark:bg-slate-900/50",
           disabled
             ? "cursor-not-allowed border-slate-200 opacity-50 dark:border-white/5"
             : "cursor-pointer border-slate-300 hover:border-slate-400 hover:bg-slate-50 dark:border-white/10 dark:hover:border-white/20 dark:hover:bg-slate-800/50",
-          "focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20"
+          "outline-none focus-visible:border-indigo-500/50 focus-visible:ring-2 focus-visible:ring-indigo-500/20"
         )}
       >
-        {Icon && <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />}
-        <span className={cn("flex-1 text-slate-800 dark:text-slate-100", !value && "text-slate-500 dark:text-slate-500")}>
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />}
+        <span className={cn("flex-1 truncate text-left text-slate-800 dark:text-slate-100", !value && "text-slate-500 dark:text-slate-500")}>
           {value
             ? options.find((o) => o.value === value)?.label ?? placeholder
             : placeholder}
         </span>
         <ChevronDown
           className={cn(
-            "h-4 w-4 text-slate-500 transition-transform duration-200",
+            "h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200",
             isOpen && "rotate-180"
           )}
         />
-      </div>
-      
+      </button>
+
       {typeof document !== "undefined" &&
         createPortal(
           <AnimatePresence>
             {isOpen && !disabled && menuRect && (
               <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                ref={menuRef}
+                role="listbox"
+                initial={{ opacity: 0, y: menuRect.bottom ? 8 : -8, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                style={{ position: "fixed", top: menuRect.top, left: menuRect.left, width: menuRect.width }}
-                className="z-[9999] overflow-hidden rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-slate-900/95 dark:shadow-black/50"
+                exit={{ opacity: 0, y: menuRect.bottom ? 8 : -8, scale: 0.98 }}
+                transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                style={{
+                  position: "fixed",
+                  left: menuRect.left,
+                  width: menuRect.width,
+                  top: menuRect.top,
+                  bottom: menuRect.bottom,
+                  maxHeight: menuRect.maxHeight,
+                }}
+                className="z-[9999] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white/95 py-1 shadow-2xl shadow-slate-900/20 backdrop-blur-md dark:border-white/10 dark:bg-slate-900/95 dark:shadow-black/50"
               >
-                {options.map((option, i) => (
-                  <motion.button
+                {options.map((option) => (
+                  <button
                     key={option.value}
                     type="button"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.03 }}
+                    role="option"
+                    aria-selected={value === option.value}
                     onClick={() => {
                       onChange(option.value);
                       setIsOpen(false);
                     }}
                     className={cn(
-                      "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+                      "flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
                       "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/5",
                       value === option.value && "bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"
                     )}
                   >
                     {value === option.value && (
-                      <motion.div
-                        layoutId="select-indicator"
-                        className="h-1.5 w-1.5 rounded-full bg-indigo-400"
-                      />
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
                     )}
-                    <span className={cn(!value && option.value === value && "text-indigo-300")}>
-                      {option.label}
-                    </span>
-                  </motion.button>
+                    <span>{option.label}</span>
+                  </button>
                 ))}
               </motion.div>
             )}
@@ -623,26 +644,21 @@ export function AddStaffForm({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 font-sans text-slate-800 antialiased selection:bg-indigo-500/30 dark:bg-slate-950 dark:text-slate-200">
-      {/* Ambient background */}
-      <div className="pointer-events-none fixed inset-0 z-0">
+    <div className="relative font-sans text-slate-800 antialiased selection:bg-indigo-500/30 dark:text-slate-200">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className="absolute left-1/4 top-0 h-[500px] w-[500px] rounded-full bg-indigo-500/5 blur-[120px]" />
         <div className="absolute bottom-0 right-1/4 h-[600px] w-[600px] rounded-full bg-violet-500/5 blur-[120px]" />
       </div>
 
-      <div className="relative z-10 mx-auto ">
-  
-
-        {/* Form */}
+      <div className="relative z-10">
         <motion.form
           onSubmit={handleSubmit}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex flex-wrap gap-6"
+          className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2"
         >
-          {/* Personal Information Section */}
-          <div className="relative z-30 rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.02] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.3)]">
+          <div className="relative z-30 min-w-0 w-full rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.02] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.3)]">
             <SectionHeader
               title="Personal Information"
               subtitle="Basic staff identification details"
@@ -782,7 +798,7 @@ export function AddStaffForm({
           </div>
 
           {/* Role Configuration Section */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.02] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.3)]">
+          <div className="relative z-20 min-w-0 w-full rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.02] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.3)]">
             <SectionHeader
               title="Role Configuration"
               subtitle="Define system access level and permissions"
@@ -830,36 +846,40 @@ export function AddStaffForm({
                 </p>
               </FormField>
 
-              <FormField label="Parent Faculty" required icon={Building2} delay={0.5}>
-                <input type="hidden" name="faculty_id" value={parentFacultyId} />
-                <PremiumSelect
-                  value={parentFacultyId}
-                  onChange={setParentFacultyId}
-                  options={faculties.map((f) => ({
-                    value: f.id,
-                    label: resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id,
-                  }))}
-                  placeholder="Select parent faculty"
-                  icon={Building2}
-                />
-              </FormField>
+              <div className="md:col-span-2">
+                <FormField label="Parent Faculty" required icon={Building2} delay={0.5}>
+                  <input type="hidden" name="faculty_id" value={parentFacultyId} />
+                  <PremiumSelect
+                    value={parentFacultyId}
+                    onChange={setParentFacultyId}
+                    options={faculties.map((f) => ({
+                      value: f.id,
+                      label: resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id,
+                    }))}
+                    placeholder="Select parent faculty"
+                    icon={Building2}
+                  />
+                </FormField>
+              </div>
             </div>
 
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {showDepartments && (
                 <motion.div
+                  key="hod-departments"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-                  className="mt-5 overflow-hidden"
+                  transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+                  className="overflow-hidden"
                 >
-                  <FormField
-                    label="HoD Departments"
-                    icon={Layers}
-                    info="Use Ctrl/Cmd + click to select multiple departments"
-                    delay={0}
-                  >
+                  <div className="mt-5">
+                    <FormField
+                      label="HoD Departments"
+                      icon={Layers}
+                      info="Use Ctrl/Cmd + click to select multiple departments"
+                      delay={0}
+                    >
                     <select
                       name="department_ids"
                       multiple
@@ -880,18 +900,18 @@ export function AddStaffForm({
                         </option>
                       ))}
                     </select>
-                  </FormField>
+                    </FormField>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Submit Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.55, ease: [0.23, 1, 0.32, 1] }}
-            className="relative z-10 flex items-center flex-1 justify-between rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.02]"
+            className="relative z-10 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-white/[0.02] xl:col-span-2"
           >
             <div className="space-y-1">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Ready to create account?</p>

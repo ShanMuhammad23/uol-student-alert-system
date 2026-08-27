@@ -1,7 +1,17 @@
 "use client";
 
-import { motion, useInView, useSpring, useTransform } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  GraduationCap,
+  HeartPulse,
+  Shield,
+  UserCog,
+  Users,
+  Waypoints,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Tone =
@@ -11,6 +21,7 @@ type Tone =
   | "hod"
   | "instructor"
   | "wellbeingStaff";
+
 export type RoleFilterValue =
   | "all"
   | "superadmin"
@@ -20,18 +31,6 @@ export type RoleFilterValue =
   | "pseudo-hod"
   | "instructor"
   | "wellbeing-staff";
-
-type StatCardProps = {
-  label: string;
-  value: number;
-  tone: Tone;
-  active?: boolean;
-  roleFilter?: RoleFilterValue;
-  onClickRole?: (role: RoleFilterValue) => void;
-  subtitle?: string;
-  trend?: { value: number; isPositive: boolean };
-  delay?: number;
-};
 
 type StaffStats = {
   totalStaff: number;
@@ -44,217 +43,91 @@ type StaffStats = {
   wellbeingStaffCount: number;
 };
 
-const TONE_CONFIG: Record<
-  Tone,
-  {
-    light: {
-      border: string;
-      bg: string;
-      text: string;
-      muted: string;
-      glow: string;
-      ring: string;
-    };
-    dark: {
-      border: string;
-      bg: string;
-      text: string;
-      muted: string;
-      glow: string;
-      ring: string;
-    };
-  }
-> = {
-  neutral: {
-    light: {
-      border: "border-slate-700",
-      bg: "bg-slate-800",
-      text: "text-slate-50",
-      muted: "text-slate-300",
-      glow: "shadow-slate-900/40",
-      ring: "ring-slate-500/40",
-    },
-    dark: {
-      border: "border-slate-600",
-      bg: "bg-slate-900",
-      text: "text-slate-50",
-      muted: "text-slate-300",
-      glow: "shadow-black/50",
-      ring: "ring-slate-500/50",
-    },
-  },
-  superadmin: {
-    light: {
-      border: "border-violet-700",
-      bg: "bg-violet-800",
-      text: "text-violet-50",
-      muted: "text-violet-200",
-      glow: "shadow-violet-950/40",
-      ring: "ring-violet-500/45",
-    },
-    dark: {
-      border: "border-violet-600",
-      bg: "bg-violet-900",
-      text: "text-violet-50",
-      muted: "text-violet-200",
-      glow: "shadow-black/50",
-      ring: "ring-violet-500/50",
-    },
-  },
-  dean: {
-    light: {
-      border: "border-blue-700",
-      bg: "bg-blue-800",
-      text: "text-blue-50",
-      muted: "text-blue-200",
-      glow: "shadow-blue-950/40",
-      ring: "ring-blue-500/45",
-    },
-    dark: {
-      border: "border-blue-600",
-      bg: "bg-blue-900",
-      text: "text-blue-50",
-      muted: "text-blue-200",
-      glow: "shadow-black/50",
-      ring: "ring-blue-500/50",
-    },
-  },
-  hod: {
-    light: {
-      border: "border-emerald-700",
-      bg: "bg-emerald-800",
-      text: "text-emerald-50",
-      muted: "text-emerald-200",
-      glow: "shadow-emerald-950/40",
-      ring: "ring-emerald-500/45",
-    },
-    dark: {
-      border: "border-emerald-600",
-      bg: "bg-emerald-900",
-      text: "text-emerald-50",
-      muted: "text-emerald-200",
-      glow: "shadow-black/50",
-      ring: "ring-emerald-500/50",
-    },
-  },
-  instructor: {
-    light: {
-      border: "border-indigo-700",
-      bg: "bg-indigo-800",
-      text: "text-indigo-50",
-      muted: "text-indigo-200",
-      glow: "shadow-indigo-950/40",
-      ring: "ring-indigo-500/45",
-    },
-    dark: {
-      border: "border-indigo-600",
-      bg: "bg-indigo-900",
-      text: "text-indigo-50",
-      muted: "text-indigo-200",
-      glow: "shadow-black/50",
-      ring: "ring-indigo-500/50",
-    },
-  },
-  wellbeingStaff: {
-    light: {
-      border: "border-rose-700",
-      bg: "bg-rose-800",
-      text: "text-rose-50",
-      muted: "text-rose-200",
-      glow: "shadow-rose-950/40",
-      ring: "ring-rose-500/45",
-    },
-    dark: {
-      border: "border-rose-600",
-      bg: "bg-rose-900",
-      text: "text-rose-50",
-      muted: "text-rose-200",
-      glow: "shadow-black/50",
-      ring: "ring-rose-500/50",
-    },
-  },
+const fadeInUp: Variants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+  }),
 };
 
-function AnimatedValue({ value }: { value: number }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-50px" });
-  const springValue = useSpring(0, { damping: 30, stiffness: 100, duration: 1200 });
-  const display = useTransform(springValue, (latest) => Math.floor(latest).toLocaleString());
-
-  useEffect(() => {
-    if (isInView) springValue.set(value);
-  }, [isInView, value, springValue]);
-
-  return (
-    <motion.span ref={ref}>
-      <motion.span>{display}</motion.span>
-    </motion.span>
-  );
-}
+const TONE_COLOR: Record<Tone, { fill: string; ring: string }> = {
+  neutral: { fill: "bg-slate-500", ring: "ring-slate-400" },
+  superadmin: { fill: "bg-violet-500", ring: "ring-violet-400" },
+  dean: { fill: "bg-cyan-500", ring: "ring-cyan-400" },
+  hod: { fill: "bg-emerald-500", ring: "ring-emerald-400" },
+  instructor: { fill: "bg-amber-500", ring: "ring-amber-400" },
+  wellbeingStaff: { fill: "bg-rose-500", ring: "ring-rose-400" },
+};
 
 function StatCard({
+  icon: Icon,
   label,
   value,
   tone,
+  delay,
   active = false,
   roleFilter,
   onClickRole,
-  trend,
-  subtitle,
-  delay = 0,
-}: StatCardProps) {
-  const config = TONE_CONFIG[tone];
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  tone: Tone;
+  delay: number;
+  active?: boolean;
+  roleFilter?: RoleFilterValue;
+  onClickRole?: (role: RoleFilterValue) => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  const color = TONE_COLOR[tone];
+  const filterLabel = roleFilter === "all" ? "all roles" : label;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease: [0.23, 1, 0.32, 1] }}
-      whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
-      className={cn(
-        "group relative overflow-hidden rounded-2xl p-5 transition-all duration-300 ease-out hover:shadow-lg dark:backdrop-blur-md flex-1 cursor-pointer",
-        config.light.bg,
-        `hover:${config.light.glow}`,
-        `hover:ring-1 ${config.light.ring}`,
-        `dark:${config.dark.bg}`,
-        `dark:hover:${config.dark.glow}`,
-        `dark:hover:ring-1 dark:${config.dark.ring}`,
-        active && "ring-2 ring-white/80 dark:ring-white/70"
-      )}
+    <motion.button
+      type="button"
+      custom={delay}
+      variants={fadeInUp}
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
+      aria-pressed={active}
+      aria-label={`Filter directory by ${filterLabel}`}
       onClick={() => {
         if (roleFilter && onClickRole) onClickRole(roleFilter);
       }}
+      className={cn(
+        "group relative w-full cursor-pointer overflow-hidden rounded-2xl border bg-white p-5 text-left shadow-sm outline-none transition-shadow hover:shadow-md",
+        "dark:border-slate-700/50 dark:bg-slate-900/50",
+        "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+        active && `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-dark ${color.ring}`
+      )}
     >
-      <div className="relative z-10 flex items-start justify-end">
-        {trend ? (
-          <div className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold", trend.isPositive ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300")}>
-            <span>{trend.isPositive ? "+" : ""}</span>
-            <span>{trend.value}%</span>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="relative z-10 mt-4">
-        <p className={cn("text-3xl font-bold tracking-tight tabular-nums", config.light.text, `dark:${config.dark.text}`)}>
-          <AnimatedValue value={value} />
-        </p>
-      </div>
-      <div className="relative z-10 mt-1">
-        <p className={cn("text-[13px] font-semibold tracking-tight", config.light.text, `dark:${config.dark.text}`)}>{label}</p>
-      </div>
-      {subtitle && <p className={cn("relative z-10 mt-1 text-xs", config.light.muted, `dark:${config.dark.muted}`)}>{subtitle}</p>}
       <div
+        aria-hidden
         className={cn(
-          "absolute bottom-0 left-0 h-[2px] w-0 transition-all duration-500 ease-out group-hover:w-full",
-          tone === "neutral" && "bg-slate-400",
-          tone === "superadmin" && "bg-violet-500",
-          tone === "dean" && "bg-blue-500",
-          tone === "hod" && "bg-emerald-500",
-          tone === "instructor" && "bg-indigo-500",
-          tone === "wellbeingStaff" && "bg-rose-500"
+          "absolute -right-4 -top-4 size-24 rounded-full opacity-10 transition-transform group-hover:scale-110",
+          color.fill
         )}
       />
-    </motion.div>
+      <div className="relative flex items-start gap-4">
+        <div
+          className={cn(
+            "flex size-11 shrink-0 items-center justify-center rounded-xl text-white shadow-lg",
+            color.fill
+          )}
+        >
+          <Icon aria-hidden className="size-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-1 truncate text-lg font-semibold tabular-nums text-slate-900 dark:text-white">
+            {value.toLocaleString()}
+          </p>
+        </div>
+      </div>
+    </motion.button>
   );
 }
 
@@ -271,73 +144,89 @@ export function StaffStatsCards({
   omitSuperadminCard?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-3">
+    <section aria-label="Staff overview" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
+        icon={Users}
         label="Total Staff"
         value={stats.totalStaff}
         tone="neutral"
+        delay={0}
         roleFilter="all"
         active={activeRoleFilter === "all"}
         onClickRole={onRoleSelect}
       />
       {!omitSuperadminCard && (
         <StatCard
+          icon={Shield}
           label="Superadmins"
           value={stats.superadminCount}
           tone="superadmin"
+          delay={1}
           roleFilter="superadmin"
           active={activeRoleFilter === "superadmin"}
           onClickRole={onRoleSelect}
         />
       )}
       <StatCard
+        icon={GraduationCap}
         label="Deans"
         value={stats.deanCount}
         tone="dean"
+        delay={2}
         roleFilter="dean"
         active={activeRoleFilter === "dean"}
         onClickRole={onRoleSelect}
       />
       <StatCard
+        icon={UserCog}
         label="Pseudo Deans"
         value={stats.pseudoDeanCount}
         tone="dean"
+        delay={3}
         roleFilter="pseudo-dean"
         active={activeRoleFilter === "pseudo-dean"}
         onClickRole={onRoleSelect}
       />
       <StatCard
+        icon={Building2}
         label="HoDs"
         value={stats.hodCount}
         tone="hod"
+        delay={4}
         roleFilter="hod"
         active={activeRoleFilter === "hod"}
         onClickRole={onRoleSelect}
       />
       <StatCard
+        icon={Waypoints}
         label="Pseudo HoDs"
         value={stats.pseudoHodCount}
         tone="hod"
+        delay={5}
         roleFilter="pseudo-hod"
         active={activeRoleFilter === "pseudo-hod"}
         onClickRole={onRoleSelect}
       />
       <StatCard
+        icon={BookOpen}
         label="Instructors"
         value={stats.instructorCount}
         tone="instructor"
+        delay={6}
         roleFilter="instructor"
         active={activeRoleFilter === "instructor"}
         onClickRole={onRoleSelect}
       />
       <StatCard
+        icon={HeartPulse}
         label="Wellbeing Staff"
         value={stats.wellbeingStaffCount}
         tone="wellbeingStaff"
+        delay={7}
         roleFilter="wellbeing-staff"
         active={activeRoleFilter === "wellbeing-staff"}
         onClickRole={onRoleSelect}
       />
-    </div>
+    </section>
   );
 }

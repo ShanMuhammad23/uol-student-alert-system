@@ -4,7 +4,9 @@ import { LoginTrendPanelClient } from "./_components/LoginTrendPanelClient";
 import { AddStaffForm } from "./_components/AddStaffForm";
 import { createStaffMember, validateStaffFields } from "./create-staff-action";
 import { StaffToastFeedback } from "./_components/StaffToastFeedback";
-import { cn } from "@/lib/utils";
+import { StaffTabs, type StaffTab } from "./_components/StaffTabs";
+import { UserPlus } from "lucide-react";
+import Link from "next/link";
 import {
   queryStaffList,
   queryUnregisteredStaffList,
@@ -15,8 +17,6 @@ import {
 } from "@/lib/staff-directory-queries";
 
 export type { DepartmentRow };
-
-type StaffTab = "directory" | "add" | "unregistered" | "login-trend";
 
 function resolveStaffTab(tab: string | undefined): StaffTab {
   if (tab === "add") return "add";
@@ -98,85 +98,18 @@ export default async function SuperadminStaffPage(props: {
             Manage system staff accounts and permissions
           </p>
         </div>
-        <a
+        <Link
           href="?tab=add"
-          className={cn(
-            "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
-            activeTab === "add"
-              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-              : "bg-emerald-600 text-white hover:bg-emerald-700"
-          )}
+          className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm outline-none transition-colors hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
-          <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <UserPlus aria-hidden className="size-4" />
           Add Staff
-        </a>
+        </Link>
       </div>
 
       <StaffToastFeedback successMessage={successMessage} errorMessage={errorMessage} />
 
-      {/* ─── Tab Navigation ──────────────────────────────────────── */}
-      <div className="border-b border-slate-200 dark:border-slate-700">
-        <nav className="flex gap-1">
-          <a
-            href="?tab=directory"
-            className={cn(
-              "relative px-4 py-3 text-sm font-medium transition-colors",
-              activeTab === "directory"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-            )}
-          >
-            Directory
-            {activeTab === "directory" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
-            )}
-          </a>
-          <a
-            href="?tab=unregistered"
-            className={cn(
-              "relative px-4 py-3 text-sm font-medium transition-colors",
-              activeTab === "unregistered"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-            )}
-          >
-            Un-Registered Staff
-            {activeTab === "unregistered" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
-            )}
-          </a>
-          <a
-            href="?tab=login-trend"
-            className={cn(
-              "relative px-4 py-3 text-sm font-medium transition-colors",
-              activeTab === "login-trend"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-            )}
-          >
-            Login Trend
-            {activeTab === "login-trend" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
-            )}
-          </a>
-          <a
-            href="?tab=add"
-            className={cn(
-              "relative px-4 py-3 text-sm font-medium transition-colors",
-              activeTab === "add"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-            )}
-          >
-            Add New Staff
-            {activeTab === "add" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
-            )}
-          </a>
-        </nav>
-      </div>
+      <StaffTabs activeTab={activeTab} />
 
       {/* ─── Tab Content ─────────────────────────────────────────── */}
       {activeTab === "add" ? (
