@@ -7,6 +7,11 @@ import type {
 } from "@/lib/enrollment";
 import { cn } from "@/lib/utils";
 import { ChipSectionExpand } from "./ChipSectionExpand";
+import {
+  STATS_CHIP_SELECTED,
+  STATS_CHIP_SURFACE,
+  statsSortButtonClass,
+} from "./stats-collapsible-section";
 
 type PropsType = {
   user: DeanStatsUser | null;
@@ -87,12 +92,7 @@ export function DeanProgramStats({
                     setSortDir("desc");
                   }
                 }}
-                className={cn(
-                  "rounded-md border px-2 py-1 font-medium",
-                  sortMetric === metric
-                    ? "border-primary text-primary"
-                    : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
-                )}
+                className={cn("mb-2", statsSortButtonClass(sortMetric === metric))}
               >
                 {metric === "attendance"
                   ? `${metricCounts.attendance} `
@@ -127,11 +127,9 @@ export function DeanProgramStats({
             type="button"
             onClick={() => onSelectProgramId?.(p.programId)}
             className={cn(
-              "inline-flex bg-white flex-col rounded-lg border px-4 py-3 shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
-              "min-w-[160px]",
-              isSelected
-                ? "border-2 border-primary dark:border-primary"
-                : "border-stroke",
+              "inline-flex min-w-[160px] flex-col",
+              STATS_CHIP_SURFACE,
+              isSelected ? STATS_CHIP_SELECTED : "border-stroke"
             )}
           >
             <span className="text-body-sm font-semibold text-dark dark:text-white">
@@ -140,7 +138,7 @@ export function DeanProgramStats({
                 ({p.total})
               </span>
             </span>
-            <span className="text-body-base text-dark-6 space-x-2 dark:text-white">
+            <span className="text-body-base space-x-2 text-dark-6 dark:text-dark-6">
               Att:{" "}
               <span
                 className={cn(

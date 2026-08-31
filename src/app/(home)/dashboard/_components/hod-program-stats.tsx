@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 import type { AppUser, ProgramStats } from "../fetch";
 import { cn } from "@/lib/utils";
 import { ChipSectionExpand } from "./ChipSectionExpand";
+import {
+  STATS_CHIP_SELECTED,
+  STATS_CHIP_SURFACE,
+  statsSortButtonClass,
+} from "./stats-collapsible-section";
 
 type PropsType = {
   user: AppUser | null;
@@ -77,12 +82,7 @@ export function HodProgramStats({
                     setSortDir("desc");
                   }
                 }}
-                className={cn(
-                  "rounded-md border px-2 py-1 font-medium",
-                  sortMetric === metric
-                    ? "border-primary text-primary"
-                    : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
-                )}
+                className={cn("mb-2", statsSortButtonClass(sortMetric === metric))}
               >
                 {metric === "attendance"
                   ? `${metricCounts.attendance} `
@@ -117,17 +117,16 @@ export function HodProgramStats({
             type="button"
             onClick={() => onSelectProgramId?.(p.programId)}
             className={cn(
-              "flex w-full bg-white flex-col rounded-lg border px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
-              isSelected
-                ? "border-2 border-primary dark:border-primary"
-                : "border-stroke"
+              "flex w-full flex-col text-left",
+              STATS_CHIP_SURFACE,
+              isSelected ? STATS_CHIP_SELECTED : "border-stroke"
             )}
           >
             <span className="text-body-sm font-semibold text-dark dark:text-white">
               {p.programTitle ?? p.programId}{" "}
               <span className="text-body-base dark:text-white">({p.total})</span>
             </span>
-            <span className="text-body-base text-dark-6 space-x-2 dark:text-white">
+            <span className="text-body-base space-x-2 text-dark-6 dark:text-dark-6">
               Att: <span className={cn("text-amber-500 dark:text-amber-500 font-bold", p.yellowAttendance > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>{p.yellowAttendance}</span>
               {" | "}
               <span className={cn("text-red-500 font-bold", p.redAttendance > 0 ? "text-red-500" : "text-gray-600 dark:text-gray-400")}>{p.redAttendance}</span>

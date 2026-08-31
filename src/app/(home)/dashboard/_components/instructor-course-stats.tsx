@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import type { AppUser, CourseStats } from "../fetch";
 import { cn } from "@/lib/utils";
+import {
+  STATS_CHIP_SELECTED,
+  STATS_CHIP_SURFACE,
+  statsSortButtonClass,
+} from "./stats-collapsible-section";
 
 type PropsType = {
   user: AppUser | null;
@@ -71,12 +76,7 @@ export function InstructorCourseStats({
                 setSortDir("desc");
               }
             }}
-            className={cn(
-              "rounded-md border px-2 py-1 font-medium",
-              sortMetric === metric
-                ? "border-primary text-primary"
-                : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
-            )}
+            className={cn("mb-2", statsSortButtonClass(sortMetric === metric))}
           >
             {metric === "attendance"
               ? `${metricCounts.attendance} `
@@ -102,16 +102,16 @@ export function InstructorCourseStats({
           type="button"
           onClick={() => onSelectCourseId?.(c.courseId)}
           className={cn(
-            "inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
-            "min-w-[160px]",
-            selectedCourseId === c.courseId && "border-2 border-primary dark:border-primary"
+            "inline-flex min-w-[160px] flex-col text-left",
+            STATS_CHIP_SURFACE,
+            selectedCourseId === c.courseId && STATS_CHIP_SELECTED
           )}
         >
           <span className="text-body-sm font-semibold text-dark dark:text-white">
             {c.courseName}{" "}
             <span className="text-body-base dark:text-white">({c.total})</span>
           </span>
-          <span className="text-body-base text-dark-6 space-x-2 dark:text-white">
+          <span className="text-body-base space-x-2 text-dark-6 dark:text-dark-6">
             Att:{" "}
             <span className={cn("text-amber-500 dark:text-amber-500 font-bold", c.yellowAttendance > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>
               {c.yellowAttendance}

@@ -5,6 +5,12 @@ import { BadgeCheck } from "lucide-react";
 import type { AppUser, InstructorStats } from "../fetch";
 import { cn } from "@/lib/utils";
 import { ChipSectionExpand } from "./ChipSectionExpand";
+import {
+  STATS_CHIP_ALERT,
+  STATS_CHIP_SELECTED,
+  STATS_CHIP_SURFACE,
+  statsSortButtonClass,
+} from "./stats-collapsible-section";
 
 type PropsType = {
   user: AppUser | null;
@@ -77,12 +83,7 @@ export function HodInstructorStats({
                     setSortDir("desc");
                   }
                 }}
-                className={cn(
-                  "rounded-md border px-2 py-1 font-medium",
-                  sortMetric === metric
-                    ? "border-primary text-primary"
-                    : "border-stroke text-dark-6 dark:border-dark-3 dark:text-white"
-                )}
+                className={cn("mb-2", statsSortButtonClass(sortMetric === metric))}
               >
                 {metric === "attendance"
                   ? `${metricCounts.attendance} `
@@ -115,12 +116,10 @@ export function HodInstructorStats({
           type="button"
           onClick={() => onSelectInstructorId?.(i.instructorId)}
           className={cn(
-            "relative inline-flex bg-white flex-col rounded-lg border border-stroke px-4 py-3 pr-7 text-left shadow-1 dark:bg-gray-dark transition hover:border-primary/50 hover:shadow dark:border-stroke-dark dark:hover:border-primary/50",
-            hasAllCoursesClassAverageHundred &&
-              "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-700/60",
-            "min-w-[160px]",
-            selectedInstructorId === i.instructorId &&
-              "border-2 border-primary dark:border-primary"
+            "relative inline-flex min-w-[160px] flex-col pr-7 text-left",
+            STATS_CHIP_SURFACE,
+            hasAllCoursesClassAverageHundred && STATS_CHIP_ALERT,
+            selectedInstructorId === i.instructorId && STATS_CHIP_SELECTED
           )}
         >
           {i.isRegisteredOnPortal ? (
@@ -136,7 +135,7 @@ export function HodInstructorStats({
               {i.instructorName.includes("0") ? "Online Class" : i.instructorName}{" "}
             <span className="text-body-base dark:text-white">({i.total})</span>
           </span>
-          <span className="text-body-base text-dark-6 space-x-2 dark:text-white">
+          <span className="text-body-base space-x-2 text-dark-6 dark:text-dark-6">
             Att:{" "}
             <span className={cn("text-amber-500 dark:text-amber-500 font-bold", i.yellowAttendance > 0 ? "text-amber-500 dark:text-amber-500" : "text-gray-600 dark:text-gray-400")}>
               {i.yellowAttendance}

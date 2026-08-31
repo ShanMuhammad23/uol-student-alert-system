@@ -38,7 +38,7 @@ export function ChipSectionExpand({ title = "", children }: Props) {
       <AnimatePresence>
         {isExpanded ? (
           <motion.div
-            className="fixed inset-0 z-[120] bg-black/45 p-4 backdrop-blur-[2px] md:p-8"
+            className="fixed inset-0 z-[120] bg-black/45 p-4 backdrop-blur-[2px] dark:bg-black/70 md:p-8"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -46,7 +46,7 @@ export function ChipSectionExpand({ title = "", children }: Props) {
           >
             <motion.div
               layoutId={layoutId}
-              className="mx-auto flex h-full w-full  flex-col rounded-xl border border-stroke bg-white p-4 shadow-2xl dark:border-dark-3 dark:bg-gray-dark"
+              className="mx-auto flex h-full w-full flex-col rounded-xl border border-stroke bg-white p-4 shadow-2xl dark:border-stroke-dark dark:bg-gray-dark"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-3 flex items-center justify-between">
