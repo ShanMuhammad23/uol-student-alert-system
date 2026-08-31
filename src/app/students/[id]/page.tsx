@@ -524,14 +524,6 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
   const focusedClassTypeForEmail = suppressCourseFocus
     ? "N/A"
     : deriveClassTypeLabel(selectedEventPackageId ?? null);
-  const studentDepartmentId =
-    String((focusedEnrollment ?? primaryEnrollment)?.DeptId ?? "").trim() || null;
-  const studentFacultyId =
-    String((focusedEnrollment ?? primaryEnrollment)?.FacId ?? "").trim() || null;
-  const gpaAlertLevelForIntervention =
-    focusedMetricRow?.gpaAlertLevel ??
-    dbMetricRows.find((r) => r.gpaAlertLevel != null)?.gpaAlertLevel ??
-    null;
 
   return (
     <div id="student-profile-pdf-content" className="w-full space-y-6 mt-4">
@@ -698,9 +690,6 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         }
         focusedCourseTitle={focusedCourseTitleForEmail}
         focusedClassType={focusedClassTypeForEmail}
-        departmentId={studentDepartmentId}
-        facultyId={studentFacultyId}
-        gpaAlertLevel={gpaAlertLevelForIntervention}
         currentUserRole={currentUserRole}
         currentUserPernr={currentUserPernr}
         directCaseMode={directCaseMode}
