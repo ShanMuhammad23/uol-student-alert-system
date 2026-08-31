@@ -2,6 +2,15 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  KeyRound,
+  Pencil,
+  Trash2,
+  Users,
+} from "lucide-react";
+import {
   resolveFacultyNameFromIdOrName,
   toShortFacultyName,
 } from "@/lib/faculty-name";
@@ -14,6 +23,7 @@ import {
   storedActualRoleToFormValue,
   type StoredPseudoRole,
 } from "@/lib/staff-role-rules";
+import { cn } from "@/lib/utils";
 import {
   Dropdown,
   DropdownContent,
@@ -106,22 +116,38 @@ type SortDirection = "asc" | "desc";
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
   superadmin:
-    "bg-violet-100 text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/40",
-  dean: "bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-200 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-400/40",
-  hod: "bg-green-100 text-green-700 ring-1 ring-inset ring-green-200 dark:bg-green-500/20 dark:text-green-200 dark:ring-green-400/40",
+    "bg-violet-100 text-violet-800 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/25",
+  dean: "bg-blue-100 text-blue-800 ring-blue-200/80 dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-400/25",
+  hod: "bg-emerald-100 text-emerald-800 ring-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-200 dark:ring-emerald-400/25",
   instructor:
-    "bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-400/40",
+    "bg-amber-100 text-amber-800 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-400/25",
   wellbeing:
-    "bg-teal-100 text-teal-700 ring-1 ring-inset ring-teal-200 dark:bg-teal-500/20 dark:text-teal-200 dark:ring-teal-400/40",
+    "bg-teal-100 text-teal-800 ring-teal-200/80 dark:bg-teal-500/15 dark:text-teal-200 dark:ring-teal-400/25",
   "wellbeing-head":
-    "bg-cyan-100 text-cyan-700 ring-1 ring-inset ring-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-200 dark:ring-cyan-400/40",
+    "bg-cyan-100 text-cyan-800 ring-cyan-200/80 dark:bg-cyan-500/15 dark:text-cyan-200 dark:ring-cyan-400/25",
   "wellbeing-counseller":
-    "bg-pink-100 text-pink-700 ring-1 ring-inset ring-pink-200 dark:bg-pink-500/20 dark:text-pink-200 dark:ring-pink-400/40",
+    "bg-pink-100 text-pink-800 ring-pink-200/80 dark:bg-pink-500/15 dark:text-pink-200 dark:ring-pink-400/25",
   coordinator:
-    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:ring-slate-400/40",
+    "bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-slate-500/15 dark:text-slate-200 dark:ring-slate-400/25",
   admin:
-    "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:ring-slate-400/40",
+    "bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-slate-500/15 dark:text-slate-200 dark:ring-slate-400/25",
 };
+
+const ROLE_SHORT_LABELS: Record<string, string> = {
+  superadmin: "Superadmin",
+  dean: "Dean",
+  hod: "HoD",
+  instructor: "Instructor",
+  wellbeing: "Wellbeing",
+  "wellbeing-head": "WB Head",
+  "wellbeing-counseller": "Counsellor",
+  coordinator: "Coordinator",
+  admin: "Admin",
+};
+
+const TH_CLASS =
+  "h-11 whitespace-nowrap px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 first:pl-5 last:pr-5 dark:text-slate-400";
+const TD_CLASS = "px-3 py-3.5 align-middle first:pl-5 last:pr-5";
 
 function resolveFacultyName(row: StaffListRow): string {
   return resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name) ?? "—";
@@ -147,13 +173,102 @@ function resolveOtherFacultyDisplayParts(row: StaffListRow): string[] {
 }
 
 function formatRoleLabel(role: string): string {
-  return role.replaceAll("-", " ").toUpperCase();
+  if (role === "admin" || role === "coordinator") return "Admin / Coord";
+  return ROLE_SHORT_LABELS[role] ?? role.replaceAll("-", " ");
 }
 
 function getRoleBadgeClassName(role: string): string {
+  const key = role === "admin" || role === "coordinator" ? "admin" : role;
   return (
-    ROLE_BADGE_STYLES[role] ??
-    "bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200 dark:bg-gray-500/20 dark:text-gray-200 dark:ring-gray-400/40"
+    ROLE_BADGE_STYLES[key] ??
+    "bg-slate-100 text-slate-700 ring-slate-200/80 dark:bg-slate-500/15 dark:text-slate-200 dark:ring-slate-400/25"
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  return (
+    <span
+      title={formatActualRoleDisplay(role)}
+      className={cn(
+        "inline-flex h-6 max-w-[9.5rem] shrink-0 items-center truncate rounded-md px-2 text-[11px] font-semibold leading-none tracking-normal ring-1 ring-inset",
+        getRoleBadgeClassName(role)
+      )}
+    >
+      {formatRoleLabel(role)}
+    </span>
+  );
+}
+
+function RolePair({
+  accessRole,
+  actualRole,
+}: {
+  accessRole: string;
+  actualRole: string | null;
+}) {
+  return (
+    <div className="flex min-w-[10.5rem] flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className="w-[2.65rem] shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Access
+        </span>
+        <RoleBadge role={accessRole} />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="w-[2.65rem] shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Actual
+        </span>
+        {actualRole ? <RoleBadge role={actualRole} /> : <span className="text-xs text-slate-400">—</span>}
+      </div>
+    </div>
+  );
+}
+
+function formatLastLogin(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function SortButton({
+  column,
+  sortKey,
+  sortDirection,
+  onSort,
+  children,
+}: {
+  column: SortKey;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort: (column: SortKey) => void;
+  children: string;
+}) {
+  const active = sortKey === column;
+  return (
+    <button
+      type="button"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onSort(column)}
+      className="inline-flex items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+    >
+      {children}
+      {active ? (
+        sortDirection === "asc" ? (
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+        )
+      ) : (
+        <ChevronsUpDown className="h-3.5 w-3.5 opacity-35" aria-hidden />
+      )}
+    </button>
   );
 }
 
@@ -170,7 +285,7 @@ function CountListDropdown({
   const count = items.length;
 
   if (count === 0) {
-    return <span className="text-dark-6">—</span>;
+    return <span className="text-sm text-slate-400 dark:text-slate-500">—</span>;
   }
 
   const label =
@@ -178,30 +293,20 @@ function CountListDropdown({
 
   return (
     <Dropdown isOpen={isOpen} setIsOpen={setIsOpen}>
-      <DropdownTrigger className="inline-flex items-center gap-1 rounded-md border border-stroke px-2 py-0.5 text-xs font-medium text-dark-6 transition hover:bg-gray-2 dark:border-dark-3 dark:hover:bg-dark-3">
+      <DropdownTrigger className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08]">
         {label}
-        <svg
-          className="h-3.5 w-3.5 opacity-70"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+        <ChevronDown className="h-3 w-3 opacity-60" aria-hidden />
       </DropdownTrigger>
       <DropdownContent
         align="start"
-        className="border border-stroke bg-white p-2 shadow-lg dark:border-dark-3 dark:bg-gray-dark"
+        className="min-w-[12rem] border border-slate-200 bg-white p-1.5 shadow-lg dark:border-white/10 dark:bg-gray-dark"
       >
-        <ul className="max-h-48 space-y-0.5 overflow-y-auto text-xs text-dark dark:text-white">
+        <ul className="max-h-48 space-y-0.5 overflow-y-auto text-xs text-slate-700 dark:text-white">
           {items.map((item) => (
-            <li key={item} className="whitespace-nowrap rounded px-2 py-1">
+            <li
+              key={item}
+              className="rounded-md px-2 py-1.5 leading-snug hover:bg-slate-50 dark:hover:bg-white/[0.06]"
+            >
               {item}
             </li>
           ))}
@@ -308,198 +413,195 @@ export function StaffDirectoryTableClient({
     setSortDirection("asc");
   };
 
-  const sortIndicator = (key: SortKey): string => {
-    if (sortKey !== key) return "↕";
-    return sortDirection === "asc" ? "↑" : "↓";
-  };
-
   return (
-    <div className="rounded-[10px] bg-white p-5 shadow-1 dark:bg-gray-dark dark:shadow-card">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm [overflow-anchor:none] dark:border-white/10 dark:bg-white/[0.03]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+            {isUnregistered ? "Unregistered instructors" : "Staff directory"}
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {sortedStaff.length.toLocaleString()}{" "}
+            {sortedStaff.length === 1 ? "record" : "records"}
+          </p>
+        </div>
+      </div>
+
       {sortedStaff.length === 0 ? (
-        <p className="text-sm text-dark-5 dark:text-dark-6">
-          No staff records match the selected filters.
-        </p>
+        <div className="flex flex-col items-center justify-center gap-2 px-5 py-16 text-center">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500">
+            <Users className="size-5" aria-hidden />
+          </span>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            No staff records match the selected filters
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Try another faculty, department, role, or search term.
+          </p>
+        </div>
       ) : (
-        <div className="mt-4">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 border-b border-stroke bg-white dark:bg-gray-dark dark:border-dark-3 [&>tr]:border-stroke dark:[&>tr]:border-dark-3">
-              <TableRow className="border-none uppercase [&>th]:!text-left [&>th]:bg-white [&>th]:dark:bg-gray-dark">
-                <TableHead className="min-w-[280px]">
-                  <button type="button" onClick={() => toggleSort("staff")} className="inline-flex items-center gap-1">
-                    Staff <span className="text-xs">{sortIndicator("staff")}</span>
-                  </button>
+        <Table>
+          <TableHeader className="bg-slate-50/80 dark:bg-white/[0.03]">
+            <TableRow className="border-slate-200/80 hover:bg-transparent dark:border-white/10">
+              <TableHead className={cn(TH_CLASS, "min-w-[240px]")}>
+                <SortButton column="staff" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                  Staff
+                </SortButton>
+              </TableHead>
+              {!isUnregistered && (
+                <TableHead className={cn(TH_CLASS, "min-w-[168px]")}>
+                  <SortButton column="pseudo_actual" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                    Roles
+                  </SortButton>
                 </TableHead>
-                {!isUnregistered && (
-                  <TableHead className="min-w-[160px]">
-                    <button type="button" onClick={() => toggleSort("pseudo_actual")} className="inline-flex items-center gap-1">
-                      Pseudo/actual <span className="text-xs">{sortIndicator("pseudo_actual")}</span>
-                    </button>
+              )}
+              <TableHead className={cn(TH_CLASS, "min-w-[140px]")}>
+                <SortButton column="faculty" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                  Parent Faculty
+                </SortButton>
+              </TableHead>
+              <TableHead className={cn(TH_CLASS, "min-w-[120px]")}>
+                <SortButton column="other_faculties" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                  Other Faculties
+                </SortButton>
+              </TableHead>
+              <TableHead className={cn(TH_CLASS, "min-w-[120px]")}>
+                <SortButton column="departments" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                  Departments
+                </SortButton>
+              </TableHead>
+              <TableHead className={cn(TH_CLASS, "min-w-[88px]")}>
+                <SortButton column="ei_score" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                  EI
+                </SortButton>
+              </TableHead>
+              {!isUnregistered && (
+                <>
+                  <TableHead className={cn(TH_CLASS, "min-w-[88px]")}>
+                    <SortButton column="login_count" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                      Logins
+                    </SortButton>
                   </TableHead>
+                  <TableHead className={cn(TH_CLASS, "min-w-[148px]")}>
+                    <SortButton column="last_login" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                      Last Login
+                    </SortButton>
+                  </TableHead>
+                </>
+              )}
+              {(!readOnly || isUnregistered) && (
+                <TableHead className={cn(TH_CLASS, "min-w-[128px]")}>
+                  <SortButton column="actions" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
+                    Actions
+                  </SortButton>
+                </TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody className="[overflow-anchor:none]">
+            {sortedStaff.map((row) => (
+              <TableRow
+                key={row.id}
+                className="border-slate-100 text-sm text-slate-700 dark:border-white/5 dark:text-slate-200"
+              >
+                <TableCell className={TD_CLASS}>
+                  <StaffDetailsDialog
+                    staff={{
+                      name: row.name || "—",
+                      img: row.img,
+                      email: row.email,
+                      role: row.pseudo_role ?? row.role,
+                      pseudoRole: row.actual_role,
+                      pernr: row.pernr || "—",
+                      facultyName: resolveFacultyName(row),
+                      departments: resolveDepartmentNames(row),
+                    }}
+                  />
+                </TableCell>
+                {!isUnregistered && (
+                  <TableCell className={TD_CLASS}>
+                    <RolePair
+                      accessRole={row.pseudo_role ?? row.role}
+                      actualRole={row.actual_role}
+                    />
+                  </TableCell>
                 )}
-              
-                <TableHead className="min-w-[160px]">
-                  <button type="button" onClick={() => toggleSort("faculty")} className="inline-flex items-center gap-1">
-                    Parent Faculty <span className="text-xs">{sortIndicator("faculty")}</span>
-                  </button>
-                </TableHead>
-                <TableHead className="min-w-[110px]">
-                  <button type="button" onClick={() => toggleSort("other_faculties")} className="inline-flex items-center gap-1">
-                    Other Faculties <span className="text-xs">{sortIndicator("other_faculties")}</span>
-                  </button>
-                </TableHead>
-                <TableHead className="min-w-[110px]">
-                  <button type="button" onClick={() => toggleSort("departments")} className="inline-flex items-center gap-1">
-                    Departments <span className="text-xs">{sortIndicator("departments")}</span>
-                  </button>
-                </TableHead>
-                <TableHead className="min-w-[100px]">
-                  <button type="button" onClick={() => toggleSort("ei_score")} className="inline-flex items-center gap-1">
-                    EI <span className="text-xs">{sortIndicator("ei_score")}</span>
-                  </button>
-                </TableHead>
+                <TableCell className={cn(TD_CLASS, "text-slate-600 dark:text-slate-300")}>
+                  <span className="line-clamp-2 text-sm leading-snug">
+                    {resolveFacultyName(row).replace("Faculty of", "").trim() || "—"}
+                  </span>
+                </TableCell>
+                <TableCell className={TD_CLASS}>
+                  <CountListDropdown
+                    items={resolveOtherFacultyDisplayParts(row)}
+                    labelSingular="faculty"
+                    labelPlural="faculties"
+                  />
+                </TableCell>
+                <TableCell className={TD_CLASS}>
+                  <CountListDropdown
+                    items={resolveDepartmentNames(row)}
+                    labelSingular="department"
+                    labelPlural="departments"
+                  />
+                </TableCell>
+                <TableCell className={TD_CLASS}>
+                  <EiScoreBadge
+                    rating={row.ei_rating}
+                    score={row.ei_score}
+                    dimensionLabel={row.ei_dimension_label}
+                  />
+                </TableCell>
                 {!isUnregistered && (
                   <>
-                    <TableHead className="min-w-[30px]">
-                      <button type="button" onClick={() => toggleSort("login_count")} className="inline-flex items-center gap-1">
-                        Login Count <span className="text-xs">{sortIndicator("login_count")}</span>
-                      </button>
-                    </TableHead>
-                    <TableHead className="min-w-[180px]">
-                      <button type="button" onClick={() => toggleSort("last_login")} className="inline-flex items-center gap-1">
-                        Last Login <span className="text-xs">{sortIndicator("last_login")}</span>
-                      </button>
-                    </TableHead>
+                    <TableCell className={TD_CLASS}>
+                      <span className="inline-flex h-6 min-w-8 items-center justify-center rounded-md bg-slate-100 px-2 text-xs font-semibold tabular-nums text-slate-700 dark:bg-white/[0.06] dark:text-slate-200">
+                        {row.login_count ?? 0}
+                      </span>
+                    </TableCell>
+                    <TableCell className={cn(TD_CLASS, "whitespace-nowrap text-xs text-slate-500 dark:text-slate-400")}>
+                      {formatLastLogin(row.last_login_at)}
+                    </TableCell>
                   </>
                 )}
-                {(!readOnly || isUnregistered) && (
-                  <TableHead className="min-w-[200px]">
-                    <button type="button" onClick={() => toggleSort("actions")} className="inline-flex items-center gap-1">
-                      Actions <span className="text-xs">{sortIndicator("actions")}</span>
-                    </button>
-                  </TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedStaff.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="text-base font-medium text-dark dark:text-white"
-                >
-                  <TableCell className="!text-left font-medium text-dark dark:text-white">
-                    <StaffDetailsDialog
-                      staff={{
-                        name: row.name || "—",
-                        img: row.img,
-                        email: row.email,
-                        role: row.pseudo_role ?? row.role,
-                        pseudoRole: row.actual_role,
-                        pernr: row.pernr || "—",
-                        facultyName: resolveFacultyName(row),
-                        departments: resolveDepartmentNames(row),
-                      }}
-                    />
-                  </TableCell>
-                  {!isUnregistered && (
-                    <TableCell className="!text-left text-dark dark:text-white">
-                      <div className="inline-flex flex-wrap items-center gap-1.5">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
-                            row.pseudo_role ?? row.role
-                          )}`}
-                        >
-                          {formatRoleLabel(row.pseudo_role ?? row.role)}
-                        </span>
-                        <span className="text-dark-5 dark:text-dark-6">/</span>
-                        {row.actual_role ? (
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${getRoleBadgeClassName(
-                              row.actual_role === "admin" || row.actual_role === "coordinator"
-                                ? "admin"
-                                : row.actual_role
-                            )}`}
-                          >
-                            {formatActualRoleDisplay(row.actual_role)}
-                          </span>
-                        ) : (
-                          <span className="text-dark-6">—</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                  
-                  <TableCell className="!text-left text-dark-6">
-                    {resolveFacultyName(row).replace("Faculty of", "")}
-                  </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    <CountListDropdown
-                      items={resolveOtherFacultyDisplayParts(row)}
-                      labelSingular="faculty"
-                      labelPlural="faculties"
-                    />
-                  </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    <CountListDropdown
-                      items={resolveDepartmentNames(row)}
-                      labelSingular="department"
-                      labelPlural="departments"
-                    />
-                  </TableCell>
-                  <TableCell className="!text-left text-dark-6">
-                    <EiScoreBadge
-                      rating={row.ei_rating}
-                      score={row.ei_score}
-                      dimensionLabel={row.ei_dimension_label}
-                    />
-                  </TableCell>
-                  {!isUnregistered && (
-                    <>
-                      <TableCell className="!text-left text-dark-6">
-                        {row.login_count ?? 0}
-                      </TableCell>
-                      <TableCell className="!text-left text-dark-6">
-                        {row.last_login_at
-                          ? new Date(row.last_login_at).toLocaleString()
-                          : "—"}
-                      </TableCell>
-                    </>
-                  )}
-                  {!readOnly && !isUnregistered && (
-                    <TableCell className="!text-left">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setEditingStaff(row)}
-                          className="rounded-md border border-stroke px-3 py-1.5 text-xs font-medium text-dark transition hover:bg-gray-2 dark:border-dark-3 dark:text-white dark:hover:bg-dark-3"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(row.id, row.name)}
-                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </TableCell>
-                  )}
-                  {isUnregistered && createStaff && (
-                    <TableCell className="!text-left">
+                {!readOnly && !isUnregistered && (
+                  <TableCell className={TD_CLASS}>
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setGrantAccessStaff(row)}
-                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700"
+                        onClick={() => setEditingStaff(row)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
                       >
-                        Grant Access
+                        <Pencil className="h-3.5 w-3.5" aria-hidden />
+                        
                       </button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(row.id, row.name)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-xs font-medium text-white transition hover:bg-red-700"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                       
+                      </button>
+                    </div>
+                  </TableCell>
+                )}
+                {isUnregistered && createStaff && (
+                  <TableCell className={TD_CLASS}>
+                    <button
+                      type="button"
+                      onClick={() => setGrantAccessStaff(row)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 text-xs font-medium text-white transition hover:bg-emerald-700"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" aria-hidden />
+                      Grant Access
+                    </button>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {editingStaff && !readOnly && !isUnregistered && (

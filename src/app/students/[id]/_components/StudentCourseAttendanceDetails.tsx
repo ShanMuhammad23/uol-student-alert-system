@@ -55,11 +55,12 @@ export function StudentCourseAttendanceDetails({
   noFocusedCourse = false,
   currentlyEnrolled = true,
 }: Props) {
+  const useLiveAttendanceFallback = dbMetricRows.length === 0;
   const {
     attendanceSummaries,
     classAverageByCourseSection,
     monitoredByCourseSection,
-  } = useAttendanceAlerts(enrollmentRecords);
+  } = useAttendanceAlerts(useLiveAttendanceFallback ? enrollmentRecords : []);
 
   const {
     selectedSummary,

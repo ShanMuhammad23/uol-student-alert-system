@@ -32,7 +32,7 @@ export function SuperadminDashboardShell({
           </button>
         )}
 
-        <div className="min-w-0 flex-1 px-8 py-4 h-screen overflow-y-auto scrollbar-hide">{children}</div>
+        <div className="min-w-0 flex-1 px-8 py-4 h-screen overflow-y-auto scrollbar-hide [overflow-anchor:none]">{children}</div>
       </div>
     </div>
   );

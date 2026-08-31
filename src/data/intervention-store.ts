@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { pool } from "@/lib/db";
-import { getStudentBySapId } from "@/app/(home)/dashboard/fetch";
 import {
   ensureCourseExists,
   deleteInterventionByIdFromDb,
@@ -569,6 +568,11 @@ export async function recordIntervention(
     focused_course_id?: string | null;
     focused_section_code?: string | null;
     focused_event_package_id?: string | null;
+    focused_course_title?: string | null;
+    department_id?: string | null;
+    faculty_id?: string | null;
+    attendance_alert_level?: "warning" | "critical" | null;
+    gpa_alert_level?: "warning" | "critical" | null;
   }
 ): Promise<string> {
   const resolveAutoStatus = async (courseIdForStatus: string): Promise<string> => {
@@ -601,49 +605,34 @@ export async function recordIntervention(
     return hasOnlyInitiated ? "in-progress" : "initiated";
   };
 
+  const pickAlertLevel = (): "warning" | "critical" | null => {
+    const attendanceLevel = data.attendance_alert_level ?? null;
+    const gpaLevel = data.gpa_alert_level ?? null;
+    if (data.intervention_type === "attendance") return attendanceLevel;
+    if (data.intervention_type === "gpa") return gpaLevel;
+    if (attendanceLevel === "critical" || gpaLevel === "critical") return "critical";
+    if (attendanceLevel === "warning" || gpaLevel === "warning") return "warning";
+    return null;
+  };
+
   if (pool) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       throw new Error("You must be signed in to record an intervention.");
     }
-    const dbContext = await getEnrollmentContextFromDb(studentSapId, {
-      courseId: data.focused_course_id ?? null,
-      sectionCode: data.focused_section_code ?? null,
-      eventPackageId: data.focused_event_package_id ?? null,
-    });
-    const alertLevel =
-      data.intervention_type === "attendance"
-        ? dbContext?.attendanceAlertLevel ?? null
-        : data.intervention_type === "gpa"
-          ? dbContext?.gpaAlertLevel ?? null
-          : dbContext?.attendanceAlertLevel === "critical" ||
-              dbContext?.gpaAlertLevel === "critical"
-            ? "critical"
-            : dbContext?.attendanceAlertLevel === "warning" ||
-                dbContext?.gpaAlertLevel === "warning"
-              ? "warning"
-              : null;
-
-    let departmentId: string | null = null;
-    let facultyId: string | null = null;
-    let courseId: string | null = null;
-    let courseTitle: string | undefined;
-
-    if (dbContext?.departmentId && dbContext?.facultyId) {
-      departmentId = String(dbContext.departmentId).trim();
-      facultyId = String(dbContext.facultyId).trim();
-      courseId = String(dbContext.courseId ?? "").trim() || "unknown";
-      courseTitle = dbContext.courseTitle ?? undefined;
-    }
-
+    const departmentId = String(data.department_id ?? "").trim();
+    const facultyId = String(data.faculty_id ?? "").trim();
     if (!departmentId || !facultyId) {
       throw new Error(
-        "Student context not found in database enrollment tables for this SAP ID."
+        "Student department and faculty are required from the student profile."
       );
     }
+    const courseId =
+      String(data.focused_course_id ?? "").trim() || "unknown";
+    const courseTitle = String(data.focused_course_title ?? "").trim() || undefined;
+    const alertLevel = pickAlertLevel();
 
-    const finalCourseId = (courseId ?? "").trim() || "unknown";
-    await ensureCourseExists(finalCourseId, {
+    await ensureCourseExists(courseId, {
       title: courseTitle,
       departmentId,
       facultyId,
@@ -654,7 +643,7 @@ export async function recordIntervention(
       selectedStatus === "referred" ||
       selectedStatus === "resolved"
         ? selectedStatus
-        : await resolveAutoStatus(finalCourseId);
+        : await resolveAutoStatus(courseId);
     const performedAt = new Date().toISOString();
     const interventionId = `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     await insertIntervention({
@@ -669,7 +658,7 @@ export async function recordIntervention(
       performed_at: performedAt,
       staff_id: session.user.id,
       department_id: departmentId,
-      course_id: finalCourseId,
+      course_id: courseId,
       faculty_id: facultyId,
       section_code: String(data.focused_section_code ?? "").trim() || null,
       event_package_id: String(data.focused_event_package_id ?? "").trim() || null,
@@ -680,19 +669,7 @@ export async function recordIntervention(
     return interventionId;
   }
   assertUniqueSgpaInterventionInJsonStore(studentSapId, data.intervention_type);
-  const student = await getStudentBySapId(studentSapId);
-  const alertLevel =
-    data.intervention_type === "attendance"
-      ? student?.attendance?.alert_level ?? null
-      : data.intervention_type === "gpa"
-        ? student?.gpa?.alert_level ?? null
-        : student?.attendance?.alert_level === "critical" ||
-            student?.gpa?.alert_level === "critical"
-          ? "critical"
-          : student?.attendance?.alert_level === "warning" ||
-              student?.gpa?.alert_level === "warning"
-            ? "warning"
-            : null;
+  const alertLevel = pickAlertLevel();
   const stored = readStore();
   const fallbackCourseId = String(data.focused_course_id ?? "").trim() || "unknown";
   const selectedStatus = String(data.status ?? "").trim();

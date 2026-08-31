@@ -2123,6 +2123,31 @@ export async function getDepartmentStatsFromEnrollment(
   }
 }
 
+function toDeanDepartmentStat(
+  departmentId: string,
+  departmentName: string,
+  live?: {
+    total_students: number | string | null;
+    yellow_gpa: number | string | null;
+    red_gpa: number | string | null;
+    yellow_attendance: number | string | null;
+    red_attendance: number | string | null;
+  },
+  missing?: { missing: number; held: number }
+): DepartmentStats {
+  return {
+    departmentId,
+    departmentName,
+    total: toInt(live?.total_students),
+    yellowGpa: toInt(live?.yellow_gpa),
+    redGpa: toInt(live?.red_gpa),
+    yellowAttendance: toInt(live?.yellow_attendance),
+    redAttendance: toInt(live?.red_attendance),
+    attendanceMissing: missing?.missing ?? 0,
+    attendanceClassesHeld: missing?.held ?? 0,
+  };
+}
+
 /** Stats per department for a faculty (dean view). When facultyId is null, returns all departments. Relation is one-way: department only (instructor does not filter departments). */
 export async function getDeanDepartmentStats(
   facultyId: string | null,
@@ -2131,29 +2156,77 @@ export async function getDeanDepartmentStats(
   if (pool) {
     try {
       const facultyScopeIds = buildFacultyScopeIds(facultyId);
+      const catalogParams: unknown[] = [];
+      const catalogWhere: string[] = [];
+      if (facultyScopeIds.length) {
+        catalogParams.push(facultyScopeIds);
+        catalogWhere.push(`faculty_id = ANY($${catalogParams.length}::text[])`);
+      }
+      if (options?.departmentIds?.length) {
+        catalogParams.push(options.departmentIds);
+        catalogWhere.push(`id = ANY($${catalogParams.length}::text[])`);
+      }
+      const catalogRes = await pool.query<{ id: string; name: string }>(
+        `SELECT id, name
+         FROM departments
+         ${catalogWhere.length ? `WHERE ${catalogWhere.join(" AND ")}` : ""}
+         ORDER BY name ASC`,
+        catalogParams
+      );
+
       const rows = await getScopedDimensionCountsFromLive("department", {
         facultyIds: facultyScopeIds,
         departmentIds: options?.departmentIds,
       });
+      const liveById = new Map(rows.map((row) => [row.dimension_id, row]));
+      const catalogIds = new Set(catalogRes.rows.map((row) => row.id));
+      const departmentIds = [
+        ...catalogRes.rows.map((row) => row.id),
+        ...rows
+          .map((row) => row.dimension_id)
+          .filter((id) => id && !catalogIds.has(id)),
+      ];
       const missingByDepartment = await getAttendanceMissingByDimension(
         "department",
-        rows.map((row) => row.dimension_id),
+        departmentIds,
         {
           facultyIds: facultyScopeIds,
           departmentIds: options?.departmentIds,
         }
       );
-      return rows.map((row) => ({
-        departmentId: row.dimension_id,
-        departmentName: row.dimension_name,
-        total: toInt(row.total_students),
-        yellowGpa: toInt(row.yellow_gpa),
-        redGpa: toInt(row.red_gpa),
-        yellowAttendance: toInt(row.yellow_attendance),
-        redAttendance: toInt(row.red_attendance),
-        attendanceMissing: missingByDepartment.get(row.dimension_id)?.missing ?? 0,
-        attendanceClassesHeld: missingByDepartment.get(row.dimension_id)?.held ?? 0,
-      }));
+
+      const stats = catalogRes.rows.map((dept) =>
+        toDeanDepartmentStat(
+          dept.id,
+          dept.name,
+          liveById.get(dept.id),
+          missingByDepartment.get(dept.id)
+        )
+      );
+      for (const row of rows) {
+        if (catalogIds.has(row.dimension_id)) continue;
+        stats.push(
+          toDeanDepartmentStat(
+            row.dimension_id,
+            row.dimension_name,
+            row,
+            missingByDepartment.get(row.dimension_id)
+          )
+        );
+      }
+      if (stats.length) {
+        return stats.sort((a, b) =>
+          a.departmentName.localeCompare(b.departmentName)
+        );
+      }
+      return rows.map((row) =>
+        toDeanDepartmentStat(
+          row.dimension_id,
+          row.dimension_name,
+          row,
+          missingByDepartment.get(row.dimension_id)
+        )
+      );
     } catch {
       // Fall back to existing file/SAP paths below.
     }

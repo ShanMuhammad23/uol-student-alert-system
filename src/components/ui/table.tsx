@@ -6,7 +6,7 @@ export function Table({
   ...props
 }: React.HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="relative w-full overflow-auto custom-scrollbar">
+    <div className="relative w-full overflow-x-auto overflow-y-visible custom-scrollbar [overflow-anchor:none]">
       <table
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}

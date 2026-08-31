@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, Suspense, useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Table,
   TableBody,
@@ -260,14 +261,19 @@ export function InterventionHistorySection({
     remarks: "",
     status: "initiated",
   });
-  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    if (open) {
-      dialogRef.current?.showModal();
-    } else {
-      dialogRef.current?.close();
-    }
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -926,71 +932,101 @@ export function InterventionHistorySection({
         </div>
       )}
 
-      <dialog
-        ref={dialogRef}
-        onCancel={() => setOpen(false)}
-        className={cn(
-          "fixed left-1/2 top-1/2 z-[60] m-0 w-[min(92vw,42rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark",
-          "backdrop:bg-black/50 backdrop:backdrop-blur-sm",
-          "open:animate-in open:fade-in open:zoom-in-95 open:duration-200",
-          "[&::backdrop]:bg-black/50"
-        )}
-      >
-        <div className="flex items-center justify-between border-b border-stroke px-6 py-4 dark:border-dark-3">
-          <h4 className="text-lg font-semibold text-dark dark:text-white">
-            {isWellbeingView ? "Add Wellbeing Resolution" : "Add Intervention"}
-          </h4>
-          <button
-            type="button"
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto no-scrollbar px-4 py-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={() => setOpen(false)}
-            className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
-            aria-label="Close"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="px-6 py-4">
-          {isWellbeingView ? (
-            <WellbeingResolutionFormWithAction
-              studentSapId={studentSapId}
-              onClose={() => setOpen(false)}
+            <motion.div
+              aria-hidden
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             />
-          ) : (
-            <InterventionFormWithAction
-              mode="intervention"
-              studentSapId={studentSapId}
-              existingInterventionCount={rows.length}
-              latestInterventionStatus={latestInterventionStatus}
-              studentName={studentName}
-              attendancePercent={attendancePercent}
-              attendanceAlertLevel={attendanceAlertLevel}
-              gpaPrevious={gpaPrevious}
-              gpaCurrent={gpaCurrent}
-              gpaDrop={gpaDrop}
-              cgpaPrevious={cgpaPrevious}
-              cgpaCurrent={cgpaCurrent}
-              cgpaDrop={cgpaDrop}
-              senderName={senderName}
-              senderDesignation={senderDesignation}
-              senderDepartment={senderDepartment}
-              senderFaculty={senderFaculty}
-              senderEmail={senderEmail}
-              currentUserRole={currentUserRole}
-              wellbeingCounsellorEmailOptions={wellbeingCounsellorEmailOptions}
-              focusedCourseId={focusedCourseId}
-              focusedSectionCode={focusedSectionCode}
-              focusedEventPackageId={focusedEventPackageId}
-              focusedCourseTitle={focusedCourseTitle}
-              focusedClassType={focusedClassType}
-              sgpaAlreadyRecordedThisTerm={sgpaAlreadyRecordedThisTerm}
-              currentTermLabel={currentTermLabel}
-              onClose={() => setOpen(false)}
-            />
-          )}
-        </div>
-      </dialog>
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-intervention-title"
+              initial={{ opacity: 0, y: "-46vh", scale: 0.32 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: "-22vh", scale: 0.7 }}
+              transition={{
+                type: "spring",
+                stiffness: 280,
+                damping: 24,
+                mass: 0.85,
+              }}
+              style={{ originX: 0.5, originY: 0 }}
+              onClick={(event) => event.stopPropagation()}
+              className="relative z-10 flex w-[min(92vw,42rem)] max-h-[min(90dvh,calc(100dvh-3rem))] flex-col overflow-hidden rounded-xl border border-stroke bg-white p-0 shadow-xl dark:border-dark-3 dark:bg-gray-dark"
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-stroke px-6 py-4 dark:border-dark-3">
+                <h4
+                  id="add-intervention-title"
+                  className="text-lg font-semibold text-dark dark:text-white"
+                >
+                  {isWellbeingView ? "Add Wellbeing Resolution" : "Add Intervention"}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="rounded-md p-1.5 text-dark-6 hover:bg-gray-100 hover:text-dark dark:text-white dark:hover:bg-dark-3 dark:hover:text-white"
+                  aria-label="Close"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar px-6 py-4">
+                {isWellbeingView ? (
+                  <WellbeingResolutionFormWithAction
+                    studentSapId={studentSapId}
+                    onClose={() => setOpen(false)}
+                  />
+                ) : (
+                  <InterventionFormWithAction
+                    mode="intervention"
+                    studentSapId={studentSapId}
+                    existingInterventionCount={rows.length}
+                    latestInterventionStatus={latestInterventionStatus}
+                    studentName={studentName}
+                    attendancePercent={attendancePercent}
+                    attendanceAlertLevel={attendanceAlertLevel}
+                    gpaPrevious={gpaPrevious}
+                    gpaCurrent={gpaCurrent}
+                    gpaDrop={gpaDrop}
+                    cgpaPrevious={cgpaPrevious}
+                    cgpaCurrent={cgpaCurrent}
+                    cgpaDrop={cgpaDrop}
+                    senderName={senderName}
+                    senderDesignation={senderDesignation}
+                    senderDepartment={senderDepartment}
+                    senderFaculty={senderFaculty}
+                    senderEmail={senderEmail}
+                    currentUserRole={currentUserRole}
+                    wellbeingCounsellorEmailOptions={wellbeingCounsellorEmailOptions}
+                    focusedCourseId={focusedCourseId}
+                    focusedSectionCode={focusedSectionCode}
+                    focusedEventPackageId={focusedEventPackageId}
+                    focusedCourseTitle={focusedCourseTitle}
+                    focusedClassType={focusedClassType}
+                    sgpaAlreadyRecordedThisTerm={sgpaAlreadyRecordedThisTerm}
+                    currentTermLabel={currentTermLabel}
+                    onClose={() => setOpen(false)}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {openDirectCaseDialog && (
         <dialog
           open
