@@ -9,6 +9,11 @@ import {
   getInterventionStatsForRoleScope,
   getAlertedWithoutInterventionCountForRoleScope,
 } from "@/data/intervention-store";
+import type { AcademicTermScope } from "@/lib/academic-term";
+
+function parseTermScope(value: unknown): AcademicTermScope {
+  return value === "previous" ? "previous" : "current";
+}
 
 export async function GET() {
   const statusMap = await getAllLatestInterventionStatuses();
@@ -38,6 +43,7 @@ export async function POST(req: Request) {
       staffId?: string | null;
       /** When true, count every intervention row (interventions list). Default: latest per student. */
       countRecords?: boolean;
+      term?: AcademicTermScope | null;
     };
 
     if (
@@ -57,6 +63,7 @@ export async function POST(req: Request) {
         courseIds: roleScope.courseIds ?? null,
         instructorIds: roleScope.instructorIds ?? null,
         staffId: roleScope.staffId ?? null,
+        term: parseTermScope(roleScope.term),
       };
       const stats = roleScope.countRecords
         ? await getInterventionRecordStatsForRoleScope(scopeParams)
@@ -78,4 +85,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }
-

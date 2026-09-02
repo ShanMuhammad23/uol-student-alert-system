@@ -26,6 +26,7 @@ import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersSta
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
 import { InterventionCohortStatsProvider } from "./_components/InterventionCohortStatsContext";
 import { ScrollToTopButton } from "./_components/ScrollToTopButton";
+import { getAcademicTermChartLabels } from "@/lib/academic-term";
 function parseMultiParam(
   value: string | string[] | undefined
 ): string[] {
@@ -87,6 +88,8 @@ export default async function Home({ searchParams }: PropsType) {
     emulatedFacultyId.length > 0
       ? { ...user, role: "dean" as const, faculty_id: emulatedFacultyId }
       : user;
+
+  const termLabels = getAcademicTermChartLabels();
 
   const departmentIds = parseMultiParam(params.department);
   const programs = parseMultiParam(params.program);
@@ -292,6 +295,8 @@ export default async function Home({ searchParams }: PropsType) {
               redGpa={redGpa.value}
               yellowAttendance={yellowAttendance.value}
               redAttendance={redAttendance.value}
+              currentTermLabel={termLabels.currentTermLabel}
+              previousTermLabel={termLabels.previousTermLabel}
             />
           </div>
           <div className="col-span-12 md:col-span-4 bg-white dark:bg-gray-dark rounded-lg shadow-1 pt-4">

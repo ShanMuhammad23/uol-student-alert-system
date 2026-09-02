@@ -11,6 +11,7 @@ import type {
 } from "../fetch";
 import { useDashboardFilter } from "./DashboardFilterContext";
 import type { InterventionChartSlice } from "./InterventionSliceContext";
+import type { AcademicTermScope } from "@/lib/academic-term";
 
 type Props = {
   title: string;
@@ -23,6 +24,8 @@ type Props = {
   redGpa?: number;
   yellowAttendance?: number;
   redAttendance?: number;
+  currentTermLabel?: string;
+  previousTermLabel?: string;
 };
 
 type InterventionCounts = {
@@ -60,9 +63,12 @@ export function InterventionStatusChartClient({
   gpaFilters: gpaFiltersProp,
   attendanceFilters: attendanceFiltersProp,
   selectedAlert,
+  currentTermLabel = "Current semester",
+  previousTermLabel = "Previous semester",
 }: Props): JSX.Element {
   type ChartMode = "attendance" | "gpa" | "all";
   const dashboardFilter = useDashboardFilter();
+  const [term, setTerm] = useState<AcademicTermScope>("current");
 
   const setAttendanceFilters = dashboardFilter?.setAttendanceFilters;
   const setGpaFilters = dashboardFilter?.setGpaFilters;
@@ -156,6 +162,7 @@ export function InterventionStatusChartClient({
           departmentIds,
           courseIds,
           staffId,
+          term,
         }),
       })
         .then(async (res) => {
@@ -201,6 +208,7 @@ export function InterventionStatusChartClient({
     courseIds?.join(","),
     interventionType,
     alertLevel,
+    term,
   ]);
 
   const clearSegmentFilters = () => {
@@ -258,15 +266,45 @@ export function InterventionStatusChartClient({
             </p>
           ) : null}
         </div>
-        {effectiveSlice != null && (
-          <button
-            type="button"
-            onClick={clearSegmentFilters}
-            className="shrink-0 text-xs font-medium text-primary hover:underline"
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-600 dark:bg-slate-800"
+            role="group"
+            aria-label="Intervention semester"
           >
-            Show all
-          </button>
-        )}
+            <button
+              type="button"
+              onClick={() => setTerm("current")}
+              className={
+                term === "current"
+                  ? "rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                  : "rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }
+            >
+              {currentTermLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTerm("previous")}
+              className={
+                term === "previous"
+                  ? "rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                  : "rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }
+            >
+              {previousTermLabel}
+            </button>
+          </div>
+          {effectiveSlice != null && (
+            <button
+              type="button"
+              onClick={clearSegmentFilters}
+              className="shrink-0 text-xs font-medium text-primary hover:underline"
+            >
+              Show all
+            </button>
+          )}
+        </div>
       </div>
       {loading ? (
         <p className="px-2 py-8 text-center text-sm text-neutral-500">

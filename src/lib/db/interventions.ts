@@ -1,4 +1,12 @@
-import { enrolledInCurrentTermSql, formatAcademicTermLabel, getCurrentAcademicTerm, getCurrentTermDateBounds } from "@/lib/academic-term";
+import {
+  enrolledInCurrentTermSql,
+  enrolledInTermSql,
+  formatAcademicTermLabel,
+  getAcademicTermForScope,
+  getCurrentAcademicTerm,
+  getCurrentTermDateBounds,
+  type AcademicTermScope,
+} from "@/lib/academic-term";
 import { pool } from "./index";
 
 function normalizeSapId(value: string): string {
@@ -912,6 +920,8 @@ export type InterventionRoleScope = {
   courseIds?: string[] | null;
   instructorIds?: string[] | null; // instructor_pernr values from enrollment
   staffId?: string | null; // staff.id (UUID) for instructors
+  /** When set, count only interventions linked to that semester's enrollment. */
+  term?: AcademicTermScope | null;
 };
 
 export type InterventionRoleScopeStats = {
@@ -923,6 +933,71 @@ export type InterventionRoleScopeStats = {
   noActionRequired: number;
   totalInterventionStudents: number;
 };
+
+function isAcademicTermScope(
+  value: AcademicTermScope | null | undefined
+): value is AcademicTermScope {
+  return value === "current" || value === "previous";
+}
+
+/**
+ * Scope interventions to a semester via enrollment term_year + term_session
+ * (SAP_PYEAR / SAP_PSESS), not the intervention calendar date.
+ *
+ * Current-term leftover protection: if the same student+course also exists in an
+ * earlier term, the row belongs to that earlier offering (Fall re-enrolment of a
+ * Spring/Summer course must not pull old interventions into Fall).
+ */
+function appendInterventionTermScopeSql(
+  alias: string,
+  term?: AcademicTermScope | null
+): string {
+  if (!isAcademicTermScope(term)) return "";
+  const i = alias || "interventions";
+  const academicTerm = getAcademicTermForScope(term);
+  const sapMatch = normalizeSapIdCompareSql(
+    `${i}.student_sap_id`,
+    "e_term.sap_id"
+  );
+  const courseMatch = interventionCourseMatchesEnrollmentSql({
+    interventionAlias: i,
+    enrollmentAlias: "e_term",
+  });
+  const termPred = enrolledInTermSql("e_term", academicTerm, {
+    requireActive: false,
+  });
+
+  let sql = ` AND EXISTS (
+    SELECT 1
+    FROM student_enrollment_current e_term
+    WHERE ${termPred}
+      AND ${sapMatch}
+      AND ${courseMatch}
+  )`;
+
+  if (term === "current") {
+    const currentPred = enrolledInTermSql("e_prev", academicTerm, {
+      requireActive: false,
+    });
+    const sapPrev = normalizeSapIdCompareSql(
+      `${i}.student_sap_id`,
+      "e_prev.sap_id"
+    );
+    const coursePrev = interventionCourseMatchesEnrollmentSql({
+      interventionAlias: i,
+      enrollmentAlias: "e_prev",
+    });
+    sql += ` AND NOT EXISTS (
+      SELECT 1
+      FROM student_enrollment_current e_prev
+      WHERE ${sapPrev}
+        AND ${coursePrev}
+        AND NOT (${currentPred})
+    )`;
+  }
+
+  return sql;
+}
 
 /**
  * DB-backed counts using only role scope columns.
@@ -1011,6 +1086,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
     const scopedWhereSuper = wherePartsSuper.length
       ? `${typeWhereSql} AND ${wherePartsSuper.join(" AND ")}`
       : typeWhereSql;
+    const termSqlSuper = appendInterventionTermScopeSql("", params.term);
     const outerIdx = argsSuper.length + 1;
 
     const resSuper = await pool.query<{
@@ -1023,7 +1099,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
           student_sap_id,
           status${wantsAlertFilterGlobal ? ", alert_level" : ""}
         FROM interventions
-        WHERE ${scopedWhereSuper}
+        WHERE ${scopedWhereSuper}${termSqlSuper}
         ORDER BY student_sap_id, performed_at DESC
       )
       SELECT status, COUNT(*)::int AS cnt
@@ -1141,6 +1217,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
   const wantsAlertFilter =
     hasAlertLevel && params.alertLevel != null ? true : false;
 
+  const termSql = appendInterventionTermScopeSql("", params.term);
   const outerPlaceholderIndex = args.length + 1;
 
   const res = await pool.query<{
@@ -1155,7 +1232,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
           wantsAlertFilter ? ", alert_level" : ""
         }
       FROM interventions
-      WHERE ${interventionTypeFilterSql}${whereSql}
+      WHERE ${interventionTypeFilterSql}${whereSql}${termSql}
       ORDER BY student_sap_id, performed_at DESC
     )
     SELECT status, COUNT(*)::int AS cnt
@@ -1270,6 +1347,7 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
     const scopedWhereSuper = wherePartsSuper.length
       ? `${typeWhereSql} AND ${wherePartsSuper.join(" AND ")}`
       : typeWhereSql;
+    const termSqlSuper = appendInterventionTermScopeSql("", params.term);
     const outerIdx = argsSuper.length + 1;
     const alertSql = wantsAlertFilterGlobal
       ? ` AND alert_level = $${outerIdx}`
@@ -1279,7 +1357,7 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
       `
       SELECT status, COUNT(*)::int AS cnt
       FROM interventions
-      WHERE ${scopedWhereSuper}${alertSql}
+      WHERE ${scopedWhereSuper}${termSqlSuper}${alertSql}
       GROUP BY status
       `,
       wantsAlertFilterGlobal
@@ -1356,6 +1434,7 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
     : "";
   const wantsAlertFilter =
     hasAlertLevel && params.alertLevel != null ? true : false;
+  const termSql = appendInterventionTermScopeSql("", params.term);
   const outerPlaceholderIndex = args.length + 1;
   const alertSql = wantsAlertFilter
     ? ` AND alert_level = $${outerPlaceholderIndex}`
@@ -1365,7 +1444,7 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
     `
     SELECT status, COUNT(*)::int AS cnt
     FROM interventions
-    WHERE ${interventionTypeFilterSql}${whereSql}${alertSql}
+    WHERE ${interventionTypeFilterSql}${whereSql}${termSql}${alertSql}
     GROUP BY status
     `,
     wantsAlertFilter ? [...args, params.alertLevel as string] : args
@@ -1579,7 +1658,12 @@ function buildEnrollmentScopeSql(
   params: InterventionRoleScope,
   args: unknown[]
 ): string | null {
-  const parts = [enrolledInCurrentTermSql("e")];
+  const term = isAcademicTermScope(params.term) ? params.term : "current";
+  const parts = [
+    enrolledInTermSql("e", getAcademicTermForScope(term), {
+      requireActive: term !== "previous",
+    }),
+  ];
   if (params.role === "dean") {
     if (!params.facultyId) return null;
     const mappedFacultyId =
@@ -1638,6 +1722,7 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
     interventionAlias: "i",
     enrollmentAlias: "e",
   });
+  const termDateSql = appendInterventionTermScopeSql("i", params.term);
   const res = await pool.query<{ cnt: string }>(
     `
     SELECT COUNT(DISTINCT e.sap_id)::int AS cnt
@@ -1654,6 +1739,7 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
         FROM interventions i
         WHERE ${courseMatchSql}
           AND (${interventionScope})
+          ${termDateSql}
       )
     `,
     args

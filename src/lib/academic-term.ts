@@ -8,6 +8,8 @@ export type AcademicTerm = {
   termSession: string;
 };
 
+export type AcademicTermScope = "current" | "previous";
+
 const SESSION_LABELS: Record<string, string> = {
   "001": "Spring",
   "002": "Summer",
@@ -27,6 +29,29 @@ export function getCurrentAcademicTerm(): AcademicTerm {
       "0"
     ),
   };
+}
+
+/** Previous session in the 001 spring / 002 summer / 003 fall cycle. */
+export function getPreviousAcademicTerm(
+  term: AcademicTerm = getCurrentAcademicTerm()
+): AcademicTerm {
+  const year = Number(term.termYear);
+  if (term.termSession === "001") {
+    return {
+      termYear: String(Number.isFinite(year) ? year - 1 : term.termYear),
+      termSession: "003",
+    };
+  }
+  if (term.termSession === "002") {
+    return { termYear: term.termYear, termSession: "001" };
+  }
+  return { termYear: term.termYear, termSession: "002" };
+}
+
+export function getAcademicTermForScope(scope: AcademicTermScope): AcademicTerm {
+  return scope === "previous"
+    ? getPreviousAcademicTerm()
+    : getCurrentAcademicTerm();
 }
 
 export function normalizeTermSession(value?: string | null): string {
@@ -51,12 +76,58 @@ function yyyymmddToIso(raw: string, fallback: string): string {
   return fallback;
 }
 
+function addDaysIso(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Typical UOL windows used when a term has no SAP_BEGDA / SAP_ENDDA. */
+function inferTypicalTermDateBounds(term: AcademicTerm): { start: string; end: string } {
+  const year = Number(term.termYear);
+  const y = Number.isFinite(year) ? year : new Date().getUTCFullYear();
+  if (term.termSession === "001") {
+    return { start: `${y}-02-01`, end: `${y}-05-31` };
+  }
+  if (term.termSession === "002") {
+    return { start: `${y}-06-01`, end: `${y}-08-31` };
+  }
+  return { start: `${y}-09-01`, end: `${y + 1}-01-31` };
+}
+
 /** Inclusive calendar bounds for the configured SAP term (`SAP_BEGDA` / `SAP_ENDDA`). */
 export function getCurrentTermDateBounds(): { start: string; end: string } {
   return {
     start: yyyymmddToIso(process.env.SAP_BEGDA ?? "20260601", "2026-06-01"),
     end: yyyymmddToIso(process.env.SAP_ENDDA ?? "20260920", "2026-09-20"),
   };
+}
+
+/**
+ * Inclusive bounds for any term. Current term uses SAP dates; previous term
+ * uses the typical session window, clipped so it does not overlap the current term.
+ */
+export function getTermDateBounds(term: AcademicTerm): { start: string; end: string } {
+  const current = getCurrentAcademicTerm();
+  if (
+    term.termYear === current.termYear &&
+    term.termSession === current.termSession
+  ) {
+    return getCurrentTermDateBounds();
+  }
+  const inferred = inferTypicalTermDateBounds(term);
+  const currentStart = getCurrentTermDateBounds().start;
+  const clippedEnd =
+    inferred.end >= currentStart ? addDaysIso(currentStart, -1) : inferred.end;
+  const start =
+    inferred.start <= clippedEnd ? inferred.start : addDaysIso(clippedEnd, -120);
+  return { start, end: clippedEnd };
+}
+
+export function getAcademicTermDateBounds(
+  scope: AcademicTermScope
+): { start: string; end: string } {
+  return getTermDateBounds(getAcademicTermForScope(scope));
 }
 
 export function isIsoDateInRange(
@@ -85,14 +156,36 @@ export function formatAcademicTermLabel(
   return `${sessionLabel} ${year}`;
 }
 
+export function getAcademicTermChartLabels(): {
+  currentTermLabel: string;
+  previousTermLabel: string;
+} {
+  const current = getCurrentAcademicTerm();
+  const previous = getPreviousAcademicTerm();
+  return {
+    currentTermLabel:
+      formatAcademicTermLabel(current.termYear, current.termSession) ??
+      "Current semester",
+    previousTermLabel:
+      formatAcademicTermLabel(previous.termYear, previous.termSession) ??
+      "Previous semester",
+  };
+}
+
 function qualify(alias: string | undefined, column: string): string {
   const prefix = alias ? `${alias}.` : "";
   return `${prefix}${column}`;
 }
 
-/** Active enrollment in the configured current semester (index-friendly predicates). */
-export function enrolledInCurrentTermSql(alias = ""): string {
-  const { termYear, termSession } = getCurrentAcademicTerm();
+/** Enrollment rows for a specific term (index-friendly predicates). */
+export function enrolledInTermSql(
+  alias = "",
+  term: AcademicTerm = getCurrentAcademicTerm(),
+  opts?: { requireActive?: boolean }
+): string {
+  const requireActive = opts?.requireActive ?? true;
+  const termYear = sanitizeTermPart(term.termYear, "0");
+  const termSession = normalizeTermSession(term.termSession);
   const active = qualify(alias, "is_active");
   const yearCol = qualify(alias, "term_year");
   const sessionCol = qualify(alias, "term_session");
@@ -102,9 +195,14 @@ export function enrolledInCurrentTermSql(alias = ""): string {
     unpadded === termSession || !Number.isFinite(Number(termSession))
       ? `'${termSession}'`
       : `'${termSession}', '${unpadded}'`;
-  return `${active} = TRUE
-    AND ${yearCol} = '${termYear}'
+  const activeSql = requireActive ? `${active} = TRUE AND ` : "";
+  return `${activeSql}${yearCol} = '${termYear}'
     AND ${sessionCol} IN (${sessionList})`;
+}
+
+/** Active enrollment in the configured current semester (index-friendly predicates). */
+export function enrolledInCurrentTermSql(alias = ""): string {
+  return enrolledInTermSql(alias, getCurrentAcademicTerm(), { requireActive: true });
 }
 
 /**

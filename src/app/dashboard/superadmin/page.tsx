@@ -3,7 +3,6 @@ import {
   getCurrentUser,
   getSuperadminFacultyStats,
   getSuperadminAlertSnapshotTrend,
-  getInterventionChartData,
   getWellbeingChartData,
 } from "@/app/(home)/dashboard/fetch";
 import { buildEffectivenessRows, getEffectivenessScores } from "@/lib/effectiveness";
@@ -11,9 +10,10 @@ import { computeEiRating, type EiRating } from "@/lib/effectiveness-scoring";
 import { FEI_GRADE_CONFIG } from "@/lib/fei-rating-styles";
 import {
   formatAcademicTermLabel,
+  getAcademicTermChartLabels,
   getCurrentAcademicTerm,
 } from "@/lib/academic-term";
-import { InterventionStatusChart } from "@/components/Charts/intervention-status-chart/chart";
+import { InterventionStatusChartClient } from "@/app/(home)/dashboard/_components/InterventionStatusChartClient";
 import { StatusStackedChart } from "@/components/Charts/status-stacked-chart/chart";
 import {
   FacultyEffectivenessChart,
@@ -367,11 +367,10 @@ export default async function SuperadminDashboardPage({
   const resolvedSearchParams = await searchParams;
   const selectedFaculty = resolvedSearchParams.faculty?.trim() || "";
   
-  const [overview, facultyStats, interventionChart, wellbeingChart] =
+  const [overview, facultyStats, wellbeingChart] =
     await Promise.all([
       getOverviewData(user),
       getSuperadminFacultyStats(),
-      getInterventionChartData(user),
       getWellbeingChartData(user),
     ]);
 
@@ -433,6 +432,7 @@ export default async function SuperadminDashboardPage({
   const currentSemesterLabel =
     formatAcademicTermLabel(currentTerm.termYear, currentTerm.termSession) ??
     "Current semester";
+  const termLabels = getAcademicTermChartLabels();
   const universityEi =
     feiRows.length > 0
       ? Math.round(
@@ -538,10 +538,11 @@ export default async function SuperadminDashboardPage({
             }
           />
           <div className="mt-4">
-            <InterventionStatusChart
+            <InterventionStatusChartClient
               title=""
-              data={interventionChart.data}
-              statusColors={interventionChart.statusColors}
+              user={user}
+              currentTermLabel={termLabels.currentTermLabel}
+              previousTermLabel={termLabels.previousTermLabel}
             />
           </div>
         </div>
