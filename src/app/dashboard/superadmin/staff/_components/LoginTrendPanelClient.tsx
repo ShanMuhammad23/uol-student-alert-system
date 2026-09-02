@@ -24,7 +24,11 @@ type Props = {
 
 function useChartTheme() {
   const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const isDark =
+    resolvedTheme === "dark" ||
+    (resolvedTheme == null &&
+      typeof document !== "undefined" &&
+      document.documentElement.classList.contains("dark"));
 
   return {
     isDark,
@@ -35,12 +39,18 @@ function useChartTheme() {
       fontSize: 11,
     },
     tooltip: {
-      background: isDark ? "#1E293B" : "#FFFFFF",
-      border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+      background: isDark ? "#0F172A" : "#FFFFFF",
+      border: isDark ? "1px solid rgba(148,163,184,0.24)" : "1px solid rgba(0,0,0,0.08)",
       borderRadius: 10,
       fontSize: 12,
       color: isDark ? "#F8FAFC" : "#0F172A",
+      boxShadow: isDark
+        ? "0 12px 32px rgba(0,0,0,0.45)"
+        : "0 8px 24px rgba(15,23,42,0.08)",
     },
+    cursor: isDark ? "rgba(148,163,184,0.12)" : "rgba(15,23,42,0.06)",
+    barDaily: isDark ? "#34D399" : "#059669",
+    barFaculty: isDark ? "#818CF8" : "#6366F1",
   };
 }
 
@@ -76,20 +86,20 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
     totalStaff > 0 ? Math.round((totalLoggedIn / totalStaff) * 1000) / 10 : 0;
 
   return (
-    <div className="space-y-6 bg-white py-4 rounded">
-      <div className="grid gap-4 sm:grid-cols-2 border-b">
-        <div className=" px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Staff logged in (past 7 days)
           </p>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
             {totalLoggedIn}
-            <span className="ml-1 text-sm font-normal text-slate-400">
+            <span className="ml-1 text-sm font-normal text-slate-400 dark:text-slate-500">
               / {totalStaff}
             </span>
           </p>
         </div>
-        <div className=" px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Overall login %
           </p>
@@ -99,7 +109,7 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 px-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800/50">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
             Logins per day
@@ -108,7 +118,9 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
             Same staff as above, grouped by the date of their last login
           </p>
           {daily.length === 0 ? (
-            <p className="py-12 text-center text-sm text-slate-500">No login data available.</p>
+            <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+              No login data available.
+            </p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={daily} margin={{ top: 16, right: 8, bottom: 0, left: -8 }}>
@@ -128,18 +140,21 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
                   width={36}
                 />
                 <Tooltip
+                  cursor={{ fill: theme.cursor }}
                   contentStyle={theme.tooltip}
+                  labelStyle={{ color: theme.tooltip.color }}
+                  itemStyle={{ color: theme.tooltip.color }}
                   formatter={(value) => [Number(value) || 0, "Logins"]}
                   labelFormatter={(_, payload) => {
                     const point = payload?.[0]?.payload as LoginTrendDailyPoint | undefined;
                     return point?.date ?? "";
                   }}
                 />
-                <Bar dataKey="logins" fill="#059669" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                <Bar dataKey="logins" fill={theme.barDaily} radius={[6, 6, 0, 0]} maxBarSize={40}>
                   <LabelList
                     dataKey="logins"
                     position="top"
-                    style={{ fill: theme.textMuted, fontSize: 11 }}
+                    style={{ fill: theme.isDark ? "#E2E8F0" : theme.textMuted, fontSize: 11 }}
                   />
                 </Bar>
               </BarChart>
@@ -155,7 +170,9 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
             Staff logged in past 7 days, sorted by count
           </p>
           {facultyChartData.length === 0 ? (
-            <p className="py-12 text-center text-sm text-slate-500">No faculty staff data available.</p>
+            <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+              No faculty staff data available.
+            </p>
           ) : (
             <ResponsiveContainer
               width="100%"
@@ -183,7 +200,10 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
                   width={140}
                 />
                 <Tooltip
+                  cursor={{ fill: theme.cursor }}
                   contentStyle={theme.tooltip}
+                  labelStyle={{ color: theme.tooltip.color }}
+                  itemStyle={{ color: theme.tooltip.color }}
                   formatter={(value, _name, item) => {
                     const row = item?.payload as
                       | { loginPct?: number; total?: number }
@@ -198,11 +218,11 @@ export function LoginTrendPanelClient({ daily, byFaculty }: Props) {
                     return row?.fullName ?? "";
                   }}
                 />
-                <Bar dataKey="loggedIn" fill="#6366F1" radius={[0, 4, 4, 0]} maxBarSize={14}>
+                <Bar dataKey="loggedIn" fill={theme.barFaculty} radius={[0, 4, 4, 0]} maxBarSize={14}>
                   <LabelList
                     dataKey="label"
                     position="right"
-                    style={{ fill: theme.textMuted, fontSize: 10 }}
+                    style={{ fill: theme.isDark ? "#E2E8F0" : theme.textMuted, fontSize: 10 }}
                   />
                 </Bar>
               </BarChart>

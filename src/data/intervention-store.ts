@@ -22,7 +22,7 @@ import {
   type InterventionRoleScope,
   type InterventionRoleScopeStats,
 } from "@/lib/db/interventions";
-import { formatAcademicTermLabel, getCurrentAcademicTerm, isDateInCurrentTerm } from "@/lib/academic-term";
+import { formatAcademicTermLabel, getCurrentAcademicTerm, isDateInCurrentTerm, enrolledInCurrentTermSql } from "@/lib/academic-term";
 import { insertWellbeingDirectCase } from "@/lib/db/wellbeing-direct-cases";
 
 /** Matches Intervention-Form fields for intervention history. */
@@ -195,12 +195,24 @@ async function getEnrollmentContextFromDb(
      ORDER BY
        CASE
          WHEN $2::text <> ''
-          AND e.course_id = $2::text
-          AND COALESCE(e.section_code, '') = $3::text
-          AND COALESCE(e.event_package_id, '') = $4::text
+          AND (
+            e.course_id = $2::text
+            OR SPLIT_PART(COALESCE(e.course_id, ''), '|', 1)
+              = SPLIT_PART($2::text, '|', 1)
+          )
+          AND ($3::text = '' OR COALESCE(e.section_code, '') = $3::text)
+          AND ($4::text = '' OR COALESCE(e.event_package_id, '') = $4::text)
          THEN 0
-         ELSE 1
+         WHEN $2::text <> ''
+          AND (
+            e.course_id = $2::text
+            OR SPLIT_PART(COALESCE(e.course_id, ''), '|', 1)
+              = SPLIT_PART($2::text, '|', 1)
+          )
+         THEN 1
+         ELSE 2
        END ASC,
+       CASE WHEN ${enrolledInCurrentTermSql("e")} THEN 0 ELSE 1 END ASC,
        CASE
          WHEN a.attendance_alert_level = 'critical' OR a.gpa_alert_level = 'critical' THEN 3
          WHEN a.attendance_alert_level = 'warning' OR a.gpa_alert_level = 'warning' THEN 2
@@ -620,17 +632,42 @@ export async function recordIntervention(
     if (!session?.user?.id) {
       throw new Error("You must be signed in to record an intervention.");
     }
-    const departmentId = String(data.department_id ?? "").trim();
-    const facultyId = String(data.faculty_id ?? "").trim();
+    const dbContext = await getEnrollmentContextFromDb(studentSapId, {
+      courseId: data.focused_course_id,
+      sectionCode: data.focused_section_code,
+      eventPackageId: data.focused_event_package_id,
+    });
+    const departmentId = String(
+      data.department_id ?? dbContext?.departmentId ?? ""
+    ).trim();
+    const facultyId = String(data.faculty_id ?? dbContext?.facultyId ?? "").trim();
     if (!departmentId || !facultyId) {
       throw new Error(
         "Student department and faculty are required from the student profile."
       );
     }
     const courseId =
-      String(data.focused_course_id ?? "").trim() || "unknown";
-    const courseTitle = String(data.focused_course_title ?? "").trim() || undefined;
-    const alertLevel = pickAlertLevel();
+      String(data.focused_course_id ?? dbContext?.courseId ?? "").trim() ||
+      "unknown";
+    const courseTitle =
+      String(data.focused_course_title ?? dbContext?.courseTitle ?? "").trim() ||
+      undefined;
+    const attendanceAlertLevel =
+      data.attendance_alert_level ?? dbContext?.attendanceAlertLevel ?? null;
+    const gpaAlertLevel =
+      data.gpa_alert_level ?? dbContext?.gpaAlertLevel ?? null;
+    const pickAlertLevelFromContext = (): "warning" | "critical" | null => {
+      if (data.intervention_type === "attendance") return attendanceAlertLevel;
+      if (data.intervention_type === "gpa") return gpaAlertLevel;
+      if (attendanceAlertLevel === "critical" || gpaAlertLevel === "critical") {
+        return "critical";
+      }
+      if (attendanceAlertLevel === "warning" || gpaAlertLevel === "warning") {
+        return "warning";
+      }
+      return null;
+    };
+    const alertLevel = pickAlertLevelFromContext();
 
     await ensureCourseExists(courseId, {
       title: courseTitle,
