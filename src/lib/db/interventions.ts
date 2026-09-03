@@ -8,6 +8,7 @@ import {
   type AcademicTermScope,
 } from "@/lib/academic-term";
 import { pool } from "./index";
+import { gatedAttendanceAlertLevelSql } from "@/lib/attendance-utils";
 
 function normalizeSapId(value: string): string {
   const trimmed = String(value ?? "").trim();
@@ -1631,20 +1632,20 @@ function buildAlertRowFilterSql(
   }
   if (params.interventionType === "attendance") {
     if (params.alertLevel === "warning") {
-      return "a.attendance_alert_level = 'warning'";
+      return `${gatedAttendanceAlertLevelSql()} = 'warning'`;
     }
     if (params.alertLevel === "critical") {
-      return "a.attendance_alert_level = 'critical'";
+      return `${gatedAttendanceAlertLevelSql()} = 'critical'`;
     }
-    return "a.attendance_alert_level IS NOT NULL";
+    return `${gatedAttendanceAlertLevelSql()} IS NOT NULL`;
   }
   if (params.alertLevel === "warning") {
-    return "(a.gpa_alert_level = 'warning' OR a.attendance_alert_level = 'warning')";
+    return `(a.gpa_alert_level = 'warning' OR ${gatedAttendanceAlertLevelSql()} = 'warning')`;
   }
   if (params.alertLevel === "critical") {
-    return "(a.gpa_alert_level = 'critical' OR a.attendance_alert_level = 'critical')";
+    return `(a.gpa_alert_level = 'critical' OR ${gatedAttendanceAlertLevelSql()} = 'critical')`;
   }
-  return "(a.gpa_alert_level IS NOT NULL OR a.attendance_alert_level IS NOT NULL)";
+  return `(a.gpa_alert_level IS NOT NULL OR ${gatedAttendanceAlertLevelSql()} IS NOT NULL)`;
 }
 
 function buildInterventionExistsScopeSql(

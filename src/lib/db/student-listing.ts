@@ -5,6 +5,7 @@ import {
   currentOrIntervenedEnrollmentSql,
   enrolledInCurrentTermSql,
 } from "@/lib/academic-term";
+import { gatedAttendanceAlertLevelSql } from "@/lib/attendance-utils";
 import {
   hasAssigneeStaffIdColumn,
   hasCaseTypeColumn,
@@ -142,7 +143,7 @@ export type StudentListingResult = {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100000;
 const INTERVENTION_ELIGIBLE_SQL =
-  "(a.gpa_alert_level IS NOT NULL OR a.attendance_alert_level IS NOT NULL)";
+  `(a.gpa_alert_level IS NOT NULL OR ${gatedAttendanceAlertLevelSql()} IS NOT NULL)`;
 type InterventionContextColumns = {
   hasSectionCode: boolean;
   hasEventPackageId: boolean;
@@ -530,7 +531,7 @@ function buildWhere(
 
   if (!skip?.has("attendance")) {
     const attendanceClause = buildAlertLevelClause(
-      "a.attendance_alert_level",
+      gatedAttendanceAlertLevelSql(),
       filters.attendanceFilters,
       params
     );
@@ -827,7 +828,7 @@ function buildListingBaseCte(
         a.classes_attended,
         a.attendance_percentage,
         a.class_average_attendance,
-        a.attendance_alert_level,
+        ${gatedAttendanceAlertLevelSql()} AS attendance_alert_level,
         a.gpa_current,
         a.gpa_previous,
         a.gpa_change,
