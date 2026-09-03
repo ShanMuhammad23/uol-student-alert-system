@@ -980,6 +980,7 @@ export async function runStudentSync(
       const attendancePct =
         attendanceMarked > 0 ? (attended / attendanceMarked) * 100 : null;
       const classAvg = classAvgByCourseSectionCredit.get(row.monitoringAvgKey) ?? null;
+      // LECT: held and posted >= 8. LAB: held and posted > 2.
       const attendanceLevel =
         attendancePct == null
           ? null
@@ -987,7 +988,8 @@ export async function runStudentSync(
               attendancePct,
               classAvg,
               totalHeld,
-              attendanceMarked
+              attendanceMarked,
+              row.classTypeKey || pair.classTypeKey
             );
       // GPA trend map is SGPA-based for alerting.
       const gpaTrend = gpaTrendMap[row.sapId];

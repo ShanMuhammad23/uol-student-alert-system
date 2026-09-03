@@ -1,4 +1,5 @@
 import { enrolledInCurrentTermSql } from "@/lib/academic-term";
+import { gatedAttendanceAlertLevelSql } from "@/lib/attendance-utils";
 import { pool } from "@/lib/db";
 
 export type AlertCountsRow = {
@@ -127,17 +128,13 @@ export async function buildAlertCountRows(
           ) AS gpa_has_critical,
           MAX(
             CASE
-              WHEN a.attendance_alert_level = 'warning' THEN 1
+              WHEN ${gatedAttendanceAlertLevelSql()} = 'warning' THEN 1
               ELSE 0
             END
           ) AS attendance_has_warning,
           MAX(
             CASE
-              WHEN a.attendance_alert_level = 'critical'
-                OR (
-                  a.attendance_percentage IS NOT NULL
-                  AND a.attendance_percentage <= 60
-                ) THEN 1
+              WHEN ${gatedAttendanceAlertLevelSql()} = 'critical' THEN 1
               ELSE 0
             END
           ) AS attendance_has_critical

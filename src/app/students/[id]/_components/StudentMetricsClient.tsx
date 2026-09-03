@@ -22,6 +22,7 @@ type Props = {
     courseId: string;
     courseTitle: string | null;
     sectionCode: string | null;
+    eventPackageId?: string | null;
     instructorName: string | null;
     totalClassesHeld: number;
     attendanceMarkedClasses: number;
@@ -148,7 +149,8 @@ export function StudentMetricsClient({
           Number(r.attendancePercentage ?? NaN),
           selectedClassAverage ?? r.classAverageAttendance ?? null,
           r.totalClassesHeld,
-          r.attendanceMarkedClasses
+          r.attendanceMarkedClasses,
+          r.eventPackageId
         )
       )
       .filter((level): level is "critical" | "warning" => level != null);

@@ -17,7 +17,10 @@ import { pool } from "@/lib/db";
 import { authOptions } from "@/lib/auth-config";
 import { fetchMonitoringEntries, mapMonitoringToStudents, getMonitoringStudentsBySapId } from "@/lib/sap-monitoring";
 import { getServerSession } from "next-auth";
-import { getAttendanceAlertLevel } from "@/lib/attendance-utils";
+import {
+  getAttendanceAlertLevel,
+  gatedAttendanceAlertLevelSql,
+} from "@/lib/attendance-utils";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import { getBatchOptionsFromEnrollment } from "@/lib/enrollment/queries";
 
@@ -751,17 +754,10 @@ async function getScopedDimensionCountsFromLive(
            END
          ) AS gpa_sev,
          MAX(
-           CASE WHEN a.attendance_alert_level = 'warning' THEN 1 ELSE 0 END
+           CASE WHEN ${gatedAttendanceAlertLevelSql()} = 'warning' THEN 1 ELSE 0 END
          ) AS attendance_has_warning,
          MAX(
-           CASE
-             WHEN a.attendance_alert_level = 'critical'
-               OR (
-                 a.attendance_percentage IS NOT NULL
-                 AND a.attendance_percentage <= 60
-               ) THEN 1
-             ELSE 0
-           END
+           CASE WHEN ${gatedAttendanceAlertLevelSql()} = 'critical' THEN 1 ELSE 0 END
          ) AS attendance_has_critical
        FROM student_enrollment_current e
        LEFT JOIN departments d ON d.id = e.department_id
@@ -3425,8 +3421,8 @@ export async function getInstructorCourseStats(
              e.sap_id,
              MAX(CASE WHEN a.gpa_alert_level = 'warning' THEN 1 ELSE 0 END) AS gpa_warning,
              MAX(CASE WHEN a.gpa_alert_level = 'critical' THEN 1 ELSE 0 END) AS gpa_critical,
-             MAX(CASE WHEN a.attendance_alert_level = 'warning' THEN 1 ELSE 0 END) AS attendance_warning,
-             MAX(CASE WHEN a.attendance_alert_level = 'critical' THEN 1 ELSE 0 END) AS attendance_critical
+             MAX(CASE WHEN ${gatedAttendanceAlertLevelSql()} = 'warning' THEN 1 ELSE 0 END) AS attendance_warning,
+             MAX(CASE WHEN ${gatedAttendanceAlertLevelSql()} = 'critical' THEN 1 ELSE 0 END) AS attendance_critical
            FROM student_enrollment_current e
            LEFT JOIN courses c ON c.id = e.course_id
            LEFT JOIN student_alert_current a
@@ -3517,8 +3513,8 @@ export async function getInstructorCourseStats(
              e.sap_id,
              MAX(CASE WHEN a.gpa_alert_level = 'warning' THEN 1 ELSE 0 END) AS gpa_warning,
              MAX(CASE WHEN a.gpa_alert_level = 'critical' THEN 1 ELSE 0 END) AS gpa_critical,
-             MAX(CASE WHEN a.attendance_alert_level = 'warning' THEN 1 ELSE 0 END) AS attendance_warning,
-             MAX(CASE WHEN a.attendance_alert_level = 'critical' THEN 1 ELSE 0 END) AS attendance_critical
+             MAX(CASE WHEN ${gatedAttendanceAlertLevelSql()} = 'warning' THEN 1 ELSE 0 END) AS attendance_warning,
+             MAX(CASE WHEN ${gatedAttendanceAlertLevelSql()} = 'critical' THEN 1 ELSE 0 END) AS attendance_critical
            FROM student_enrollment_current e
            LEFT JOIN courses c ON c.id = e.course_id
            LEFT JOIN student_alert_current a
