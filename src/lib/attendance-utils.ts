@@ -174,16 +174,78 @@ export async function getAttendanceSummariesForEnrollments(
   return summaries;
 }
 
-/** Minimum posted attendances before a yellow/red alert is trustworthy. */
-export const ATTENDANCE_ALERT_MIN_MARKED = 3;
+/** Lecture (and non-lab types): both held and posted must be at least this. */
+export const ATTENDANCE_ALERT_LECTURE_MIN_SESSIONS = 8;
+/** Lab: both held and posted must be strictly greater than this. */
+export const ATTENDANCE_ALERT_LAB_MIN_SESSIONS_EXCLUSIVE = 2;
 /** Minimum share of held classes that must be posted before alerting. */
 export const ATTENDANCE_ALERT_MIN_COVERAGE = 0.75;
+
+export function isLabAttendanceClassType(
+  classType?: string | null
+): boolean {
+  const raw = String(classType ?? "").trim().toLowerCase();
+  if (!raw) return false;
+  if (raw.includes("lect")) return false;
+  return raw.includes("lab");
+}
+
+export function meetsAttendanceAlertSessionMinimum(
+  totalClassesHeld: number,
+  attendanceMarked: number,
+  classType?: string | null
+): boolean {
+  if (!(totalClassesHeld > 0) || !(attendanceMarked > 0)) return false;
+  if (isLabAttendanceClassType(classType)) {
+    return (
+      totalClassesHeld > ATTENDANCE_ALERT_LAB_MIN_SESSIONS_EXCLUSIVE &&
+      attendanceMarked > ATTENDANCE_ALERT_LAB_MIN_SESSIONS_EXCLUSIVE
+    );
+  }
+  return (
+    totalClassesHeld >= ATTENDANCE_ALERT_LECTURE_MIN_SESSIONS &&
+    attendanceMarked >= ATTENDANCE_ALERT_LECTURE_MIN_SESSIONS
+  );
+}
+
+/** SQL predicate: lecture held+posted >= 8; lab held+posted > 2. */
+export function attendanceAlertSessionReadySql(
+  heldExpr = "a.total_classes_held",
+  markedExpr = "a.attendance_marked_classes",
+  classTypeExpr = "e.event_package_id"
+): string {
+  return `(
+    CASE
+      WHEN LOWER(COALESCE(${classTypeExpr}, '')) LIKE '%lab%'
+       AND LOWER(COALESCE(${classTypeExpr}, '')) NOT LIKE '%lect%'
+      THEN COALESCE(${heldExpr}, 0) > ${ATTENDANCE_ALERT_LAB_MIN_SESSIONS_EXCLUSIVE}
+       AND COALESCE(${markedExpr}, 0) > ${ATTENDANCE_ALERT_LAB_MIN_SESSIONS_EXCLUSIVE}
+      ELSE COALESCE(${heldExpr}, 0) >= ${ATTENDANCE_ALERT_LECTURE_MIN_SESSIONS}
+       AND COALESCE(${markedExpr}, 0) >= ${ATTENDANCE_ALERT_LECTURE_MIN_SESSIONS}
+    END
+  )`;
+}
+
+/** Nulls stored attendance alert levels that do not yet meet lecture/lab session floors. */
+export function gatedAttendanceAlertLevelSql(
+  levelExpr = "a.attendance_alert_level",
+  heldExpr = "a.total_classes_held",
+  markedExpr = "a.attendance_marked_classes",
+  classTypeExpr = "e.event_package_id"
+): string {
+  return `(CASE
+    WHEN ${attendanceAlertSessionReadySql(heldExpr, markedExpr, classTypeExpr)}
+    THEN ${levelExpr}
+    ELSE NULL
+  END)`;
+}
 
 export function getAttendanceAlertLevel(
   studentPercentage: number,
   classAverage: number | null | undefined,
   totalClassesHeld?: number | null,
-  attendanceMarked?: number | null
+  attendanceMarked?: number | null,
+  classType?: string | null
 ): AttendanceAlertLevel {
   const held = Number(totalClassesHeld);
   if (!Number.isFinite(held) || held <= 0) return null;
@@ -192,7 +254,7 @@ export function getAttendanceAlertLevel(
   const marked =
     attendanceMarked == null || !Number.isFinite(markedRaw) ? held : markedRaw;
   if (marked <= 0) return null;
-  if (marked < ATTENDANCE_ALERT_MIN_MARKED) return null;
+  if (!meetsAttendanceAlertSessionMinimum(held, marked, classType)) return null;
   if (marked / held < ATTENDANCE_ALERT_MIN_COVERAGE) return null;
 
   if (!Number.isFinite(studentPercentage)) return null;

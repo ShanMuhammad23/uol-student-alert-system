@@ -17,6 +17,7 @@ import { useDashboardUiState } from "@/app/(home)/dashboard/_components/Dashboar
 import {
   getEnrollmentAttendanceKey,
   getAttendanceAlertLevel,
+  meetsAttendanceAlertSessionMinimum,
   normalizeCourseCode,
 } from "@/lib/attendance-utils";
 import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
@@ -47,6 +48,14 @@ type GroupedEnrollment = {
     Map<string, Map<string, NestedEnrollmentRow[]>>
   >;
 };
+
+function enrollmentClassTypeHint(row: EnrollmentRecord): string {
+  const classType = String(
+    (row as unknown as { ClassType?: string }).ClassType ?? ""
+  ).trim();
+  if (classType) return classType;
+  return String((row as unknown as { Packnumber?: string }).Packnumber ?? "");
+}
 
 function toClassContextKey(params: {
   courseCode: string;
@@ -391,6 +400,7 @@ export function NestedEnrollmentTableClient({
         const attendanceKey = getEnrollmentAttendanceKey(row);
         const summary = attendanceSummaries.get(attendanceKey);
         const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
+        const classType = enrollmentClassTypeHint(row);
         const level =
           summary && classAvg != null
             ? getAttendanceAlertLevel(
@@ -398,6 +408,7 @@ export function NestedEnrollmentTableClient({
                 classAvg,
                 summary.totalHeld,
                 summary.attendanceMarked,
+                classType
               )
             : null;
         return allowed.size ? allowed.has(level) : true;
@@ -510,6 +521,7 @@ export function NestedEnrollmentTableClient({
       const attendanceKey = getEnrollmentAttendanceKey(row);
       const summary = attendanceSummaries.get(attendanceKey);
       const classAvg = classAverageByCourseSection.get(monitorKey ?? "") ?? null;
+      const classType = enrollmentClassTypeHint(row);
       const level =
         summary && classAvg != null
             ? getAttendanceAlertLevel(
@@ -517,6 +529,7 @@ export function NestedEnrollmentTableClient({
                 classAvg,
                 summary.totalHeld,
                 summary.attendanceMarked,
+                classType
               )
           : null;
       const sapId = String(row.SapNo ?? "").trim();
@@ -1009,6 +1022,14 @@ export function NestedEnrollmentTableClient({
                                             classAverageByCourseSection.get(
                                               monitorKey ?? "",
                                             ) ?? null;
+                                          const classType =
+                                            enrollmentClassTypeHint(row);
+                                          const held =
+                                            summary?.totalHeld ??
+                                            row.totalClassesHeld;
+                                          const marked =
+                                            summary?.attendanceMarked ??
+                                            row.attendanceMarkedClasses;
                                           const computedAlertLevel =
                                             summary && classAvg != null
                                               ? getAttendanceAlertLevel(
@@ -1016,11 +1037,18 @@ export function NestedEnrollmentTableClient({
                                                   classAvg,
                                                   summary.totalHeld,
                                                   summary.attendanceMarked,
+                                                  classType
                                                 )
                                               : null;
                                           const displayAttendanceAlertLevel =
-                                            row.attendanceAlertLevel ??
-                                            computedAlertLevel;
+                                            meetsAttendanceAlertSessionMinimum(
+                                              held,
+                                              marked,
+                                              classType
+                                            )
+                                              ? row.attendanceAlertLevel ??
+                                                computedAlertLevel
+                                              : null;
                                           const attendanceColorClass =
                                             displayAttendanceAlertLevel === "critical"
                                               ? "text-red-600"

@@ -228,7 +228,8 @@ export function mapMonitoringToStudents(entries: MonitoringEntry[]): Student[] {
       pct,
       averageAttendance,
       held,
-      marked > 0 ? marked : held
+      marked > 0 ? marked : held,
+      e.ClassType
     );
 
     const emptyHistory: GpaHistoryEntry[] = [];
