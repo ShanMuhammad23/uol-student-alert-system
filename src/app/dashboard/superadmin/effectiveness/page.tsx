@@ -73,6 +73,7 @@ async function loadFacultyEffectiveness() {
   const interventionStats = await getInterventionStatsForRoleScopeFromDb({
     role: "superadmin",
     interventionType: "all",
+    term: "current",
   });
 
   return { facultyViews, snapshotDate, trendDates, interventionStats };

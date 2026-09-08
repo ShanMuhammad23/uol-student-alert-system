@@ -83,6 +83,7 @@ async function fetchCohortStats(
       departmentIds: departmentIdsForRequest,
       courseIds: courseIdsForRequest,
       staffId: staffIdForRequest,
+      term: "current",
     }),
     signal,
   });

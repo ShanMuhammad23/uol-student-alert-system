@@ -1076,6 +1076,7 @@ function buildInterventionRoleScopeBaseForListing(
       courseIds: courseMaster?.length ? courseMaster : null,
       instructorIds: instructorMaster?.length ? instructorMaster : null,
       staffId: null,
+      term: "current",
     };
   }
   if (scope.role === "dean") {
@@ -1088,6 +1089,7 @@ function buildInterventionRoleScopeBaseForListing(
       courseIds: courseMaster?.length ? courseMaster : null,
       instructorIds: instructorMaster?.length ? instructorMaster : null,
       staffId: null,
+      term: "current",
     };
   }
   if (scope.role === "hod") {
@@ -1099,6 +1101,7 @@ function buildInterventionRoleScopeBaseForListing(
       courseIds: courseMaster?.length ? courseMaster : null,
       instructorIds: instructorMaster?.length ? instructorMaster : null,
       staffId: null,
+      term: "current",
     };
   }
   if (scope.role === "instructor") {
@@ -1111,6 +1114,7 @@ function buildInterventionRoleScopeBaseForListing(
       courseIds: courseMaster?.length ? courseMaster : null,
       instructorIds: instructorMaster?.length ? instructorMaster : null,
       staffId: sid,
+      term: "current",
     };
   }
   return null;

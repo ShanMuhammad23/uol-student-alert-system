@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { InterventionStatusBadge } from "@/app/(home)/dashboard/_components/intervention-status-badge";
 import { InterventionStatsCards, type StatusFilter } from "./InterventionStatsCards";
+import { formatAcademicTermLabel, normalizeTermSession } from "@/lib/academic-term";
 import { cn } from "@/lib/utils";
 
 const EMPTY_STATS: InterventionListStats = {
@@ -27,14 +28,23 @@ const EMPTY_STATS: InterventionListStats = {
   noActionRequired: 0,
 };
 
+const COLUMN_COUNT = 10;
+
 function formatDate(value: string): string {
   const d = new Date(value);
   if (!Number.isFinite(d.getTime())) return value;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function formatOutreachMode(mode: string): string {
-  return mode.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(" ");
+  return mode
+    .split("-")
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(" ");
 }
 
 function studentInitials(name: string | null, sapId: string): string {
@@ -56,7 +66,7 @@ function TypeChip({ type }: { type: InterventionListItem["intervention_type"] })
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide",
+        "inline-flex rounded-md px-2.5 py-1 text-[11px] font-semibold tracking-wide",
         styles[type]
       )}
     >
@@ -65,9 +75,33 @@ function TypeChip({ type }: { type: InterventionListItem["intervention_type"] })
   );
 }
 
+function TermSessionCell({
+  termYear,
+  termSession,
+}: {
+  termYear: string | null;
+  termSession: string | null;
+}) {
+  const label = formatAcademicTermLabel(termYear, termSession);
+  const session = termSession ? normalizeTermSession(termSession) : null;
+
+  if (!label && !termYear && !session) {
+    return <span className="text-sm text-slate-400 dark:text-slate-500">—</span>;
+  }
+
+  return (
+    <div className="min-w-[7.5rem] space-y-1">
+      <p className="text-sm font-medium leading-snug text-slate-900 dark:text-white">
+        {label ?? termYear ?? "—"}
+      </p>
+      
+    </div>
+  );
+}
+
 const TH_CLASS =
-  "h-11 whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 first:pl-5 last:pr-5 dark:text-slate-400";
-const TD_CLASS = "px-4 py-4 align-middle first:pl-5 last:pr-5";
+  "h-12 whitespace-nowrap px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 first:pl-6 last:pr-6 dark:text-slate-400";
+const TD_CLASS = "px-5 py-5 align-middle first:pl-6 last:pr-6";
 
 type Props = {
   faculties: FacultyRow[];
@@ -245,10 +279,12 @@ export function InterventionsPanelClient({
       />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Intervention records</h2>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+              Intervention records
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {loading
                 ? "Loading records…"
                 : `${total.toLocaleString()} ${total === 1 ? "result" : "results"}`}
@@ -267,12 +303,15 @@ export function InterventionsPanelClient({
         </div>
 
         {error ? (
-          <p className="px-5 py-16 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="px-6 py-16 text-center text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
         ) : (
           <Table>
             <TableHeader className="bg-slate-50/80 dark:bg-white/[0.03]">
               <TableRow className="border-slate-200/80 hover:bg-transparent dark:border-white/10">
                 <TableHead className={TH_CLASS}>Student</TableHead>
+                <TableHead className={TH_CLASS}>Term</TableHead>
                 <TableHead className={TH_CLASS}>Date</TableHead>
                 <TableHead className={TH_CLASS}>Type</TableHead>
                 <TableHead className={TH_CLASS}>Status</TableHead>
@@ -290,9 +329,9 @@ export function InterventionsPanelClient({
                     key={`skeleton-${index}`}
                     className="border-slate-100 dark:border-white/5 hover:bg-transparent"
                   >
-                    <TableCell className={TD_CLASS} colSpan={9}>
-                      <div className="flex items-center gap-3">
-                        <div className="size-9 shrink-0 animate-pulse rounded-full bg-slate-100 dark:bg-white/10" />
+                    <TableCell className={TD_CLASS} colSpan={COLUMN_COUNT}>
+                      <div className="flex items-center gap-4">
+                        <div className="size-10 shrink-0 animate-pulse rounded-full bg-slate-100 dark:bg-white/10" />
                         <div className="h-4 w-full max-w-xl animate-pulse rounded bg-slate-100 dark:bg-white/10" />
                       </div>
                     </TableCell>
@@ -300,8 +339,8 @@ export function InterventionsPanelClient({
                 ))
               ) : interventions.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={9} className="px-5 py-16">
-                    <div className="flex flex-col items-center justify-center gap-2 text-center">
+                  <TableCell colSpan={COLUMN_COUNT} className="px-6 py-20">
+                    <div className="flex flex-col items-center justify-center gap-2.5 text-center">
                       <span className="flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500">
                         <ClipboardList className="size-5" aria-hidden />
                       </span>
@@ -330,28 +369,39 @@ export function InterventionsPanelClient({
                       key={row.id}
                       className="border-slate-100 transition-colors hover:bg-slate-50/80 dark:border-white/5 dark:hover:bg-white/[0.04]"
                     >
-                      <TableCell className={cn(TD_CLASS, "min-w-[200px]")}>
-                        <div className="flex items-center gap-3">
+                      <TableCell className={cn(TD_CLASS, "min-w-[220px]")}>
+                        <div className="flex items-center gap-3.5">
                           <span
                             aria-hidden
-                            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                           >
                             {studentInitials(row.student_name, row.student_sap_id)}
                           </span>
-                          <div className="min-w-0">
+                          <div className="min-w-0 space-y-0.5">
                             <Link
                               href={`/students/${encodeURIComponent(row.student_sap_id)}`}
-                              className="block truncate font-medium text-slate-900 outline-none hover:text-emerald-700 hover:underline focus-visible:ring-2 focus-visible:ring-primary dark:text-white dark:hover:text-emerald-400"
+                              className="block truncate text-sm font-medium text-slate-900 outline-none hover:text-emerald-700 hover:underline focus-visible:ring-2 focus-visible:ring-primary dark:text-white dark:hover:text-emerald-400"
                             >
                               {row.student_name?.trim() || row.student_sap_id}
                             </Link>
-                            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                            <p className="truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400">
                               {row.student_sap_id}
                             </p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className={cn(TD_CLASS, "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200")}>
+                      <TableCell className={TD_CLASS}>
+                        <TermSessionCell
+                          termYear={row.term_year}
+                          termSession={row.term_session}
+                        />
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          TD_CLASS,
+                          "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200"
+                        )}
+                      >
                         {formatDate(row.date)}
                       </TableCell>
                       <TableCell className={TD_CLASS}>
@@ -360,33 +410,49 @@ export function InterventionsPanelClient({
                       <TableCell className={TD_CLASS}>
                         <InterventionStatusBadge status={row.status} />
                       </TableCell>
-                      <TableCell className={cn(TD_CLASS, "max-w-[220px]")}>
-                        <p className="truncate text-sm text-slate-800 dark:text-slate-100" title={courseLabel}>
+                      <TableCell className={cn(TD_CLASS, "max-w-[240px]")}>
+                        <p
+                          className="truncate text-sm leading-snug text-slate-800 dark:text-slate-100"
+                          title={courseLabel}
+                        >
                           {courseLabel}
                         </p>
                       </TableCell>
-                      <TableCell className={cn(TD_CLASS, "max-w-[200px]")}>
-                        <p className="truncate text-sm text-slate-800 dark:text-slate-100" title={facultyLabel}>
-                          {facultyLabel}
-                        </p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400" title={row.department_name ?? ""}>
-                          {row.department_name ?? "—"}
-                        </p>
+                      <TableCell className={cn(TD_CLASS, "max-w-[220px]")}>
+                        <div className="space-y-0.5">
+                          <p
+                            className="truncate text-sm leading-snug text-slate-800 dark:text-slate-100"
+                            title={facultyLabel}
+                          >
+                            {facultyLabel}
+                          </p>
+                          <p
+                            className="truncate text-xs leading-snug text-slate-500 dark:text-slate-400"
+                            title={row.department_name ?? ""}
+                          >
+                            {row.department_name ?? "—"}
+                          </p>
+                        </div>
                       </TableCell>
-                      <TableCell className={cn(TD_CLASS, "max-w-[180px]")}>
+                      <TableCell className={cn(TD_CLASS, "max-w-[200px]")}>
                         <p
-                          className="truncate text-sm text-slate-800 dark:text-slate-100"
+                          className="truncate text-sm leading-snug text-slate-800 dark:text-slate-100"
                           title={row.program_title ?? row.program_id ?? ""}
                         >
                           {row.program_title ?? row.program_id ?? "—"}
                         </p>
                       </TableCell>
                       <TableCell className={TD_CLASS}>
-                        <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                        <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
                           {formatOutreachMode(row.outreach_mode)}
                         </span>
                       </TableCell>
-                      <TableCell className={cn(TD_CLASS, "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200")}>
+                      <TableCell
+                        className={cn(
+                          TD_CLASS,
+                          "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200"
+                        )}
+                      >
                         {row.uploader_name ?? "—"}
                       </TableCell>
                     </TableRow>
@@ -398,7 +464,7 @@ export function InterventionsPanelClient({
         )}
 
         {!loading && total > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-slate-200/80 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
+          <div className="flex flex-col gap-3 border-t border-slate-200/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Showing{" "}
               <span className="font-medium text-slate-700 dark:text-slate-200">
@@ -412,7 +478,7 @@ export function InterventionsPanelClient({
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 className={cn(
-                  "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
+                  "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
                   page <= 1
                     ? "cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10"
                     : "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.06]"
@@ -429,7 +495,7 @@ export function InterventionsPanelClient({
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 className={cn(
-                  "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
+                  "inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
                   page >= totalPages
                     ? "cursor-not-allowed border-slate-200 text-slate-400 dark:border-white/10"
                     : "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.06]"

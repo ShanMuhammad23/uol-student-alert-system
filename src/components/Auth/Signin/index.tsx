@@ -46,51 +46,55 @@ export default function Signin() {
     <section className="relative">
       {isContactModalOpen ? (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-dark/50 px-4 py-6"
+          className="fixed inset-0 z-[999] flex items-end justify-center bg-dark/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-4 sm:pb-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="contact-help-title"
           onClick={() => setIsContactModalOpen(false)}
         >
           <div
-            className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-dark"
+            className="flex max-h-[min(90dvh,100%)] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-dark"
             onClick={(e) => e.stopPropagation()}
           >
-            <p
-              id="contact-help-title"
-              className="text-center text-base font-semibold leading-relaxed text-dark dark:text-white"
-            >
-              How to get access?
-            </p>
-            <p className="mt-4 text-sm text-dark-5 dark:text-dark-6">
-              Please send an email to{" "}
-              <a
-                href="mailto:shan.muhammad@spmo.uol.edu.pk"
-                className="text-primary hover:underline"
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6">
+              <p
+                id="contact-help-title"
+                className="text-center text-base font-semibold leading-relaxed text-dark dark:text-white"
               >
-                shan.muhammad@spmo.uol.edu.pk
-              </a>{" "}
-              <br /> or WhatsApp on{" "}
-              <a
-                href="https://wa.me/923219720819"
-                className="text-primary hover:underline"
-              >
-                03219720819
-              </a>{" "}
-              by attaching the following info:
-            </p>
-            <ul className="mt-3 list-inside list-disc text-sm text-dark-5 dark:text-dark-6">
-              <li>Name</li>
-              <li>Official Email Address</li>
-              <li>SAPID</li>
-              <li>Role: (Dean, HoD, Instructor, Wellbeing, Admin/Coordinator)</li>
-              <li>Faculty, Department</li>
-            </ul>
-            <div className="mt-6 flex justify-center">
+                How to get access?
+              </p>
+              <p className="mt-3 break-words text-sm text-dark-5 dark:text-dark-6 sm:mt-4">
+                Please send an email to{" "}
+                <a
+                  href="mailto:shan.muhammad@spmo.uol.edu.pk"
+                  className="break-all text-primary hover:underline"
+                >
+                  shan.muhammad@spmo.uol.edu.pk
+                </a>{" "}
+                <br /> or WhatsApp on{" "}
+                <a
+                  href="https://wa.me/923219720819"
+                  className="text-primary hover:underline"
+                >
+                  03219720819
+                </a>{" "}
+                by attaching the following info:
+              </p>
+              <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-dark-5 dark:text-dark-6">
+                <li>Name</li>
+                <li>Official Email Address</li>
+                <li>SAPID</li>
+                <li>
+                  Role: (Dean, HoD, Instructor, Wellbeing, Admin/Coordinator)
+                </li>
+                <li>Faculty, Department</li>
+              </ul>
+            </div>
+            <div className="shrink-0 border-t border-slate-100 px-4 py-3 dark:border-slate-700 sm:px-6 sm:py-4">
               <button
                 type="button"
                 onClick={() => setIsContactModalOpen(false)}
-                className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-opacity-90"
+                className="mx-auto flex min-h-11 w-full max-w-[10rem] items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-white transition hover:bg-opacity-90"
               >
                 OK
               </button>

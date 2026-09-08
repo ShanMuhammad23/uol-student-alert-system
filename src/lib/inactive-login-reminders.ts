@@ -274,18 +274,21 @@ export async function fetchPendingActionsForStaff(
               role: "dean" as const,
               interventionType: "all" as const,
               facultyId: row.facultyId,
+              term: "current" as const,
             }
           : scopeRole === "hod"
           ? {
               role: "hod" as const,
               interventionType: "all" as const,
               departmentIds: row.departmentIds,
+              term: "current" as const,
             }
           : {
               role: "teacher" as const,
               interventionType: "all" as const,
               instructorIds: row.staffPernr ? [row.staffPernr] : [],
               staffId: row.staffId || null,
+              term: "current" as const,
             };
 
       const [stats, noIntervention] = await Promise.all([

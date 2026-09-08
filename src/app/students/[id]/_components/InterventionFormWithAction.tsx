@@ -18,6 +18,7 @@ type Props = {
   studentName?: string | null;
   attendancePercent?: number | null;
   attendanceAlertLevel?: "warning" | "critical" | null;
+  gpaAlertLevel?: "warning" | "critical" | null;
   gpaPrevious?: number | null;
   gpaCurrent?: number | null;
   gpaDrop?: number | null;
@@ -48,6 +49,7 @@ export function InterventionFormWithAction({
   studentName,
   attendancePercent,
   attendanceAlertLevel,
+  gpaAlertLevel,
   gpaPrevious,
   gpaCurrent,
   gpaDrop,
@@ -168,6 +170,7 @@ export function InterventionFormWithAction({
         studentName={studentName}
         attendancePercent={attendancePercent}
         attendanceAlertLevel={attendanceAlertLevel}
+        gpaAlertLevel={gpaAlertLevel}
         gpaPrevious={gpaPrevious}
         gpaCurrent={gpaCurrent}
         gpaDrop={gpaDrop}

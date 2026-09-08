@@ -66,6 +66,7 @@ type InterventionFormProps = {
   studentName?: string | null;
   attendancePercent?: number | null;
   attendanceAlertLevel?: "warning" | "critical" | null;
+  gpaAlertLevel?: "warning" | "critical" | null;
   gpaPrevious?: number | null;
   gpaCurrent?: number | null;
   gpaDrop?: number | null;
@@ -153,6 +154,7 @@ const InterventionForm = ({
   studentName,
   attendancePercent,
   attendanceAlertLevel,
+  gpaAlertLevel,
   gpaPrevious,
   gpaCurrent,
   gpaDrop,
@@ -240,6 +242,28 @@ const InterventionForm = ({
     if (mode === "wellbeing" || !sgpaAlreadyRecordedThisTerm) return base;
     return base.filter((o) => o.value === "attendance");
   }, [allowedInterventionTypes, mode, sgpaAlreadyRecordedThisTerm]);
+
+  const noAlertTypeWarning = useMemo(() => {
+    if (mode !== "intervention") return null;
+    const attendanceFine = attendanceAlertLevel == null;
+    const sgpaFine = gpaAlertLevel == null;
+
+    if (interventionType === "attendance") {
+      if (!attendanceFine) return null;
+      return "Student has no alert in Attendance for the focused course. You may still continue.";
+    }
+    if (interventionType === "gpa") {
+      if (!sgpaFine) return null;
+      return "Student has no alert in SGPA. You may still continue.";
+    }
+    const missing: string[] = [];
+    if (attendanceFine) missing.push("Attendance");
+    if (sgpaFine) missing.push("SGPA");
+    if (!missing.length) return null;
+    const parameterLabel =
+      missing.length === 2 ? "Attendance and SGPA" : missing[0];
+    return `Student has no alert in this (${parameterLabel}) parameter. You may still continue.`;
+  }, [attendanceAlertLevel, gpaAlertLevel, interventionType, mode]);
 
   useEffect(() => {
     if (!effectiveTypeOptions.length) return;
@@ -721,6 +745,14 @@ const InterventionForm = ({
             </label>
           ))}
         </div>
+        {noAlertTypeWarning ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            {noAlertTypeWarning}
+          </div>
+        ) : null}
         {mode === "intervention" && sgpaAlreadyRecordedThisTerm ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">
             An SGPA intervention already exists for this student in{" "}

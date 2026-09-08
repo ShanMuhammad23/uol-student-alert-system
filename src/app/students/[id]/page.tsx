@@ -452,6 +452,12 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     (suppressCourseFocus
       ? dbMetricRows.find((r) => r.attendanceAlertLevel != null)?.attendanceAlertLevel ?? null
       : null);
+  const gpaAlertLevelForEmail =
+    gpaProfile?.level === "warning" || gpaProfile?.level === "critical"
+      ? gpaProfile.level
+      : focusedMetricRow?.gpaAlertLevel ??
+        dbMetricRows.find((r) => r.gpaAlertLevel != null)?.gpaAlertLevel ??
+        null;
   const orderedSgpaSeries = [...(gpaProfile?.semesters ?? [])];
   const latestSeriesGpa = orderedSgpaSeries.at(-1)?.value ?? null;
   const previousSeriesGpa =
@@ -651,6 +657,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
         studentName={primaryEnrollment?.Name ?? sapIdFromUrl}
         attendancePercent={attendanceForEmail}
         attendanceAlertLevel={attendanceAlertLevelForEmail}
+        gpaAlertLevel={gpaAlertLevelForEmail}
         gpaPrevious={gpaPreviousForEmail}
         gpaCurrent={gpaCurrentForEmail}
         gpaDrop={gpaDropForEmail}

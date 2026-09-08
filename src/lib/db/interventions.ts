@@ -5,6 +5,10 @@ import {
   getAcademicTermForScope,
   getCurrentAcademicTerm,
   getCurrentTermDateBounds,
+  getPreviousAcademicTerm,
+  getTermDateBounds,
+  normalizeTermSession,
+  type AcademicTerm,
   type AcademicTermScope,
 } from "@/lib/academic-term";
 import { pool } from "./index";
@@ -133,6 +137,261 @@ export async function hasAssigneeStaffIdColumn(): Promise<boolean> {
   return hasAssigneeStaffIdColumnCache;
 }
 
+let hasTermColumnsCache: boolean | null = null;
+let termBackfillAttempted = false;
+
+function sanitizeStoredTermYear(value: unknown): string {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits || getCurrentAcademicTerm().termYear;
+}
+
+function sanitizeStoredTermSession(value: unknown): string {
+  const session = normalizeTermSession(String(value ?? ""));
+  return session === "000"
+    ? getCurrentAcademicTerm().termSession
+    : session;
+}
+
+/**
+ * Ensure interventions.term_year / term_session exist, are indexed, and backfilled.
+ * Returns false when DB is unavailable or ALTER is not permitted (callers fall back).
+ */
+export async function ensureInterventionTermColumns(): Promise<boolean> {
+  if (!pool) return false;
+  if (hasTermColumnsCache === true && termBackfillAttempted) return true;
+
+  try {
+    if (hasTermColumnsCache !== true) {
+      const probe = await pool.query<{ exists: boolean }>(
+        `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'interventions'
+            AND column_name = 'term_year'
+        ) AS exists
+        `
+      );
+      if (!probe.rows[0]?.exists) {
+        await pool.query(`
+          ALTER TABLE interventions
+            ADD COLUMN IF NOT EXISTS term_year VARCHAR(8),
+            ADD COLUMN IF NOT EXISTS term_session VARCHAR(8)
+        `);
+      }
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS interventions_term_year_session_idx
+          ON interventions (term_year, term_session)
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS interventions_term_status_idx
+          ON interventions (term_year, term_session, status)
+      `);
+      hasTermColumnsCache = true;
+    }
+
+    if (!termBackfillAttempted) {
+      await backfillInterventionTermsFromDb();
+      termBackfillAttempted = true;
+    }
+    return true;
+  } catch (err) {
+    console.error("[interventions] ensureInterventionTermColumns failed:", err);
+    // Prefer column filter if ALTER succeeded even when backfill fails.
+    if (hasTermColumnsCache === true) return true;
+    hasTermColumnsCache = false;
+    return false;
+  }
+}
+
+/** Resolve offering term for a newly created intervention (prefer current enrollment). */
+export async function resolveTermForNewIntervention(
+  sapId: string,
+  courseId: string
+): Promise<AcademicTerm> {
+  const current = getCurrentAcademicTerm();
+  if (!pool) return current;
+  const course = String(courseId ?? "").trim();
+  if (!course || course === "unknown") return current;
+
+  try {
+    const unpadded = String(Number(current.termSession));
+    const res = await pool.query<{ term_year: string; term_session: string }>(
+      `
+      SELECT e.term_year, e.term_session::text AS term_session
+      FROM student_enrollment_current e
+      WHERE e.sap_id = $1
+        AND (
+          e.course_id = $2
+          OR SPLIT_PART(e.course_id, '|', 1) = SPLIT_PART($2, '|', 1)
+        )
+      ORDER BY
+        CASE
+          WHEN e.term_year = $3
+           AND e.term_session::text IN ($4, $5)
+          THEN 0
+          ELSE 1
+        END,
+        e.term_year DESC,
+        e.term_session DESC
+      LIMIT 1
+      `,
+      [
+        sapId,
+        course,
+        current.termYear,
+        current.termSession,
+        unpadded === current.termSession ? current.termSession : unpadded,
+      ]
+    );
+    const row = res.rows[0];
+    if (!row) return current;
+    return {
+      termYear: sanitizeStoredTermYear(row.term_year),
+      termSession: sanitizeStoredTermSession(row.term_session),
+    };
+  } catch {
+    return current;
+  }
+}
+
+async function setInterventionTerm(
+  interventionId: string,
+  term: AcademicTerm
+): Promise<void> {
+  if (!pool) return;
+  const ready = await ensureInterventionTermColumns();
+  if (!ready) return;
+  await pool.query(
+    `UPDATE interventions
+     SET term_year = $2, term_session = $3
+     WHERE id = $1`,
+    [interventionId, term.termYear, term.termSession]
+  );
+}
+
+async function backfillInterventionTermsFromDb(): Promise<void> {
+  if (!pool) return;
+
+  const pending = await pool.query<{ cnt: string }>(
+    `
+    SELECT COUNT(*)::int AS cnt
+    FROM interventions
+    WHERE term_year IS NULL OR TRIM(term_year) = ''
+    `
+  );
+  if (Number(pending.rows[0]?.cnt ?? 0) === 0) return;
+
+  const current = getCurrentAcademicTerm();
+  const previous = getPreviousAcademicTerm();
+  const currentBounds = getTermDateBounds(current);
+  const previousBounds = getTermDateBounds(previous);
+  const currentUnpadded = String(Number(current.termSession));
+  const previousUnpadded = String(Number(previous.termSession));
+
+  // 1) Subject rows: prefer enrollment term matching intervention date, else earliest offering.
+  await pool.query(
+    `
+    UPDATE interventions i
+    SET
+      term_year = x.term_year,
+      term_session = LPAD(
+        NULLIF(REGEXP_REPLACE(TRIM(x.term_session), '\\D', '', 'g'), ''),
+        3,
+        '0'
+      )
+    FROM (
+      SELECT DISTINCT ON (i2.id)
+        i2.id,
+        e.term_year::text AS term_year,
+        e.term_session::text AS term_session
+      FROM interventions i2
+      INNER JOIN student_enrollment_current e
+        ON e.sap_id = i2.student_sap_id
+       AND COALESCE(NULLIF(TRIM(i2.course_id), ''), '') <> ''
+       AND COALESCE(NULLIF(TRIM(i2.course_id), ''), '') <> 'unknown'
+       AND (
+         e.course_id = i2.course_id
+         OR SPLIT_PART(e.course_id, '|', 1) = SPLIT_PART(i2.course_id, '|', 1)
+       )
+      WHERE i2.term_year IS NULL OR TRIM(i2.term_year) = ''
+      ORDER BY
+        i2.id,
+        CASE
+          WHEN e.term_year = $1
+           AND e.term_session::text IN ($2, $3)
+           AND COALESCE(i2.date, (i2.performed_at AT TIME ZONE 'UTC')::date)
+               BETWEEN $4::date AND $5::date
+          THEN 0
+          WHEN e.term_year = $6
+           AND e.term_session::text IN ($7, $8)
+           AND COALESCE(i2.date, (i2.performed_at AT TIME ZONE 'UTC')::date)
+               BETWEEN $9::date AND $10::date
+          THEN 0
+          ELSE 1
+        END,
+        e.term_year ASC,
+        e.term_session ASC
+    ) x
+    WHERE i.id = x.id
+    `,
+    [
+      current.termYear,
+      current.termSession,
+      currentUnpadded === current.termSession
+        ? current.termSession
+        : currentUnpadded,
+      currentBounds.start,
+      currentBounds.end,
+      previous.termYear,
+      previous.termSession,
+      previousUnpadded === previous.termSession
+        ? previous.termSession
+        : previousUnpadded,
+      previousBounds.start,
+      previousBounds.end,
+    ]
+  );
+
+  // 2) Remaining rows by calendar date within known term windows.
+  await pool.query(
+    `
+    UPDATE interventions
+    SET term_year = $1, term_session = $2
+    WHERE (term_year IS NULL OR TRIM(term_year) = '')
+      AND COALESCE(date, (performed_at AT TIME ZONE 'UTC')::date)
+          BETWEEN $3::date AND $4::date
+    `,
+    [current.termYear, current.termSession, currentBounds.start, currentBounds.end]
+  );
+  await pool.query(
+    `
+    UPDATE interventions
+    SET term_year = $1, term_session = $2
+    WHERE (term_year IS NULL OR TRIM(term_year) = '')
+      AND COALESCE(date, (performed_at AT TIME ZONE 'UTC')::date)
+          BETWEEN $3::date AND $4::date
+    `,
+    [
+      previous.termYear,
+      previous.termSession,
+      previousBounds.start,
+      previousBounds.end,
+    ]
+  );
+
+  // 3) Last resort — attribute leftovers to the configured current term.
+  await pool.query(
+    `
+    UPDATE interventions
+    SET term_year = $1, term_session = $2
+    WHERE term_year IS NULL OR TRIM(term_year) = ''
+    `,
+    [current.termYear, current.termSession]
+  );
+}
+
 async function patchInterventionCaseAndAssignee(
   interventionId: string,
   opts: {
@@ -243,8 +502,38 @@ export async function assertUniqueSgpaInterventionForCurrentTerm(
   const hasType = await hasInterventionTypeColumn();
   if (!hasType) return;
 
-  const { start, end } = getCurrentTermDateBounds();
   const excludeId = String(opts?.excludeId ?? "").trim() || null;
+  const hasTermCols = await ensureInterventionTermColumns();
+
+  if (hasTermCols) {
+    const unpadded = String(Number(term.termSession));
+    const res = await pool.query<{ exists: boolean }>(
+      `
+      SELECT EXISTS (
+        SELECT 1
+        FROM interventions i
+        WHERE i.student_sap_id = $1
+          AND i.intervention_type IN ('gpa', 'both')
+          AND ($4::text IS NULL OR i.id <> $4)
+          AND i.term_year = $2
+          AND i.term_session IN ($3, $5)
+      ) AS exists
+      `,
+      [
+        sapId,
+        term.termYear,
+        term.termSession,
+        excludeId,
+        unpadded === term.termSession ? term.termSession : unpadded,
+      ]
+    );
+    if (res.rows[0]?.exists === true) {
+      throw new DuplicateSgpaInterventionError(termLabel);
+    }
+    return;
+  }
+
+  const { start, end } = getCurrentTermDateBounds();
   const res = await pool.query<{ exists: boolean }>(
     `
     SELECT EXISTS (
@@ -299,6 +588,19 @@ export async function insertIntervention(row: {
       ? "referred"
       : "internal");
 
+  const finalize = async () => {
+    await patchInterventionCaseAndAssignee(row.id, {
+      case_type: normalizedCaseType,
+      assignee_staff_id: row.assignee_staff_id,
+      status: row.status,
+    });
+    const term = await resolveTermForNewIntervention(
+      row.student_sap_id,
+      row.course_id
+    );
+    await setInterventionTerm(row.id, term);
+  };
+
   if (hasType && hasAlertLevel && hasSectionCode && hasEventPackageId) {
     await pool.query(
       `INSERT INTO interventions (
@@ -323,11 +625,7 @@ export async function insertIntervention(row: {
         row.event_package_id ?? null,
       ]
     );
-    await patchInterventionCaseAndAssignee(row.id, {
-      case_type: normalizedCaseType,
-      assignee_staff_id: row.assignee_staff_id,
-      status: row.status,
-    });
+    await finalize();
     return;
   }
 
@@ -354,11 +652,7 @@ export async function insertIntervention(row: {
         row.event_package_id ?? null,
       ]
     );
-    await patchInterventionCaseAndAssignee(row.id, {
-      case_type: normalizedCaseType,
-      assignee_staff_id: row.assignee_staff_id,
-      status: row.status,
-    });
+    await finalize();
     return;
   }
 
@@ -385,11 +679,7 @@ export async function insertIntervention(row: {
         row.event_package_id ?? null,
       ]
     );
-    await patchInterventionCaseAndAssignee(row.id, {
-      case_type: normalizedCaseType,
-      assignee_staff_id: row.assignee_staff_id,
-      status: row.status,
-    });
+    await finalize();
     return;
   }
 
@@ -414,11 +704,7 @@ export async function insertIntervention(row: {
         row.faculty_id,
       ]
     );
-    await patchInterventionCaseAndAssignee(row.id, {
-      case_type: normalizedCaseType,
-      assignee_staff_id: row.assignee_staff_id,
-      status: row.status,
-    });
+    await finalize();
     return;
   }
 
@@ -443,11 +729,7 @@ export async function insertIntervention(row: {
         row.alert_level ?? null,
       ]
     );
-    await patchInterventionCaseAndAssignee(row.id, {
-      case_type: normalizedCaseType,
-      assignee_staff_id: row.assignee_staff_id,
-      status: row.status,
-    });
+    await finalize();
     return;
   }
 
@@ -471,11 +753,7 @@ export async function insertIntervention(row: {
       row.faculty_id,
     ]
   );
-  await patchInterventionCaseAndAssignee(row.id, {
-    case_type: normalizedCaseType,
-    assignee_staff_id: row.assignee_staff_id,
-    status: row.status,
-  });
+  await finalize();
 }
 
 /** All interventions for a student from DB, newest first. */
@@ -941,21 +1219,34 @@ function isAcademicTermScope(
   return value === "current" || value === "previous";
 }
 
+/** Dashboard role-scope counts always pin to a semester (default: current). */
+function normalizeRoleScopeTerm(
+  term?: AcademicTermScope | null
+): AcademicTermScope {
+  return term === "previous" ? "previous" : "current";
+}
+
 /**
- * Scope interventions to a semester via enrollment term_year + term_session
- * (SAP_PYEAR / SAP_PSESS), not the intervention calendar date.
+ * Scope interventions to a semester via denormalized term_year + term_session
+ * when available; falls back to enrollment EXISTS matching for older DBs.
  *
- * Current-term leftover protection: if the same student+course also exists in an
- * earlier term, the row belongs to that earlier offering (Fall re-enrolment of a
- * Spring/Summer course must not pull old interventions into Fall).
+ * Current-term leftover protection (legacy path only): if the same student+course
+ * also exists in an earlier term, the row belongs to that earlier offering.
  */
-function appendInterventionTermScopeSql(
+async function appendInterventionTermScopeSql(
   alias: string,
   term?: AcademicTermScope | null
-): string {
+): Promise<string> {
   if (!isAcademicTermScope(term)) return "";
   const i = alias || "interventions";
   const academicTerm = getAcademicTermForScope(term);
+
+  const hasTermCols = await ensureInterventionTermColumns();
+  if (hasTermCols) {
+    // Index-friendly equality on denormalized columns (no enrollment correlation).
+    return ` AND ${enrolledInTermSql(i, academicTerm, { requireActive: false })}`;
+  }
+
   const sapMatch = normalizeSapIdCompareSql(
     `${i}.student_sap_id`,
     "e_term.sap_id"
@@ -1007,6 +1298,7 @@ function appendInterventionTermScopeSql(
 export async function getInterventionStatsForRoleScopeFromDb(
   params: InterventionRoleScope
 ): Promise<InterventionRoleScopeStats> {
+  params = { ...params, term: normalizeRoleScopeTerm(params.term) };
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
   const wantsGpa = params.interventionType === "gpa";
@@ -1087,7 +1379,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
     const scopedWhereSuper = wherePartsSuper.length
       ? `${typeWhereSql} AND ${wherePartsSuper.join(" AND ")}`
       : typeWhereSql;
-    const termSqlSuper = appendInterventionTermScopeSql("", params.term);
+    const termSqlSuper = await appendInterventionTermScopeSql("", params.term);
     const outerIdx = argsSuper.length + 1;
 
     const resSuper = await pool.query<{
@@ -1218,7 +1510,7 @@ export async function getInterventionStatsForRoleScopeFromDb(
   const wantsAlertFilter =
     hasAlertLevel && params.alertLevel != null ? true : false;
 
-  const termSql = appendInterventionTermScopeSql("", params.term);
+  const termSql = await appendInterventionTermScopeSql("", params.term);
   const outerPlaceholderIndex = args.length + 1;
 
   const res = await pool.query<{
@@ -1295,6 +1587,7 @@ const EMPTY_ROLE_SCOPE_STATS: InterventionRoleScopeStats = {
 export async function getInterventionRecordStatsForRoleScopeFromDb(
   params: InterventionRoleScope
 ): Promise<InterventionRoleScopeStats> {
+  params = { ...params, term: normalizeRoleScopeTerm(params.term) };
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
   const wantsGpa = params.interventionType === "gpa";
@@ -1348,7 +1641,7 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
     const scopedWhereSuper = wherePartsSuper.length
       ? `${typeWhereSql} AND ${wherePartsSuper.join(" AND ")}`
       : typeWhereSql;
-    const termSqlSuper = appendInterventionTermScopeSql("", params.term);
+    const termSqlSuper = await appendInterventionTermScopeSql("", params.term);
     const outerIdx = argsSuper.length + 1;
     const alertSql = wantsAlertFilterGlobal
       ? ` AND alert_level = $${outerIdx}`
@@ -1435,7 +1728,7 @@ export async function getInterventionRecordStatsForRoleScopeFromDb(
     : "";
   const wantsAlertFilter =
     hasAlertLevel && params.alertLevel != null ? true : false;
-  const termSql = appendInterventionTermScopeSql("", params.term);
+  const termSql = await appendInterventionTermScopeSql("", params.term);
   const outerPlaceholderIndex = args.length + 1;
   const alertSql = wantsAlertFilter
     ? ` AND alert_level = $${outerPlaceholderIndex}`
@@ -1710,6 +2003,7 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
   params: InterventionRoleScope
 ): Promise<number> {
   if (!pool) return 0;
+  params = { ...params, term: normalizeRoleScopeTerm(params.term) };
 
   const hasSectionCode = await hasSectionCodeColumn();
   const args: unknown[] = [];
@@ -1723,7 +2017,7 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
     interventionAlias: "i",
     enrollmentAlias: "e",
   });
-  const termDateSql = appendInterventionTermScopeSql("i", params.term);
+  const termDateSql = await appendInterventionTermScopeSql("i", params.term);
   const res = await pool.query<{ cnt: string }>(
     `
     SELECT COUNT(DISTINCT e.sap_id)::int AS cnt
@@ -1778,6 +2072,8 @@ export type InterventionListItem = {
   program_title: string | null;
   uploader_name: string | null;
   case_type: "referred" | "internal" | "external" | null;
+  term_year: string | null;
+  term_session: string | null;
 };
 
 export type InterventionListStats = {
@@ -1839,12 +2135,21 @@ function buildInterventionListWhere(
 
 function mapInterventionListRow(
   r: Record<string, unknown>,
-  hasCaseType: boolean
+  hasCaseType: boolean,
+  hasTermCols: boolean
 ): InterventionListItem {
   const interventionType = r.intervention_type;
   const caseType = r.case_type;
   const date = r.date;
   const performedAt = r.performed_at;
+  const termYear =
+    hasTermCols && r.term_year != null && String(r.term_year).trim()
+      ? String(r.term_year).trim()
+      : null;
+  const termSession =
+    hasTermCols && r.term_session != null && String(r.term_session).trim()
+      ? String(r.term_session).trim()
+      : null;
 
   return {
     id: String(r.id),
@@ -1891,6 +2196,8 @@ function mapInterventionListRow(
           ? "referred"
           : null
       : null,
+    term_year: termYear,
+    term_session: termSession,
   };
 }
 
@@ -1908,6 +2215,7 @@ export async function getInterventionsListFromDb(
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
   const hasCT = await hasCaseTypeColumn();
+  const hasTermCols = await ensureInterventionTermColumns();
   const { sql: whereSql, args } = buildInterventionListWhere(filters);
 
   const countRes = await pool.query<{ total: string }>(
@@ -1925,6 +2233,9 @@ export async function getInterventionsListFromDb(
   if (hasType) selectParts.push("i.intervention_type");
   if (hasAlertLevel) selectParts.push("i.alert_level");
   if (hasCT) selectParts.push("i.case_type");
+  if (hasTermCols) {
+    selectParts.push("i.term_year", "i.term_session");
+  }
   selectParts.push(
     "i.outreach_mode",
     "i.remarks",
@@ -1963,7 +2274,7 @@ export async function getInterventionsListFromDb(
   );
 
   return {
-    rows: res.rows.map((row) => mapInterventionListRow(row, hasCT)),
+    rows: res.rows.map((row) => mapInterventionListRow(row, hasCT, hasTermCols)),
     total,
   };
 }

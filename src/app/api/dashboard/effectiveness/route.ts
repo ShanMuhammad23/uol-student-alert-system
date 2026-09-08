@@ -167,6 +167,32 @@ export async function POST(req: Request) {
       interventionStats = await getInterventionStatsForRoleScopeFromDb({
         role: "superadmin",
         interventionType: "all",
+        term: "current",
+      });
+    } else if (user.role === "dean" && user.faculty_id) {
+      interventionStats = await getInterventionStatsForRoleScopeFromDb({
+        role: "dean",
+        interventionType: "all",
+        facultyId: user.faculty_id,
+        term: "current",
+      });
+    } else if (user.role === "hod" && user.department_ids?.length) {
+      interventionStats = await getInterventionStatsForRoleScopeFromDb({
+        role: "hod",
+        interventionType: "all",
+        departmentIds: user.department_ids,
+        term: "current",
+      });
+    } else if (
+      (user.role === "instructor" || user.role === "teacher") &&
+      user.id
+    ) {
+      interventionStats = await getInterventionStatsForRoleScopeFromDb({
+        role: "teacher",
+        interventionType: "all",
+        staffId: user.id,
+        courseIds: user.course_ids ?? null,
+        term: "current",
       });
     }
 

@@ -65,14 +65,14 @@ export async function POST(req: Request) {
         staffId: roleScope.staffId ?? null,
         term: parseTermScope(roleScope.term),
       };
-      const stats = roleScope.countRecords
-        ? await getInterventionRecordStatsForRoleScope(scopeParams)
-        : await getInterventionStatsForRoleScope(scopeParams);
       if (roleScope.countRecords) {
-        const notStarted =
-          await getAlertedWithoutInterventionCountForRoleScope(scopeParams);
+        const [stats, notStarted] = await Promise.all([
+          getInterventionRecordStatsForRoleScope(scopeParams),
+          getAlertedWithoutInterventionCountForRoleScope(scopeParams),
+        ]);
         return NextResponse.json({ ...stats, notStarted }, { status: 200 });
       }
+      const stats = await getInterventionStatsForRoleScope(scopeParams);
       return NextResponse.json(stats, { status: 200 });
     }
 

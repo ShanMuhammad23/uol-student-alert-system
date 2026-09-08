@@ -91,7 +91,8 @@ const itemVariants = {
 export function SignInLayout({ children }: PropsWithChildren) {
   return (
     <div className="relative grid min-h-[100dvh] w-full lg:h-[100dvh] lg:max-h-[100dvh] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:overflow-hidden">
-      <section className="relative flex min-h-0 flex-col px-5 py-6 sm:px-8 sm:py-8 lg:h-full lg:overflow-y-auto lg:px-12 lg:py-6 xl:px-16">
+      {/* Branding panel — desktop only */}
+      <section className="relative hidden min-h-0 flex-col px-5 py-6 sm:px-8 sm:py-8 lg:flex lg:h-full lg:overflow-y-auto lg:px-12 lg:py-6 xl:px-16">
         <AcademicBackground />
 
         <motion.div
@@ -117,8 +118,7 @@ export function SignInLayout({ children }: PropsWithChildren) {
               </div>
             </motion.div>
 
-            <div className="">
-            
+            <div>
               <motion.h1
                 variants={itemVariants}
                 className="mt-1.5 text-[1.65rem] font-bold leading-tight tracking-tight text-white sm:text-3xl lg:text-[3.15rem] lg:leading-[1.15]"
@@ -137,7 +137,7 @@ export function SignInLayout({ children }: PropsWithChildren) {
 
             <motion.ul
               variants={containerVariants}
-              className="grid grid-cols-1 gap-2 s"
+              className="grid grid-cols-1 gap-2"
             >
               {FEATURES.map((feature) => (
                 <motion.li
@@ -152,7 +152,7 @@ export function SignInLayout({ children }: PropsWithChildren) {
                     <span className="block text-sm font-semibold leading-snug text-white">
                       {feature.title}
                     </span>
-                    <span className="mt-0.5 hidden text-[11px] leading-snug text-slate-400 lg:line-clamp-2">
+                    <span className="mt-0.5 text-[11px] leading-snug text-slate-400 lg:line-clamp-2">
                       {feature.description}
                     </span>
                   </span>
@@ -198,7 +198,8 @@ export function SignInLayout({ children }: PropsWithChildren) {
         </motion.div>
       </section>
 
-      <section className="relative flex min-h-0 flex-col border-t border-amber-500/40 bg-slate-50 px-4 py-8 sm:px-8 sm:py-10 lg:h-full lg:overflow-y-auto lg:border-l lg:border-t-0 lg:px-10 lg:py-6">
+      {/* Login panel — full screen on mobile */}
+      <section className="relative flex min-h-[100dvh] flex-col bg-slate-50 px-4 py-8 sm:px-8 sm:py-10 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-amber-500/40 lg:px-10 lg:py-6">
         <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 lg:hidden" />
         <div className="absolute bottom-0 left-0 top-0 hidden w-px bg-gradient-to-b from-amber-600/80 via-amber-400 to-amber-600/80 lg:block" />
 
@@ -206,7 +207,7 @@ export function SignInLayout({ children }: PropsWithChildren) {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="relative mx-auto w-full max-w-[440px] lg:my-auto"
+          className="relative mx-auto my-auto w-full max-w-[440px]"
         >
           <motion.div
             initial={{ opacity: 0, y: 8 }}
