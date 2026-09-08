@@ -23,7 +23,12 @@ export function ThemeToggleSwitch() {
   }, []);
 
   if (!mounted) {
-    return null;
+    return (
+      <div
+        className="h-[48px] w-[96px] shrink-0 rounded-full bg-gray-3 dark:bg-[#020D1A]"
+        aria-hidden
+      />
+    );
   }
 
   return (

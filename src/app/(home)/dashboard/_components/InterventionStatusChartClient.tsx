@@ -12,6 +12,7 @@ import type {
 import { useDashboardFilter } from "./DashboardFilterContext";
 import type { InterventionChartSlice } from "./InterventionSliceContext";
 import type { AcademicTermScope } from "@/lib/academic-term";
+import Image from "next/image";
 
 type Props = {
   title: string;
@@ -307,9 +308,17 @@ export function InterventionStatusChartClient({
         </div>
       </div>
       {loading ? (
-        <p className="px-2 py-8 text-center text-sm text-neutral-500">
-          Loading cohort…
-        </p>
+        <div className="flex items-center justify-center">
+           <Image 
+          src="/icons/intervention-chart-loader.svg"
+          alt="Loading"
+          width={200}
+          height={200}
+          className=""
+        />
+
+        </div>
+       
       ) : (
         <InterventionStatusChart
           title={title}

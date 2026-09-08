@@ -95,9 +95,12 @@ export function HeaderEffectivenessCard({ user }: { user?: AppUser | null }) {
 
   return (
     <>
-      <div
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
         className={cn(
-          "hidden shrink-0 rounded-lg border px-3 py-2 sm:block",
+          "hidden h-12 shrink-0 items-center overflow-hidden rounded-lg border px-2.5 py-1.5 text-left transition xl:inline-flex",
+          "hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
           gradeCfg
             ? "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/60"
             : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40"
@@ -107,34 +110,30 @@ export function HeaderEffectivenessCard({ user }: { user?: AppUser | null }) {
             ? { borderColor: `${gradeCfg.color}33`, background: gradeCfg.bg }
             : undefined
         }
-        onClick={() => setOpen(true)}
-    
+        title="View effectiveness details"
       >
-        <div className="flex items-center gap-3 relative">
+        <div className="flex items-center gap-2">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Effectiveness
             </p>
             {loading && !summary ? (
-              <p className="text-xs text-slate-400">Loading…</p>
+              <p className="text-[11px] leading-tight text-slate-400">Loading…</p>
             ) : summary && gradeCfg ? (
-              <>
-                <p
-                  className="text-base font-extrabold leading-none tabular-nums"
-                  style={{ color: gradeCfg.color }}
-                >
-                   {Math.round(summary.eiScore)}
-                  <span className="ml-1.5 text-lg font-bold">{summary.eiRating} </span>
-                </p>
-               
-              </>
+              <p
+                className="text-sm font-extrabold leading-none tabular-nums"
+                style={{ color: gradeCfg.color }}
+              >
+                {Math.round(summary.eiScore)}
+                <span className="ml-1 text-sm font-bold">{summary.eiRating}</span>
+              </p>
             ) : (
-              <p className="text-xs text-slate-400">No data yet</p>
+              <p className="text-[11px] leading-tight text-slate-400">No data yet</p>
             )}
           </div>
-          <ArrowRightFromLine className="w-4 h-4" />
+          <ArrowRightFromLine className="size-3.5 shrink-0 opacity-70" aria-hidden />
         </div>
-      </div>
+      </button>
 
       <Sheet
         open={open}

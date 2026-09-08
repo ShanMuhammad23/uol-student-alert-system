@@ -114,21 +114,23 @@ export function HeaderInterventionReminderCard({ user }: { user?: AppUser | null
         onClick={() => setOpen(true)}
         disabled={loading && !data}
         className={cn(
-          "hidden max-w-[300px] shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left transition",
+          "hidden h-12 max-w-[13.5rem] shrink-0 overflow-hidden rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-left transition xl:block 2xl:max-w-[16.5rem]",
           "hover:border-amber-300 hover:bg-amber-100/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
-          "disabled:cursor-wait disabled:opacity-70 sm:block",
+          "disabled:cursor-wait disabled:opacity-70",
           "dark:border-amber-900/50 dark:bg-amber-950/40 dark:hover:border-amber-800 dark:hover:bg-amber-950/60"
         )}
         title="View open interventions for students no longer in alert"
       >
         {loading && !data ? (
-          <p className="text-xs text-amber-700/70 dark:text-amber-300/70">Loading…</p>
+          <p className="text-[11px] leading-tight text-amber-700/70 dark:text-amber-300/70">
+            Loading…
+          </p>
         ) : (
-          <p className="text-[11px] leading-snug text-amber-900 dark:text-amber-100">
-            <span className="text-base font-extrabold tabular-nums">{count}</span>
-            {" of your intervened students are out of alert but cases are still open. "}
+          <p className="line-clamp-2 text-[11px] leading-snug text-amber-900 dark:text-amber-100">
+            <span className="text-sm font-extrabold tabular-nums">{count}</span>
+            {" out of alert — cases still open. "}
             <span className="font-medium underline decoration-amber-600/50 underline-offset-2">
-              Tap to view list
+              View
             </span>
           </p>
         )}

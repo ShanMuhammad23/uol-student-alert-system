@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { normalizeFacultyName } from "@/lib/faculty-name";
 import type { InstructorFacultyRollupItem } from "@/lib/instructor-faculty-rollup";
 import { HeaderInterventionReminderCard } from "@/components/dashboard/HeaderInterventionReminderCard";
+
 type HeaderProps = {
   user?: AppUser | null;
   screenHeading?: string | null;
@@ -48,16 +49,18 @@ export function Header({
   trainedStaffCount,
   needTrainingCount,
 }: HeaderProps) {
-  
   const { toggleSidebar, isMobile } = useSidebarContext();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const hideUserInfo = pathname === "/auth/sign-in" || pathname === "/auth/forgot-password";
+  const hideUserInfo =
+    pathname === "/auth/sign-in" || pathname === "/auth/forgot-password";
   const [emulatedHeading, setEmulatedHeading] = useState<string | null>(null);
   const [emulatedTotalStudents, setEmulatedTotalStudents] = useState<
     number | undefined
   >(undefined);
-  const [emulatedLastUpdated, setEmulatedLastUpdated] = useState<string | null>(null);
+  const [emulatedLastUpdated, setEmulatedLastUpdated] = useState<string | null>(
+    null
+  );
   const [emulatedTrainedStaffCount, setEmulatedTrainedStaffCount] = useState<
     number | undefined
   >(undefined);
@@ -108,9 +111,7 @@ export function Header({
             emulatedFacultyId
         );
         setEmulatedTotalStudents(
-          typeof data.totalStudents === "number"
-            ? data.totalStudents
-            : undefined
+          typeof data.totalStudents === "number" ? data.totalStudents : undefined
         );
         setEmulatedLastUpdated(data.lastUpdated ?? null);
         setEmulatedTrainedStaffCount(
@@ -133,7 +134,9 @@ export function Header({
         ) {
           return;
         }
-        setEmulatedHeading(normalizeFacultyName(emulatedFacultyId) ?? emulatedFacultyId);
+        setEmulatedHeading(
+          normalizeFacultyName(emulatedFacultyId) ?? emulatedFacultyId
+        );
         setEmulatedTotalStudents(undefined);
         setEmulatedLastUpdated(null);
         setEmulatedTrainedStaffCount(undefined);
@@ -189,20 +192,20 @@ export function Header({
   }, [user, instructorFacultyRollup]);
 
   return (
-    
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stroke bg-white px-4 py-5 shadow-1 dark:border-stroke-dark dark:bg-gray-dark md:px-5 2xl:px-10">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-stroke bg-white px-3 shadow-1 dark:border-stroke-dark dark:bg-gray-dark sm:gap-3 sm:px-4 md:h-[5.5rem] md:px-5 lg:gap-4 2xl:px-10">
       <button
+        type="button"
         onClick={toggleSidebar}
-        className="rounded-lg border px-1.5 py-1 dark:border-stroke-dark dark:bg-[#020D1A] hover:dark:bg-[#FFFFFF1A] lg:hidden"
+        className="shrink-0 rounded-lg border px-1.5 py-1 dark:border-stroke-dark dark:bg-[#020D1A] hover:dark:bg-[#FFFFFF1A] lg:hidden"
       >
         <MenuIcon />
         <span className="sr-only">Toggle Sidebar</span>
       </button>
 
       {isMobile && (
-        <Link href={"/"} className="ml-2 max-[430px]:hidden min-[375px]:ml-4">
+        <Link href="/" className="ml-1 shrink-0 max-[430px]:hidden min-[375px]:ml-2">
           <Image
-            src={"/assets/logos/logo-black.png"}
+            src="/assets/logos/logo-black.png"
             width={40}
             height={40}
             alt="UOL | Student Early Alert System logo"
@@ -211,60 +214,62 @@ export function Header({
         </Link>
       )}
 
-      <div className="max-xl:hidden">
-        <h1 className="mb-0.5 text-heading-5 font-bold text-dark dark:text-white">
+      <div className="min-w-0 flex-1 max-lg:hidden">
+        <h1 className="truncate text-base font-bold leading-tight text-dark dark:text-white xl:text-heading-5">
           Student Early Alert System
         </h1>
-        {(resolvedHeading || formattedLastUpdated || instructorFacultySummaryLine) &&
+        {(resolvedHeading ||
+          formattedLastUpdated ||
+          instructorFacultySummaryLine) &&
           !hideUserInfo && (
-          <div className="flex flex-col gap-1">
-            {(resolvedHeading || formattedLastUpdated) && (
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-lg font-medium text-green-600 dark:text-white">
-                  {resolvedHeading}{" "}
-                  {resolvedHeading &&
-                    shouldShowTotalStudents &&
-                    typeof resolvedTotalStudents === "number" && (
-                    <span className="font-semibold dark:text-white">
-                      {resolvedTotalStudents.toLocaleString()}
-                    </span>
-                  )}
+            <div className="mt-0.5 min-w-0 space-y-0.5">
+              {(resolvedHeading || formattedLastUpdated) && (
+                <div className="flex min-w-0 items-center gap-x-2 gap-y-0.5 overflow-hidden">
+                  {resolvedHeading ? (
+                    <p className="min-w-0 truncate text-sm font-medium text-green-600 dark:text-white xl:text-lg">
+                      {resolvedHeading}{" "}
+                      {shouldShowTotalStudents &&
+                        typeof resolvedTotalStudents === "number" && (
+                          <span className="font-semibold dark:text-white">
+                            {resolvedTotalStudents.toLocaleString()}
+                          </span>
+                        )}
+                    </p>
+                  ) : null}
+                  {formattedLastUpdated ? (
+                    <p className="hidden min-w-0 shrink truncate border-l border-gray-300 pl-2 text-xs text-gray-600 dark:border-gray-300 dark:text-gray-300 xl:block xl:text-sm 2xl:text-base">
+                      Last updated: {formattedLastUpdated}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              {instructorFacultySummaryLine ? (
+                <p className="truncate text-xs font-normal leading-snug text-slate-600 dark:text-slate-400 xl:max-w-3xl 2xl:max-w-4xl">
+                  {instructorFacultySummaryLine}
                 </p>
-              
-                {formattedLastUpdated && (
-                  <p className="text-lg text-gray-600 dark:border-gray-300 dark:text-gray-300 border-l border-gray-300 pl-2">
-                    Last updated: {formattedLastUpdated}
-                  </p>
-                )}
-           
-              </div>
-            )}
-            {instructorFacultySummaryLine ? (
-              <p className="max-w-4xl text-sm font-normal leading-snug text-slate-600 dark:text-slate-400">
-                {instructorFacultySummaryLine}
-              </p>
-            ) : null}
-          </div>
-        )}
+              ) : null}
+            </div>
+          )}
       </div>
 
-        <div className="flex flex-1 items-center justify-end gap-2 min-[375px]:gap-4">
-        {typeof resolvedTrainedStaffCount === "number" &&
-          typeof resolvedNeedTrainingCount === "number" && (
-          <div className="hidden shrink-0 border px-3 py-2 sm:flex bg-yellow-200 dark:bg-gray-800 rounded-lg flex-col">
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+      <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:gap-3">
+        {shouldShowTrainingCounts ? (
+          <div className="hidden h-12 max-w-[11.5rem] shrink-0 flex-col justify-center overflow-hidden rounded-lg border border-yellow-300/80 bg-yellow-200 px-2.5 py-1.5 dark:border-gray-600 dark:bg-gray-800 xl:flex">
+            <p className="truncate text-[11px] font-medium leading-tight text-slate-700 dark:text-slate-300">
               {resolvedTrainedStaffCount} instructors Trained
             </p>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            <p className="truncate text-[11px] font-medium leading-tight text-slate-700 dark:text-slate-300">
               {resolvedNeedTrainingCount} instructors Need Training
             </p>
           </div>
-        )}
+        ) : null}
+
         <HeaderInterventionReminderCard user={user} />
         <HeaderEffectivenessCard user={user} />
 
-        <ThemeToggleSwitch />
-
+        <div className="shrink-0">
+          <ThemeToggleSwitch />
+        </div>
 
         {!hideUserInfo && (
           <div className="shrink-0">
@@ -272,6 +277,6 @@ export function Header({
           </div>
         )}
       </div>
-    </header>) 
-   
+    </header>
+  );
 }
