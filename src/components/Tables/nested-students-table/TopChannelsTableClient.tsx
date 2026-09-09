@@ -18,6 +18,7 @@ import type {
   AlertDimensionFilter,
   MasterFilterParams,
 } from "@/app/(home)/dashboard/fetch";
+import { formatAcademicTermLabel, parseAcademicTermKey } from "@/lib/academic-term";
 import { TOP_CHANNELS_TABLE_SCROLL_ID } from "./table-scroll-anchor";
 
 type Props = {
@@ -138,6 +139,15 @@ export function TopChannelsTableClient({
   const isWellbeingScreen =
     returnToUrl.includes("/dashboard.wellbeing") ||
     returnToUrl.includes("/dashboard/wellbeing");
+
+  // Any explicit semester filter is historical; current term is never stored as semester.
+  const selectedSemesterTerm = parseAcademicTermKey(masterFilter?.semester);
+  const selectedSemesterLabel = selectedSemesterTerm
+    ? formatAcademicTermLabel(
+        selectedSemesterTerm.termYear,
+        selectedSemesterTerm.termSession
+      )
+    : null;
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
@@ -475,6 +485,13 @@ export function TopChannelsTableClient({
       )}
     >
       <div className="mt-4">
+          {selectedSemesterLabel ? (
+            <div className="mb-3 rounded-md border border-stroke bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-dark-3 dark:bg-amber-950/30 dark:text-amber-200">
+              Viewing <span className="font-semibold">{selectedSemesterLabel}</span>{" "}
+              enrollments (active and inactive) for table view / export. Charts stay on the
+              current semester unless filtered separately.
+            </div>
+          ) : null}
           {isWellbeingScreen && (
             <div className="mb-3 rounded-md border border-stroke bg-gray-50 px-3 py-2 text-xs text-dark-6 dark:border-dark-3 dark:bg-dark-2 dark:text-white">
               Referred interventions, direct internal/external cases, or a case closed by wellbeing
@@ -730,6 +747,7 @@ export function TopChannelsTableClient({
                           section={row.sectionCode ?? null}
                           eventPackageId={row.eventPackageId ?? null}
                           classAverage={classAvg}
+                          semester={masterFilter?.semester ?? null}
                           className="flex flex-col gap-1"
                           title="View profile"
                         >
@@ -742,6 +760,11 @@ export function TopChannelsTableClient({
                           {admissionLabel ? (
                             <span className="text-xs sm:text-sm text-[#1f4a3d] dark:text-white">
                               Adm: {admissionLabel}
+                            </span>
+                          ) : null}
+                          {selectedSemesterLabel && row.isActive === false ? (
+                            <span className="w-fit rounded bg-dark-6/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-dark-6 dark:text-white">
+                              Inactive
                             </span>
                           ) : null}
                         </StudentProfileLink>

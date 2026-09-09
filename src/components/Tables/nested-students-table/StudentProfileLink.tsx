@@ -16,6 +16,8 @@ type Props = {
   section?: string | null;
   eventPackageId?: string | null;
   classAverage?: number | null;
+  /** Academic term key (`YYYY|SSS`) — when set, profile loads that semester's enrollments. */
+  semester?: string | null;
 };
 
 /**
@@ -32,6 +34,7 @@ export function StudentProfileLink({
   section,
   eventPackageId,
   classAverage,
+  semester,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -59,6 +62,8 @@ export function StudentProfileLink({
   if (classAverage != null && Number.isFinite(classAverage)) {
     params.set("class_avg", String(classAverage));
   }
+  const semesterKey = String(semester ?? "").trim();
+  if (semesterKey) params.set("semester", semesterKey);
   const href = `/students/${sapId}?${params.toString()}`;
 
   return (

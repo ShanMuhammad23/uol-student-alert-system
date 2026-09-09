@@ -13,10 +13,13 @@ import { pool } from "@/lib/db";
 import {
   cheapSubjectInterventionExistsSql,
   currentOrIntervenedEnrollmentSql,
+  enrolledInTermSql,
   formatAcademicTermLabel,
   getCurrentAcademicTerm,
   isCurrentAcademicTerm,
   isDateInCurrentTerm,
+  parseAcademicTermKey,
+  type AcademicTerm,
 } from "@/lib/academic-term";
 import { getWellbeingCounsellorEmailOptions } from "@/lib/db";
 import { getServerSession } from "next-auth";
@@ -34,6 +37,8 @@ type PropsType = {
     section?: string;
     event_package?: string;
     class_avg?: string;
+    /** Academic term key (`YYYY|SSS`) — show that semester's enrollments (active + inactive). */
+    semester?: string;
     /** `external` — wellbeing external direct case entry from dashboard (no course focus). */
     direct_case?: string;
   }>;
@@ -97,8 +102,16 @@ const PROFILE_ENROLLMENT_VISIBILITY_SQL = currentOrIntervenedEnrollmentSql({
   }),
 });
 
+function profileEnrollmentVisibilitySql(semesterTerm?: AcademicTerm | null): string {
+  if (semesterTerm) {
+    return enrolledInTermSql("e", semesterTerm, { requireActive: false });
+  }
+  return PROFILE_ENROLLMENT_VISIBILITY_SQL;
+}
+
 async function getEnrollmentForStudentSapId(
-  sapId: string
+  sapId: string,
+  semesterTerm?: AcademicTerm | null
 ): Promise<EnrollmentRecord[]> {
   if (!pool) return [];
   try {
@@ -146,7 +159,7 @@ async function getEnrollmentForStudentSapId(
        LEFT JOIN programs p ON p.id = e.program_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
-         AND ${PROFILE_ENROLLMENT_VISIBILITY_SQL}
+         AND ${profileEnrollmentVisibilitySql(semesterTerm)}
        ORDER BY e.is_active DESC NULLS LAST, e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
@@ -177,7 +190,8 @@ async function getEnrollmentForStudentSapId(
 }
 
 async function getStudentProfileMetricRows(
-  sapId: string
+  sapId: string,
+  semesterTerm?: AcademicTerm | null
 ): Promise<StudentProfileMetricRow[]> {
   if (!pool) return [];
   try {
@@ -224,7 +238,7 @@ async function getStudentProfileMetricRows(
         AND a.event_package_id = e.event_package_id
        LEFT JOIN courses c ON c.id = e.course_id
        WHERE e.sap_id = $1
-         AND ${PROFILE_ENROLLMENT_VISIBILITY_SQL}
+         AND ${profileEnrollmentVisibilitySql(semesterTerm)}
        ORDER BY e.is_active DESC NULLS LAST, e.course_id ASC, e.section_code ASC`,
       [sapId]
     );
@@ -290,6 +304,19 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     Number.isFinite(classAverageParam) && classAverageParam > 0
       ? classAverageParam
       : null;
+  const semesterParam = resolvedSearchParams.semester?.trim() || undefined;
+  const semesterTermParsed = parseAcademicTermKey(semesterParam);
+  const viewSemesterTerm =
+    semesterTermParsed &&
+    !isCurrentAcademicTerm(
+      semesterTermParsed.termYear,
+      semesterTermParsed.termSession
+    )
+      ? semesterTermParsed
+      : null;
+  const viewSemesterLabel = viewSemesterTerm
+    ? formatAcademicTermLabel(viewSemesterTerm.termYear, viewSemesterTerm.termSession)
+    : null;
   const sapIdFromUrl = id;
   const allowWellbeingDirectCaseEntry =
     directCaseMode != null &&
@@ -358,8 +385,8 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
     getInterventionEmailsByStudentSapId(sapIdFromUrl),
     getWellbeingCounsellorEmailOptions(),
     getStudentGpaProfileBySapId(sapIdFromUrl),
-    getEnrollmentForStudentSapId(sapIdFromUrl),
-    getStudentProfileMetricRows(sapIdFromUrl),
+    getEnrollmentForStudentSapId(sapIdFromUrl, viewSemesterTerm),
+    getStudentProfileMetricRows(sapIdFromUrl, viewSemesterTerm),
     getStudentAlertDailyHistory(sapIdFromUrl, {
       courseId: alertHistoryCourseId,
       sectionCode: alertHistorySectionCode,
@@ -561,7 +588,7 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
               <h1 className="text-2xl font-bold sm:text-3xl">
                 {primaryEnrollment?.Name ?? sapIdFromUrl} ({primaryEnrollment.Section})
               </h1>
-              {!currentlyEnrolled ? (
+              {!currentlyEnrolled && !viewSemesterLabel ? (
                 <p className="p-2 ml-4 bg-amber-100 text-amber-800 rounded-md">
                   Not enrolled in {currentTermLabel ?? "the current semester"}. Showing
                   subject(s) with an intervention
@@ -569,6 +596,12 @@ export default async function StudentPage({ params, searchParams }: PropsType) {
                     ? ` from ${focusedMetricRow?.termLabel ?? dbMetricRows[0]?.termLabel}`
                     : ""}
                   .
+                </p>
+              ) : null}
+              {viewSemesterLabel ? (
+                <p className="p-2 ml-4 bg-amber-100 text-amber-800 rounded-md">
+                  Viewing <strong>{viewSemesterLabel}</strong> enrollments (active and
+                  inactive). Subjects and attendance below are for that semester.
                 </p>
               ) : null}
               </div>

@@ -156,6 +156,26 @@ export function formatAcademicTermLabel(
   return `${sessionLabel} ${year}`;
 }
 
+/** Stable filter key used by MasterFilter / listing APIs (`2026|003`). */
+export function encodeAcademicTermKey(term: AcademicTerm): string {
+  return `${sanitizeTermPart(term.termYear, "")}|${normalizeTermSession(term.termSession)}`;
+}
+
+/** Parse `2026|003` or `2026-003` into a term; returns null if invalid. */
+export function parseAcademicTermKey(
+  value?: string | null
+): AcademicTerm | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const sep = raw.includes("|") ? "|" : raw.includes("-") ? "-" : null;
+  if (!sep) return null;
+  const [yearRaw, sessionRaw] = raw.split(sep);
+  const termYear = sanitizeTermPart(yearRaw ?? "", "");
+  const termSession = normalizeTermSession(sessionRaw);
+  if (!termYear || termSession === "000") return null;
+  return { termYear, termSession };
+}
+
 export function getAcademicTermChartLabels(): {
   currentTermLabel: string;
   previousTermLabel: string;

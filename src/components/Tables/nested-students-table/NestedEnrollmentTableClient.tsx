@@ -1132,6 +1132,7 @@ export function NestedEnrollmentTableClient({
                                                       (row as unknown as { Packnumber?: string })
                                                         .Packnumber ?? ""
                                                     )}
+                                                    semester={masterFilter?.semester ?? null}
                                                     className="flex flex-col gap-0.5"
                                                     title="View profile"
                                                   >

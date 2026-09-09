@@ -307,6 +307,7 @@ function EnrollmentDashboardInner({
             : null,
           course: next.course_ids?.length ? next.course_ids.join(",") : null,
           batch: next.batches?.length ? next.batches.join(",") : null,
+          semester: next.semester?.trim() ? next.semester.trim() : null,
         });
         router.replace(href, { scroll: false });
         return next;
@@ -346,6 +347,11 @@ function EnrollmentDashboardInner({
     setMulti("instructor", localMasterFilter.instructor_ids);
     setMulti("course", localMasterFilter.course_ids);
     setMulti("batch", localMasterFilter.batches);
+    if (localMasterFilter.semester?.trim()) {
+      params.set("semester", localMasterFilter.semester.trim());
+    } else {
+      params.delete("semester");
+    }
     setMulti("gpa_filter", localGpaFilters);
     setMulti("attendance_filter", localAttendanceFilters);
     setMulti("class_status_filter", localClassStatusFilters);
@@ -379,6 +385,7 @@ function EnrollmentDashboardInner({
     localMasterFilter.instructor_ids,
     localMasterFilter.course_ids,
     localMasterFilter.batches,
+    localMasterFilter.semester,
     localGpaFilters,
     localAttendanceFilters,
     localClassStatusFilters,

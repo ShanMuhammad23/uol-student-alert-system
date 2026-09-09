@@ -82,7 +82,9 @@ export function WellbeingDashboardClient({
     masterFilter.programs?.join(","),
     masterFilter.instructor_ids?.join(","),
     masterFilter.course_ids?.join(","),
+    masterFilter.semester,
     resolutionFilters.join(","),
+    asWellbeingScope,
   ]);
 
   const { openCases, closedCases } = useMemo(() => {

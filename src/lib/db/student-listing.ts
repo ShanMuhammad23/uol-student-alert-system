@@ -3,7 +3,13 @@ import { getInterventionRecordStatsForRoleScope, getAlertedWithoutInterventionCo
 import {
   cheapSubjectInterventionExistsSql,
   currentOrIntervenedEnrollmentSql,
+  encodeAcademicTermKey,
   enrolledInCurrentTermSql,
+  enrolledInTermSql,
+  formatAcademicTermLabel,
+  isCurrentAcademicTerm,
+  parseAcademicTermKey,
+  type AcademicTerm,
 } from "@/lib/academic-term";
 import { gatedAttendanceAlertLevelSql } from "@/lib/attendance-utils";
 import {
@@ -30,6 +36,11 @@ export type ListingFilters = {
   course_ids?: string[];
   /** Admission year values (batch). */
   batches?: string[];
+  /**
+   * Academic term key (`YYYY|SSS`). When set, listing ignores is_active and
+   * returns enrollments for that term (view/export). Empty = current term.
+   */
+  semester?: string;
   attendanceFilters?: AlertDimensionFilter[];
   classStatusFilters?: string[];
   gpaFilters?: AlertDimensionFilter[];
@@ -220,7 +231,26 @@ function buildSubjectLinkedInterventionExistsSql(_hasSectionCode: boolean): stri
   });
 }
 
-function enrollmentVisibilitySql(hasSectionCode: boolean, includeIntervened: boolean): string {
+function resolveListingSemesterTerm(filters: ListingFilters): AcademicTerm | null {
+  const term = parseAcademicTermKey(filters.semester);
+  if (!term) return null;
+  // Current term uses the normal dashboard path (not the historical any-semester view).
+  if (isCurrentAcademicTerm(term.termYear, term.termSession)) return null;
+  return term;
+}
+
+/**
+ * Default: current-term active rows (optionally + intervened inactive).
+ * Semester filter: that term’s enrollments only — active and inactive.
+ */
+function enrollmentVisibilitySql(
+  hasSectionCode: boolean,
+  includeIntervened: boolean,
+  semesterTerm?: AcademicTerm | null
+): string {
+  if (semesterTerm) {
+    return enrolledInTermSql("e", semesterTerm, { requireActive: false });
+  }
   if (!includeIntervened) return enrolledInCurrentTermSql("e");
   return currentOrIntervenedEnrollmentSql({
     alias: "e",
@@ -415,8 +445,13 @@ function buildWhere(
   const params: unknown[] = [];
   const includeIntervenedStudents = options?.includeIntervenedStudents === true;
   const hasSectionCode = wellbeingOpts?.hasInterventionSectionCode === true;
+  const semesterTerm = resolveListingSemesterTerm(filters);
   const where: string[] = [
-    enrollmentVisibilitySql(hasSectionCode, includeIntervenedStudents),
+    enrollmentVisibilitySql(
+      hasSectionCode,
+      includeIntervenedStudents,
+      semesterTerm
+    ),
   ];
 
   const normalizedIntervention =
@@ -623,12 +658,14 @@ function buildWhere(
         : null;
 
       if (statusFilterSql) {
-        where[0] = includeIntervenedStudents
-          ? currentOrIntervenedEnrollmentSql({
-              alias: "e",
-              interventionExistsSql: linkedStatusFilterSql ?? statusFilterSql,
-            })
-          : enrolledInCurrentTermSql("e");
+        where[0] = semesterTerm
+          ? enrolledInTermSql("e", semesterTerm, { requireActive: false })
+          : includeIntervenedStudents
+            ? currentOrIntervenedEnrollmentSql({
+                alias: "e",
+                interventionExistsSql: linkedStatusFilterSql ?? statusFilterSql,
+              })
+            : enrolledInCurrentTermSql("e");
       }
 
       if (wantsNotStarted && statuses.length) {
@@ -1620,4 +1657,74 @@ export async function getStudentListing(
     pageSize,
     totalPages,
   };
+}
+
+export type EnrollmentSemesterOption = {
+  value: string;
+  label: string;
+  termYear: string;
+  termSession: string;
+};
+
+/** Distinct term_year/term_session values for MasterFilter semester dropdown (active + inactive). */
+export async function getDistinctEnrollmentSemesters(
+  scope: SessionScope
+): Promise<EnrollmentSemesterOption[]> {
+  if (!pool) return [];
+
+  const params: unknown[] = [];
+  const where: string[] = [
+    "NULLIF(TRIM(e.term_year), '') IS NOT NULL",
+    "NULLIF(TRIM(e.term_session), '') IS NOT NULL",
+  ];
+
+  if (scope.role === "dean" && scope.faculty_id) {
+    const mappedFacultyId =
+      FACULTY_ID_TO_ENROLLMENT_FAC_ID[scope.faculty_id] ?? scope.faculty_id;
+    params.push(mappedFacultyId);
+    where.push(`e.faculty_id = $${params.length}::text`);
+  } else if (scope.role === "hod" && scope.department_ids?.length) {
+    params.push(scope.department_ids);
+    where.push(`e.department_id = ANY($${params.length}::text[])`);
+  } else if (scope.role === "instructor" && scope.pernr) {
+    params.push(scope.pernr);
+    where.push(`e.instructor_pernr = $${params.length}`);
+  }
+
+  try {
+    const res = await pool.query<{
+      term_year: string;
+      term_session: string;
+    }>(
+      `SELECT DISTINCT
+         TRIM(e.term_year) AS term_year,
+         LPAD(TRIM(COALESCE(e.term_session, '')), 3, '0') AS term_session
+       FROM student_enrollment_current e
+       WHERE ${where.join(" AND ")}
+       ORDER BY term_year DESC, term_session DESC`,
+      params
+    );
+
+    return res.rows
+      .map((row) => {
+        const termYear = String(row.term_year ?? "").trim();
+        const termSession = String(row.term_session ?? "").trim().padStart(3, "0");
+        if (!termYear || termSession === "000") return null;
+        // Current semester is the default "Current semester" option — don't list it twice.
+        if (isCurrentAcademicTerm(termYear, termSession)) return null;
+        const term = { termYear, termSession };
+        const label =
+          formatAcademicTermLabel(termYear, termSession) ??
+          `${termYear}/${termSession}`;
+        return {
+          value: encodeAcademicTermKey(term),
+          label,
+          termYear,
+          termSession,
+        };
+      })
+      .filter((row): row is EnrollmentSemesterOption => row != null);
+  } catch {
+    return [];
+  }
 }

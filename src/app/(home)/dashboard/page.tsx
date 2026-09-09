@@ -26,7 +26,7 @@ import { DashboardFiltersStateProvider } from "./_components/DashboardFiltersSta
 import { InterventionSliceProvider } from "./_components/InterventionSliceContext";
 import { InterventionCohortStatsProvider } from "./_components/InterventionCohortStatsContext";
 import { ScrollToTopButton } from "./_components/ScrollToTopButton";
-import { getAcademicTermChartLabels } from "@/lib/academic-term";
+import { encodeAcademicTermKey, getAcademicTermChartLabels, isCurrentAcademicTerm, parseAcademicTermKey } from "@/lib/academic-term";
 function parseMultiParam(
   value: string | string[] | undefined
 ): string[] {
@@ -45,6 +45,7 @@ type PropsType = {
     instructor?: string | string[];
     course?: string | string[];
     batch?: string | string[];
+    semester?: string | string[];
     gpa_filter?: string;
     attendance_filter?: string;
     class_status_filter?: string | string[];
@@ -96,6 +97,18 @@ export default async function Home({ searchParams }: PropsType) {
   let instructorIds = parseMultiParam(params.instructor);
   const courseIds = parseMultiParam(params.course);
   const batches = parseMultiParam(params.batch);
+  const semesterRaw = Array.isArray(params.semester)
+    ? params.semester[0]
+    : params.semester;
+  const semesterParsed =
+    typeof semesterRaw === "string" && semesterRaw.trim()
+      ? parseAcademicTermKey(semesterRaw.trim())
+      : null;
+  const semester =
+    semesterParsed &&
+    !isCurrentAcademicTerm(semesterParsed.termYear, semesterParsed.termSession)
+      ? encodeAcademicTermKey(semesterParsed)
+      : undefined;
 
   // Scope by session: Instructor sees only their courses (Pernr = sap_id); HoD sees only their departments
   if (
@@ -118,6 +131,7 @@ export default async function Home({ searchParams }: PropsType) {
     instructor_ids: instructorIds.length ? instructorIds : undefined,
     course_ids: courseIds.length ? courseIds : undefined,
     batches: batches.length ? batches : undefined,
+    semester,
   };
 
   const validAlertDim = (s: string): s is AlertDimensionFilter =>

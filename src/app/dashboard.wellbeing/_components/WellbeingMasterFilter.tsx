@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import type { FilterDropdownCounts } from "@/lib/db/student-listing";
 import type { MasterFilterOptions, MasterFilterParams } from "@/app/(home)/dashboard/fetch";
 import { WELLBEING_RESOLUTION_OPTIONS } from "@/lib/wellbeing-resolution-options";
+import { parseAcademicTermKey } from "@/lib/academic-term";
 
 type Props = {
   options: MasterFilterOptions;
@@ -15,7 +16,13 @@ type Props = {
   onChangeResolutionFilters: (values: string[]) => void;
 };
 
-type FilterKey = "department" | "program" | "course" | "instructor" | "wellbeing";
+type FilterKey =
+  | "department"
+  | "program"
+  | "course"
+  | "instructor"
+  | "semester"
+  | "wellbeing";
 
 function labelWithOptionalCount(label: string, count: number | undefined) {
   if (count == null) return label;
@@ -25,6 +32,83 @@ function labelWithOptionalCount(label: string, count: number | undefined) {
 function stripTrailingCount(label: string): string {
   // Remove trailing count suffixes like "(12)", "(12 students)", "(1,245 std)".
   return String(label).replace(/\s*\([^)]*\d[^)]*\)\s*$/, "").trim();
+}
+
+function FilterSingleSelect({
+  label,
+  selected,
+  items,
+  isOpen,
+  onOpenChange,
+  onChange,
+  emptyLabel = "Current semester",
+  loading = false,
+}: {
+  label: string;
+  selected: string | undefined;
+  items: { value: string; label: string }[];
+  isOpen: boolean;
+  onOpenChange: () => void;
+  onChange: (value: string | undefined) => void;
+  emptyLabel?: string;
+  loading?: boolean;
+}) {
+  const displayLabel = selected
+    ? items.find((i) => i.value === selected)?.label ?? selected
+    : emptyLabel;
+
+  return (
+    <div className="relative mb-6 flex flex-col gap-1.5">
+      <label className="text-body-sm font-medium text-dark dark:text-white">
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={onOpenChange}
+        className="min-w-[150px] rounded-lg border border-stroke bg-white px-3 py-2.5 text-left text-sm text-dark outline-none transition focus:border-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white"
+      >
+        <span className="truncate">{loading ? "Loading…" : displayLabel}</span>
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-stroke bg-white py-1 shadow-lg dark:border-stroke-dark dark:bg-gray-dark">
+          <button
+            type="button"
+            className={cn(
+              "w-full px-3 py-2 text-left text-sm hover:bg-gray-2 dark:hover:bg-dark-3",
+              !selected && "bg-primary/10 dark:bg-primary/20"
+            )}
+            onClick={() => {
+              onChange(undefined);
+              onOpenChange();
+            }}
+          >
+            <span className="text-dark dark:text-white">{emptyLabel}</span>
+          </button>
+          {items.map((item, idx) => (
+            <button
+              key={`${item.value}-${idx}`}
+              type="button"
+              className={cn(
+                "w-full px-3 py-2 text-left text-sm hover:bg-gray-2 dark:hover:bg-dark-3",
+                selected === item.value && "bg-primary/10 dark:bg-primary/20"
+              )}
+              onClick={() => {
+                onChange(item.value);
+                onOpenChange();
+              }}
+            >
+              <span className="text-dark dark:text-white">{item.label}</span>
+            </button>
+          ))}
+          {!loading && items.length === 0 && (
+            <div className="px-3 py-2 text-xs text-dark-6 dark:text-white">
+              No semesters found.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FilterMultiSelect({
@@ -107,6 +191,48 @@ export function WellbeingMasterFilter({
 }: Props) {
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [counts, setCounts] = useState<FilterDropdownCounts | null>(null);
+  const [semesterOptions, setSemesterOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [currentSemester, setCurrentSemester] = useState<{
+    value: string;
+    label: string;
+  } | null>(null);
+  const [semestersLoading, setSemestersLoading] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSemestersLoading(true);
+    const qs = asWellbeingScope ? "?role=wellbeing" : "";
+    fetch(`/api/dashboard/semesters${qs}`, { signal: controller.signal })
+      .then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error("semesters"))
+      )
+      .then(
+        (body: {
+          semesters?: { value: string; label: string }[];
+          current?: { value: string; label: string } | null;
+        }) => {
+          if (controller.signal.aborted) return;
+          setSemesterOptions(Array.isArray(body.semesters) ? body.semesters : []);
+          setCurrentSemester(
+            body.current?.value && body.current?.label
+              ? { value: body.current.value, label: body.current.label }
+              : null
+          );
+        }
+      )
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setSemesterOptions([]);
+          setCurrentSemester(null);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSemestersLoading(false);
+      });
+    return () => controller.abort();
+  }, [asWellbeingScope]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -120,6 +246,7 @@ export function WellbeingMasterFilter({
           programs: current.programs,
           instructor_ids: current.instructor_ids,
           course_ids: current.course_ids,
+          semester: current.semester,
           resolutionFilters: resolutionFilters.length ? resolutionFilters : undefined,
         },
         ...(asWellbeingScope ? { roleScope: { role: "wellbeing" as const } } : {}),
@@ -138,7 +265,9 @@ export function WellbeingMasterFilter({
     current.programs?.join(","),
     current.instructor_ids?.join(","),
     current.course_ids?.join(","),
+    current.semester,
     resolutionFilters.join(","),
+    asWellbeingScope,
   ]);
 
   const wellbeingItems = useMemo(() => {
@@ -187,8 +316,27 @@ export function WellbeingMasterFilter({
       programs: undefined,
       course_ids: undefined,
       instructor_ids: undefined,
+      semester: undefined,
     });
     onChangeResolutionFilters([]);
+  };
+
+  const semesterEmptyLabel = currentSemester
+    ? `${currentSemester.label} (current)`
+    : "Current semester";
+  const selectedSemester =
+    current.semester &&
+    current.semester !== currentSemester?.value &&
+    parseAcademicTermKey(current.semester)
+      ? current.semester
+      : undefined;
+
+  const handleSemester = (value: string | undefined) => {
+    if (!value || (currentSemester && value === currentSemester.value)) {
+      onChangeMasterFilter({ semester: undefined });
+      return;
+    }
+    onChangeMasterFilter({ semester: value });
   };
 
   return (
@@ -255,6 +403,18 @@ export function WellbeingMasterFilter({
           }
         />
       )}
+      <FilterSingleSelect
+        label="Semester"
+        selected={selectedSemester}
+        items={semesterOptions}
+        isOpen={openFilter === "semester"}
+        onOpenChange={() =>
+          setOpenFilter(openFilter === "semester" ? null : "semester")
+        }
+        onChange={handleSemester}
+        emptyLabel={semesterEmptyLabel}
+        loading={semestersLoading}
+      />
       <FilterMultiSelect
         label="Wellbeing"
         selected={resolutionFilters}

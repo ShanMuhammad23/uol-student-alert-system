@@ -95,4 +95,10 @@ export type MasterFilterParams = {
   course_ids?: string[];
   /** Admission year values (batch). */
   batches?: string[];
+  /**
+   * Academic term key (`YYYY|SSS`, e.g. `2026|003`).
+   * When set, listing/export shows that semester’s enrollments (active + inactive).
+   * Empty/undefined = current semester (default dashboard behavior).
+   */
+  semester?: string;
 };

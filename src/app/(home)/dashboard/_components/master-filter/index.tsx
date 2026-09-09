@@ -14,6 +14,8 @@ import type {
   AlertDimensionFilter,
 } from "../../fetch";
 import { useSession } from "next-auth/react";
+import { parseAcademicTermKey } from "@/lib/academic-term";
+
 const GPA_ATTENDANCE_OPTIONS: { value: AlertDimensionFilter; label: string }[] = [
   { value: "red", label: "Red alert" },
   { value: "yellow", label: "Yellow alert" },
@@ -85,11 +87,107 @@ type FilterKey =
   | "course"
   | "instructor"
   | "batch"
+  | "semester"
   | "attendance"
   | "gpa"
   | "intervention"
   | "classStatus"
   | "wellbeing";
+
+function FilterSingleSelect({
+  label,
+  selected,
+  items,
+  onChange,
+  isOpen,
+  onOpenChange,
+  emptyLabel = "Current semester",
+  loading = false,
+  "data-testid": testId,
+}: {
+  label: string;
+  selected: string | undefined;
+  items: { value: string; label: string }[];
+  onChange: (value: string | undefined) => void;
+  isOpen: boolean;
+  onOpenChange: () => void;
+  emptyLabel?: string;
+  loading?: boolean;
+  "data-testid"?: string;
+}) {
+  const displayLabel = selected
+    ? items.find((i) => i.value === selected)?.label ?? selected
+    : emptyLabel;
+
+  return (
+    <div className="relative mb-8 flex flex-col gap-1.5" data-testid={testId}>
+      <label className="text-body-sm font-medium text-dark dark:text-white">
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={onOpenChange}
+        className={cn(
+          "flex min-w-[140px] max-w-[220px] items-center justify-between gap-2 rounded-lg border border-stroke bg-white px-3 py-2.5 text-left text-sm outline-none transition",
+          "focus:border-primary dark:border-dark-3 dark:bg-gray-dark dark:text-white dark:focus:border-primary"
+        )}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{loading ? "Loading…" : displayLabel}</span>
+        <svg
+          className={cn("h-4 w-4 shrink-0 transition", isOpen && "rotate-180")}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-full z-50 mt-1 max-h-[280px] w-full min-w-[200px] overflow-y-auto rounded-lg border border-stroke bg-white py-1 shadow-lg dark:border-stroke-dark dark:bg-gray-dark"
+        >
+          <button
+            type="button"
+            className={cn(
+              "w-full px-3 py-2 text-left text-sm hover:bg-gray-2 dark:hover:bg-dark-3",
+              !selected && "bg-primary/10 dark:bg-primary/20"
+            )}
+            onClick={() => {
+              onChange(undefined);
+              onOpenChange();
+            }}
+          >
+            <span className="text-dark dark:text-white">{emptyLabel}</span>
+          </button>
+          {items.map((item, itemIdx) => (
+            <button
+              key={`${item.value}-${itemIdx}`}
+              type="button"
+              className={cn(
+                "w-full px-3 py-2 text-left text-sm hover:bg-gray-2 dark:hover:bg-dark-3",
+                selected === item.value && "bg-primary/10 dark:bg-primary/20"
+              )}
+              onClick={() => {
+                onChange(item.value);
+                onOpenChange();
+              }}
+            >
+              <span className="text-dark dark:text-white">{item.label}</span>
+            </button>
+          ))}
+          {!loading && items.length === 0 && (
+            <div className="px-3 py-2 text-xs text-dark-6 dark:text-white">
+              No semesters found.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function FilterMultiSelect({
   label,
@@ -250,10 +348,73 @@ export function MasterFilter({
 }: PropsType) {
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [dropdownCounts, setDropdownCounts] = useState<FilterDropdownCounts | null>(null);
+  const [semesterOptions, setSemesterOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [currentSemester, setCurrentSemester] = useState<{
+    value: string;
+    label: string;
+  } | null>(null);
+  const [semestersLoading, setSemestersLoading] = useState(false);
   const router = useRouter();
   const mergeHref = useMergeDashboardHref();
   const filterPanelRef = useClickOutside<HTMLDivElement>(() => setOpenFilter(null));
   const session = useSession();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSemestersLoading(true);
+    const params = new URLSearchParams();
+    if (filterApiRoleScope?.role) {
+      params.set("role", filterApiRoleScope.role);
+      if (filterApiRoleScope.facultyId) {
+        params.set("facultyId", filterApiRoleScope.facultyId);
+      }
+      if (filterApiRoleScope.departmentIds?.length) {
+        params.set("departmentIds", filterApiRoleScope.departmentIds.join(","));
+      }
+      if (filterApiRoleScope.pernr) {
+        params.set("pernr", filterApiRoleScope.pernr);
+      }
+    }
+    const qs = params.toString();
+    fetch(`/api/dashboard/semesters${qs ? `?${qs}` : ""}`, {
+      signal: controller.signal,
+    })
+      .then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error("semesters"))
+      )
+      .then(
+        (body: {
+          semesters?: { value: string; label: string }[];
+          current?: { value: string; label: string } | null;
+        }) => {
+          if (controller.signal.aborted) return;
+          setSemesterOptions(Array.isArray(body.semesters) ? body.semesters : []);
+          setCurrentSemester(
+            body.current?.value && body.current?.label
+              ? { value: body.current.value, label: body.current.label }
+              : null
+          );
+        }
+      )
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setSemesterOptions([]);
+          setCurrentSemester(null);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSemestersLoading(false);
+      });
+    return () => controller.abort();
+  }, [
+    filterApiRoleScope?.role,
+    filterApiRoleScope?.facultyId,
+    filterApiRoleScope?.departmentIds?.join(","),
+    filterApiRoleScope?.pernr,
+  ]);
+
   useEffect(() => {
     const controller = new AbortController();
     const filters = {
@@ -262,6 +423,7 @@ export function MasterFilter({
       instructor_ids: current.instructor_ids,
       course_ids: current.course_ids,
       batches: current.batches,
+      semester: current.semester,
       selected_alert:
         selectedAlert && selectedAlert !== "all" ? selectedAlert : undefined,
       attendanceFilters: normalizeDimFiltersForApi(attendanceFilters),
@@ -302,6 +464,7 @@ export function MasterFilter({
     current.instructor_ids?.join(","),
     current.course_ids?.join(","),
     current.batches?.join(","),
+    current.semester,
     selectedAlert,
     attendanceFilters?.join(","),
     gpaFilters?.join(","),
@@ -416,6 +579,27 @@ export function MasterFilter({
     });
   };
 
+  const handleSemester = (value: string | undefined) => {
+    // Selecting the configured current term is the same as default current semester.
+    if (!value || (currentSemester && value === currentSemester.value)) {
+      onChangeMasterFilter?.({ semester: undefined });
+      return;
+    }
+    onChangeMasterFilter?.({
+      semester: value,
+    });
+  };
+
+  const semesterEmptyLabel = currentSemester
+    ? `${currentSemester.label} (current)`
+    : "Current semester";
+  const selectedSemester =
+    current.semester &&
+    current.semester !== currentSemester?.value &&
+    parseAcademicTermKey(current.semester)
+      ? current.semester
+      : undefined;
+
   const handleGpaFilters = (values: string[]) => {
     onChangeGpaFilters?.(values as AlertDimensionFilter[]);
   };
@@ -449,6 +633,7 @@ export function MasterFilter({
     (current.instructor_ids?.length ?? 0) > 0 ||
     (current.course_ids?.length ?? 0) > 0 ||
     (current.batches?.length ?? 0) > 0 ||
+    Boolean(current.semester) ||
     (gpaFilters?.length ?? 0) > 0 ||
     (attendanceFilters?.length ?? 0) > 0 ||
     (classStatusFilters?.length ?? 0) > 0 ||
@@ -462,6 +647,7 @@ export function MasterFilter({
       instructor_ids: undefined,
       course_ids: undefined,
       batches: undefined,
+      semester: undefined,
     });
     onChangeGpaFilters?.([]);
     onChangeAttendanceFilters?.([]);
@@ -478,6 +664,7 @@ export function MasterFilter({
       instructor: null,
       course: null,
       batch: null,
+      semester: null,
       gpa_filter: null,
       attendance_filter: null,
       class_status_filter: null,
@@ -560,6 +747,18 @@ export function MasterFilter({
           data-testid="filter-batch"
         />
       )}
+
+      <FilterSingleSelect
+        label="Semester"
+        selected={selectedSemester}
+        items={semesterOptions}
+        onChange={handleSemester}
+        isOpen={openFilter === "semester"}
+        onOpenChange={toggleFilter("semester")}
+        emptyLabel={semesterEmptyLabel}
+        loading={semestersLoading}
+        data-testid="filter-semester"
+      />
 
       <FilterMultiSelect
         label="Attendance"

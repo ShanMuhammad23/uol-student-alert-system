@@ -126,6 +126,24 @@ ALTER TABLE staff
   ADD COLUMN IF NOT EXISTS reminder_modal_html TEXT,
   ADD COLUMN IF NOT EXISTS reminder_modal_cta TEXT;
 
+-- Broadcast: Semester filter (view / export any term, including inactive enrollments)
+UPDATE staff
+SET
+  is_visible = TRUE,
+  reminder_modal_cta = 'Got it',
+  reminder_modal_html = $html$
+<h2 style="margin:0 0 0.5rem 0;font-size:1.15rem;font-weight:700;">New: Semester filter</h2>
+<p style="margin:0 0 0.75rem 0;">You can now browse and export student enrollment for <strong>any semester</strong> from the dashboard Master Filter.</p>
+<ul style="margin:0 0 0.75rem 0;padding-left:1.25rem;">
+  <li style="margin-bottom:0.35rem;"><strong>Semester</strong> dropdown — pick a past or current term (default remains <em>Current semester</em>).</li>
+  <li style="margin-bottom:0.35rem;">Selected term shows <strong>active and inactive</strong> enrollments in the student table.</li>
+  <li style="margin-bottom:0.35rem;">Use <strong>Export</strong> to download CSV for that semester.</li>
+  <li>Charts and overview KPIs stay on the current semester; this filter is for table view and export only.</li>
+</ul>
+<p style="margin:0;font-size:0.9rem;opacity:0.85;">Find it under Master Filter → <strong>Semester</strong>.</p>
+$html$,
+  updated_at = NOW();
+
 CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
 CREATE INDEX IF NOT EXISTS idx_staff_actual_role ON staff(actual_role);
 CREATE INDEX IF NOT EXISTS idx_staff_pseudo_role ON staff(pseudo_role);
