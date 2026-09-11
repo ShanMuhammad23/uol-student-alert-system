@@ -117,23 +117,41 @@ export function DeanInstructorStats({
         const attendanceClassesHeld = i.attendanceClassesHeld ?? 0;
         const hasAllCoursesClassAverageHundred =
           i.allCoursesClassAverageAttendanceHundred === true;
+        const parentFacultyId = String(i.parentFacultyId ?? "").trim();
+        const deanFacultyId = String(user.faculty_id ?? "").trim();
+        const isAllied =
+          parentFacultyId.length > 0 &&
+          deanFacultyId.length > 0 &&
+          parentFacultyId !== deanFacultyId;
         return (
         <button
           key={i.instructorId}
           type="button"
           onClick={() => onSelectInstructorId?.(i.instructorId)}
           className={cn(
-            "relative inline-flex min-w-[160px] flex-col pr-7",
+            "relative inline-flex min-w-[160px] flex-col overflow-hidden pr-7",
             STATS_CHIP_SURFACE,
             hasAllCoursesClassAverageHundred && STATS_CHIP_ALERT,
             selectedInstructorId === i.instructorId && STATS_CHIP_SELECTED
           )}
         >
+          {isAllied ? (
+            <span
+              title="Allied instructor — parent faculty differs from this faculty"
+              aria-label="Allied instructor"
+              className="pointer-events-none absolute -right-5 top-1.5 z-[1] w-16 rotate-45 bg-sky-600 py-0.5 text-center text-[8px] font-bold uppercase tracking-wide text-white shadow-sm dark:bg-sky-500"
+            >
+              Allied
+            </span>
+          ) : null}
           {i.isRegisteredOnPortal ? (
             <span
               title="Registered trainer on portal"
               aria-label="Registered trainer on portal"
-              className="absolute right-1.5 top-1.5 inline-flex text-emerald-600 dark:text-emerald-400"
+              className={cn(
+                "absolute inline-flex text-emerald-600 dark:text-emerald-400",
+                isAllied ? "left-1.5 top-1" : "right-1.5 top-1.5"
+              )}
             >
               <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2.25} />
             </span>
