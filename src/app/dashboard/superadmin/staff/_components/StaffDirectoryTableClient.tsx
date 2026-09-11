@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { usePathname } from "next/navigation";
 import {
   ChevronDown,
   ChevronUp,
@@ -329,26 +330,52 @@ export function StaffDirectoryTableClient({
   faculties,
   departments,
   readOnly = false,
+  canEdit,
+  canDelete,
+  lockedFacultyId = null,
+  allowedPseudoRoles,
   variant = "default",
   createStaff,
 }: {
   staff: StaffListRow[];
   faculties: FacultyRow[];
   departments: DepartmentRow[];
-  /** Dean directory: no edit/delete/actions column */
+  /** Dean directory filters/cards (no superadmin); does not by itself hide edit when canEdit is set */
   readOnly?: boolean;
+  /** Defaults to !readOnly */
+  canEdit?: boolean;
+  /** Defaults to !readOnly */
+  canDelete?: boolean;
+  /** When set, parent faculty is fixed in the edit modal */
+  lockedFacultyId?: string | null;
+  /** Limit pseudo-role choices in the edit modal */
+  allowedPseudoRoles?: StoredPseudoRole[];
   /** Unregistered enrollment instructors: hide role/login columns, show Grant Access */
   variant?: "default" | "unregistered";
   createStaff?: (formData: FormData) => Promise<CreateStaffResult>;
 }) {
+  const pathname = usePathname();
   const isUnregistered = variant === "unregistered";
+  const showEdit = canEdit ?? !readOnly;
+  const showDelete = canDelete ?? !readOnly;
+  const showActions = showEdit || showDelete || isUnregistered;
   const [editingStaff, setEditingStaff] = useState<StaffListRow | null>(null);
   const [grantAccessStaff, setGrantAccessStaff] = useState<StaffListRow | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("staff");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
+  const canEditRow = (row: StaffListRow): boolean => {
+    if (!showEdit) return false;
+    if (!allowedPseudoRoles?.length) return true;
+    const accessRole = row.pseudo_role ?? row.role;
+    return allowedPseudoRoles.includes(accessRole as StoredPseudoRole);
+  };
+
   const goWithStatus = (query: string) => {
-    window.location.assign(`/dashboard/superadmin/staff?${query}`);
+    const base = pathname?.startsWith("/dashboard/faculty-staff")
+      ? "/dashboard/faculty-staff"
+      : "/dashboard/superadmin/staff";
+    window.location.assign(`${base}?${query}`);
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -509,7 +536,7 @@ export function StaffDirectoryTableClient({
                   </TableHead>
                 </>
               )}
-              {(!readOnly || isUnregistered) && (
+              {showActions && (
                 <TableHead className={cn(TH_CLASS, "min-w-[128px]")}>
                   <SortButton column="actions" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
                     Actions
@@ -594,25 +621,31 @@ export function StaffDirectoryTableClient({
                     </TableCell>
                   </>
                 )}
-                {!readOnly && !isUnregistered && (
+                {(showEdit || showDelete) && !isUnregistered && (
                   <TableCell className={TD_CLASS}>
                     <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setEditingStaff(row)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
-                      >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden />
-                        
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(row.id, row.name)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-xs font-medium text-white transition hover:bg-red-700"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                       
-                      </button>
+                      {canEditRow(row) && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingStaff(row)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden />
+                          Edit
+                        </button>
+                      )}
+                      {showDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(row.id, row.name)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-xs font-medium text-white transition hover:bg-red-700"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      )}
+                      {!canEditRow(row) && !showDelete ? (
+                        <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
+                      ) : null}
                     </div>
                   </TableCell>
                 )}
@@ -634,11 +667,18 @@ export function StaffDirectoryTableClient({
         </Table>
       )}
 
-      {editingStaff && !readOnly && !isUnregistered && (
+      {editingStaff && showEdit && !isUnregistered && (
         <EditStaffModal
           staff={editingStaff}
           faculties={faculties}
           departments={departments}
+          lockedFacultyId={lockedFacultyId}
+          allowedPseudoRoles={allowedPseudoRoles}
+          statusBasePath={
+            pathname?.startsWith("/dashboard/faculty-staff")
+              ? "/dashboard/faculty-staff"
+              : "/dashboard/superadmin/staff"
+          }
           onClose={() => setEditingStaff(null)}
         />
       )}
@@ -660,13 +700,20 @@ function EditStaffModal({
   staff,
   faculties,
   departments,
+  lockedFacultyId = null,
+  allowedPseudoRoles,
+  statusBasePath = "/dashboard/superadmin/staff",
   onClose,
 }: {
   staff: StaffListRow;
   faculties: FacultyRow[];
   departments: DepartmentRow[];
+  lockedFacultyId?: string | null;
+  allowedPseudoRoles?: StoredPseudoRole[];
+  statusBasePath?: string;
   onClose: () => void;
 }) {
+  const lockedFaculty = lockedFacultyId?.trim() || null;
   const initialPseudo: StoredPseudoRole =
     staff.pseudo_role && isStoredPseudoRole(staff.pseudo_role)
       ? staff.pseudo_role
@@ -680,6 +727,22 @@ function EditStaffModal({
     return clampActualFormValueToPseudo(initialPseudo, raw || fallback);
   });
 
+  const pseudoRoleOptions = useMemo(() => {
+    if (!allowedPseudoRoles?.length) return FORM_PSEUDO_ROLE_OPTIONS;
+    const allowed = new Set(allowedPseudoRoles);
+    const filtered = FORM_PSEUDO_ROLE_OPTIONS.filter((o) => allowed.has(o.value));
+    // Keep current role visible even if outside the allowed set (legacy accounts).
+    if (
+      staff.pseudo_role &&
+      isStoredPseudoRole(staff.pseudo_role) &&
+      !allowed.has(staff.pseudo_role)
+    ) {
+      const current = FORM_PSEUDO_ROLE_OPTIONS.find((o) => o.value === staff.pseudo_role);
+      if (current) return [current, ...filtered];
+    }
+    return filtered;
+  }, [allowedPseudoRoles, staff.pseudo_role]);
+
   const actualOptionsForPseudo = useMemo(
     () => getActualRoleFormOptionsForPseudo(pseudoRole),
     [pseudoRole]
@@ -687,7 +750,7 @@ function EditStaffModal({
 
   const showDepartments = pseudoRole === "hod";
 
-  const [facultyId, setFacultyId] = useState(staff.faculty_id ?? "");
+  const [facultyId, setFacultyId] = useState(lockedFaculty ?? staff.faculty_id ?? "");
   const [parentDepartmentId, setParentDepartmentId] = useState(
     staff.parent_department_id ?? ""
   );
@@ -707,7 +770,7 @@ function EditStaffModal({
       pernr: String(formData.get("pernr") ?? "").trim(),
       actual_role: String(formData.get("actual_role") ?? "").trim(),
       pseudo_role: String(formData.get("pseudo_role") ?? "").trim(),
-      faculty_id: String(formData.get("faculty_id") ?? "").trim(),
+      faculty_id: lockedFaculty ?? String(formData.get("faculty_id") ?? "").trim(),
       parent_department_id: String(formData.get("parent_department_id") ?? "").trim(),
       password: String(formData.get("password") ?? "").trim(),
       department_ids: formData.getAll("department_ids").map((v) => String(v)),
@@ -722,12 +785,12 @@ function EditStaffModal({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        window.location.assign(`/dashboard/superadmin/staff?error=${body.error ?? "update_failed"}`);
+        window.location.assign(`${statusBasePath}?error=${body.error ?? "update_failed"}`);
         return;
       }
-      window.location.assign("/dashboard/superadmin/staff?success=updated");
+      window.location.assign(`${statusBasePath}?success=updated`);
     } catch {
-      window.location.assign("/dashboard/superadmin/staff?error=update_failed");
+      window.location.assign(`${statusBasePath}?error=update_failed`);
     } finally {
       setIsSaving(false);
     }
@@ -813,7 +876,7 @@ function EditStaffModal({
               }}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
-              {FORM_PSEUDO_ROLE_OPTIONS.map(({ value, label }) => (
+              {pseudoRoleOptions.map(({ value, label }) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -840,11 +903,16 @@ function EditStaffModal({
             <label className="text-sm font-medium text-dark dark:text-white">
               Parent Faculty *
             </label>
+            {lockedFaculty ? (
+              <input type="hidden" name="faculty_id" value={facultyId} />
+            ) : null}
             <select
-              name="faculty_id"
+              name={lockedFaculty ? undefined : "faculty_id"}
               required
               value={facultyId}
+              disabled={Boolean(lockedFaculty)}
               onChange={(e) => {
+                if (lockedFaculty) return;
                 const nextFacultyId = e.target.value;
                 setFacultyId(nextFacultyId);
                 setParentDepartmentId((prev) => {
@@ -857,7 +925,7 @@ function EditStaffModal({
                   return stillValid ? prev : "";
                 });
               }}
-              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-70 dark:border-dark-3 dark:bg-gray-dark"
             >
               <option value="">Select parent faculty</option>
               {faculties.map((faculty) => (

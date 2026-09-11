@@ -47,6 +47,10 @@ type AddStaffFormProps = {
   ) => Promise<StaffFieldValidationResult>;
   faculties: FacultyOption[];
   departments: DepartmentOption[];
+  /** When set, parent faculty is fixed and the selector is disabled. */
+  lockedFacultyId?: string | null;
+  /** Limit pseudo-role choices (e.g. dean cannot create superadmin). */
+  allowedPseudoRoles?: StoredPseudoRole[];
 };
 
 /* ──────────────────────────────────────────────
@@ -444,14 +448,17 @@ export function AddStaffForm({
   validateStaffFields,
   faculties,
   departments,
+  lockedFacultyId = null,
+  allowedPseudoRoles,
 }: AddStaffFormProps) {
   const router = useRouter();
+  const lockedFaculty = lockedFacultyId?.trim() || null;
   
   // Form state
   const [name, setName] = useState("");
   const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole | "">("");
   const [actualRole, setActualRole] = useState<string>("");
-  const [parentFacultyId, setParentFacultyId] = useState("");
+  const [parentFacultyId, setParentFacultyId] = useState(lockedFaculty ?? "");
   const [parentDepartmentId, setParentDepartmentId] = useState("");
   const [email, setEmail] = useState("");
   const [pernr, setPernr] = useState("");
@@ -467,6 +474,12 @@ export function AddStaffForm({
   const [pending, setPending] = useState(false);
   
   const hasPseudoRole = pseudoRole !== "";
+
+  const pseudoRoleOptions = useMemo(() => {
+    if (!allowedPseudoRoles?.length) return FORM_PSEUDO_ROLE_OPTIONS;
+    const allowed = new Set(allowedPseudoRoles);
+    return FORM_PSEUDO_ROLE_OPTIONS.filter((o) => allowed.has(o.value));
+  }, [allowedPseudoRoles]);
 
   const actualOptions = useMemo(() => {
     if (!pseudoRole) return [];
@@ -828,7 +841,7 @@ export function AddStaffForm({
                     setPseudoRole(next);
                     setActualRole((prev) => clampActualFormValueToPseudo(next, prev));
                   }}
-                  options={FORM_PSEUDO_ROLE_OPTIONS.map(({ value, label }) => ({
+                  options={pseudoRoleOptions.map(({ value, label }) => ({
                     value,
                     label,
                   }))}
@@ -860,6 +873,7 @@ export function AddStaffForm({
                   <PremiumSelect
                     value={parentFacultyId}
                     onChange={(next) => {
+                      if (lockedFaculty) return;
                       setParentFacultyId(next);
                       setParentDepartmentId((prev) => {
                         if (!prev) return prev;
@@ -877,7 +891,13 @@ export function AddStaffForm({
                     }))}
                     placeholder="Select parent faculty"
                     icon={Building2}
+                    disabled={Boolean(lockedFaculty)}
                   />
+                  {lockedFaculty ? (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Parent faculty is fixed to your faculty scope.
+                    </p>
+                  ) : null}
                 </FormField>
               </div>
 

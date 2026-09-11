@@ -7,6 +7,7 @@ import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { sendStaffRoleAssignedEmail } from "@/lib/staff-role-assigned-email";
+import { getCurrentUser } from "@/app/(home)/dashboard/fetch";
 import {
   isStoredPseudoRole,
   normalizeActualRoleFromForm,
@@ -120,6 +121,21 @@ export async function createStaffMember(
     return { ok: false, message: "Database is not configured." };
   }
 
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
+    return { ok: false, message: "You must be signed in to add staff." };
+  }
+
+  const accessRole = currentUser.pseudo_role ?? currentUser.role;
+  const isSuperadmin = accessRole === "superadmin";
+  const isDean = accessRole === "dean";
+  if (!isSuperadmin && !isDean) {
+    return { ok: false, message: "You do not have permission to add staff." };
+  }
+  if (isDean && !currentUser.faculty_id) {
+    return { ok: false, message: "Your account has no parent faculty assigned." };
+  }
+
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const pernr = String(formData.get("pernr") ?? "").trim();
@@ -128,7 +144,7 @@ export async function createStaffMember(
   const normalizedActual = normalizeActualRoleFromForm(actualRoleRaw);
   const pseudoRoleRaw = String(formData.get("pseudo_role") ?? "").trim();
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
-  const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
+  let facultyId = facultyIdRaw.length ? facultyIdRaw : null;
   const parentDepartmentIdRaw = String(formData.get("parent_department_id") ?? "").trim();
   const parentDepartmentId = parentDepartmentIdRaw.length ? parentDepartmentIdRaw : null;
   const skipEnrollmentCheck = String(formData.get("skip_enrollment_check") ?? "").trim() === "1";
@@ -145,6 +161,17 @@ export async function createStaffMember(
   if (pairError) {
     return { ok: false, message: pairError };
   }
+
+  if (isDean) {
+    facultyId = currentUser.faculty_id;
+    if (pseudoRole !== "instructor" || actualRole !== "instructor") {
+      return {
+        ok: false,
+        message: "Deans can only add instructor accounts.",
+      };
+    }
+  }
+
   if (!facultyId) {
     return { ok: false, message: "Parent faculty is required." };
   }
@@ -247,5 +274,6 @@ export async function createStaffMember(
   }
 
   revalidatePath("/dashboard/superadmin/staff");
+  revalidatePath("/dashboard/faculty-staff");
   return { ok: true };
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
+import type { StoredPseudoRole } from "@/lib/staff-role-rules";
 import { StaffDirectoryTableClient } from "./StaffDirectoryTableClient";
 import { StaffStatsCards, type RoleFilterValue } from "./StaffStatsCards";
 
@@ -93,14 +94,24 @@ export function StaffDirectoryPanelClient({
   departments,
   scopedFacultyId,
   readOnly = false,
+  canEdit,
+  canDelete,
+  lockedFacultyId = null,
+  allowedPseudoRoles,
 }: {
   staff: StaffListRow[];
   faculties: FacultyRow[];
   departments: DepartmentRow[];
   /** When set, directory is limited to this parent faculty (faculty filter hidden). */
   scopedFacultyId?: string | null;
-  /** Hide add/edit/delete (dean view). */
+  /** Hide superadmin filters/cards (dean view). */
   readOnly?: boolean;
+  /** Defaults to !readOnly */
+  canEdit?: boolean;
+  /** Defaults to !readOnly */
+  canDelete?: boolean;
+  lockedFacultyId?: string | null;
+  allowedPseudoRoles?: StoredPseudoRole[];
 }) {
   const [selectedFaculty, setSelectedFaculty] = useState<string>(
     () => scopedFacultyId ?? "all"
@@ -258,6 +269,10 @@ export function StaffDirectoryPanelClient({
         faculties={faculties}
         departments={departments}
         readOnly={readOnly}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        lockedFacultyId={lockedFacultyId}
+        allowedPseudoRoles={allowedPseudoRoles}
       />
     </div>
   );

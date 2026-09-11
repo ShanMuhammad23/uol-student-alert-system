@@ -47,7 +47,18 @@ const TABS: {
   },
 ];
 
-export function StaffTabs({ activeTab }: { activeTab: StaffTab }) {
+export function StaffTabs({
+  activeTab,
+  allowedTabs,
+}: {
+  activeTab: StaffTab;
+  /** When set, only these tabs are shown (dean faculty-staff omits unregistered). */
+  allowedTabs?: StaffTab[];
+}) {
+  const tabs = allowedTabs?.length
+    ? TABS.filter((tab) => allowedTabs.includes(tab.id))
+    : TABS;
+
   return (
     <nav
       aria-label="Staff sections"
@@ -62,7 +73,7 @@ export function StaffTabs({ activeTab }: { activeTab: StaffTab }) {
           "dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)]"
         )}
       >
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 

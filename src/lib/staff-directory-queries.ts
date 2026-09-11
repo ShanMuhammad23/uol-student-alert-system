@@ -624,12 +624,16 @@ function formatLoginTrendDayLabel(isoDate: string): string {
  * Login trend from staff.last_login_at (no event history).
  * Both daily + faculty % use the same window: last 7 calendar days (Asia/Karachi),
  * and only staff with a faculty_id — so daily totals match faculty logged-in sums.
+ * When `facultyId` is set, results are limited to that parent faculty.
  */
-export async function queryStaffLoginTrend(): Promise<StaffLoginTrendData> {
+export async function queryStaffLoginTrend(options?: {
+  facultyId?: string | null;
+}): Promise<StaffLoginTrendData> {
   const empty: StaffLoginTrendData = { daily: [], byFaculty: [] };
   if (!pool) return empty;
 
   const timeZone = "Asia/Karachi";
+  const facultyId = options?.facultyId?.trim() || null;
 
   const [dailyRes, facultyRes] = await Promise.all([
     pool.query<{ login_date: string; logins: number }>(
@@ -646,11 +650,12 @@ export async function queryStaffLoginTrend(): Promise<StaffLoginTrendData> {
        FROM days d
        LEFT JOIN staff s
          ON s.faculty_id IS NOT NULL
+        AND ($2::varchar IS NULL OR s.faculty_id = $2::varchar)
         AND s.last_login_at IS NOT NULL
         AND (s.last_login_at AT TIME ZONE $1)::date = d.login_date
        GROUP BY d.login_date
        ORDER BY d.login_date`,
-      [timeZone]
+      [timeZone, facultyId]
     ),
     pool.query<{
       faculty_id: string;
@@ -669,10 +674,11 @@ export async function queryStaffLoginTrend(): Promise<StaffLoginTrendData> {
          )::int AS logged_in_7d
        FROM faculties f
        INNER JOIN staff s ON s.faculty_id = f.id
+       WHERE ($2::varchar IS NULL OR f.id = $2::varchar)
        GROUP BY f.id, f.name
        HAVING COUNT(s.id) > 0
        ORDER BY f.name ASC`,
-      [timeZone]
+      [timeZone, facultyId]
     ),
   ]);
 
