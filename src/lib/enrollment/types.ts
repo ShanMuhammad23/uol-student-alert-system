@@ -58,6 +58,8 @@ export type InstructorStats = {
   allCoursesClassAverageAttendanceHundred?: boolean;
   /** True when this instructor pernr exists in the portal `staff` table. */
   isRegisteredOnPortal?: boolean;
+  /** Parent faculty from portal `staff.faculty_id` when registered. */
+  parentFacultyId?: string | null;
 };
 
 /** Minimal user shape for dean stats (avoids importing server-only fetch/auth). */

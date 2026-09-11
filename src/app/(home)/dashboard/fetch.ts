@@ -482,6 +482,37 @@ async function getRegisteredStaffPernrSet(
   return registered;
 }
 
+/** Parent faculty_id from portal `staff` for instructor pernrs (trimmed key). */
+async function getStaffParentFacultyByPernr(
+  pernrIds: string[]
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!pool || !pernrIds.length) return map;
+  const unique = Array.from(
+    new Set(pernrIds.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+  if (!unique.length) return map;
+  try {
+    const res = await pool.query<{ pernr_key: string; faculty_id: string | null }>(
+      `SELECT DISTINCT ON (TRIM(BOTH FROM s.pernr))
+         TRIM(BOTH FROM s.pernr) AS pernr_key,
+         s.faculty_id
+       FROM staff s
+       WHERE TRIM(BOTH FROM s.pernr) = ANY($1::text[])
+       ORDER BY TRIM(BOTH FROM s.pernr), s.updated_at DESC NULLS LAST`,
+      [unique]
+    );
+    for (const row of res.rows) {
+      const key = String(row.pernr_key ?? "").trim();
+      const facultyId = String(row.faculty_id ?? "").trim();
+      if (key && facultyId) map.set(key, facultyId);
+    }
+  } catch {
+    // Leave empty on failure; Allied ribbon simply omitted.
+  }
+  return map;
+}
+
 /** Distinct instructors in scope: how many are registered on the portal vs still need training.
  *  Omit faculty/department filters to sum across all active enrollment instructors. */
 export async function getInstructorTrainingCounts(scope: {
@@ -2426,6 +2457,9 @@ export async function getDeanInstructorStats(
       const registeredPernrs = await getRegisteredStaffPernrSet(
         rows.map((row) => row.dimension_id)
       );
+      const parentFacultyByPernr = await getStaffParentFacultyByPernr(
+        rows.map((row) => row.dimension_id)
+      );
       return rows.map((row) => ({
         instructorId: row.dimension_id,
         instructorName: row.dimension_name,
@@ -2441,6 +2475,8 @@ export async function getDeanInstructorStats(
         isRegisteredOnPortal: registeredPernrs.has(
           String(row.dimension_id ?? "").trim()
         ),
+        parentFacultyId:
+          parentFacultyByPernr.get(String(row.dimension_id ?? "").trim()) ?? null,
       }));
     } catch {
       // Fall back to file-derived aggregation below.
@@ -2469,6 +2505,9 @@ export async function getDeanInstructorStats(
   }
 
   const registeredPernrs = await getRegisteredStaffPernrSet(
+    teachers.map((t) => t.id)
+  );
+  const parentFacultyByPernr = await getStaffParentFacultyByPernr(
     teachers.map((t) => t.id)
   );
 
@@ -2501,6 +2540,9 @@ export async function getDeanInstructorStats(
           return Number(classAvg) === 100;
         }),
       isRegisteredOnPortal: registeredPernrs.has(String(teacher.id ?? "").trim()),
+      parentFacultyId:
+        parentFacultyByPernr.get(String(teacher.id ?? "").trim()) ??
+        (teacher.faculty_id ? String(teacher.faculty_id).trim() : null),
     };
   });
 }
