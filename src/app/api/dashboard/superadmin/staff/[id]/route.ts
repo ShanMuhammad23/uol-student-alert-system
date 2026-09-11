@@ -16,6 +16,7 @@ type UpdatePayload = {
   actual_role?: string;
   pseudo_role?: string;
   faculty_id?: string;
+  parent_department_id?: string | null;
   password?: string;
   department_ids?: string[];
 };
@@ -49,6 +50,8 @@ export async function PATCH(
   const pseudoRoleRaw = String(body.pseudo_role ?? "").trim();
   const facultyIdRaw = String(body.faculty_id ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
+  const parentDepartmentIdRaw = String(body.parent_department_id ?? "").trim();
+  const parentDepartmentId = parentDepartmentIdRaw.length ? parentDepartmentIdRaw : null;
   const password = String(body.password ?? "").trim();
   const departmentIds = (body.department_ids ?? []).map((v) => String(v).trim()).filter(Boolean);
 
@@ -68,16 +71,16 @@ export async function PATCH(
       const passwordHash = await hash(password, 10);
       await client.query(
         `UPDATE staff
-         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, password_hash = $8, updated_at = NOW()
-         WHERE id = $9`,
-        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, passwordHash, staffId]
+         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, parent_department_id = $8, password_hash = $9, updated_at = NOW()
+         WHERE id = $10`,
+        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, parentDepartmentId, passwordHash, staffId]
       );
     } else {
       await client.query(
         `UPDATE staff
-         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, updated_at = NOW()
-         WHERE id = $8`,
-        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, staffId]
+         SET name = $1, email = $2, pernr = $3, role = $4, actual_role = $5, pseudo_role = $6, faculty_id = $7, parent_department_id = $8, updated_at = NOW()
+         WHERE id = $9`,
+        [name, email, pernr, pseudoRole, actualRole, pseudoRole, facultyId, parentDepartmentId, staffId]
       );
     }
 

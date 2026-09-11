@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS staff (
   actual_role   VARCHAR(32) NOT NULL DEFAULT 'instructor' CHECK (actual_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller', 'coordinator', 'admin')),
   pseudo_role   VARCHAR(32) CHECK (pseudo_role IN ('superadmin', 'dean', 'hod', 'instructor', 'wellbeing', 'wellbeing-head', 'wellbeing-counseller')),
   faculty_id    VARCHAR(32) REFERENCES faculties(id),
+  parent_department_id VARCHAR(32) REFERENCES departments(id),
   img           TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -122,6 +123,8 @@ BEGIN
 END
 $$;
 ALTER TABLE staff
+  ADD COLUMN IF NOT EXISTS parent_department_id VARCHAR(32) REFERENCES departments(id);
+ALTER TABLE staff
   ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS reminder_modal_html TEXT,
   ADD COLUMN IF NOT EXISTS reminder_modal_cta TEXT;
@@ -148,6 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
 CREATE INDEX IF NOT EXISTS idx_staff_actual_role ON staff(actual_role);
 CREATE INDEX IF NOT EXISTS idx_staff_pseudo_role ON staff(pseudo_role);
 CREATE INDEX IF NOT EXISTS idx_staff_faculty_id ON staff(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_staff_parent_department_id ON staff(parent_department_id);
 CREATE INDEX IF NOT EXISTS idx_staff_pernr ON staff(pernr);
 CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email);
 

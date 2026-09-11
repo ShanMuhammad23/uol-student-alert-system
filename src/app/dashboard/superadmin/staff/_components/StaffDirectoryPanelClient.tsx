@@ -41,6 +41,8 @@ type StaffListRow = {
     | null;
   faculty_id: string | null;
   faculty_name: string | null;
+  parent_department_id: string | null;
+  parent_department_name: string | null;
   other_faculty_names: string[] | null;
   department_names: string[] | null;
   department_ids: string[] | null;
@@ -127,7 +129,10 @@ export function StaffDirectoryPanelClient({
     return staff.filter((row) => {
       const matchFaculty = selectedFaculty === "all" || (row.faculty_id ?? "") === selectedFaculty;
       const rowDepartmentIds = row.department_ids ?? [];
-      const matchDepartment = selectedDepartment === "all" || rowDepartmentIds.includes(selectedDepartment);
+      const matchDepartment =
+        selectedDepartment === "all" ||
+        rowDepartmentIds.includes(selectedDepartment) ||
+        (row.parent_department_id ?? "") === selectedDepartment;
       const matchRole = matchesRoleFilter(row, selectedRole);
       const matchSearch =
         term.length === 0 ||

@@ -43,6 +43,8 @@ export type StaffListRow = {
     | null;
   faculty_id: string | null;
   faculty_name: string | null;
+  parent_department_id: string | null;
+  parent_department_name: string | null;
   other_faculty_names: string[] | null;
   department_names: string[] | null;
   department_ids: string[] | null;
@@ -289,6 +291,8 @@ export async function queryStaffList(options?: {
        s.pseudo_role,
        s.faculty_id,
        f.name AS faculty_name,
+       s.parent_department_id,
+       pd.name AS parent_department_name,
        COALESCE(
          (
            SELECT ARRAY_AGG(u.faculty_name ORDER BY u.faculty_name)
@@ -328,6 +332,7 @@ export async function queryStaffList(options?: {
        s.last_login_at::text AS last_login_at
      FROM staff s
      LEFT JOIN faculties f ON f.id = s.faculty_id
+     LEFT JOIN departments pd ON pd.id = s.parent_department_id
      LEFT JOIN enrollment_faculties_by_pernr ebp
        ON ebp.pernr_key = TRIM(BOTH FROM s.pernr)
      LEFT JOIN enrollment_departments_by_pernr edp
@@ -512,6 +517,8 @@ export async function queryUnregisteredStaffList(options?: {
     pseudo_role: null;
     faculty_id: string | null;
     faculty_name: string | null;
+    parent_department_id: null;
+    parent_department_name: null;
     other_faculty_names: string[] | null;
     department_names: string[] | null;
     department_ids: string[] | null;
@@ -535,6 +542,8 @@ export async function queryUnregisteredStaffList(options?: {
        NULL::varchar AS pseudo_role,
        pf.faculty_id,
        pf.faculty_name,
+       NULL::varchar AS parent_department_id,
+       NULL::text AS parent_department_name,
        COALESCE(
          (
            SELECT ARRAY_AGG(other.faculty_name ORDER BY other.faculty_name)

@@ -129,6 +129,8 @@ export async function createStaffMember(
   const pseudoRoleRaw = String(formData.get("pseudo_role") ?? "").trim();
   const facultyIdRaw = String(formData.get("faculty_id") ?? "").trim();
   const facultyId = facultyIdRaw.length ? facultyIdRaw : null;
+  const parentDepartmentIdRaw = String(formData.get("parent_department_id") ?? "").trim();
+  const parentDepartmentId = parentDepartmentIdRaw.length ? parentDepartmentIdRaw : null;
   const skipEnrollmentCheck = String(formData.get("skip_enrollment_check") ?? "").trim() === "1";
 
   if (!name || !email || !pernr || !password || !normalizedActual || !pseudoRoleRaw) {
@@ -167,10 +169,10 @@ export async function createStaffMember(
   try {
     await client.query("BEGIN");
     const insertStaff = await client.query<{ id: string }>(
-      `INSERT INTO staff (pernr, name, email, password_hash, role, actual_role, pseudo_role, faculty_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO staff (pernr, name, email, password_hash, role, actual_role, pseudo_role, faculty_id, parent_department_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
-      [pernr, name, email, passwordHash, pseudoRole, actualRole, pseudoRole, facultyId]
+      [pernr, name, email, passwordHash, pseudoRole, actualRole, pseudoRole, facultyId, parentDepartmentId]
     );
     const staffId = insertStaff.rows[0]?.id;
 

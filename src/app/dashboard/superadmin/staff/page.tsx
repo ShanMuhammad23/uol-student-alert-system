@@ -127,6 +127,7 @@ export default async function SuperadminStaffPage(props: {
             departments={departments.map((department) => ({
               id: department.id,
               name: department.name,
+              faculty_id: department.faculty_id,
             }))}
           />
         </div>

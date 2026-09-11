@@ -79,6 +79,8 @@ type StaffListRow = {
     | null;
   faculty_id: string | null;
   faculty_name: string | null;
+  parent_department_id: string | null;
+  parent_department_name: string | null;
   other_faculty_names: string[] | null;
   department_names: string[] | null;
   department_ids: string[] | null;
@@ -106,6 +108,7 @@ type SortKey =
   | "pseudo_actual"
   | "pernr"
   | "faculty"
+  | "parent_department"
   | "other_faculties"
   | "departments"
   | "ei_score"
@@ -151,6 +154,11 @@ const TD_CLASS = "px-3 py-3.5 align-middle first:pl-5 last:pr-5";
 
 function resolveFacultyName(row: StaffListRow): string {
   return resolveFacultyNameFromIdOrName(row.faculty_id, row.faculty_name) ?? "—";
+}
+
+function resolveParentDepartmentName(row: StaffListRow): string {
+  const name = row.parent_department_name?.trim();
+  return name ? name.replace(/^Department of\s+/i, "") : "Not Set";
 }
 
 function resolveDepartmentNames(row: StaffListRow): string[] {
@@ -371,6 +379,8 @@ export function StaffDirectoryTableClient({
           return row.pernr ?? "";
         case "faculty":
           return resolveFacultyName(row).replace("Faculty of", "").trim();
+        case "parent_department":
+          return resolveParentDepartmentName(row);
         case "other_faculties":
           return resolveOtherFacultyDisplayParts(row).length;
         case "departments":
@@ -460,6 +470,16 @@ export function StaffDirectoryTableClient({
                   Parent Faculty
                 </SortButton>
               </TableHead>
+              <TableHead className={cn(TH_CLASS, "min-w-[140px]")}>
+                <SortButton
+                  column="parent_department"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={toggleSort}
+                >
+                  Parent Department
+                </SortButton>
+              </TableHead>
               <TableHead className={cn(TH_CLASS, "min-w-[120px]")}>
                 <SortButton column="other_faculties" sortKey={sortKey} sortDirection={sortDirection} onSort={toggleSort}>
                   Other Faculties
@@ -529,6 +549,16 @@ export function StaffDirectoryTableClient({
                 <TableCell className={cn(TD_CLASS, "text-slate-600 dark:text-slate-300")}>
                   <span className="line-clamp-2 text-sm leading-snug">
                     {resolveFacultyName(row).replace("Faculty of", "").trim() || "—"}
+                  </span>
+                </TableCell>
+                <TableCell className={cn(TD_CLASS, "text-slate-600 dark:text-slate-300")}>
+                  <span
+                    className={cn(
+                      "line-clamp-2 text-sm leading-snug",
+                      !row.parent_department_name?.trim() && "text-slate-400 dark:text-slate-500"
+                    )}
+                  >
+                    {resolveParentDepartmentName(row)}
                   </span>
                 </TableCell>
                 <TableCell className={TD_CLASS}>
@@ -657,7 +687,16 @@ function EditStaffModal({
 
   const showDepartments = pseudoRole === "hod";
 
+  const [facultyId, setFacultyId] = useState(staff.faculty_id ?? "");
+  const [parentDepartmentId, setParentDepartmentId] = useState(
+    staff.parent_department_id ?? ""
+  );
   const [isSaving, setIsSaving] = useState(false);
+
+  const parentDepartmentOptions = useMemo(() => {
+    if (!facultyId) return departments;
+    return departments.filter((d) => !d.faculty_id || d.faculty_id === facultyId);
+  }, [departments, facultyId]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -669,6 +708,7 @@ function EditStaffModal({
       actual_role: String(formData.get("actual_role") ?? "").trim(),
       pseudo_role: String(formData.get("pseudo_role") ?? "").trim(),
       faculty_id: String(formData.get("faculty_id") ?? "").trim(),
+      parent_department_id: String(formData.get("parent_department_id") ?? "").trim(),
       password: String(formData.get("password") ?? "").trim(),
       department_ids: formData.getAll("department_ids").map((v) => String(v)),
     };
@@ -803,7 +843,20 @@ function EditStaffModal({
             <select
               name="faculty_id"
               required
-              defaultValue={staff.faculty_id ?? ""}
+              value={facultyId}
+              onChange={(e) => {
+                const nextFacultyId = e.target.value;
+                setFacultyId(nextFacultyId);
+                setParentDepartmentId((prev) => {
+                  if (!prev) return prev;
+                  const stillValid = departments.some(
+                    (d) =>
+                      d.id === prev &&
+                      (!d.faculty_id || d.faculty_id === nextFacultyId)
+                  );
+                  return stillValid ? prev : "";
+                });
+              }}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
               <option value="">Select parent faculty</option>
@@ -812,6 +865,24 @@ function EditStaffModal({
                   {resolveFacultyNameFromIdOrName(faculty.id, faculty.name) ??
                     faculty.name ??
                     faculty.id}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">
+              Parent Department
+            </label>
+            <select
+              name="parent_department_id"
+              value={parentDepartmentId}
+              onChange={(e) => setParentDepartmentId(e.target.value)}
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            >
+              <option value="">Not Set</option>
+              {parentDepartmentOptions.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name.replace(/^Department of\s+/i, "")}
                 </option>
               ))}
             </select>

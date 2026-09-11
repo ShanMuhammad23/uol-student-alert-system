@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 
 type FacultyOption = { id: string; name: string };
-type DepartmentOption = { id: string; name: string };
+type DepartmentOption = { id: string; name: string; faculty_id?: string | null };
 
 type AddStaffFormProps = {
   createStaff: (formData: FormData) => Promise<CreateStaffResult>;
@@ -452,6 +452,7 @@ export function AddStaffForm({
   const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole | "">("");
   const [actualRole, setActualRole] = useState<string>("");
   const [parentFacultyId, setParentFacultyId] = useState("");
+  const [parentDepartmentId, setParentDepartmentId] = useState("");
   const [email, setEmail] = useState("");
   const [pernr, setPernr] = useState("");
   
@@ -473,6 +474,13 @@ export function AddStaffForm({
   }, [pseudoRole]);
 
   const showDepartments = pseudoRole === "hod";
+
+  const parentDepartmentOptions = useMemo(() => {
+    if (!parentFacultyId) return departments;
+    return departments.filter(
+      (d) => !d.faculty_id || d.faculty_id === parentFacultyId
+    );
+  }, [departments, parentFacultyId]);
 
   const normalizedName = useCallback((value: string): string => {
     return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -851,13 +859,43 @@ export function AddStaffForm({
                   <input type="hidden" name="faculty_id" value={parentFacultyId} />
                   <PremiumSelect
                     value={parentFacultyId}
-                    onChange={setParentFacultyId}
+                    onChange={(next) => {
+                      setParentFacultyId(next);
+                      setParentDepartmentId((prev) => {
+                        if (!prev) return prev;
+                        const stillValid = departments.some(
+                          (d) =>
+                            d.id === prev &&
+                            (!d.faculty_id || d.faculty_id === next)
+                        );
+                        return stillValid ? prev : "";
+                      });
+                    }}
                     options={faculties.map((f) => ({
                       value: f.id,
                       label: resolveFacultyNameFromIdOrName(f.id, f.name) ?? f.name ?? f.id,
                     }))}
                     placeholder="Select parent faculty"
                     icon={Building2}
+                  />
+                </FormField>
+              </div>
+
+              <div className="md:col-span-2">
+                <FormField label="Parent Department" icon={Layers} delay={0.52}>
+                  <input type="hidden" name="parent_department_id" value={parentDepartmentId} />
+                  <PremiumSelect
+                    value={parentDepartmentId}
+                    onChange={setParentDepartmentId}
+                    options={[
+                      { value: "", label: "Not Set" },
+                      ...parentDepartmentOptions.map((d) => ({
+                        value: d.id,
+                        label: d.name.replace(/^Department of\s+/i, ""),
+                      })),
+                    ]}
+                    placeholder="Not Set"
+                    icon={Layers}
                   />
                 </FormField>
               </div>

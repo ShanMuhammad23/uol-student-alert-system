@@ -28,6 +28,7 @@ type TopTableRow = {
   courseId: string;
   courseTitle: string;
   instructorName: string;
+  instructorParentDepartmentName?: string | null;
   sectionCode: string | null;
   eventPackageId?: string | null;
   totalClassesHeld: number;
@@ -45,13 +46,18 @@ type TopTableRow = {
   isActive?: boolean;
 };
 
+type InstructorInfo = {
+  name: string;
+  parentDepartmentName: string | null;
+};
+
 type CourseSummary = {
   key: string;
   courseId: string;
   courseTitle: string;
   sectionCode: string | null;
   eventPackageId: string | null;
-  instructors: Set<string>;
+  instructors: Map<string, InstructorInfo>;
   held: number;
   posted: number;
   missing: number;
@@ -183,7 +189,7 @@ export function AttendanceMissingTableClient({
       programName: string;
       held: number;
       posted: number;
-      instructors: Set<string>;
+      instructors: Map<string, InstructorInfo>;
       students: Set<string>;
     };
     const byClass = new Map<string, ClassAgg>();
@@ -207,7 +213,7 @@ export function AttendanceMissingTableClient({
           programName,
           held,
           posted,
-          instructors: new Set<string>(),
+          instructors: new Map(),
           students: new Set<string>(),
         };
         byClass.set(courseKey, agg);
@@ -215,7 +221,15 @@ export function AttendanceMissingTableClient({
         if (held > agg.held) agg.held = held;
         if (posted > agg.posted) agg.posted = posted;
       }
-      agg.instructors.add(row.instructorName || "—");
+      const instructorName = row.instructorName || "—";
+      const parentDepartmentName =
+        row.instructorParentDepartmentName?.trim() || null;
+      const existing = agg.instructors.get(instructorName);
+      agg.instructors.set(instructorName, {
+        name: instructorName,
+        parentDepartmentName:
+          parentDepartmentName ?? existing?.parentDepartmentName ?? null,
+      });
       agg.students.add(row.sapId);
     }
 
@@ -293,6 +307,7 @@ export function AttendanceMissingTableClient({
     try {
       const headers = [
         "Instructor",
+        "Parent Department",
         "Course",
         "Program",
         "Department",
@@ -317,8 +332,19 @@ export function AttendanceMissingTableClient({
             a.courseId.localeCompare(b.courseId)
           );
           for (const course of courses) {
+            const instructors = Array.from(course.instructors.values()).sort((a, b) =>
+              a.name.localeCompare(b.name)
+            );
             const values = [
-              Array.from(course.instructors).join(", "),
+              instructors.map((i) => i.name).join(", "),
+              instructors
+                .map((i) =>
+                  i.parentDepartmentName
+                    ? i.parentDepartmentName.replace(/^Department of\s+/i, "")
+                    : ""
+                )
+                .filter(Boolean)
+                .join(", "),
               `${course.courseId}${
                 course.courseTitle && course.courseTitle !== course.courseId
                   ? ` (${course.courseTitle})`
@@ -605,8 +631,25 @@ export function AttendanceMissingTableClient({
                                   </div>
                                   <div className="text-xs text-dark-6 dark:text-white">
                                     Instructor(s):{" "}
-                                    <span className="font-semibold text-dark dark:text-white">
-                                      {Array.from(course.instructors).join(", ")}
+                                    <span className="inline-flex flex-col gap-1 font-semibold text-dark dark:text-white">
+                                      {Array.from(course.instructors.values())
+                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                        .map((instructor) => (
+                                          <span
+                                            key={instructor.name}
+                                            className="inline-flex flex-col"
+                                          >
+                                            <span>{instructor.name}</span>
+                                            {instructor.parentDepartmentName ? (
+                                              <span className="text-[11px] font-normal text-dark-6 dark:text-dark-6">
+                                                {instructor.parentDepartmentName.replace(
+                                                  /^Department of\s+/i,
+                                                  ""
+                                                )}
+                                              </span>
+                                            ) : null}
+                                          </span>
+                                        ))}
                                     </span>
                                   </div>
                                 </div>

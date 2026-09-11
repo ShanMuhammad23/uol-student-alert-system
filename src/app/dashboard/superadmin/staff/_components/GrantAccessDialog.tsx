@@ -19,6 +19,7 @@ type StaffRow = {
   name: string;
   email: string;
   faculty_id: string | null;
+  parent_department_id?: string | null;
   department_ids: string[] | null;
 };
 
@@ -46,6 +47,10 @@ export function GrantAccessDialog({
   const [pernr, setPernr] = useState(staff.pernr.trim());
   const [password, setPassword] = useState(GRANT_ACCESS_DEFAULT_PASSWORD);
   const [pseudoRole, setPseudoRole] = useState<StoredPseudoRole>("instructor");
+  const [facultyId, setFacultyId] = useState(staff.faculty_id ?? "");
+  const [parentDepartmentId, setParentDepartmentId] = useState(
+    staff.parent_department_id ?? ""
+  );
   const [actualRoleForm, setActualRoleForm] = useState(() => {
     const fallback = getActualRoleFormOptionsForPseudo("instructor")[0]?.value ?? "";
     return clampActualFormValueToPseudo("instructor", fallback);
@@ -58,6 +63,11 @@ export function GrantAccessDialog({
   );
 
   const showDepartments = pseudoRole === "hod";
+
+  const parentDepartmentOptions = useMemo(() => {
+    if (!facultyId) return departments;
+    return departments.filter((d) => !d.faculty_id || d.faculty_id === facultyId);
+  }, [departments, facultyId]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -235,14 +245,27 @@ export function GrantAccessDialog({
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1 md:col-span-2">
+          <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-dark dark:text-white">
               Parent Faculty *
             </label>
             <select
               name="faculty_id"
               required
-              defaultValue={staff.faculty_id ?? ""}
+              value={facultyId}
+              onChange={(e) => {
+                const nextFacultyId = e.target.value;
+                setFacultyId(nextFacultyId);
+                setParentDepartmentId((prev) => {
+                  if (!prev) return prev;
+                  const stillValid = departments.some(
+                    (d) =>
+                      d.id === prev &&
+                      (!d.faculty_id || d.faculty_id === nextFacultyId)
+                  );
+                  return stillValid ? prev : "";
+                });
+              }}
               className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
             >
               <option value="">Select parent faculty</option>
@@ -251,6 +274,24 @@ export function GrantAccessDialog({
                   {resolveFacultyNameFromIdOrName(faculty.id, faculty.name) ??
                     faculty.name ??
                     faculty.id}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-dark dark:text-white">
+              Parent Department
+            </label>
+            <select
+              name="parent_department_id"
+              value={parentDepartmentId}
+              onChange={(e) => setParentDepartmentId(e.target.value)}
+              className="rounded-md border border-stroke bg-white px-3 py-2 text-sm dark:border-dark-3 dark:bg-gray-dark"
+            >
+              <option value="">Not Set</option>
+              {parentDepartmentOptions.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name.replace(/^Department of\s+/i, "")}
                 </option>
               ))}
             </select>

@@ -115,6 +115,7 @@ export type StudentListingRow = {
   courseId: string;
   courseTitle: string;
   instructorName: string;
+  instructorParentDepartmentName: string | null;
   sectionCode: string | null;
   eventPackageId: string | null;
   totalClassesHeld: number;
@@ -860,6 +861,7 @@ function buildListingBaseCte(
         e.section_code,
         e.event_package_id,
         COALESCE(NULLIF(TRIM(e.instructor_name), ''), e.instructor_pernr, '—') AS instructor_name,
+        NULLIF(TRIM(instructor_parent_dept.name), '') AS instructor_parent_department_name,
         a.total_classes_held,
         a.attendance_marked_classes,
         a.classes_attended,
@@ -905,6 +907,12 @@ function buildListingBaseCte(
       LEFT JOIN departments d ON d.id = e.department_id
       LEFT JOIN programs p ON p.id = e.program_id
       LEFT JOIN courses c ON c.id = e.course_id
+      LEFT JOIN staff instructor_staff
+        ON e.instructor_pernr IS NOT NULL
+       AND TRIM(BOTH FROM e.instructor_pernr) <> ''
+       AND TRIM(BOTH FROM instructor_staff.pernr) = TRIM(BOTH FROM e.instructor_pernr)
+      LEFT JOIN departments instructor_parent_dept
+        ON instructor_parent_dept.id = instructor_staff.parent_department_id
       ${whereSql}
     )
   `;
@@ -1544,6 +1552,7 @@ export async function getStudentListing(
       course_id,
       course_title,
       instructor_name,
+      instructor_parent_department_name,
       NULLIF(section_code, '') AS section_code,
       NULLIF(event_package_id, '') AS event_package_id,
       COALESCE(total_classes_held, 0) AS total_classes_held,
@@ -1583,6 +1592,7 @@ export async function getStudentListing(
     course_id: string;
     course_title: string;
     instructor_name: string;
+    instructor_parent_department_name: string | null;
     section_code: string | null;
     event_package_id: string | null;
     total_classes_held: number;
@@ -1618,6 +1628,7 @@ export async function getStudentListing(
       courseId: row.course_id,
       courseTitle: row.course_title,
       instructorName: row.instructor_name,
+      instructorParentDepartmentName: row.instructor_parent_department_name,
       sectionCode: row.section_code,
       eventPackageId: row.event_package_id,
       totalClassesHeld: (() => {
