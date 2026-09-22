@@ -91,7 +91,8 @@ export function InterventionFormWithAction({
       if (
         mode === "intervention" &&
         sgpaAlreadyRecordedThisTerm &&
-        (data.interventionType === "gpa" || data.interventionType === "both")
+        (data.interventionType === "gpa" || data.interventionType === "both") &&
+        data.status === "initiated"
       ) {
         throw new Error(
           `An SGPA intervention already exists for this student in ${

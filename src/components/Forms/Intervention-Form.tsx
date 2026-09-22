@@ -239,9 +239,8 @@ const InterventionForm = ({
     const base = allowedInterventionTypes?.length
       ? TYPE_OPTIONS.filter((o) => allowedInterventionTypes.includes(o.value))
       : [...TYPE_OPTIONS];
-    if (mode === "wellbeing" || !sgpaAlreadyRecordedThisTerm) return base;
-    return base.filter((o) => o.value === "attendance");
-  }, [allowedInterventionTypes, mode, sgpaAlreadyRecordedThisTerm]);
+    return base;
+  }, [allowedInterventionTypes]);
 
   const noAlertTypeWarning = useMemo(() => {
     if (mode !== "intervention") return null;
@@ -756,8 +755,9 @@ const InterventionForm = ({
         {mode === "intervention" && sgpaAlreadyRecordedThisTerm ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">
             An SGPA intervention already exists for this student in{" "}
-            {currentTermLabel ?? "the current semester"}. SGPA is student-level, so
-            only one SGPA case can be initiated per semester.
+            {currentTermLabel ?? "the current semester"}. New SGPA entries are
+            recorded as updates to that case; only one SGPA case can be initiated
+            per semester.
           </p>
         ) : null}
         {mode === "wellbeing" && (

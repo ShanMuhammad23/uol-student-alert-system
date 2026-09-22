@@ -1129,6 +1129,7 @@ export function InterventionHistorySection({
                   value="gpa"
                   disabled={
                     sgpaAlreadyRecordedThisTerm &&
+                    editForm.status === "initiated" &&
                     editForm.intervention_type !== "gpa" &&
                     editForm.intervention_type !== "both"
                   }
@@ -1139,6 +1140,7 @@ export function InterventionHistorySection({
                   value="both"
                   disabled={
                     sgpaAlreadyRecordedThisTerm &&
+                    editForm.status === "initiated" &&
                     editForm.intervention_type !== "gpa" &&
                     editForm.intervention_type !== "both"
                   }
@@ -1147,11 +1149,13 @@ export function InterventionHistorySection({
                 </option>
               </select>
               {sgpaAlreadyRecordedThisTerm &&
+              editForm.status === "initiated" &&
               editForm.intervention_type !== "gpa" &&
               editForm.intervention_type !== "both" ? (
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                   An SGPA intervention already exists for this student in{" "}
-                  {currentTermLabel ?? "the current semester"}. SGPA is student-level.
+                  {currentTermLabel ?? "the current semester"}. Only one SGPA case can
+                  be initiated per semester — use another status to record an update.
                 </p>
               ) : null}
             </div>

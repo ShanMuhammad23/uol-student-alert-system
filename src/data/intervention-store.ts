@@ -19,6 +19,7 @@ import {
   updateInterventionByIdFromDb,
   DuplicateSgpaInterventionError,
   interventionIncludesSgpa,
+  sgpaInterventionExistsForCurrentTerm,
   type InterventionRoleScope,
   type InterventionRoleScopeStats,
 } from "@/lib/db/interventions";
@@ -242,9 +243,17 @@ async function getEnrollmentContextFromDb(
 function assertUniqueSgpaInterventionInJsonStore(
   studentSapId: string,
   interventionType: string,
+  status?: string | null,
   opts?: { excludeId?: string }
 ): void {
   if (!interventionIncludesSgpa(interventionType)) return;
+  // Status updates (in-progress, referred, resolved, no-action-required) belong to the
+  // existing case — only initiating a case is limited to one per semester.
+  const normalizedStatus = String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+  if (normalizedStatus && normalizedStatus !== "initiated") return;
   const sap = String(studentSapId ?? "").trim();
   const excludeId = String(opts?.excludeId ?? "").trim();
   const term = getCurrentAcademicTerm();
@@ -588,6 +597,23 @@ export async function recordIntervention(
   }
 ): Promise<string> {
   const resolveAutoStatus = async (courseIdForStatus: string): Promise<string> => {
+    // SGPA is student-level: when a case already exists this term, a new SGPA
+    // row is a status update (in-progress), not a new initiation.
+    if (interventionIncludesSgpa(data.intervention_type)) {
+      if (pool) {
+        return (await sgpaInterventionExistsForCurrentTerm(studentSapId))
+          ? "in-progress"
+          : "initiated";
+      }
+      const sap = String(studentSapId ?? "").trim();
+      const exists = readStore().some(
+        (row) =>
+          String(row.student_sap_id ?? "").trim() === sap &&
+          interventionIncludesSgpa(row.intervention_type) &&
+          (isDateInCurrentTerm(row.date) || isDateInCurrentTerm(row.performed_at))
+      );
+      return exists ? "in-progress" : "initiated";
+    }
     const normalizedCourseId = String(courseIdForStatus ?? "").trim();
     if (!normalizedCourseId || normalizedCourseId === "unknown") {
       return "initiated";
@@ -705,7 +731,6 @@ export async function recordIntervention(
     revalidatePath(`/students/${studentSapId}`);
     return interventionId;
   }
-  assertUniqueSgpaInterventionInJsonStore(studentSapId, data.intervention_type);
   const alertLevel = pickAlertLevel();
   const stored = readStore();
   const fallbackCourseId = String(data.focused_course_id ?? "").trim() || "unknown";
@@ -716,6 +741,11 @@ export async function recordIntervention(
     selectedStatus === "resolved"
       ? selectedStatus
       : await resolveAutoStatus(fallbackCourseId);
+  assertUniqueSgpaInterventionInJsonStore(
+    studentSapId,
+    data.intervention_type,
+    finalStatus
+  );
   const interventionId = `int-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const record: InterventionRecord = {
     id: interventionId,
@@ -897,9 +927,12 @@ export async function updateInterventionById(
   const idx = stored.findIndex((r) => r.id === id);
   if (idx === -1) return { studentSapId: null };
   const existing = stored[idx];
-  assertUniqueSgpaInterventionInJsonStore(existing.student_sap_id, data.intervention_type, {
-    excludeId: id,
-  });
+  assertUniqueSgpaInterventionInJsonStore(
+    existing.student_sap_id,
+    data.intervention_type,
+    data.status,
+    { excludeId: id }
+  );
   const updatedRow: InterventionRecord = {
     ...existing,
     date: data.date,

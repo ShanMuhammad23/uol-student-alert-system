@@ -489,19 +489,16 @@ export class DuplicateSgpaInterventionError extends Error {
   }
 }
 
-export async function assertUniqueSgpaInterventionForCurrentTerm(
+/** True when the student already has an SGPA/Both intervention recorded in the current term. */
+export async function sgpaInterventionExistsForCurrentTerm(
   sapId: string,
-  interventionType: string,
   opts?: { excludeId?: string }
-): Promise<void> {
-  if (!interventionIncludesSgpa(interventionType)) return;
-  const term = getCurrentAcademicTerm();
-  const termLabel =
-    formatAcademicTermLabel(term.termYear, term.termSession) ?? "the current semester";
-  if (!pool) return;
+): Promise<boolean> {
+  if (!pool) return false;
   const hasType = await hasInterventionTypeColumn();
-  if (!hasType) return;
+  if (!hasType) return false;
 
+  const term = getCurrentAcademicTerm();
   const excludeId = String(opts?.excludeId ?? "").trim() || null;
   const hasTermCols = await ensureInterventionTermColumns();
 
@@ -527,10 +524,7 @@ export async function assertUniqueSgpaInterventionForCurrentTerm(
         unpadded === term.termSession ? term.termSession : unpadded,
       ]
     );
-    if (res.rows[0]?.exists === true) {
-      throw new DuplicateSgpaInterventionError(termLabel);
-    }
-    return;
+    return res.rows[0]?.exists === true;
   }
 
   const { start, end } = getCurrentTermDateBounds();
@@ -548,7 +542,28 @@ export async function assertUniqueSgpaInterventionForCurrentTerm(
     `,
     [sapId, start, end, excludeId]
   );
-  if (res.rows[0]?.exists === true) {
+  return res.rows[0]?.exists === true;
+}
+
+export async function assertUniqueSgpaInterventionForCurrentTerm(
+  sapId: string,
+  interventionType: string,
+  status?: string | null,
+  opts?: { excludeId?: string }
+): Promise<void> {
+  if (!interventionIncludesSgpa(interventionType)) return;
+  // Status updates (in-progress, referred, resolved, no-action-required) belong to the
+  // existing case — only initiating a case is limited to one per semester.
+  const normalizedStatus = String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+  if (normalizedStatus && normalizedStatus !== "initiated") return;
+  const term = getCurrentAcademicTerm();
+  const termLabel =
+    formatAcademicTermLabel(term.termYear, term.termSession) ?? "the current semester";
+  const exists = await sgpaInterventionExistsForCurrentTerm(sapId, opts);
+  if (exists) {
     throw new DuplicateSgpaInterventionError(termLabel);
   }
 }
@@ -576,7 +591,8 @@ export async function insertIntervention(row: {
   if (!pool) throw new Error("Database not configured");
   await assertUniqueSgpaInterventionForCurrentTerm(
     row.student_sap_id,
-    row.intervention_type
+    row.intervention_type,
+    row.status
   );
   const hasType = await hasInterventionTypeColumn();
   const hasAlertLevel = await hasAlertLevelColumn();
@@ -1053,9 +1069,12 @@ export async function updateInterventionByIdFromDb(
   );
   const sapId = existing.rows[0]?.student_sap_id;
   if (!sapId) return null;
-  await assertUniqueSgpaInterventionForCurrentTerm(sapId, data.intervention_type, {
-    excludeId: id,
-  });
+  await assertUniqueSgpaInterventionForCurrentTerm(
+    sapId,
+    data.intervention_type,
+    data.status,
+    { excludeId: id }
+  );
   const hasType = await hasInterventionTypeColumn();
   const res = await pool.query<{ student_sap_id: string }>(
     hasType
