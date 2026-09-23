@@ -2025,6 +2025,7 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
   params = { ...params, term: normalizeRoleScopeTerm(params.term) };
 
   const hasSectionCode = await hasSectionCodeColumn();
+  const hasType = await hasInterventionTypeColumn();
   const args: unknown[] = [];
   const enrollmentScope = buildEnrollmentScopeSql(params, args);
   const interventionScope = buildInterventionRecordScopeSql("i", params, args);
@@ -2036,6 +2037,17 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
     interventionAlias: "i",
     enrollmentAlias: "e",
   });
+  // SGPA interventions are student-level (often course_id 'unknown'): they satisfy
+  // "has intervention" for any enrollment row carrying a GPA alert, regardless of
+  // the intervention's course. Attendance-only dimension keeps the course match.
+  const sgpaMatchSql =
+    hasType && params.interventionType !== "attendance"
+      ? ` OR (
+           ${normalizeSapIdCompareSql("i.student_sap_id", "e.sap_id")}
+           AND i.intervention_type IN ('gpa', 'both')
+           AND a.gpa_alert_level IS NOT NULL
+         )`
+      : "";
   const termDateSql = await appendInterventionTermScopeSql("i", params.term);
   const res = await pool.query<{ cnt: string }>(
     `
@@ -2051,7 +2063,7 @@ export async function getAlertedWithoutInterventionCountForRoleScopeFromDb(
       AND NOT EXISTS (
         SELECT 1
         FROM interventions i
-        WHERE ${courseMatchSql}
+        WHERE (${courseMatchSql})${sgpaMatchSql}
           AND (${interventionScope})
           ${termDateSql}
       )

@@ -18,6 +18,7 @@ import {
   buildInterventionRecordScopeSql,
   interventionCourseMatchesEnrollmentSql,
   interventionMatchesAlertedEnrollmentSql,
+  normalizeSapIdCompareSql,
   type InterventionRoleScope,
 } from "@/lib/db/interventions";
 import { FACULTY_ID_TO_ENROLLMENT_FAC_ID } from "@/lib/enrollment/constants";
@@ -159,6 +160,7 @@ const INTERVENTION_ELIGIBLE_SQL =
 type InterventionContextColumns = {
   hasSectionCode: boolean;
   hasEventPackageId: boolean;
+  hasType: boolean;
 };
 let interventionContextColumnsCache: InterventionContextColumns | null = null;
 
@@ -203,7 +205,8 @@ function buildNoInterventionForAlertedCourseSql(
   scope: SessionScope,
   filters: ListingFilters,
   params: unknown[],
-  hasSectionCode: boolean
+  hasSectionCode: boolean,
+  hasInterventionType: boolean
 ): string | null {
   const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
   if (!roleScopeBase) return null;
@@ -213,13 +216,22 @@ function buildNoInterventionForAlertedCourseSql(
     interventionAlias: "i",
     enrollmentAlias: "e",
   });
+  // SGPA interventions are student-level: they satisfy "has intervention" for any
+  // enrollment row carrying a GPA alert, regardless of the intervention's course.
+  const sgpaMatchSql = hasInterventionType
+    ? ` OR (
+         ${normalizeSapIdCompareSql("i.student_sap_id", "e.sap_id")}
+         AND i.intervention_type IN ('gpa', 'both')
+         AND a.gpa_alert_level IS NOT NULL
+       )`
+    : "";
   const scopeSql = buildInterventionRecordScopeSql("i", roleScopeBase, params);
   if (!scopeSql) return null;
 
   return `NOT EXISTS (
     SELECT 1
     FROM interventions i
-    WHERE ${courseMatchSql}
+    WHERE (${courseMatchSql})${sgpaMatchSql}
       AND (${scopeSql})
   )`;
 }
@@ -265,7 +277,7 @@ function buildInterventionStatusExistsSql(
   hasSectionCode: boolean,
   statuses: string[],
   params: unknown[],
-  options?: { requireLinkedCourse?: boolean }
+  options?: { requireLinkedCourse?: boolean; hasInterventionType?: boolean }
 ): string | null {
   const roleScopeBase = buildInterventionRoleScopeBaseForListing(scope, filters);
   if (!roleScopeBase) return null;
@@ -280,6 +292,15 @@ function buildInterventionStatusExistsSql(
     interventionAlias: "i",
     enrollmentAlias: "e",
   });
+  // SGPA interventions are student-level: they match every enrollment row for the
+  // student, mirroring the status column broadcast in the listing base CTE.
+  const sgpaMatchSql =
+    options?.hasInterventionType === true
+      ? ` OR (
+           ${normalizeSapIdCompareSql("i.student_sap_id", "e.sap_id")}
+           AND i.intervention_type IN ('gpa', 'both')
+         )`
+      : "";
   const linkedCourseSql =
     options?.requireLinkedCourse === true
       ? `AND COALESCE(NULLIF(TRIM(i.course_id), ''), '') <> ''`
@@ -287,7 +308,7 @@ function buildInterventionStatusExistsSql(
   return `EXISTS (
     SELECT 1
     FROM interventions i
-    WHERE ${matchSql}
+    WHERE (${matchSql})${sgpaMatchSql}
       AND i.status = ANY($${statusIdx}::text[])
       AND (${scopeSql})
       ${linkedCourseSql}
@@ -343,7 +364,7 @@ function parseNumber(value: unknown): number {
 
 async function getInterventionContextColumns(): Promise<InterventionContextColumns> {
   if (!pool) {
-    return { hasSectionCode: false, hasEventPackageId: false };
+    return { hasSectionCode: false, hasEventPackageId: false, hasType: false };
   }
   if (interventionContextColumnsCache) return interventionContextColumnsCache;
   const res = await pool.query<{ column_name: string }>(
@@ -352,13 +373,14 @@ async function getInterventionContextColumns(): Promise<InterventionContextColum
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'interventions'
-        AND column_name IN ('section_code', 'event_package_id')
+        AND column_name IN ('section_code', 'event_package_id', 'intervention_type')
     `
   );
   const cols = new Set(res.rows.map((r) => String(r.column_name)));
   interventionContextColumnsCache = {
     hasSectionCode: cols.has("section_code"),
     hasEventPackageId: cols.has("event_package_id"),
+    hasType: cols.has("intervention_type"),
   };
   return interventionContextColumnsCache;
 }
@@ -438,6 +460,7 @@ function buildWhere(
   wellbeingOpts?: {
     extendedDirectCases: boolean;
     hasInterventionSectionCode?: boolean;
+    hasInterventionType?: boolean;
   },
   options?: {
     includeIntervenedStudents?: boolean;
@@ -446,6 +469,7 @@ function buildWhere(
   const params: unknown[] = [];
   const includeIntervenedStudents = options?.includeIntervenedStudents === true;
   const hasSectionCode = wellbeingOpts?.hasInterventionSectionCode === true;
+  const hasInterventionType = wellbeingOpts?.hasInterventionType === true;
   const semesterTerm = resolveListingSemesterTerm(filters);
   const where: string[] = [
     enrollmentVisibilitySql(
@@ -639,7 +663,8 @@ function buildWhere(
               filters,
               hasSectionCode,
               statuses,
-              params
+              params,
+              { hasInterventionType }
             )
           : null;
       const linkedStatusFilterSql =
@@ -650,12 +675,18 @@ function buildWhere(
               hasSectionCode,
               statuses,
               params,
-              { requireLinkedCourse: true }
+              { requireLinkedCourse: true, hasInterventionType }
             )
           : null;
 
       const noInterventionSql = wantsNotStarted
-        ? buildNoInterventionForAlertedCourseSql(scope, filters, params, hasSectionCode)
+        ? buildNoInterventionForAlertedCourseSql(
+            scope,
+            filters,
+            params,
+            hasSectionCode,
+            hasInterventionType
+          )
         : null;
 
       if (statusFilterSql) {
@@ -823,6 +854,35 @@ function buildListingBaseCte(
         interventionAlias: "latest",
         enrollmentAlias: "e",
       });
+  /**
+   * SGPA interventions are student-level (course_id is often 'unknown'), so they
+   * never match a specific enrollment course — resolve them per student instead.
+   */
+  const sgpaCte = interventionContext.hasType
+    ? `latest_sgpa AS (
+      SELECT DISTINCT ON (i.student_sap_id)
+        i.student_sap_id,
+        i.status AS sgpa_intervention_status,
+        i.performed_at AS sgpa_performed_at
+      FROM interventions i
+      WHERE i.intervention_type IN ('gpa', 'both')
+      ORDER BY i.student_sap_id, i.performed_at DESC
+    ),`
+    : "";
+  const sgpaJoin = interventionContext.hasType
+    ? `LEFT JOIN latest_sgpa lsg ON lsg.student_sap_id = e.sap_id`
+    : "";
+  const latestStatusExpr = interventionContext.hasType
+    ? `CASE
+        WHEN lsg.student_sap_id IS NOT NULL
+          AND (
+            latest.latest_intervention_performed_at IS NULL
+            OR lsg.sgpa_performed_at >= latest.latest_intervention_performed_at
+          )
+        THEN lsg.sgpa_intervention_status
+        ELSE latest.latest_intervention_status
+      END`
+    : "latest.latest_intervention_status";
   return `
     WITH ${globalPrefix}
     latest AS (
@@ -833,11 +893,13 @@ function buildListingBaseCte(
         COALESCE(course_id, '') AS course_id,
         ${latestSectionSelect},
         ${latestPackageSelect},
-        status AS latest_intervention_status
+        status AS latest_intervention_status,
+        performed_at AS latest_intervention_performed_at
       FROM interventions
       ORDER BY
         ${latestOrderBySql}
     ),
+    ${sgpaCte}
     latest_wellbeing AS (
       SELECT DISTINCT ON (student_sap_id)
         student_sap_id,
@@ -872,7 +934,7 @@ function buildListingBaseCte(
         a.gpa_previous,
         a.gpa_change,
         a.gpa_alert_level,
-        latest.latest_intervention_status,
+        ${latestStatusExpr} AS latest_intervention_status,
         latest_wellbeing.latest_wellbeing_status,
         latest_wellbeing.latest_wellbeing_category,
         ${globalSelect}
@@ -901,6 +963,7 @@ function buildListingBaseCte(
          )
          OR latest.course_id = ''
        )
+      ${sgpaJoin}
       LEFT JOIN latest_wellbeing
         ON latest_wellbeing.student_sap_id = e.sap_id
       ${globalJoin}
@@ -1263,6 +1326,7 @@ export async function getFilterDropdownCounts(
     const wbOpts = await resolveWellbeingListingOptions(scope);
     const gpaParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["gpa"]), {
       extendedDirectCases: wbOpts.extendedDirectCases,
+      hasInterventionType: interventionContext.hasType,
     });
     const gpaSql = `${buildListingBaseCte(gpaParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       , gpa_per_student AS (
@@ -1289,6 +1353,7 @@ export async function getFilterDropdownCounts(
 
     const attParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["attendance"]), {
       extendedDirectCases: wbOpts.extendedDirectCases,
+      hasInterventionType: interventionContext.hasType,
     });
     const attSql = `${buildListingBaseCte(attParts.whereSql, interventionContext, wbOpts.globalIntervention)}
       , att_per_student AS (
@@ -1323,6 +1388,7 @@ export async function getFilterDropdownCounts(
     try {
       const wbParts = buildWhere(scope, filters, new Set<ListingWhereSkip>(["resolution"]), {
         extendedDirectCases: wbOpts.extendedDirectCases,
+        hasInterventionType: interventionContext.hasType,
       });
       const wbSelectParts: string[] = [];
       const wbParams = [...wbParts.params];
@@ -1431,6 +1497,7 @@ export async function getDistinctSapIdsForScope(
   const { whereSql, params } = buildWhere(scope, filters, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
     hasInterventionSectionCode: interventionContext.hasSectionCode,
+    hasInterventionType: interventionContext.hasType,
   }, {
     includeIntervenedStudents: true,
   });
@@ -1453,6 +1520,7 @@ export async function getDistinctAlertSapIdsForScope(
   const { whereSql, params } = buildWhere(scope, filters, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
     hasInterventionSectionCode: interventionContext.hasSectionCode,
+    hasInterventionType: interventionContext.hasType,
   });
   const alertWhereSql = whereSql
     ? `${whereSql} AND ${INTERVENTION_ELIGIBLE_SQL}`
@@ -1486,6 +1554,7 @@ export async function getStudentListing(
   const whereParts = buildWhere(scope, request.filters ?? {}, undefined, {
     extendedDirectCases: wbOpts.extendedDirectCases,
     hasInterventionSectionCode: interventionContext.hasSectionCode,
+    hasInterventionType: interventionContext.hasType,
   }, {
     includeIntervenedStudents: request.includeIntervenedStudents === true,
   });
