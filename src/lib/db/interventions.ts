@@ -2080,6 +2080,8 @@ export type InterventionListFilters = {
   programId?: string | null;
   courseId?: string | null;
   status?: string | null;
+  /** Matches student SAP ID, student name, and uploader name/pernr. */
+  search?: string | null;
 };
 
 export type InterventionListItem = {
@@ -2102,6 +2104,7 @@ export type InterventionListItem = {
   program_id: string | null;
   program_title: string | null;
   uploader_name: string | null;
+  uploader_pernr: string | null;
   case_type: "referred" | "internal" | "external" | null;
   term_year: string | null;
   term_session: string | null;
@@ -2156,6 +2159,31 @@ function buildInterventionListWhere(
   if (status && status !== "all") {
     args.push(status);
     parts.push(`${alias}.status = $${args.length}`);
+  }
+
+  const search = String(filters.search ?? "").trim();
+  if (search) {
+    args.push(`%${search}%`);
+    const p = `$${args.length}`;
+    // EXISTS subqueries keep this clause valid in queries without st/s joins.
+    parts.push(`(
+      ${alias}.student_sap_id ILIKE ${p}
+      OR EXISTS (
+        SELECT 1
+        FROM students st_search
+        WHERE st_search.sap_id = ${alias}.student_sap_id
+          AND st_search.full_name ILIKE ${p}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM staff s_search
+        WHERE s_search.id = ${alias}.staff_id
+          AND (
+            s_search.name ILIKE ${p}
+            OR COALESCE(s_search.pernr, '') ILIKE ${p}
+          )
+      )
+    )`);
   }
 
   return {
@@ -2220,6 +2248,7 @@ function mapInterventionListRow(
     program_id: r.program_id != null ? String(r.program_id) : null,
     program_title: r.program_title != null ? String(r.program_title) : null,
     uploader_name: r.uploader_name != null ? String(r.uploader_name) : null,
+    uploader_pernr: r.uploader_pernr != null ? String(r.uploader_pernr) : null,
     case_type: hasCaseType
       ? caseType === "internal" || caseType === "external"
         ? caseType
@@ -2280,7 +2309,8 @@ export async function getInterventionsListFromDb(
     "c.title AS course_title",
     "c.program_id",
     "p.title AS program_title",
-    "s.name AS uploader_name"
+    "s.name AS uploader_name",
+    "s.pernr AS uploader_pernr"
   );
 
   const listArgs = [...args, pageSize, offset];

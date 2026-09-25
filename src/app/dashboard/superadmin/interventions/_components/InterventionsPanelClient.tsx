@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, RefreshCw, Search } from "lucide-react";
 import { resolveFacultyNameFromIdOrName } from "@/lib/faculty-name";
 import type { InterventionListItem, InterventionListStats } from "@/lib/db/interventions";
 import type { CourseRow, DepartmentRow, FacultyRow, ProgramRow } from "@/lib/staff-directory-queries";
@@ -121,6 +121,8 @@ export function InterventionsPanelClient({
   const [selectedProgram, setSelectedProgram] = useState("all");
   const [selectedCourse, setSelectedCourse] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [interventions, setInterventions] = useState<InterventionListItem[]>([]);
   const [stats, setStats] = useState<InterventionListStats>(EMPTY_STATS);
@@ -170,6 +172,7 @@ export function InterventionsPanelClient({
       if (selectedProgram !== "all") params.set("programId", selectedProgram);
       if (selectedCourse !== "all") params.set("courseId", selectedCourse);
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
 
@@ -189,24 +192,43 @@ export function InterventionsPanelClient({
     } finally {
       setLoading(false);
     }
-  }, [page, selectedCourse, selectedDepartment, selectedFaculty, selectedProgram, statusFilter]);
+  }, [page, selectedCourse, selectedDepartment, selectedFaculty, selectedProgram, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     void fetchInterventions();
   }, [fetchInterventions]);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
     setPage(1);
-  }, [selectedFaculty, selectedDepartment, selectedProgram, selectedCourse, statusFilter]);
+  }, [selectedFaculty, selectedDepartment, selectedProgram, selectedCourse, statusFilter, debouncedSearch]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const selectClassName =
-    "h-11 w-full rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white";
+    "h-11 w-full min-w-0 flex-1 rounded-lg border border-stroke bg-white px-3 text-sm outline-none transition focus:border-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white";
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="flex flex-nowrap items-center gap-3">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search SAP ID, student, or recorded by…"
+            className={cn(selectClassName, "pl-9")}
+          />
+        </div>
+
         <select
           value={selectedFaculty}
           onChange={(e) => {
@@ -453,7 +475,14 @@ export function InterventionsPanelClient({
                           "whitespace-nowrap text-sm text-slate-700 dark:text-slate-200"
                         )}
                       >
-                        {row.uploader_name ?? "—"}
+                        <div className="space-y-0.5">
+                          <p>{row.uploader_name ?? "—"}</p>
+                          {row.uploader_pernr ? (
+                            <p className="font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                              {row.uploader_pernr}
+                            </p>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

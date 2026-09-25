@@ -13,7 +13,8 @@ function parseFilters(searchParams: URLSearchParams): InterventionListFilters {
   const programId = searchParams.get("programId")?.trim() || null;
   const courseId = searchParams.get("courseId")?.trim() || null;
   const status = searchParams.get("status")?.trim() || null;
-  return { facultyId, departmentId, programId, courseId, status };
+  const search = searchParams.get("search")?.trim() || null;
+  return { facultyId, departmentId, programId, courseId, status, search };
 }
 
 export async function GET(request: NextRequest) {

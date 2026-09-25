@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     (user.role === "instructor" || user.role === "teacher") &&
     user.sap_id
   ) {
-    scope = { role: "instructor", pernr: user.sap_id };
+    scope = { role: "instructor", pernr: user.sap_id, staffId: user.id };
   } else {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

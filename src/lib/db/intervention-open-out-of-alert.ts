@@ -4,7 +4,7 @@ import { pool } from "@/lib/db";
 export type InterventionReminderScope =
   | { role: "dean"; facultyId: string }
   | { role: "hod"; departmentIds: string[] }
-  | { role: "instructor"; pernr: string };
+  | { role: "instructor"; pernr: string; staffId?: string | null };
 
 export type InterventionOpenOutOfAlertCounts = {
   /** Intervened students who are out of alert but latest case is still open. */
@@ -18,6 +18,8 @@ export type InterventionOpenOutOfAlertRow = {
   studentName: string;
   addedByName: string;
   status: string;
+  /** Latest intervention id — used to email the initiator. */
+  interventionId: string;
 };
 
 export type InterventionOpenOutOfAlertData = InterventionOpenOutOfAlertCounts & {
@@ -88,6 +90,24 @@ export async function getIntervenedStudentsOpenOutOfAlertData(
   const enrollmentScope = enrollmentScopeSql(scope, scopeParamIdx);
   const alertEnrollmentScope = alertEnrollmentScopeSql(scope, scopeParamIdx, "e2");
 
+  // Instructors only see students whose intervention they initiated themselves.
+  let initiatorSql = "";
+  if (scope.role === "instructor") {
+    const pernrMatch = `EXISTS (
+        SELECT 1
+        FROM staff si
+        WHERE si.id = i.staff_id
+          AND LOWER(TRIM(si.pernr)) = LOWER(TRIM($${scopeParamIdx}::text))
+      )`;
+    const staffId = scope.staffId?.trim();
+    if (staffId) {
+      params.push(staffId);
+      initiatorSql = ` AND (i.staff_id = $${params.length}::uuid OR ${pernrMatch})`;
+    } else {
+      initiatorSql = ` AND ${pernrMatch}`;
+    }
+  }
+
   const baseCte = `
       WITH scoped_students AS (
         SELECT DISTINCT e.sap_id
@@ -103,7 +123,8 @@ export async function getIntervenedStudentsOpenOutOfAlertData(
           i.performed_at
         FROM interventions i
         JOIN scoped_students ss ON ss.sap_id = i.student_sap_id
-        ORDER BY i.student_sap_id, i.performed_at DESC
+        WHERE TRUE${initiatorSql}
+      ORDER BY i.student_sap_id, i.performed_at DESC
       ),
       out_of_alert AS (
         SELECT ss.sap_id
@@ -147,11 +168,13 @@ export async function getIntervenedStudentsOpenOutOfAlertData(
       student_name: string;
       added_by_name: string;
       status: string;
+      intervention_id: string;
     }>(
       `
       ${baseCte},
       listed AS (
         SELECT
+          li.id AS intervention_id,
           li.student_sap_id AS sap_id,
           COALESCE(NULLIF(TRIM(st.full_name), ''), li.student_sap_id) AS student_name,
           COALESCE(NULLIF(TRIM(s.name), ''), '—') AS added_by_name,
@@ -163,7 +186,7 @@ export async function getIntervenedStudentsOpenOutOfAlertData(
         LEFT JOIN staff s ON s.id = li.staff_id
         WHERE li.status = ANY($${openStatusIdx}::text[])
       )
-      SELECT sap_id, student_name, added_by_name, status
+      SELECT sap_id, student_name, added_by_name, status, intervention_id
       FROM listed
       ORDER BY performed_at DESC
       `,
@@ -176,6 +199,7 @@ export async function getIntervenedStudentsOpenOutOfAlertData(
       studentName: String(r.student_name ?? r.sap_id),
       addedByName: String(r.added_by_name ?? "—"),
       status: String(r.status ?? ""),
+      interventionId: String(r.intervention_id ?? ""),
     }));
 
     return {

@@ -326,7 +326,11 @@ export async function fetchPendingActionsForStaff(
           ? { role: "dean" as const, facultyId: row.facultyId ?? "" }
           : scopeRole === "hod"
           ? { role: "hod" as const, departmentIds: row.departmentIds }
-          : { role: "instructor" as const, pernr: row.staffPernr };
+          : {
+              role: "instructor" as const,
+              pernr: row.staffPernr,
+              staffId: row.staffId,
+            };
 
       const outOfAlert = await getIntervenedStudentsOpenOutOfAlertCounts(
         openOutOfAlertScope

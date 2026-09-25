@@ -80,8 +80,24 @@ export type RunMissingAttendanceRemindersResult = {
 };
 
 const DEFAULT_MIN_MISSING = 4;
-/** Pause between SMTP sends to reduce bounce/rate-limit risk. */
 const INTER_EMAIL_DELAY_MS = 5000;
+
+
+const MISSING_ATTENDANCE_EXCLUDED_EMAILS: readonly string[] = [
+  "abdul.waris@csspr.uol.edu.pk",
+  
+];
+
+const EXCLUDED_EMAIL_SET = new Set(
+  MISSING_ATTENDANCE_EXCLUDED_EMAILS.map((email) =>
+    email.trim().toLowerCase()
+  ).filter(Boolean)
+);
+
+function isExcludedReminderEmail(email: string | null | undefined): boolean {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  return Boolean(normalized) && EXCLUDED_EMAIL_SET.has(normalized);
+}
 
 function normalizeCourseCode(courseId: string): string {
   const raw = String(courseId ?? "").trim();
@@ -478,13 +494,22 @@ async function runMissingAttendanceRemindersForFaculty(input: {
     emailsAlreadySent,
   } = input;
 
-  const allCandidates = await queryMissingAttendanceReminderCandidates({
+  const queriedCandidates = await queryMissingAttendanceReminderCandidates({
     facultyId,
     snapshotDate: requestedSnapshotDate,
     minMissingEntries: minMissing,
     termYear,
     termSession,
   });
+  const allCandidates = queriedCandidates.filter(
+    (row) => !isExcludedReminderEmail(row.instructorEmail)
+  );
+  const excludedCount = queriedCandidates.length - allCandidates.length;
+  if (excludedCount > 0) {
+    console.info(
+      `[missing-attendance-reminders] Excluded ${excludedCount} candidate(s) via exclusion list for faculty ${facultyId}`
+    );
+  }
 
   const ccLookup = await loadMissingAttendanceReminderCcLookup(facultyId);
 
@@ -580,7 +605,9 @@ async function runMissingAttendanceRemindersForFaculty(input: {
       }
 
       const subject = buildMissingAttendanceEmailSubject(row.courseCode);
-      const cc = ccLookup.resolveCc(row.departmentId, to);
+      const cc = ccLookup
+        .resolveCc(row.departmentId, to)
+        .filter((email) => !isExcludedReminderEmail(email));
       const html = buildMissingAttendanceEmailHtml({
         instructorName: row.instructorName,
         courseName: row.courseName,

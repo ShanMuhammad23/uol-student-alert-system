@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { BellRing } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { AppUser } from "@/app/(home)/dashboard/fetch";
 import { Sheet } from "@/components/ui/sheet";
@@ -11,6 +13,7 @@ type InterventionOpenOutOfAlertRow = {
   studentName: string;
   addedByName: string;
   status: string;
+  interventionId: string;
 };
 
 type ReminderResponse = {
@@ -57,8 +60,42 @@ export function HeaderInterventionReminderCard({ user }: { user?: AppUser | null
   const [data, setData] = useState<ReminderResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [remindState, setRemindState] = useState<
+    Record<string, "sending" | "sent" | "error">
+  >({});
 
   const visible = shouldShowForUser(user, pathname, asParam, facultyParam);
+  const canRemind =
+    user?.role === "dean" ||
+    user?.role === "hod" ||
+    user?.role === "superadmin";
+
+  const remindInitiator = useCallback(
+    async (interventionId: string) => {
+      if (!interventionId) return;
+      setRemindState((prev) => ({ ...prev, [interventionId]: "sending" }));
+      try {
+        const res = await fetch(
+          "/api/dashboard/header-intervention-reminder/remind",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              interventionId,
+              faculty: facultyParam ?? undefined,
+            }),
+          }
+        );
+        setRemindState((prev) => ({
+          ...prev,
+          [interventionId]: res.ok ? "sent" : "error",
+        }));
+      } catch {
+        setRemindState((prev) => ({ ...prev, [interventionId]: "error" }));
+      }
+    },
+    [facultyParam]
+  );
 
   const fetchUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -139,6 +176,7 @@ export function HeaderInterventionReminderCard({ user }: { user?: AppUser | null
       <Sheet
         open={open}
         onOpenChange={setOpen}
+        className="w-auto max-w-2xl"
         title="Open interventions — out of alert"
         description={`${count} student${count === 1 ? "" : "s"} with initiated, in-progress, or referred cases and no current alert.`}
       >
@@ -151,10 +189,12 @@ export function HeaderInterventionReminderCard({ user }: { user?: AppUser | null
             <table className="w-full min-w-[320px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
                 <tr>
-                  <th className="px-3 py-2.5">SAP ID</th>
-                  <th className="px-3 py-2.5">Name</th>
+                  <th className="px-3 py-2.5">Student</th>
                   <th className="px-3 py-2.5">Added by</th>
                   <th className="px-3 py-2.5">Status</th>
+                  {canRemind ? (
+                    <th className="px-3 py-2.5">Remind Initiator</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -163,16 +203,65 @@ export function HeaderInterventionReminderCard({ user }: { user?: AppUser | null
                     key={row.sapId}
                     className="text-slate-800 dark:text-slate-200"
                   >
-                    <td className="px-3 py-2.5 font-mono text-xs tabular-nums">
-                      {row.sapId}
+                    <td className="px-3 py-2.5">
+                      <Link
+                        href={`/students/${encodeURIComponent(row.sapId)}`}
+                        onClick={() => setOpen(false)}
+                        className="block truncate font-medium outline-none hover:text-emerald-700 hover:underline focus-visible:ring-2 focus-visible:ring-primary dark:hover:text-emerald-400"
+                      >
+                        {row.studentName}
+                      </Link>
+                      <p className="font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                        {row.sapId}
+                      </p>
                     </td>
-                    <td className="px-3 py-2.5 font-medium">{row.studentName}</td>
                     <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">
                       {row.addedByName}
                     </td>
                     <td className="px-3 py-2.5 text-xs capitalize text-slate-600 dark:text-slate-400">
                       {formatStatus(row.status)}
                     </td>
+                    {canRemind ? (
+                      <td className="px-3 py-2.5">
+                        {(() => {
+                          const state = remindState[row.interventionId];
+                          if (state === "sent") {
+                            return (
+                              <span className="inline-flex items-center rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                                Sent
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              disabled={state === "sending"}
+                              onClick={() =>
+                                void remindInitiator(row.interventionId)
+                              }
+                              title={
+                                state === "error"
+                                  ? "Failed to send — click to retry"
+                                  : `Email ${row.addedByName} to resolve this case`
+                              }
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary",
+                                state === "error"
+                                  ? "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300"
+                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:cursor-wait disabled:opacity-60 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                              )}
+                            >
+                              <BellRing className="size-3.5" aria-hidden />
+                              {state === "sending"
+                                ? "Sending…"
+                                : state === "error"
+                                  ? "Retry"
+                                  : "Remind"}
+                            </button>
+                          );
+                        })()}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
